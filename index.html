@@ -524,38 +524,40 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      html { scroll-snap-type: y proximity; }
+      /* 強制 section 停頓，解決卡一半問題 */
+      html { scroll-snap-type: y mandatory; }
+      .hero, #story, .how-bg, #examples, #pricing, footer {
+        scroll-snap-align: start;
+        scroll-snap-stop: always;
+      }
 
+      /* NAV：移除按鈕，保留副標與導覽連結 */
       nav { padding: 0 16px; height: 60px; }
-      .nav-links { display: none; }
+      .nav-links { display: flex; gap: 16px; }
+      .nav-links a { font-size: 10px; letter-spacing: 0.5px; }
       .tw-badge { display: none; }
-      .nav-logo .sub { display: none; }
-      .nav-logo .brand { font-size: 18px; letter-spacing: 2px; }
-      .btn-nav { font-size: 10px; letter-spacing: 1px; padding: 8px 16px; }
+      .btn-nav { display: none; }
+      .nav-logo .brand { font-size: 17px; letter-spacing: 2px; }
+      .nav-logo .sub { font-size: 7px; letter-spacing: 1.5px; }
 
-      .hero { scroll-snap-align: start; }
       .hero-content { padding: 0 20px; }
       .hero-title { font-size: clamp(38px, 10vw, 60px); }
       .hero-desc { font-size: 13px; }
-
-      .strip { scroll-snap-align: none; }
+      .hero-actions { flex-direction: column; align-items: flex-start; gap: 14px; }
+      .btn-primary, .btn-ghost { padding: 14px 32px; width: 100%; text-align: center; }
 
       .section { padding: 72px 20px; }
 
-      #story { scroll-snap-align: start; }
       .story-grid { grid-template-columns: 1fr; gap: 40px; }
 
-      .how-bg { scroll-snap-align: start; }
       .steps { grid-template-columns: 1fr; }
       .step { padding: 32px 24px; }
 
-      #examples { scroll-snap-align: start; }
       .examples-grid { grid-template-columns: 1fr !important; }
 
-      #pricing { scroll-snap-align: start; }
       .pricing-grid { grid-template-columns: 1fr; }
 
-      footer { flex-direction: column; gap: 24px; text-align: center; scroll-snap-align: start; }
+      footer { flex-direction: column; gap: 24px; text-align: center; }
       .footer-copy { text-align: center; }
     }
   </style>
@@ -603,7 +605,8 @@
       從平面配置到 3D 透視，一份 1,999 元起。
     </p>
     <div class="hero-actions">
-      <button class="btn-primary" onclick="document.getElementById('examples').scrollIntoView({behavior:'smooth'})">瀏覽設計案例</button>
+      <button class="btn-primary" onclick="window.location.href='upload.html'">立即體驗</button>
+      <button class="btn-ghost" onclick="document.getElementById('examples').scrollIntoView({behavior:'smooth'})">瀏覽設計案例</button>
     </div>
   </div>
   <div class="hero-scroll">Scroll</div>
