@@ -524,14 +524,38 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      nav { padding: 0 24px; }
+      html { scroll-snap-type: y proximity; }
+
+      nav { padding: 0 16px; height: 60px; }
       .nav-links { display: none; }
-      .hero-content { padding: 0 24px; }
-      .section { padding: 80px 24px; }
-      .story-grid { grid-template-columns: 1fr; gap: 48px; }
-      .steps { grid-template-columns: 1fr 1fr; }
+      .tw-badge { display: none; }
+      .nav-logo .sub { display: none; }
+      .nav-logo .brand { font-size: 18px; letter-spacing: 2px; }
+      .btn-nav { font-size: 10px; letter-spacing: 1px; padding: 8px 16px; }
+
+      .hero { scroll-snap-align: start; }
+      .hero-content { padding: 0 20px; }
+      .hero-title { font-size: clamp(38px, 10vw, 60px); }
+      .hero-desc { font-size: 13px; }
+
+      .strip { scroll-snap-align: none; }
+
+      .section { padding: 72px 20px; }
+
+      #story { scroll-snap-align: start; }
+      .story-grid { grid-template-columns: 1fr; gap: 40px; }
+
+      .how-bg { scroll-snap-align: start; }
+      .steps { grid-template-columns: 1fr; }
+      .step { padding: 32px 24px; }
+
+      #examples { scroll-snap-align: start; }
+      .examples-grid { grid-template-columns: 1fr !important; }
+
+      #pricing { scroll-snap-align: start; }
       .pricing-grid { grid-template-columns: 1fr; }
-      footer { flex-direction: column; gap: 24px; text-align: center; }
+
+      footer { flex-direction: column; gap: 24px; text-align: center; scroll-snap-align: start; }
       .footer-copy { text-align: center; }
     }
   </style>
@@ -638,7 +662,7 @@
   <div class="section">
     <div class="section-label">設計案例</div>
     <h2 class="story-title">AI 生成的<em>真實成果</em></h2>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:40px;">
+    <div class="examples-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:40px;">
       <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
         <div style="aspect-ratio:4/3;background:linear-gradient(135deg,#2a2420 0%,#4a3828 35%,#c8a878 75%,#f5f0e0 100%);"></div>
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
