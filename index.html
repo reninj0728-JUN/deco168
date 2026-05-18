@@ -851,17 +851,25 @@
   if (window.innerWidth > 768) return;
   var secs = ['.hero','#story','.how-bg','#examples','#pricing','footer']
     .map(function(s){ return document.querySelector(s); }).filter(Boolean);
+  var last = secs.length - 1;
   var cur = 0, locked = false, sy = 0;
+
+  function pageBottom() {
+    return document.documentElement.scrollHeight - window.innerHeight;
+  }
 
   function goTo(idx) {
     if (locked) return;
-    idx = Math.max(0, Math.min(secs.length - 1, idx));
+    idx = Math.max(0, Math.min(last, idx));
     if (idx === cur) return;
     cur = idx;
     locked = true;
-    var top = secs[cur].getBoundingClientRect().top + window.scrollY - 60;
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    setTimeout(function(){ locked = false; }, 950);
+    /* footer 比 100svh 短，捲不到 section.top-60；直接捲到頁底 */
+    var top = (idx === last)
+      ? pageBottom()
+      : Math.max(0, secs[cur].getBoundingClientRect().top + window.scrollY - 60);
+    window.scrollTo({ top: top, behavior: 'smooth' });
+    setTimeout(function(){ locked = false; }, 1000);
   }
 
   window.addEventListener('touchstart', function(e){ sy = e.touches[0].clientY; }, {passive:true});
@@ -872,11 +880,13 @@
     goTo(cur + (dy > 0 ? 1 : -1));
   }, {passive:true});
 
-  /* 捲動結束後同步 cur，確保 nav link 跳轉後方向正確 */
+  /* 捲動結束後同步 cur */
   var st;
   window.addEventListener('scroll', function(){
     clearTimeout(st);
     st = setTimeout(function(){
+      /* 到頁底就是 footer */
+      if (window.scrollY >= pageBottom() - 10) { cur = last; return; }
       var sc = window.scrollY + 80;
       secs.forEach(function(s, i){
         if (s.getBoundingClientRect().top + window.scrollY <= sc) cur = i;
