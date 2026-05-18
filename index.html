@@ -542,6 +542,9 @@
       .nav-logo .brand { font-size: 17px; letter-spacing: 2px; }
       .nav-logo .sub { font-size: 7px; letter-spacing: 1.5px; }
 
+      /* strip 在兩個 snap section 中間會造成頓挫，手機直接隱藏 */
+      .strip { display: none; }
+
       .hero { padding-bottom: 72px; }
       .hero-content { padding: 0 20px; }
       .hero-eyebrow { font-size: 9px; margin-bottom: 16px; }
@@ -571,15 +574,15 @@
 
       .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 16px !important; gap: 8px !important; }
 
+      /* 定價：隱藏 feature 列表，讓兩張卡都在同一頁，消除頁內捲動打架 */
       .pricing-grid { grid-template-columns: 1fr; margin-top: 20px; gap: 14px; }
-      .price-card { padding: 22px 18px; }
+      .price-card { padding: 24px 20px; }
       .price-plan { margin-bottom: 10px; }
-      .price-amount { font-size: 40px; margin-bottom: 2px; }
-      .price-amount sup { font-size: 16px; }
-      .price-note { margin-bottom: 14px; font-size: 10px; }
-      .price-divider { margin-bottom: 14px; }
-      .price-features { margin-bottom: 14px; }
-      .price-features li { padding: 6px 0; font-size: 11px; }
+      .price-amount { font-size: 44px; margin-bottom: 2px; }
+      .price-amount sup { font-size: 18px; }
+      .price-note { margin-bottom: 20px; font-size: 11px; }
+      .price-divider { display: none; }
+      .price-features { display: none; }
 
       footer { flex-direction: column; gap: 20px; text-align: center; padding: 60px 20px 40px; min-height: auto; }
       .footer-copy { text-align: center; }
