@@ -524,8 +524,15 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      /* 自然流暢捲動，不 snap */
-      html { scroll-behavior: smooth; }
+      /* 一頁一頁 snap，scroll-padding-top 補 nav 高度，不加 stop 才不會卡 */
+      html {
+        scroll-snap-type: y mandatory;
+        scroll-padding-top: 60px;
+      }
+      .hero, #story, .how-bg, #examples, #pricing, footer {
+        scroll-snap-align: start;
+        min-height: 100vh;
+      }
 
       nav { padding: 0 16px; height: 60px; }
       .nav-links { display: flex; gap: 16px; }
@@ -545,17 +552,16 @@
       .btn-ghost { padding: 14px 24px; }
       .hero-scroll { display: none; }
 
-      .section { padding: 52px 20px; }
+      /* section 內距：top 多留 80px 讓內容不貼在 nav 正下方 */
+      .section { padding: 80px 20px 48px; }
       .section-label { margin-bottom: 16px; }
       .story-title { font-size: clamp(24px, 6vw, 34px); margin-bottom: 14px; }
 
-      /* 品牌故事：文字為主，藏佔位圖 */
       .story-grid { grid-template-columns: 1fr; gap: 0; }
       .story-visual { display: none; }
       .story-body { font-size: 13px; line-height: 1.75; margin-bottom: 10px; }
       .story-sig { margin-top: 20px; font-size: 15px; }
 
-      /* 四步驟：2×2 */
       .steps { grid-template-columns: 1fr 1fr; margin-top: 20px; }
       .step { padding: 18px 12px; }
       .step-num { font-size: 32px; margin-bottom: 6px; }
@@ -563,21 +569,19 @@
       .step-title { font-size: 11px; margin-bottom: 6px; }
       .step-body { font-size: 10px; line-height: 1.6; }
 
-      /* 設計案例：2 欄 */
       .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 16px !important; gap: 8px !important; }
 
-      /* 方案定價：緊湊單欄 */
-      .pricing-grid { grid-template-columns: 1fr; margin-top: 20px; gap: 16px; }
-      .price-card { padding: 24px 18px; }
+      .pricing-grid { grid-template-columns: 1fr; margin-top: 20px; gap: 14px; }
+      .price-card { padding: 22px 18px; }
       .price-plan { margin-bottom: 10px; }
-      .price-amount { font-size: 42px; margin-bottom: 2px; }
-      .price-amount sup { font-size: 18px; }
-      .price-note { margin-bottom: 16px; font-size: 10px; }
-      .price-divider { margin-bottom: 16px; }
-      .price-features { margin-bottom: 16px; }
-      .price-features li { padding: 7px 0; font-size: 11px; }
+      .price-amount { font-size: 40px; margin-bottom: 2px; }
+      .price-amount sup { font-size: 16px; }
+      .price-note { margin-bottom: 14px; font-size: 10px; }
+      .price-divider { margin-bottom: 14px; }
+      .price-features { margin-bottom: 14px; }
+      .price-features li { padding: 6px 0; font-size: 11px; }
 
-      footer { flex-direction: column; gap: 20px; text-align: center; padding: 36px 20px; }
+      footer { flex-direction: column; gap: 20px; text-align: center; padding: 60px 20px 40px; min-height: auto; }
       .footer-copy { text-align: center; }
     }
   </style>
