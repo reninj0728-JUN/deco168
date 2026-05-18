@@ -524,11 +524,8 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      html { scroll-snap-type: y mandatory; }
-      .hero, #story, .how-bg, #examples, #pricing, footer {
-        scroll-snap-align: start;
-        scroll-snap-stop: always;
-      }
+      /* 自然流暢捲動，不 snap */
+      html { scroll-behavior: smooth; }
 
       nav { padding: 0 16px; height: 60px; }
       .nav-links { display: flex; gap: 16px; }
@@ -538,40 +535,47 @@
       .nav-logo .brand { font-size: 17px; letter-spacing: 2px; }
       .nav-logo .sub { font-size: 7px; letter-spacing: 1.5px; }
 
+      .hero { padding-bottom: 72px; }
       .hero-content { padding: 0 20px; }
-      .hero-title { font-size: clamp(36px, 9vw, 56px); }
-      .hero-desc { font-size: 13px; margin-bottom: 32px; }
-      .hero-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
-      .btn-primary, .btn-ghost { padding: 13px 28px; width: 100%; text-align: center; }
+      .hero-eyebrow { font-size: 9px; margin-bottom: 16px; }
+      .hero-title { font-size: clamp(34px, 9vw, 52px); margin-bottom: 18px; }
+      .hero-desc { font-size: 13px; line-height: 1.7; margin-bottom: 28px; max-width: 100%; }
+      .hero-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+      .btn-primary { padding: 15px 24px; }
+      .btn-ghost { padding: 14px 24px; }
+      .hero-scroll { display: none; }
 
-      /* 縮短 section 內距，讓內容塞進一個螢幕 */
-      .section { padding: 48px 20px; }
-      .section-label { margin-bottom: 20px; }
-      .story-title { font-size: clamp(26px, 6vw, 36px); margin-bottom: 16px; }
+      .section { padding: 52px 20px; }
+      .section-label { margin-bottom: 16px; }
+      .story-title { font-size: clamp(24px, 6vw, 34px); margin-bottom: 14px; }
 
-      /* 品牌故事：隱藏佔位圖，只留文字 */
+      /* 品牌故事：文字為主，藏佔位圖 */
       .story-grid { grid-template-columns: 1fr; gap: 0; }
       .story-visual { display: none; }
-      .story-body { font-size: 13px; line-height: 1.7; margin-bottom: 10px; }
-      .story-sig { margin-top: 16px; font-size: 15px; }
+      .story-body { font-size: 13px; line-height: 1.75; margin-bottom: 10px; }
+      .story-sig { margin-top: 20px; font-size: 15px; }
 
-      /* 四步驟：2×2 格，縮小字號與內距 */
-      .steps { grid-template-columns: 1fr 1fr; margin-top: 24px; }
-      .step { padding: 20px 14px; }
-      .step-num { font-size: 36px; margin-bottom: 8px; }
-      .step-icon { font-size: 18px; margin-bottom: 8px; }
-      .step-title { font-size: 12px; margin-bottom: 6px; }
-      .step-body { font-size: 11px; }
+      /* 四步驟：2×2 */
+      .steps { grid-template-columns: 1fr 1fr; margin-top: 20px; }
+      .step { padding: 18px 12px; }
+      .step-num { font-size: 32px; margin-bottom: 6px; }
+      .step-icon { font-size: 18px; margin-bottom: 6px; }
+      .step-title { font-size: 11px; margin-bottom: 6px; }
+      .step-body { font-size: 10px; line-height: 1.6; }
 
-      /* 設計案例：2 欄，3 排，整體較矮 */
-      .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 20px !important; }
+      /* 設計案例：2 欄 */
+      .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 16px !important; gap: 8px !important; }
 
-      /* 方案定價：單欄，縮小卡片內距 */
-      .pricing-grid { grid-template-columns: 1fr; margin-top: 24px; }
-      .price-card { padding: 28px 22px; }
-      .price-amount { font-size: 44px; }
-      .price-note { margin-bottom: 24px; }
-      .price-features { margin-bottom: 24px; }
+      /* 方案定價：緊湊單欄 */
+      .pricing-grid { grid-template-columns: 1fr; margin-top: 20px; gap: 16px; }
+      .price-card { padding: 24px 18px; }
+      .price-plan { margin-bottom: 10px; }
+      .price-amount { font-size: 42px; margin-bottom: 2px; }
+      .price-amount sup { font-size: 18px; }
+      .price-note { margin-bottom: 16px; font-size: 10px; }
+      .price-divider { margin-bottom: 16px; }
+      .price-features { margin-bottom: 16px; }
+      .price-features li { padding: 7px 0; font-size: 11px; }
 
       footer { flex-direction: column; gap: 20px; text-align: center; padding: 36px 20px; }
       .footer-copy { text-align: center; }
