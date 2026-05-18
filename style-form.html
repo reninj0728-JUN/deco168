@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>確認設計偏好 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black:   #111111;
+      --dark:    #181818;
+      --card:    #1e1e1e;
+      --line:    #2e2e2e;
+      --gold:    #C9A96E;
+      --gold-lt: #e0c99a;
+      --white:   #ffffff;
+      --muted:   #777777;
+      --body:    #aaaaaa;
+    }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 48px;
+      height: 68px;
+      background: rgba(17,17,17,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .nav-logo .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; letter-spacing: 4px; color: var(--gold); }
+    .nav-logo .sub { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+    .nav-logo .text-block { display: flex; flex-direction: column; }
+    .tw-badge { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; }
+
+    /* PROGRESS BAR */
+    .progress-bar {
+      position: fixed;
+      top: 68px; left: 0; right: 0;
+      z-index: 99;
+      background: var(--dark);
+      border-bottom: 1px solid var(--line);
+      padding: 0 48px;
+      display: flex;
+      align-items: center;
+      height: 52px;
+      gap: 0;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 24px;
+      position: relative;
+    }
+    .step-item.active { color: var(--gold); }
+    .step-item.done { color: var(--muted); }
+    .step-num {
+      width: 22px; height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+    .step-item.active .step-num { border-color: var(--gold); color: var(--gold); }
+    .step-item.done .step-num { background: var(--gold); border-color: var(--gold); color: var(--black); }
+    .step-arrow { color: var(--line); font-size: 12px; }
+
+    /* MAIN */
+    main {
+      padding: 148px 48px 80px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .page-eyebrow {
+      font-size: 9px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
+
+    .page-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 40px;
+      font-weight: 300;
+      color: var(--white);
+      margin-bottom: 10px;
+      line-height: 1.1;
+    }
+    .page-title em { font-style: italic; color: var(--gold); }
+
+    .page-desc {
+      font-size: 13px;
+      color: var(--body);
+      line-height: 1.8;
+      margin-bottom: 56px;
+      max-width: 540px;
+    }
+
+    /* AI INSIGHT BANNER */
+    .ai-banner {
+      background: rgba(201,169,110,0.06);
+      border: 1px solid rgba(201,169,110,0.25);
+      border-left: 3px solid var(--gold);
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .ai-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .ai-text-block { flex: 1; }
+    .ai-label { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+    .ai-text { font-size: 12px; color: var(--body); line-height: 1.7; }
+    .ai-text strong { color: var(--white); font-weight: 400; }
+
+    /* SECTION */
+    .form-section {
+      margin-bottom: 48px;
+    }
+
+    .section-eyebrow {
+      font-size: 8px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 24px;
+      font-weight: 400;
+      color: var(--white);
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    /* SELECT ROW */
+    .select-row {
+      display: grid;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .select-row.col-2 { grid-template-columns: 1fr 1fr; }
+    .select-row.col-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label.field-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    select, input[type=text], input[type=number], textarea {
+      background: var(--dark);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 300;
+      padding: 12px 16px;
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color .2s;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--gold); }
+    select option { background: var(--dark); }
+
+    .select-wrapper {
+      position: relative;
+    }
+    .select-wrapper::after {
+      content: '▾';
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    /* AI BADGE on select */
+    .ai-preset-badge {
+      font-size: 8px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: rgba(201,169,110,0.1);
+      border: 1px solid rgba(201,169,110,0.2);
+      padding: 2px 7px;
+      display: inline-block;
+      margin-left: 8px;
+    }
+
+    /* STYLE GRID — card select */
+    .style-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .style-card {
+      border: 1px solid var(--line);
+      padding: 20px 16px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      user-select: none;
+    }
+    .style-card:hover { border-color: rgba(201,169,110,0.4); }
+    .style-card.selected { border-color: var(--gold); background: rgba(201,169,110,0.05); }
+    .style-card.ai-pick { border-color: rgba(201,169,110,0.3); }
+
+    .style-card input[type=radio], .style-card input[type=checkbox] {
+      display: none;
+    }
+
+    .style-emoji { font-size: 22px; margin-bottom: 10px; }
+
+    .style-name {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--white);
+      margin-bottom: 4px;
+      letter-spacing: 0.3px;
+    }
+
+    .style-hint {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .style-card .ai-dot {
+      position: absolute;
+      top: 10px; right: 10px;
+      width: 6px; height: 6px;
+      background: var(--gold);
+      border-radius: 50%;
+    }
+
+    /* COLOR PALETTE */
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .palette-card {
+      border: 1px solid var(--line);
+      cursor: pointer;
+      transition: border-color .2s;
+      overflow: hidden;
+      user-select: none;
+    }
+    .palette-card:hover { border-color: rgba(201,169,110,0.4); }
+    .palette-card.selected { border-color: var(--gold); }
+    .palette-card input[type=radio] { display: none; }
+
+    .palette-swatch {
+      height: 56px;
+      display: flex;
+    }
+    .palette-swatch span { flex: 1; }
+
+    .palette-label {
+      padding: 10px 12px;
+      font-size: 10px;
+      color: var(--body);
+      letter-spacing: 0.5px;
+    }
+
+    .palette-card.selected .palette-label { color: var(--gold); }
+
+    /* CHECKBOX GRID */
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      user-select: none;
+    }
+    .check-item:hover { border-color: rgba(201,169,110,0.3); }
+    .check-item.selected { border-color: var(--gold); background: rgba(201,169,110,0.04); }
+    .check-item input[type=checkbox] { display: none; }
+
+    .check-box {
+      width: 14px; height: 14px;
+      border: 1px solid var(--line);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px;
+      color: var(--gold);
+    }
+    .check-item.selected .check-box { border-color: var(--gold); }
+
+    .check-text { font-size: 11px; color: var(--body); }
+    .check-item.selected .check-text { color: var(--white); }
+
+    /* REFERENCE UPLOAD */
+    .ref-upload {
+      border: 1px dashed var(--line);
+      padding: 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      margin-top: 16px;
+    }
+    .ref-upload:hover { border-color: var(--gold); background: rgba(201,169,110,0.02); }
+    .ref-upload input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .ref-upload-icon { font-size: 22px; margin-bottom: 8px; }
+    .ref-upload-text { font-size: 11px; color: var(--muted); }
+    .ref-upload-text strong { color: var(--body); font-weight: 400; }
+
+    .ref-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .ref-thumb {
+      aspect-ratio: 1;
+      background: var(--dark);
+      border: 1px solid var(--line);
+      position: relative;
+      overflow: hidden;
+    }
+    .ref-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .ref-thumb-remove {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 18px; height: 18px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      color: var(--muted);
+      font-size: 10px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* SLIDER */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      background: var(--gold);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .slider-val {
+      font-size: 13px;
+      color: var(--gold);
+      min-width: 60px;
+      text-align: right;
+    }
+
+    /* NOTES TEXTAREA */
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.7;
+    }
+
+    /* BOTTOM NAV */
+    .bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 48px;
+      border-top: 1px solid var(--line);
+      margin-top: 24px;
+    }
+
+    .btn {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      padding: 14px 36px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: background .2s, color .2s, border-color .2s;
+    }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { border-color: var(--muted); color: var(--white); }
+
+    .btn-primary {
+      background: var(--gold);
+      color: var(--black);
+    }
+    .btn-primary:hover { background: var(--gold-lt); }
+
+    /* DIVIDER LINE */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 48px 0;
+    }
+
+    /* RENDER COUNT */
+    .render-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .render-card {
+      border: 1px solid var(--line);
+      padding: 20px 16px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      text-align: center;
+      user-select: none;
+    }
+    .render-card:hover { border-color: rgba(201,169,110,0.4); }
+    .render-card.selected { border-color: var(--gold); background: rgba(201,169,110,0.05); }
+    .render-card input[type=radio] { display: none; }
+    .render-count { font-family: 'Cormorant Garamond', serif; font-size: 32px; color: var(--gold); line-height: 1; margin-bottom: 6px; }
+    .render-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+    .render-card.selected .render-label { color: var(--body); }
+
+    /* SUMMARY CARD */
+    .summary-card {
+      background: var(--dark);
+      border: 1px solid var(--line);
+      padding: 28px 32px;
+      margin-bottom: 28px;
+    }
+    .summary-title { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .summary-key { font-size: 11px; color: var(--muted); }
+    .summary-val { font-size: 12px; color: var(--white); text-align: right; max-width: 60%; }
+    .summary-price { font-family: 'Cormorant Garamond', serif; font-size: 28px; color: var(--gold); }
+
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      main { padding: 140px 20px 60px; }
+      .progress-bar { padding: 0 20px; overflow-x: auto; }
+      .select-row.col-2, .select-row.col-3 { grid-template-columns: 1fr; }
+      .style-grid { grid-template-columns: 1fr 1fr; }
+      .palette-grid { grid-template-columns: 1fr 1fr; }
+      .check-grid { grid-template-columns: 1fr 1fr; }
+      .render-options { grid-template-columns: 1fr; }
+      .ref-preview-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg width="44" height="32" viewBox="0 0 110 80" fill="none">
+      <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
+      <path d="M16 20 L16 60 L30 60 C42 60 51 51.5 51 40 C51 28.5 42 20 30 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.7" opacity="0.4"/>
+      <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
+      <path d="M94 20 L94 60 L80 60 C68 60 59 51.5 59 40 C59 28.5 68 20 80 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.7" opacity="0.4"/>
+      <line x1="8" y1="12" x2="102" y2="12" stroke="#C9A96E" stroke-width="0.7" opacity="0.3"/>
+      <line x1="8" y1="68" x2="102" y2="68" stroke="#C9A96E" stroke-width="0.7" opacity="0.3"/>
+    </svg>
+    <div class="text-block">
+      <span class="brand">DECO168</span>
+      <span class="sub">Design &amp; Deco · by ATARAPA™</span>
+    </div>
+  </a>
+  <div class="tw-badge">🇹🇼 TW</div>
+</nav>
+
+<!-- PROGRESS BAR -->
+<div class="progress-bar">
+  <div class="step-item done">
+    <div class="step-num">✓</div>
+    <span>上傳空間</span>
+  </div>
+  <span class="step-arrow">›</span>
+  <div class="step-item active">
+    <div class="step-num">2</div>
+    <span>設計偏好</span>
+  </div>
+  <span class="step-arrow">›</span>
+  <div class="step-item">
+    <div class="step-num">3</div>
+    <span>AI 生成</span>
+  </div>
+  <span class="step-arrow">›</span>
+  <div class="step-item">
+    <div class="step-num">4</div>
+    <span>付款領取</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <div class="page-eyebrow">Step 02 / 04</div>
+  <h1 class="page-title">確認您的<br><em>設計偏好</em></h1>
+  <p class="page-desc">AI 已根據您上傳的影片與描述，預先填入建議選項。您可以直接確認，或依照個人喜好調整各項設定。</p>
+
+  <!-- AI BANNER -->
+  <div class="ai-banner">
+    <div class="ai-icon">✦</div>
+    <div class="ai-text-block">
+      <div class="ai-label">AI 分析結果</div>
+      <p class="ai-text">偵測到空間約 <strong>25–30 坪</strong>，光線充足，現有風格傾向<strong>現代簡約</strong>。AI 建議主色調選用<strong>暖白 + 淺木色</strong>，並在下方以 <span style="color:var(--gold);">✦</span> 標記推薦選項。您可自由修改任何欄位。</p>
+    </div>
+  </div>
+
+  <!-- LAYER 1：空間資訊 -->
+  <div class="form-section">
+    <div class="section-eyebrow">Layer 01</div>
+    <div class="section-title">空間基本資訊</div>
+
+    <div class="select-row col-3">
+      <div class="field-group">
+        <label class="field-label">空間類型</label>
+        <div class="select-wrapper">
+          <select id="spaceType">
+            <option>客廳</option>
+            <option>臥室</option>
+            <option>主臥室</option>
+            <option>兒童房</option>
+            <option>廚房</option>
+            <option>餐廳</option>
+            <option>書房 / 工作室</option>
+            <option>衛浴</option>
+            <option>玄關 / 走廊</option>
+            <option>陽台 / 戶外</option>
+            <option>整戶全室</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">設計模式 <span class="ai-preset-badge">AI 推薦</span></label>
+        <div class="select-wrapper">
+          <select id="designMode">
+            <option>全新設計（翻新）</option>
+            <option>現有空間優化</option>
+            <option>軟裝搭配（不動格局）</option>
+            <option>局部改造</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">空間坪數</label>
+        <div class="select-wrapper">
+          <select id="spaceSize">
+            <option>5 坪以下</option>
+            <option>5–10 坪</option>
+            <option>10–20 坪</option>
+            <option selected>20–30 坪</option>
+            <option>30–45 坪</option>
+            <option>45 坪以上</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="select-row col-3">
+      <div class="field-group">
+        <label class="field-label">居住人數</label>
+        <div class="select-wrapper">
+          <select id="residents">
+            <option>獨居</option>
+            <option selected>2 人</option>
+            <option>3–4 人（家庭）</option>
+            <option>5 人以上</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">有無孩童 / 寵物</label>
+        <div class="select-wrapper">
+          <select id="kidsPets">
+            <option>無</option>
+            <option>有孩童</option>
+            <option>有寵物</option>
+            <option>孩童 + 寵物</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">預計入住時間</label>
+        <div class="select-wrapper">
+          <select id="moveIn">
+            <option>1 個月內</option>
+            <option>1–3 個月</option>
+            <option>3–6 個月</option>
+            <option>半年以上，不急</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- LAYER 2：風格選擇 -->
+  <div class="form-section">
+    <div class="section-eyebrow">Layer 02</div>
+    <div class="section-title">主要設計風格</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6;">選擇一種主風格。<span style="color:var(--gold);">✦</span> 為 AI 根據您的空間推薦的選項。</p>
+
+    <div class="style-grid" id="styleGrid">
+      <!-- cards injected by JS -->
+    </div>
+
+    <div style="margin-top:24px;">
+      <div class="section-eyebrow" style="margin-bottom:12px;">附加風格元素（可多選）</div>
+      <div class="check-grid" id="extraStyleGrid">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+    <!-- Reference photo upload -->
+    <div style="margin-top:24px;">
+      <label class="field-label" style="display:block;margin-bottom:8px;">上傳參考圖片（選填，最多 8 張）</label>
+      <div class="ref-upload" id="refUploadBox">
+        <input type="file" id="refInput" accept="image/*" multiple>
+        <div class="ref-upload-icon">🖼</div>
+        <div class="ref-upload-text"><strong>點擊或拖放參考圖片</strong><br>Pinterest 截圖、雜誌圖、喜歡的設計照片皆可</div>
+      </div>
+      <div class="ref-preview-grid" id="refPreviews"></div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- LAYER 3：細節偏好 -->
+  <div class="form-section">
+    <div class="section-eyebrow">Layer 03</div>
+    <div class="section-title">細節設計偏好</div>
+
+    <!-- 色調 -->
+    <div style="margin-bottom:28px;">
+      <label class="field-label" style="display:block;margin-bottom:14px;">主色調 <span class="ai-preset-badge">AI 推薦</span></label>
+      <div class="palette-grid" id="paletteGrid">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+    <!-- 材質 -->
+    <div style="margin-bottom:28px;">
+      <label class="field-label" style="display:block;margin-bottom:14px;">偏好材質（可多選）</label>
+      <div class="check-grid" id="materialGrid">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+    <!-- 採光 -->
+    <div class="select-row col-2" style="margin-bottom:24px;">
+      <div class="field-group">
+        <label class="field-label">採光偏好</label>
+        <div class="select-wrapper">
+          <select id="lighting">
+            <option>明亮自然光優先</option>
+            <option selected>自然光 + 暖燈混搭</option>
+            <option>昏黃暖光（氛圍感）</option>
+            <option>冷白燈（工作效率型）</option>
+            <option>可調節 / 情境照明</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">收納需求</label>
+        <div class="select-wrapper">
+          <select id="storage">
+            <option>極簡，少收納</option>
+            <option selected>適中，局部收納</option>
+            <option>重視，大量隱藏式收納</option>
+            <option>客製化全室收納</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 特殊需求 -->
+    <div style="margin-bottom:20px;">
+      <label class="field-label" style="display:block;margin-bottom:14px;">特殊需求（可多選）</label>
+      <div class="check-grid" id="specialGrid">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+    <!-- 備註 -->
+    <div class="field-group">
+      <label class="field-label">補充備註（選填）</label>
+      <textarea id="notes" placeholder="例如：希望保留原本的木地板、廚房需要中島、不喜歡全黑系…"></textarea>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- LAYER 4：輸出設定 -->
+  <div class="form-section">
+    <div class="section-eyebrow">Layer 04</div>
+    <div class="section-title">渲染圖輸出設定</div>
+
+    <div style="margin-bottom:28px;">
+      <label class="field-label" style="display:block;margin-bottom:14px;">渲染圖數量</label>
+      <div class="render-options" id="renderOptions">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+    <div class="select-row col-2" style="margin-bottom:24px;">
+      <div class="field-group">
+        <label class="field-label">渲染視角偏好</label>
+        <div class="select-wrapper">
+          <select id="renderAngle">
+            <option>主要空間全景</option>
+            <option selected>多角度（各 2–3 張）</option>
+            <option>細節特寫為主</option>
+            <option>鳥瞰配置圖</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">是否包含人物</label>
+        <div class="select-wrapper">
+          <select id="includePeople">
+            <option selected>不含人物（純空間）</option>
+            <option>含生活場景（模糊人影）</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Budget slider -->
+    <div class="field-group" style="margin-bottom:28px;">
+      <label class="field-label" style="margin-bottom:14px;">裝修預算範圍</label>
+      <div class="slider-row">
+        <span style="font-size:11px;color:var(--muted);">NT$ 20 萬</span>
+        <input type="range" id="budgetSlider" min="0" max="5" step="1" value="2">
+        <span style="font-size:11px;color:var(--muted);">1,000 萬+</span>
+      </div>
+      <div style="text-align:center;margin-top:10px;">
+        <span class="slider-val" id="budgetVal">NT$ 100–200 萬</span>
+      </div>
+    </div>
+
+    <div class="select-row col-2">
+      <div class="field-group">
+        <label class="field-label">服務方案</label>
+        <div class="select-wrapper">
+          <select id="plan">
+            <option value="basic">AI 概念方案 — AI 渲染圖 × 5（NT$1,999）</option>
+            <option value="full">設計師審核方案 — AI 渲染 + 設計師審核 + 配置草圖（NT$9,800）</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">交件方式</label>
+        <div class="select-wrapper">
+          <select id="delivery">
+            <option>線上下載（PDF + JPG）</option>
+            <option>電子郵件寄送</option>
+            <option>LINE 傳送</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ORDER SUMMARY -->
+  <div class="summary-card">
+    <div class="summary-title">訂單摘要</div>
+    <div class="summary-row">
+      <span class="summary-key">空間</span>
+      <span class="summary-val" id="s-space">客廳 · 20–30 坪</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">主風格</span>
+      <span class="summary-val" id="s-style">現代簡約</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">主色調</span>
+      <span class="summary-val" id="s-color">暖白 + 淺木色</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">渲染圖數</span>
+      <span class="summary-val" id="s-renders">5 張</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">服務方案</span>
+      <span class="summary-val" id="s-plan">基礎方案</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">應付金額</span>
+      <span class="summary-price" id="s-price">NT$ 5,000</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <a href="upload.html" class="btn btn-ghost">← 返回上傳</a>
+    <button class="btn btn-primary" onclick="submitForm()">送出並生成設計 →</button>
+  </div>
+</main>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+const styles = [
+  { id:'modern',    emoji:'◻', name:'現代簡約',      hint:'俐落線條、無印風格',         ai: true  },
+  { id:'nordic',    emoji:'❄', name:'北歐 Scandinavian', hint:'白色 + 木質 + 溫馨',      ai: false },
+  { id:'japanese',  emoji:'⛩', name:'日式侘寂 Wabi-Sabi', hint:'留白、原木、禪意',       ai: false },
+  { id:'industrial',emoji:'⚙', name:'工業風',         hint:'裸露管線、鐵件、磚牆',      ai: false },
+  { id:'luxury',    emoji:'◈', name:'輕奢現代',        hint:'大理石、黃銅、絲絨',        ai: false },
+  { id:'mediterranean', emoji:'🌊', name:'地中海',     hint:'拱門、磁磚、藍白色調',       ai: false },
+  { id:'muji',      emoji:'▢', name:'無印 MUJI 風',   hint:'中性色、功能至上',           ai: false },
+  { id:'art-deco',  emoji:'◆', name:'Art Deco',        hint:'幾何圖案、金屬感、奢華',    ai: false },
+  { id:'boho',      emoji:'🌿', name:'波希米亞 Boho',  hint:'混搭異材質、植物、色彩豐富', ai: false },
+];
+
+const extraStyles = [
+  '溫暖感 Warm','清涼感 Cool','大自然元素','開放式格局','隱私感強','低調奢華',
+  '親子友善','寵物友善','老人友善','高度收納','強烈個性','台灣在地元素',
+];
+
+const palettes = [
+  { id:'warm-white', name:'暖白 + 淺木',  colors:['#f5f0e8','#ddd0ba','#b8956a'], ai:true },
+  { id:'grey-stone', name:'灰調 + 石材',  colors:['#d4d0cc','#a8a4a0','#6b6860'], ai:false },
+  { id:'dark-luxury',name:'深色輕奢',     colors:['#1a1a1a','#3d3530','#c9a96e'], ai:false },
+  { id:'sage-green', name:'莫蘭迪綠',     colors:['#c8d5c0','#a0b899','#6a8f70'], ai:false },
+  { id:'dusty-pink', name:'莫蘭迪粉',     colors:['#e8d5cc','#d0b0a8','#b88070'], ai:false },
+  { id:'navy-oak',   name:'深藍 + 橡木',  colors:['#2a3a50','#4a6080','#c8a878'], ai:false },
+  { id:'cream-terracotta', name:'奶油 + 磚紅', colors:['#f0e8d8','#e0c8a8','#c07050'], ai:false },
+  { id:'bw-minimal', name:'黑白極簡',     colors:['#f8f8f8','#888888','#222222'], ai:false },
+];
+
+const materials = [
+  '木質紋理','大理石','水泥 / 清水模','金屬鐵件','玻璃','藤編 / 竹材',
+  '布藝 / 絲絨','皮革','磚牆','磁磚 / 花磚','塑合板（防潮）','石皮板',
+];
+
+const specials = [
+  '無障礙空間','防水 / 耐磨（有小孩）','隔音需求','智慧家電整合','可移動隔間',
+  '開放廚房','中島吧台','家庭影院','書牆設計','藝術品展示牆','浴缸獨立設計','大面積窗景',
+];
+
+const budgetLabels = [
+  'NT$ 100 萬以下','NT$ 100–200 萬','NT$ 200–400 萬','NT$ 400–600 萬','NT$ 600–900 萬','NT$ 1,000 萬以上'
+];
+
+const renderCounts = [
+  { count: 3, label:'基礎張數' },
+  { count: 5, label:'標準張數', default:true },
+  { count: 8, label:'完整套組' },
+];
+
+// ── RENDER UI ─────────────────────────────────────────────────────────────────
+
+function buildStyleGrid() {
+  const grid = document.getElementById('styleGrid');
+  styles.forEach((s, i) => {
+    const card = document.createElement('label');
+    card.className = 'style-card' + (s.ai ? ' ai-pick' : '') + (i===0 ? ' selected' : '');
+    card.innerHTML = `
+      <input type="radio" name="mainStyle" value="${s.id}" ${i===0?'checked':''}>
+      ${s.ai ? '<div class="ai-dot"></div>' : ''}
+      <div class="style-emoji">${s.emoji}</div>
+      <div class="style-name">${s.name}</div>
+      <div class="style-hint">${s.hint}</div>
+    `;
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      updateSummary();
+    });
+    grid.appendChild(card);
+  });
+}
+
+function buildExtraStyles() {
+  const grid = document.getElementById('extraStyleGrid');
+  extraStyles.forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    label.innerHTML = `
+      <input type="checkbox" value="${name}">
+      <div class="check-box">✓</div>
+      <span class="check-text">${name}</span>
+    `;
+    label.addEventListener('click', () => label.classList.toggle('selected'));
+    grid.appendChild(label);
+  });
+}
+
+function buildPalettes() {
+  const grid = document.getElementById('paletteGrid');
+  palettes.forEach((p, i) => {
+    const label = document.createElement('label');
+    label.className = 'palette-card' + (i===0 ? ' selected' : '');
+    const swatchHtml = p.colors.map(c => `<span style="background:${c}"></span>`).join('');
+    label.innerHTML = `
+      <input type="radio" name="palette" value="${p.id}" ${i===0?'checked':''}>
+      <div class="palette-swatch">${swatchHtml}</div>
+      <div class="palette-label">${p.name}${p.ai ? ' ✦' : ''}</div>
+    `;
+    label.addEventListener('click', () => {
+      document.querySelectorAll('.palette-card').forEach(c => c.classList.remove('selected'));
+      label.classList.add('selected');
+      updateSummary();
+    });
+    grid.appendChild(label);
+  });
+}
+
+function buildMaterials() {
+  const grid = document.getElementById('materialGrid');
+  materials.forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    label.innerHTML = `
+      <input type="checkbox" value="${name}">
+      <div class="check-box">✓</div>
+      <span class="check-text">${name}</span>
+    `;
+    label.addEventListener('click', () => label.classList.toggle('selected'));
+    grid.appendChild(label);
+  });
+}
+
+function buildSpecials() {
+  const grid = document.getElementById('specialGrid');
+  specials.forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    label.innerHTML = `
+      <input type="checkbox" value="${name}">
+      <div class="check-box">✓</div>
+      <span class="check-text">${name}</span>
+    `;
+    label.addEventListener('click', () => label.classList.toggle('selected'));
+    grid.appendChild(label);
+  });
+}
+
+function buildRenderOptions() {
+  const container = document.getElementById('renderOptions');
+  renderCounts.forEach(r => {
+    const label = document.createElement('label');
+    label.className = 'render-card' + (r.default ? ' selected' : '');
+    label.innerHTML = `
+      <input type="radio" name="renders" value="${r.count}" ${r.default?'checked':''}>
+      <div class="render-count">${r.count}</div>
+      <div class="render-label">張&ensp;${r.label}</div>
+    `;
+    label.addEventListener('click', () => {
+      document.querySelectorAll('.render-card').forEach(c => c.classList.remove('selected'));
+      label.classList.add('selected');
+      updateSummary();
+    });
+    container.appendChild(label);
+  });
+}
+
+// ── REFERENCE PHOTOS ──────────────────────────────────────────────────────────
+let refFiles = [];
+document.getElementById('refInput').addEventListener('change', function(e) {
+  const newFiles = Array.from(e.target.files).slice(0, 8 - refFiles.length);
+  newFiles.forEach(f => { if(refFiles.length < 8) refFiles.push(f); });
+  renderRefPreviews();
+});
+
+function renderRefPreviews() {
+  const grid = document.getElementById('refPreviews');
+  grid.innerHTML = '';
+  refFiles.forEach((f, i) => {
+    const url = URL.createObjectURL(f);
+    const div = document.createElement('div');
+    div.className = 'ref-thumb';
+    div.innerHTML = `<img src="${url}"><button class="ref-thumb-remove" data-i="${i}">✕</button>`;
+    div.querySelector('button').addEventListener('click', e => {
+      e.preventDefault();
+      refFiles.splice(i, 1);
+      renderRefPreviews();
+    });
+    grid.appendChild(div);
+  });
+}
+
+// ── BUDGET SLIDER ─────────────────────────────────────────────────────────────
+const budgetSlider = document.getElementById('budgetSlider');
+const budgetVal = document.getElementById('budgetVal');
+budgetSlider.addEventListener('input', () => {
+  budgetVal.textContent = budgetLabels[budgetSlider.value];
+});
+
+// ── SUMMARY ───────────────────────────────────────────────────────────────────
+function updateSummary() {
+  const spaceType = document.getElementById('spaceType').value;
+  const spaceSize = document.getElementById('spaceSize').value;
+  const selectedStyle = document.querySelector('.style-card.selected .style-name');
+  const selectedPalette = document.querySelector('.palette-card.selected .palette-label');
+  const selectedRenders = document.querySelector('.render-card.selected .render-count');
+  const plan = document.getElementById('plan').value;
+
+  document.getElementById('s-space').textContent = `${spaceType} · ${spaceSize}`;
+  if (selectedStyle) document.getElementById('s-style').textContent = selectedStyle.textContent;
+  if (selectedPalette) document.getElementById('s-color').textContent = selectedPalette.textContent.replace(' ✦','');
+  if (selectedRenders) document.getElementById('s-renders').textContent = `${selectedRenders.textContent} 張`;
+  if (plan === 'basic') {
+    document.getElementById('s-plan').textContent = 'AI 概念方案';
+    document.getElementById('s-price').textContent = 'NT$ 1,999';
+  } else {
+    document.getElementById('s-plan').textContent = '設計師審核方案';
+    document.getElementById('s-price').textContent = 'NT$ 9,800';
+  }
+}
+
+document.getElementById('spaceType').addEventListener('change', updateSummary);
+document.getElementById('spaceSize').addEventListener('change', updateSummary);
+document.getElementById('plan').addEventListener('change', updateSummary);
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────────
+function submitForm() {
+  const btn = document.querySelector('.btn-primary');
+  btn.textContent = '處理中…';
+  btn.style.pointerEvents = 'none';
+  setTimeout(() => {
+    window.location.href = 'generate.html';
+  }, 800);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+buildStyleGrid();
+buildExtraStyles();
+buildPalettes();
+buildMaterials();
+buildSpecials();
+buildRenderOptions();
+updateSummary();
+</script>
+</body>
+</html>

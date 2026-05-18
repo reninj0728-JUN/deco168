@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上傳空間資料 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black:   #111111;
+      --dark:    #181818;
+      --card:    #1e1e1e;
+      --line:    #2e2e2e;
+      --gold:    #C9A96E;
+      --gold-lt: #e0c99a;
+      --white:   #ffffff;
+      --muted:   #777777;
+      --body:    #aaaaaa;
+      --success: #4a9e6b;
+      --error:   #c0392b;
+    }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 48px;
+      height: 68px;
+      background: rgba(17,17,17,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .nav-logo .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; letter-spacing: 4px; color: var(--gold); }
+    .nav-logo .sub { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+    .nav-logo .text-block { display: flex; flex-direction: column; }
+    .tw-badge { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; }
+
+    /* PROGRESS BAR */
+    .progress-bar {
+      position: fixed;
+      top: 68px; left: 0; right: 0;
+      z-index: 99;
+      background: var(--dark);
+      border-bottom: 1px solid var(--line);
+      padding: 0 48px;
+      display: flex;
+      align-items: center;
+      height: 52px;
+      gap: 0;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 24px;
+      position: relative;
+    }
+    .step-item.active { color: var(--gold); }
+    .step-item.done { color: var(--muted); }
+    .step-num {
+      width: 22px; height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+    .step-item.active .step-num { border-color: var(--gold); color: var(--gold); }
+    .step-item.done .step-num { background: var(--gold); border-color: var(--gold); color: var(--black); }
+    .step-arrow { color: var(--line); font-size: 12px; }
+
+    /* MAIN */
+    main {
+      padding: 148px 48px 80px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .page-eyebrow {
+      font-size: 9px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
+
+    .page-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 40px;
+      font-weight: 300;
+      color: var(--white);
+      margin-bottom: 10px;
+      line-height: 1.1;
+    }
+    .page-title em { font-style: italic; color: var(--gold); }
+
+    .page-desc {
+      font-size: 13px;
+      color: var(--body);
+      line-height: 1.8;
+      margin-bottom: 56px;
+      max-width: 540px;
+    }
+
+    /* UPLOAD SECTIONS */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .upload-box {
+      border: 1px dashed var(--line);
+      padding: 40px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-box:hover { border-color: var(--gold); background: rgba(201,169,110,0.03); }
+    .upload-box.active { border-color: var(--gold); background: rgba(201,169,110,0.05); border-style: solid; }
+
+    .upload-box input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .upload-icon { font-size: 32px; margin-bottom: 16px; }
+
+    .upload-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--white);
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .upload-hint {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .upload-formats {
+      margin-top: 12px;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .format-tag {
+      font-size: 9px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 3px 8px;
+      text-transform: uppercase;
+    }
+
+    .upload-full { grid-column: 1 / -1; }
+
+    /* VOICE INPUT */
+    .voice-section {
+      border: 1px solid var(--line);
+      padding: 40px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .voice-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .voice-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--white);
+      letter-spacing: 0.5px;
+    }
+
+    .voice-subtitle {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .voice-btn {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      border: 1px solid var(--gold);
+      background: transparent;
+      color: var(--gold);
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .25s;
+      flex-shrink: 0;
+    }
+    .voice-btn:hover { background: rgba(201,169,110,0.1); }
+    .voice-btn.recording { background: rgba(201,169,110,0.15); animation: pulse 1.5s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(201,169,110,0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(201,169,110,0); }
+    }
+
+    .voice-wave {
+      height: 40px;
+      background: var(--dark);
+      border: 1px solid var(--line);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 0 16px;
+    }
+
+    .wave-bar {
+      width: 2px;
+      background: var(--gold);
+      border-radius: 1px;
+      opacity: 0.3;
+      animation: none;
+    }
+
+    .voice-btn.recording ~ * .wave-bar,
+    .wave-bar.active {
+      animation: wave 0.8s ease-in-out infinite alternate;
+      opacity: 0.8;
+    }
+
+    @keyframes wave {
+      from { height: 4px; }
+      to { height: 28px; }
+    }
+
+    .voice-transcript {
+      font-size: 13px;
+      color: var(--body);
+      line-height: 1.8;
+      min-height: 48px;
+      font-style: italic;
+    }
+
+    .voice-or {
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      margin: 20px 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .voice-or::before, .voice-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+    .voice-textarea {
+      width: 100%;
+      background: var(--dark);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 300;
+      padding: 16px 20px;
+      resize: none;
+      height: 80px;
+      outline: none;
+      transition: border-color .25s;
+      line-height: 1.7;
+    }
+    .voice-textarea::placeholder { color: var(--muted); }
+    .voice-textarea:focus { border-color: var(--gold); }
+
+    /* FILE LIST */
+    .file-list {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--dark);
+      border: 1px solid var(--line);
+      padding: 10px 16px;
+      font-size: 11px;
+      color: var(--body);
+    }
+
+    .file-item-left { display: flex; align-items: center; gap: 10px; }
+    .file-item-icon { color: var(--gold); font-size: 14px; }
+    .file-remove { color: var(--muted); cursor: pointer; font-size: 14px; transition: color .2s; border: none; background: none; }
+    .file-remove:hover { color: #e74c3c; }
+
+    /* TIPS */
+    .tips-box {
+      border: 1px solid var(--line);
+      padding: 24px 32px;
+      margin-bottom: 40px;
+      background: rgba(201,169,110,0.02);
+    }
+
+    .tips-title {
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+    }
+
+    .tips-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 32px;
+    }
+
+    .tips-list li {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.6;
+    }
+    .tips-list li::before { content: '—'; color: var(--gold); flex-shrink: 0; }
+
+    /* ACTIONS */
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 32px;
+      border-top: 1px solid var(--line);
+    }
+
+    .btn-back {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--line);
+      padding: 14px 32px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-back:hover { color: var(--white); border-color: var(--white); }
+
+    .btn-next {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--black);
+      background: var(--gold);
+      border: none;
+      padding: 14px 40px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: background .25s;
+    }
+    .btn-next:hover { background: var(--gold-lt); }
+
+    .section-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 32px 0;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-label::before { content: ''; width: 20px; height: 1px; background: var(--gold); }
+
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      .progress-bar { padding: 0 20px; overflow-x: auto; }
+      main { padding: 148px 20px 60px; }
+      .upload-grid { grid-template-columns: 1fr; }
+      .tips-list { grid-template-columns: 1fr; }
+      .actions { flex-direction: column; gap: 16px; }
+      .btn-back, .btn-next { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="index.html">
+    <svg width="32" height="24" viewBox="0 0 110 80" fill="none">
+      <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+      <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+      <line x1="8" y1="12" x2="102" y2="12" stroke="#C9A96E" stroke-width="1" opacity="0.3"/>
+      <line x1="8" y1="68" x2="102" y2="68" stroke="#C9A96E" stroke-width="1" opacity="0.3"/>
+    </svg>
+    <div class="text-block">
+      <span class="brand">DECO168</span>
+      <span class="sub">Design &amp; Deco · by ATARAPA™</span>
+    </div>
+  </a>
+  <div class="tw-badge">🇹🇼 TW</div>
+</nav>
+
+<!-- PROGRESS -->
+<div class="progress-bar">
+  <div class="step-item active">
+    <div class="step-num">1</div>上傳空間
+  </div>
+  <span class="step-arrow">›</span>
+  <div class="step-item">
+    <div class="step-num">2</div>風格確認
+  </div>
+  <span class="step-arrow">›</span>
+  <div class="step-item">
+    <div class="step-num">3</div>確認付款
+  </div>
+  <span class="step-arrow">›</span>
+  <div class="step-item">
+    <div class="step-num">4</div>收取設計稿
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <p class="page-eyebrow">步驟 1 / 4</p>
+  <h1 class="page-title">上傳你的<em>空間資料</em></h1>
+  <p class="page-desc">請上傳空間影片與照片，以及建物測量圖。資料越完整，AI 對你的空間理解越精準，設計稿品質越好。</p>
+
+  <!-- 影片上傳 -->
+  <div class="section-label">空間影片</div>
+  <div class="upload-grid">
+    <div class="upload-box upload-full" id="video-box" ondragover="handleDrag(event, 'video-box')" ondragleave="handleLeave('video-box')" ondrop="handleDrop(event, 'video-input', 'video-list')">
+      <input type="file" id="video-input" accept="video/*" multiple onchange="handleFiles(this, 'video-list')">
+      <div class="upload-icon">🎬</div>
+      <div class="upload-title">拍攝每個房間，拖曳或點擊上傳</div>
+      <div class="upload-hint">
+        走一圈錄製，對準梁柱、門窗、天花板<br>
+        每個空間至少 30 秒，畫質清楚即可
+      </div>
+      <div class="upload-formats">
+        <span class="format-tag">MP4</span>
+        <span class="format-tag">MOV</span>
+        <span class="format-tag">最大 500MB</span>
+      </div>
+    </div>
+  </div>
+  <div class="file-list" id="video-list"></div>
+
+  <div class="section-divider"></div>
+
+  <!-- 照片上傳 -->
+  <div class="section-label">空間照片</div>
+  <div class="upload-grid">
+    <div class="upload-box" id="photo-box" ondragover="handleDrag(event,'photo-box')" ondragleave="handleLeave('photo-box')" ondrop="handleDrop(event,'photo-input','photo-list')">
+      <input type="file" id="photo-input" accept="image/*" multiple onchange="handleFiles(this,'photo-list')">
+      <div class="upload-icon">📷</div>
+      <div class="upload-title">空間照片</div>
+      <div class="upload-hint">每個角落各一張<br>建議 8～16 張</div>
+      <div class="upload-formats">
+        <span class="format-tag">JPG</span>
+        <span class="format-tag">PNG</span>
+        <span class="format-tag">HEIC</span>
+      </div>
+    </div>
+    <div class="upload-box" id="plan-box" ondragover="handleDrag(event,'plan-box')" ondragleave="handleLeave('plan-box')" ondrop="handleDrop(event,'plan-input','plan-list')">
+      <input type="file" id="plan-input" accept=".pdf,image/*" multiple onchange="handleFiles(this,'plan-list')">
+      <div class="upload-icon">📐</div>
+      <div class="upload-title">建物測量圖</div>
+      <div class="upload-hint">地政事務所調閱<br>或建商提供的平面圖</div>
+      <div class="upload-formats">
+        <span class="format-tag">PDF</span>
+        <span class="format-tag">JPG</span>
+        <span class="format-tag">PNG</span>
+      </div>
+    </div>
+  </div>
+  <div class="file-list" id="photo-list"></div>
+  <div class="file-list" id="plan-list"></div>
+
+  <div class="section-divider"></div>
+
+  <!-- 語音輸入 -->
+  <div class="section-label">描述你想要的風格</div>
+  <div class="voice-section">
+    <div class="voice-header">
+      <div>
+        <div class="voice-title">語音輸入</div>
+        <div class="voice-subtitle">說說你想要什麼風格、特殊需求、預算範圍</div>
+      </div>
+      <button class="voice-btn" id="voice-btn" onclick="toggleRecording()">🎙️</button>
+    </div>
+
+    <div class="voice-wave" id="voice-wave">
+      <div class="wave-bar" style="height:6px; animation-delay:0s"></div>
+      <div class="wave-bar" style="height:10px; animation-delay:0.1s"></div>
+      <div class="wave-bar" style="height:4px; animation-delay:0.2s"></div>
+      <div class="wave-bar" style="height:14px; animation-delay:0.3s"></div>
+      <div class="wave-bar" style="height:8px; animation-delay:0.15s"></div>
+      <div class="wave-bar" style="height:18px; animation-delay:0.25s"></div>
+      <div class="wave-bar" style="height:6px; animation-delay:0.05s"></div>
+      <div class="wave-bar" style="height:12px; animation-delay:0.35s"></div>
+      <div class="wave-bar" style="height:20px; animation-delay:0.1s"></div>
+      <div class="wave-bar" style="height:8px; animation-delay:0.2s"></div>
+      <div class="wave-bar" style="height:16px; animation-delay:0.3s"></div>
+      <div class="wave-bar" style="height:10px; animation-delay:0.05s"></div>
+      <div class="wave-bar" style="height:6px; animation-delay:0.15s"></div>
+      <div class="wave-bar" style="height:14px; animation-delay:0.25s"></div>
+      <div class="wave-bar" style="height:4px; animation-delay:0s"></div>
+    </div>
+
+    <div class="voice-transcript" id="transcript">點擊麥克風開始說話...</div>
+
+    <div class="voice-or">或直接文字輸入</div>
+
+    <textarea class="voice-textarea" id="style-text" placeholder="例如：我想要北歐風格，喜歡木質感，預算約 80 萬，客廳希望開放式，需要大量收納..."></textarea>
+  </div>
+
+  <!-- 拍攝提示 -->
+  <div class="tips-box">
+    <div class="tips-title">✦ 拍攝小提示，讓 AI 理解更準確</div>
+    <ul class="tips-list">
+      <li>從入口往內拍，再繞一圈</li>
+      <li>對準梁柱特別停留 2 秒</li>
+      <li>門窗全部入鏡</li>
+      <li>天花板高度要拍到</li>
+      <li>衛浴、廚房不要跳過</li>
+      <li>光線充足比畫質重要</li>
+      <li>建物測量圖請拍清楚全圖</li>
+      <li>有現有格局圖也一起上傳</li>
+    </ul>
+  </div>
+
+  <!-- 操作按鈕 -->
+  <div class="actions">
+    <a class="btn-back" href="index.html">← 返回首頁</a>
+    <button class="btn-next" onclick="nextStep()">下一步：確認風格 →</button>
+  </div>
+</main>
+
+<script>
+  // 拖曳處理
+  function handleDrag(e, boxId) {
+    e.preventDefault();
+    document.getElementById(boxId).classList.add('active');
+  }
+  function handleLeave(boxId) {
+    document.getElementById(boxId).classList.remove('active');
+  }
+  function handleDrop(e, inputId, listId) {
+    e.preventDefault();
+    const box = e.currentTarget;
+    box.classList.remove('active');
+    const files = e.dataTransfer.files;
+    renderFiles(files, listId);
+  }
+
+  // 檔案選取
+  function handleFiles(input, listId) {
+    renderFiles(input.files, listId);
+  }
+
+  function renderFiles(files, listId) {
+    const list = document.getElementById(listId);
+    Array.from(files).forEach(file => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `
+        <div class="file-item-left">
+          <span class="file-item-icon">${file.type.includes('video') ? '🎬' : file.type.includes('pdf') ? '📄' : '🖼️'}</span>
+          <span>${file.name}</span>
+          <span style="color:var(--muted);font-size:10px;">${(file.size/1024/1024).toFixed(1)} MB</span>
+        </div>
+        <button class="file-remove" onclick="this.parentElement.remove()">✕</button>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  // 語音錄製
+  let isRecording = false;
+  let recognition = null;
+
+  function toggleRecording() {
+    const btn = document.getElementById('voice-btn');
+    const transcript = document.getElementById('transcript');
+    const bars = document.querySelectorAll('.wave-bar');
+
+    if (!isRecording) {
+      isRecording = true;
+      btn.classList.add('recording');
+      btn.textContent = '⏹️';
+      bars.forEach((b, i) => {
+        b.style.animation = `wave ${0.4 + Math.random()*0.6}s ease-in-out ${i*0.05}s infinite alternate`;
+        b.style.opacity = '0.8';
+      });
+      transcript.textContent = '正在錄音中...';
+
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'zh-TW';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.onresult = (e) => {
+          let text = '';
+          for (let i = 0; i < e.results.length; i++) {
+            text += e.results[i][0].transcript;
+          }
+          transcript.textContent = text;
+          document.getElementById('style-text').value = text;
+        };
+        recognition.start();
+      }
+    } else {
+      isRecording = false;
+      btn.classList.remove('recording');
+      btn.textContent = '🎙️';
+      bars.forEach(b => {
+        b.style.animation = 'none';
+        b.style.opacity = '0.3';
+      });
+      if (recognition) recognition.stop();
+    }
+  }
+
+  // 下一步
+  function nextStep() {
+    const text = document.getElementById('style-text').value || document.getElementById('transcript').textContent;
+    window.location.href = 'style-form.html';
+  }
+</script>
+</body>
+</html>

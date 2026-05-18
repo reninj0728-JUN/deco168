@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>DESIGN & DECO — Logo Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Inter:wght@200;300;400&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 80px;
+      font-family: 'Inter', sans-serif;
+      padding: 60px 40px;
+    }
+
+    .label {
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #555;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ── VERSION A：幾何雙D ── */
+    .version-a {
+      background: #111;
+      padding: 56px 72px;
+      border: 1px solid #222;
+    }
+
+    .dd-container {
+      display: flex;
+      align-items: center;
+      gap: 0px;
+      margin-bottom: 20px;
+    }
+
+    .version-a .wordmark {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 6px;
+      color: #C9A96E;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .version-a .sub {
+      font-size: 8px;
+      letter-spacing: 3.5px;
+      color: #444;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    /* ── VERSION B：橫式完整 ── */
+    .version-b {
+      background: #111;
+      padding: 40px 64px;
+      border: 1px solid #222;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .version-b .text-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .version-b .main-text {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px;
+      font-weight: 400;
+      letter-spacing: 4px;
+      color: #ffffff;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .version-b .main-text span { color: #C9A96E; }
+
+    .version-b .sub-text {
+      font-size: 8px;
+      letter-spacing: 3px;
+      color: #555;
+      text-transform: uppercase;
+    }
+
+    /* ── VERSION C：白底版 ── */
+    .version-c {
+      background: #f5f0eb;
+      padding: 56px 72px;
+      border: 1px solid #ddd;
+    }
+
+    .version-c .wordmark {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 6px;
+      color: #8B6914;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .version-c .sub {
+      font-size: 8px;
+      letter-spacing: 3.5px;
+      color: #999;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    .divider {
+      width: 1px;
+      height: 48px;
+      background: #2a2a2a;
+    }
+
+    .section-title {
+      font-size: 9px;
+      letter-spacing: 4px;
+      color: #333;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- VERSION A：主Logo 深底 -->
+  <div>
+    <p class="label">Version A — 主 Logo · 深底用</p>
+    <div class="version-a">
+      <div class="dd-container">
+        <svg width="110" height="80" viewBox="0 0 110 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- 左 D -->
+          <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="1.5"/>
+          <path d="M16 20 L16 60 L30 60 C42 60 51 51.5 51 40 C51 28.5 42 20 30 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.5" opacity="0.4"/>
+          <!-- 右 D (鏡像) -->
+          <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="1.5"/>
+          <path d="M94 20 L94 60 L80 60 C68 60 59 51.5 59 40 C59 28.5 68 20 80 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.5" opacity="0.4"/>
+          <!-- 中心交叉線 -->
+          <line x1="55" y1="12" x2="55" y2="68" stroke="#C9A96E" stroke-width="0.5" opacity="0.3"/>
+          <!-- 頂底裝飾線 -->
+          <line x1="8" y1="12" x2="102" y2="12" stroke="#C9A96E" stroke-width="0.5" opacity="0.25"/>
+          <line x1="8" y1="68" x2="102" y2="68" stroke="#C9A96E" stroke-width="0.5" opacity="0.25"/>
+        </svg>
+      </div>
+      <div class="wordmark">Design &amp; Deco</div>
+      <div class="sub">Home Design &amp; Styling Platform · Taiwan</div>
+    </div>
+  </div>
+
+  <!-- VERSION B：橫式 -->
+  <div>
+    <p class="label">Version B — 橫式 Logo · 導覽列用</p>
+    <div class="version-b">
+      <svg width="52" height="38" viewBox="0 0 110 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
+        <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
+        <line x1="8" y1="12" x2="102" y2="12" stroke="#C9A96E" stroke-width="0.8" opacity="0.35"/>
+        <line x1="8" y1="68" x2="102" y2="68" stroke="#C9A96E" stroke-width="0.8" opacity="0.35"/>
+      </svg>
+      <div class="divider"></div>
+      <div class="text-block">
+        <div class="main-text">Design <span>&amp;</span> Deco</div>
+        <div class="sub-text">by ATARAPA™ · Taiwan 🇹🇼</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERSION C：白底 -->
+  <div>
+    <p class="label">Version C — 白底版 · 印刷用</p>
+    <div class="version-c">
+      <div class="dd-container" style="justify-content:center;">
+        <svg width="110" height="80" viewBox="0 0 110 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#8B6914" stroke-width="1.5"/>
+          <path d="M16 20 L16 60 L30 60 C42 60 51 51.5 51 40 C51 28.5 42 20 30 20 Z" fill="none" stroke="#8B6914" stroke-width="0.5" opacity="0.4"/>
+          <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#8B6914" stroke-width="1.5"/>
+          <path d="M94 20 L94 60 L80 60 C68 60 59 51.5 59 40 C59 28.5 68 20 80 20 Z" fill="none" stroke="#8B6914" stroke-width="0.5" opacity="0.4"/>
+          <line x1="8" y1="12" x2="102" y2="12" stroke="#8B6914" stroke-width="0.5" opacity="0.3"/>
+          <line x1="8" y1="68" x2="102" y2="68" stroke="#8B6914" stroke-width="0.5" opacity="0.3"/>
+        </svg>
+      </div>
+      <div class="wordmark">Design &amp; Deco</div>
+      <div class="sub">Home Design &amp; Styling Platform · Taiwan</div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>設計成果 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black:   #111111;
+      --dark:    #181818;
+      --card:    #1e1e1e;
+      --line:    #2e2e2e;
+      --gold:    #C9A96E;
+      --gold-lt: #e0c99a;
+      --white:   #ffffff;
+      --muted:   #777777;
+      --body:    #aaaaaa;
+      --green:   #06C755;
+    }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 68px;
+      background: rgba(17,17,17,0.92); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .nav-logo .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; letter-spacing: 4px; color: var(--gold); }
+    .nav-logo .sub { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+    .nav-logo .text-block { display: flex; flex-direction: column; }
+    .tw-badge { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; }
+
+    /* PROGRESS BAR */
+    .progress-bar {
+      position: fixed; top: 68px; left: 0; right: 0; z-index: 99;
+      background: var(--dark); border-bottom: 1px solid var(--line);
+      padding: 0 48px; display: flex; align-items: center; height: 52px;
+    }
+    .step-item { display: flex; align-items: center; gap: 10px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding: 0 24px; }
+    .step-item.active { color: var(--gold); }
+    .step-item.done { color: var(--muted); }
+    .step-num { width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; }
+    .step-item.active .step-num { border-color: var(--gold); color: var(--gold); }
+    .step-item.done .step-num { background: var(--gold); border-color: var(--gold); color: var(--black); }
+    .step-arrow { color: var(--line); font-size: 12px; }
+
+    /* MAIN */
+    main { padding: 148px 48px 80px; max-width: 1100px; margin: 0 auto; }
+
+    .page-eyebrow {
+      font-size: 9px; letter-spacing: 4px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .page-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
+    .page-title { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 300; margin-bottom: 10px; line-height: 1.1; }
+    .page-title em { font-style: italic; color: var(--gold); }
+    .page-desc { font-size: 13px; color: var(--body); line-height: 1.8; max-width: 540px; margin-bottom: 48px; }
+
+    /* GALLERY */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: auto auto;
+      gap: 8px;
+      margin-bottom: 48px;
+    }
+
+    .gallery-item {
+      position: relative; overflow: hidden; cursor: pointer;
+      background: var(--dark);
+    }
+    .gallery-item:first-child {
+      grid-column: span 2;
+      grid-row: span 2;
+    }
+    .gallery-item .gimg {
+      width: 100%; height: 100%; min-height: 180px;
+      display: block; transition: transform 0.4s ease;
+    }
+    .gallery-item:hover .gimg { transform: scale(1.03); }
+    .gallery-item .overlay {
+      position: absolute; inset: 0;
+      background: rgba(17,17,17,0); transition: background 0.3s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gallery-item:hover .overlay { background: rgba(17,17,17,0.35); }
+    .overlay-icon { color: var(--gold); font-size: 20px; opacity: 0; transition: opacity 0.3s; }
+    .gallery-item:hover .overlay-icon { opacity: 1; }
+    .gallery-item .img-num {
+      position: absolute; bottom: 10px; left: 12px;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+    }
+
+    /* LOCKED overlay */
+    .locked-notice {
+      background: rgba(201,169,110,0.07);
+      border: 1px solid rgba(201,169,110,0.2);
+      border-left: 3px solid var(--gold);
+      padding: 16px 20px;
+      margin-bottom: 48px;
+      display: flex; align-items: center; gap: 14px;
+      font-size: 12px; color: var(--body); line-height: 1.6;
+    }
+    .locked-notice strong { color: var(--white); font-weight: 400; }
+
+    /* TWO-COL */
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 32px;
+      align-items: start;
+    }
+
+    /* REPORT */
+    .report-block {
+      background: var(--dark);
+      border: 1px solid var(--line);
+      padding: 32px;
+      margin-bottom: 20px;
+    }
+    .report-title {
+      font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 20px;
+    }
+
+    .report-row {
+      display: flex; align-items: flex-start;
+      padding: 14px 0; border-bottom: 1px solid var(--line); gap: 20px;
+    }
+    .report-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .report-key { font-size: 10px; color: var(--muted); letter-spacing: 1px; min-width: 90px; flex-shrink: 0; padding-top: 2px; }
+    .report-val { font-size: 12px; color: var(--white); line-height: 1.7; flex: 1; }
+    .report-val .tag {
+      display: inline-block; font-size: 9px; letter-spacing: 1px;
+      border: 1px solid var(--line); color: var(--body);
+      padding: 2px 8px; margin: 2px 4px 2px 0;
+    }
+    .report-val .tag.gold { border-color: rgba(201,169,110,0.4); color: var(--gold); }
+
+    /* PALETTE ROW */
+    .palette-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .swatch { width: 28px; height: 28px; border: 1px solid var(--line); flex-shrink: 0; }
+    .swatch-label { font-size: 9px; color: var(--muted); margin-left: 4px; margin-right: 12px; }
+
+    /* MATERIALS LIST */
+    .material-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;
+    }
+    .material-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; color: var(--body);
+    }
+    .material-dot { width: 4px; height: 4px; background: var(--gold); border-radius: 50%; flex-shrink: 0; }
+
+    /* DESIGNER NOTES (9800 plan) */
+    .designer-block {
+      background: var(--dark);
+      border: 1px solid rgba(201,169,110,0.2);
+      padding: 28px 32px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .designer-block::before {
+      content: '設計師專區';
+      position: absolute; top: -9px; left: 24px;
+      font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
+      background: var(--dark); color: var(--gold); padding: 0 8px;
+    }
+    .designer-avatar {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+    }
+    .avatar-circle {
+      width: 36px; height: 36px; border: 1px solid var(--gold);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--gold); flex-shrink: 0;
+    }
+    .avatar-name { font-size: 12px; color: var(--white); }
+    .avatar-title { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 1px; }
+    .designer-note {
+      font-size: 12px; color: var(--body); line-height: 1.8;
+      border-left: 2px solid rgba(201,169,110,0.3); padding-left: 16px;
+    }
+    .designer-note strong { color: var(--white); font-weight: 400; }
+
+    /* LAYOUT PLAN */
+    .layout-block {
+      background: var(--dark); border: 1px solid var(--line);
+      padding: 28px 32px; margin-bottom: 20px;
+    }
+    .layout-placeholder {
+      height: 200px; background: var(--card);
+      border: 1px dashed var(--line);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      margin-top: 16px;
+    }
+    .layout-placeholder .lp-icon { font-size: 28px; opacity: 0.4; }
+    .layout-placeholder .lp-text { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+    .layout-lock {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; color: var(--muted); margin-top: 10px; letter-spacing: 0.5px;
+    }
+
+    /* PAYMENT CARD (sticky) */
+    .pay-card {
+      position: sticky; top: 136px;
+      background: var(--dark); border: 1px solid var(--line);
+      padding: 28px;
+    }
+
+    .pay-title { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
+
+    .pay-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12px;
+    }
+    .pay-row:last-of-type { border-bottom: none; }
+    .pay-key { color: var(--muted); }
+    .pay-val { color: var(--white); text-align: right; }
+
+    .pay-total {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 16px 0 20px; border-top: 1px solid var(--line); margin-top: 4px;
+    }
+    .pay-total-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+    .pay-amount { font-family: 'Cormorant Garamond', serif; font-size: 32px; color: var(--gold); }
+
+    /* LINE PAY button */
+    .btn-linepay {
+      width: 100%; padding: 15px;
+      background: #06C755; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500;
+      letter-spacing: 2px; text-transform: uppercase; color: #fff;
+      transition: background 0.2s; margin-bottom: 10px;
+    }
+    .btn-linepay:hover { background: #05b04a; }
+    .linepay-logo {
+      font-size: 13px; font-weight: 700;
+      background: #fff; color: #06C755;
+      padding: 2px 6px; border-radius: 2px; letter-spacing: 0;
+    }
+
+    .btn-ghost-pay {
+      width: 100%; padding: 13px;
+      background: transparent; border: 1px solid var(--line);
+      font-family: 'Inter', sans-serif; font-size: 10px;
+      letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+      cursor: pointer; transition: border-color 0.2s, color 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-ghost-pay:hover { border-color: var(--muted); color: var(--white); }
+
+    .pay-secure {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-top: 14px;
+    }
+
+    /* PAID STATE (hidden initially) */
+    .paid-section { display: none; }
+    .paid-section.show { display: block; }
+    .locked-section { display: block; }
+    .locked-section.hide { display: none; }
+
+    .download-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .dl-item {
+      display: flex; align-items: center; justify-content: space-between;
+      border: 1px solid var(--line); padding: 14px 16px;
+    }
+    .dl-left { display: flex; align-items: center; gap: 12px; }
+    .dl-icon { font-size: 18px; }
+    .dl-name { font-size: 12px; color: var(--white); }
+    .dl-size { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .dl-btn {
+      font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--gold); border: 1px solid rgba(201,169,110,0.3);
+      padding: 6px 14px; background: transparent; cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .dl-btn:hover { background: var(--gold); color: var(--black); }
+
+    /* SHARE */
+    .share-row {
+      display: flex; gap: 8px; margin-top: 12px;
+    }
+    .share-btn {
+      flex: 1; padding: 10px 6px;
+      background: transparent; border: 1px solid var(--line);
+      font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .share-btn:hover { border-color: var(--muted); color: var(--white); }
+
+    /* LIGHTBOX */
+    .lightbox {
+      display: none; position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,0.92); align-items: center; justify-content: center;
+      backdrop-filter: blur(8px);
+    }
+    .lightbox.show { display: flex; }
+    .lb-inner { position: relative; max-width: 85vw; max-height: 85vh; }
+    .lb-img { width: 100%; height: 100%; max-height: 80vh; object-fit: contain; display: block; }
+    .lb-close {
+      position: absolute; top: -36px; right: 0;
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--muted); background: none; border: none; cursor: pointer;
+    }
+    .lb-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(17,17,17,0.7); border: 1px solid var(--line);
+      color: var(--muted); padding: 12px 16px; cursor: pointer;
+      font-size: 14px; transition: color 0.2s, border-color 0.2s;
+    }
+    .lb-nav:hover { color: var(--gold); border-color: var(--gold); }
+    .lb-prev { left: -52px; }
+    .lb-next { right: -52px; }
+    .lb-counter {
+      position: absolute; bottom: -28px; left: 50%; transform: translateX(-50%);
+      font-size: 9px; color: var(--muted); letter-spacing: 2px;
+    }
+
+    @media (max-width: 900px) {
+      nav { padding: 0 20px; }
+      main { padding: 140px 20px 60px; }
+      .progress-bar { padding: 0 20px; overflow-x: auto; }
+      .result-grid { grid-template-columns: 1fr; }
+      .pay-card { position: static; }
+      .gallery-grid { grid-template-columns: 1fr 1fr; }
+      .gallery-item:first-child { grid-column: span 2; grid-row: span 1; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg width="44" height="32" viewBox="0 0 110 80" fill="none">
+      <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
+      <path d="M16 20 L16 60 L30 60 C42 60 51 51.5 51 40 C51 28.5 42 20 30 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.7" opacity="0.4"/>
+      <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
+      <path d="M94 20 L94 60 L80 60 C68 60 59 51.5 59 40 C59 28.5 68 20 80 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.7" opacity="0.4"/>
+      <line x1="8" y1="12" x2="102" y2="12" stroke="#C9A96E" stroke-width="0.7" opacity="0.3"/>
+      <line x1="8" y1="68" x2="102" y2="68" stroke="#C9A96E" stroke-width="0.7" opacity="0.3"/>
+    </svg>
+    <div class="text-block">
+      <span class="brand">DECO168</span>
+      <span class="sub">Design &amp; Deco · by ATARAPA™</span>
+    </div>
+  </a>
+  <div class="tw-badge">🇹🇼 TW</div>
+</nav>
+
+<!-- PROGRESS BAR -->
+<div class="progress-bar">
+  <div class="step-item done"><div class="step-num">✓</div><span>上傳空間</span></div>
+  <span class="step-arrow">›</span>
+  <div class="step-item done"><div class="step-num">✓</div><span>設計偏好</span></div>
+  <span class="step-arrow">›</span>
+  <div class="step-item done"><div class="step-num">✓</div><span>AI 生成</span></div>
+  <span class="step-arrow">›</span>
+  <div class="step-item active"><div class="step-num">4</div><span>付款領取</span></div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <div class="page-eyebrow">Step 04 / 04</div>
+  <h1 class="page-title">您的設計方案<br><em>已就緒</em></h1>
+  <p class="page-desc">以下為 AI 生成的預覽圖。完成付款後即可下載高解析度成果包（PDF + JPG）。</p>
+
+  <!-- GALLERY -->
+  <div class="gallery-grid" id="gallery"></div>
+
+  <!-- LOCKED NOTICE -->
+  <div class="locked-notice locked-section" id="lockedNotice">
+    <span style="font-size:18px;">🔒</span>
+    <div>以上為<strong>預覽圖（低解析度浮水印版）</strong>。完成付款後立即解鎖高解析度原圖 + 完整 PDF 報告，24 小時內有效下載。</div>
+  </div>
+
+  <!-- RESULT GRID -->
+  <div class="result-grid">
+
+    <!-- LEFT: report -->
+    <div>
+
+      <!-- AI 分析報告 -->
+      <div class="report-block">
+        <div class="report-title">✦ AI 設計分析報告</div>
+
+        <div class="report-row">
+          <div class="report-key">空間</div>
+          <div class="report-val">客廳 · 25–30 坪 · 自然採光充足</div>
+        </div>
+        <div class="report-row">
+          <div class="report-key">主風格</div>
+          <div class="report-val">
+            <span class="tag gold">現代簡約</span>
+            <span class="tag">溫暖感</span>
+            <span class="tag">低調奢華</span>
+          </div>
+        </div>
+        <div class="report-row">
+          <div class="report-key">主色調</div>
+          <div class="report-val">
+            <div class="palette-row">
+              <div class="swatch" style="background:#f5f0e8;"></div>
+              <span class="swatch-label">暖白</span>
+              <div class="swatch" style="background:#ddd0ba;"></div>
+              <span class="swatch-label">奶油</span>
+              <div class="swatch" style="background:#b8956a;"></div>
+              <span class="swatch-label">淺木</span>
+              <div class="swatch" style="background:#7a6a5a;"></div>
+              <span class="swatch-label">深棕</span>
+            </div>
+          </div>
+        </div>
+        <div class="report-row">
+          <div class="report-key">推薦材質</div>
+          <div class="report-val">
+            <div class="material-grid">
+              <div class="material-item"><div class="material-dot"></div>橡木實木地板</div>
+              <div class="material-item"><div class="material-dot"></div>亞麻布沙發</div>
+              <div class="material-item"><div class="material-dot"></div>白色霧面塗料</div>
+              <div class="material-item"><div class="material-dot"></div>黑鐵件細框</div>
+              <div class="material-item"><div class="material-dot"></div>竹節藤編燈</div>
+              <div class="material-item"><div class="material-dot"></div>低調大理石紋磚</div>
+            </div>
+          </div>
+        </div>
+        <div class="report-row">
+          <div class="report-key">採光建議</div>
+          <div class="report-val">主燈採用暖白 3000K 吊燈，搭配落地燈補充角落光源，避免正上方投射陰影造成視覺壓迫。</div>
+        </div>
+        <div class="report-row">
+          <div class="report-key">空間優化</div>
+          <div class="report-val">建議移除電視牆背後的系統收納，改為開放木格展示，可視覺擴大 20%。沙發背牆留白，以一幅大型掛畫作為視覺錨點。</div>
+        </div>
+        <div class="report-row">
+          <div class="report-key">風格小提醒</div>
+          <div class="report-val">現代簡約的核心是「減法」——建議全室軟裝件數控制在 15 件以內，每件都有明確功能，避免裝飾過度。</div>
+        </div>
+      </div>
+
+      <!-- 設計師審核（僅 9800 方案顯示） -->
+      <div class="designer-block" id="designerBlock">
+        <div class="designer-avatar">
+          <div class="avatar-circle">林</div>
+          <div>
+            <div class="avatar-name">林 O 宇 設計師</div>
+            <div class="avatar-title">資深室內設計師 · 10 年經驗 · CSID 認證</div>
+          </div>
+        </div>
+        <div class="designer-note">
+          AI 的整體方案方向<strong>正確</strong>，建議保留。我在現場條件上補充幾點：<br><br>
+          1. 入口玄關與客廳之間可加一道<strong>半高格柵屏風</strong>（約 120cm），既有界定感又不遮光。<br>
+          2. 廚房冰箱建議移至右側靠牆，可騰出中島空間，整體動線順暢度提升明顯。<br>
+          3. 建材上，磁磚部分推薦選用<strong>60×120 霧面長版磚</strong>，鋪面縫少、視覺更乾淨。
+        </div>
+      </div>
+
+      <!-- 平面配置草圖 -->
+      <div class="layout-block" id="layoutBlock">
+        <div class="report-title">平面配置草圖</div>
+        <div class="layout-placeholder locked-section" id="layoutLock">
+          <div class="lp-icon">🔒</div>
+          <div class="lp-text">付款後解鎖配置草圖</div>
+        </div>
+        <div class="paid-section" id="layoutPaid">
+          <div class="layout-placeholder" style="background:var(--card);border-style:solid;border-color:var(--line);">
+            <div class="lp-icon">📐</div>
+            <div class="lp-text">平面配置草圖（設計師手繪掃描版）</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">25 坪客廳 + 玄關 + 餐廳配置</div>
+          </div>
+          <button class="dl-btn" style="width:100%;margin-top:12px;padding:12px;">下載配置草圖 PDF</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: payment -->
+    <div>
+      <div class="pay-card">
+        <div class="pay-title">訂單確認 &amp; 付款</div>
+
+        <div class="pay-row"><span class="pay-key">方案</span><span class="pay-val" id="payPlan">AI 概念方案</span></div>
+        <div class="pay-row"><span class="pay-key">空間</span><span class="pay-val">客廳 · 25–30 坪</span></div>
+        <div class="pay-row"><span class="pay-key">渲染圖</span><span class="pay-val">5 張 (JPG 高解析)</span></div>
+        <div class="pay-row"><span class="pay-key">分析報告</span><span class="pay-val">PDF 1 份</span></div>
+        <div class="pay-row locked-section" id="payRowDesigner" style="display:none;">
+          <span class="pay-key">設計師審核</span><span class="pay-val">配置草圖 1 份</span>
+        </div>
+        <div class="pay-row"><span class="pay-key">交件方式</span><span class="pay-val">線上下載</span></div>
+
+        <div class="pay-total">
+          <span class="pay-total-label">應付總計</span>
+          <span class="pay-amount" id="payAmount">NT$ 1,999</span>
+        </div>
+
+        <!-- LOCKED: payment buttons -->
+        <div class="locked-section" id="payButtons">
+          <button class="btn-linepay" onclick="simulatePay()">
+            <span class="linepay-logo">LINE</span> Pay 立即付款
+          </button>
+          <button class="btn-ghost-pay">信用卡 / ATM 轉帳</button>
+          <div class="pay-secure">🔒 &nbsp;SSL 加密 · 安全付款</div>
+        </div>
+
+        <!-- PAID: download buttons -->
+        <div class="paid-section" id="downloadSection">
+          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#4a9e6b;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+            <span>✓</span> 付款成功 · 立即下載
+          </div>
+          <div class="download-list">
+            <div class="dl-item">
+              <div class="dl-left">
+                <div class="dl-icon">🖼</div>
+                <div>
+                  <div class="dl-name">渲染圖 × 5 張</div>
+                  <div class="dl-size">JPG 原圖 · 約 48 MB</div>
+                </div>
+              </div>
+              <button class="dl-btn">下載</button>
+            </div>
+            <div class="dl-item">
+              <div class="dl-left">
+                <div class="dl-icon">📄</div>
+                <div>
+                  <div class="dl-name">設計分析報告</div>
+                  <div class="dl-size">PDF · 約 8 MB</div>
+                </div>
+              </div>
+              <button class="dl-btn">下載</button>
+            </div>
+            <div class="dl-item paid-section" id="dlDesigner">
+              <div class="dl-left">
+                <div class="dl-icon">📐</div>
+                <div>
+                  <div class="dl-name">平面配置草圖</div>
+                  <div class="dl-size">PDF · 約 4 MB</div>
+                </div>
+              </div>
+              <button class="dl-btn">下載</button>
+            </div>
+          </div>
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px;">
+            <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">分享這份設計</div>
+            <div class="share-row">
+              <button class="share-btn">LINE 分享</button>
+              <button class="share-btn">Facebook</button>
+              <button class="share-btn">複製連結</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- NEXT STEP card -->
+      <div style="background:var(--dark);border:1px solid var(--line);padding:20px 24px;margin-top:16px;">
+        <div style="font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">接下來？</div>
+        <div style="font-size:12px;color:var(--body);line-height:1.8;">
+          喜歡這份設計方案？我們可以幫您媒合<strong style="color:var(--white);">合作設計師</strong>，進一步規劃施工細節，或取得廠商估價。完全免費的媒合服務。
+        </div>
+        <button class="btn-ghost-pay" style="margin-top:14px;">免費媒合設計師 →</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <div class="lb-inner">
+    <button class="lb-close" onclick="closeLB()">關閉 ✕</button>
+    <div class="lb-img" id="lbImg" style="width:70vw;height:52vw;max-height:70vh;"></div>
+    <button class="lb-nav lb-prev" onclick="navLB(-1)">‹</button>
+    <button class="lb-nav lb-next" onclick="navLB(1)">›</button>
+    <div class="lb-counter" id="lbCounter">1 / 5</div>
+  </div>
+</div>
+
+<script>
+// ── GALLERY ────────────────────────────────────────────────────────────────
+const gradients = [
+  'linear-gradient(135deg, #2a2420 0%, #4a3828 35%, #c8a878 75%, #f5f0e0 100%)',
+  'linear-gradient(135deg, #1e2428 0%, #2a3840 50%, #8090a0 100%)',
+  'linear-gradient(135deg, #282420 0%, #403830 50%, #d0b888 100%)',
+  'linear-gradient(135deg, #201e24 0%, #383048 50%, #9080b0 100%)',
+  'linear-gradient(135deg, #1e2820 0%, #283830 50%, #90b098 100%)',
+];
+const labels = ['主視角全景','沙發區特寫','廚房餐廳視角','臥室方向','細節材質特寫'];
+
+const gallery = document.getElementById('gallery');
+gradients.forEach((g, i) => {
+  const div = document.createElement('div');
+  div.className = 'gallery-item' + (i === 0 ? ' first' : '');
+  div.innerHTML = `
+    <div class="gimg" style="background:${g};"></div>
+    <div class="overlay"><div class="overlay-icon">⊕</div></div>
+    <div class="img-num">0${i+1} · ${labels[i]}</div>
+  `;
+  div.querySelector('.gimg').style.minHeight = i === 0 ? '320px' : '180px';
+  div.addEventListener('click', () => openLB(i));
+  gallery.appendChild(div);
+});
+
+// make first item span 2 cols & 2 rows
+gallery.children[0].style.gridColumn = 'span 2';
+gallery.children[0].style.gridRow = 'span 2';
+gallery.children[0].querySelector('.gimg').style.height = '100%';
+
+// ── LIGHTBOX ───────────────────────────────────────────────────────────────
+let currentLB = 0;
+function openLB(i) {
+  currentLB = i;
+  document.getElementById('lbImg').style.background = gradients[i];
+  document.getElementById('lbCounter').textContent = `${i+1} / ${gradients.length}`;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLB() { document.getElementById('lightbox').classList.remove('show'); }
+function navLB(dir) {
+  currentLB = (currentLB + dir + gradients.length) % gradients.length;
+  openLB(currentLB);
+}
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === document.getElementById('lightbox')) closeLB();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLB();
+  if (e.key === 'ArrowLeft') navLB(-1);
+  if (e.key === 'ArrowRight') navLB(1);
+});
+
+// ── PLAN DETECTION (read URL param ?plan=full for 9800) ────────────────────
+const params = new URLSearchParams(window.location.search);
+const plan = params.get('plan') || 'basic';
+if (plan === 'full') {
+  document.getElementById('payPlan').textContent = '設計師審核方案';
+  document.getElementById('payAmount').textContent = 'NT$ 9,800';
+  document.getElementById('payRowDesigner').style.display = 'flex';
+  document.getElementById('designerBlock').style.display = 'block';
+  document.getElementById('layoutBlock').style.display = 'block';
+} else {
+  document.getElementById('designerBlock').style.display = 'none';
+  document.getElementById('layoutBlock').style.display = 'none';
+}
+
+// ── SIMULATE PAYMENT ───────────────────────────────────────────────────────
+function simulatePay() {
+  const btn = document.querySelector('.btn-linepay');
+  btn.textContent = '付款處理中…';
+  btn.style.background = '#05994a';
+  btn.style.pointerEvents = 'none';
+
+  setTimeout(() => {
+    // switch to paid state
+    document.querySelectorAll('.locked-section').forEach(el => el.classList.add('hide'));
+    document.querySelectorAll('.paid-section').forEach(el => el.classList.add('show'));
+
+    if (plan === 'full') {
+      document.getElementById('dlDesigner').classList.add('show');
+      document.getElementById('layoutPaid').classList.add('show');
+    }
+  }, 1800);
+}
+</script>
+</body>
+</html>

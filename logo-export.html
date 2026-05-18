@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>DECO168 Logo Export</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0e0e0e;
+      font-family: 'Inter', sans-serif;
+      color: #fff;
+      padding: 60px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 64px;
+    }
+    h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 20px;
+      letter-spacing: 4px;
+      color: #C9A96E;
+      text-transform: uppercase;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .label {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #555;
+      text-transform: uppercase;
+    }
+    canvas { border: 1px solid #222; }
+    .btn {
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #111;
+      background: #C9A96E;
+      border: none;
+      padding: 10px 28px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn:hover { background: #e0c99a; }
+  </style>
+</head>
+<body>
+
+<h1>DECO168 — Logo Export</h1>
+
+<!-- 深底版 -->
+<div class="card">
+  <p class="label">深底版 — 導覽列 / 網頁用</p>
+  <canvas id="dark" width="600" height="200"></canvas>
+  <button class="btn" onclick="download('dark','DECO168-logo-dark.png')">下載深底版 PNG</button>
+</div>
+
+<!-- 白底版 -->
+<div class="card">
+  <p class="label">白底版 — 印刷 / 文件用</p>
+  <canvas id="light" width="600" height="200"></canvas>
+  <button class="btn" onclick="download('light','DECO168-logo-light.png')">下載白底版 PNG</button>
+</div>
+
+<!-- 透明版 -->
+<div class="card">
+  <p class="label">透明版 — 通用疊圖用</p>
+  <canvas id="transparent" width="600" height="200" style="background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 0 0 / 16px 16px;"></canvas>
+  <button class="btn" onclick="download('transparent','DECO168-logo-transparent.png')">下載透明版 PNG</button>
+</div>
+
+<script>
+function drawLogo(ctx, bg, goldColor, textColor, mutedColor) {
+  const W = 600, H = 200;
+
+  // 背景
+  if (bg) {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // 雙D SVG path 轉 canvas
+  const cx = 60, cy = 100, scale = 1.6;
+
+  function d(path) {
+    ctx.beginPath();
+    // 左D
+    ctx.moveTo(cx + 8*scale/2, cy - 34*scale/2);
+    ctx.lineTo(cx + 8*scale/2, cy + 34*scale/2);
+    ctx.lineTo(cx + 30*scale/2, cy + 34*scale/2);
+    ctx.bezierCurveTo(
+      cx + 48*scale/2, cy + 34*scale/2,
+      cx + 60*scale/2, cy + 22*scale/2,
+      cx + 60*scale/2, cy
+    );
+    ctx.bezierCurveTo(
+      cx + 60*scale/2, cy - 22*scale/2,
+      cx + 48*scale/2, cy - 34*scale/2,
+      cx + 30*scale/2, cy - 34*scale/2
+    );
+    ctx.closePath();
+  }
+
+  // 左D 外框
+  ctx.beginPath();
+  ctx.moveTo(cx - 38, cy - 34);
+  ctx.lineTo(cx - 38, cy + 34);
+  ctx.lineTo(cx - 18, cy + 34);
+  ctx.bezierCurveTo(cx + 2, cy + 34, cx + 14, cy + 22, cx + 14, cy);
+  ctx.bezierCurveTo(cx + 14, cy - 22, cx + 2, cy - 34, cx - 18, cy - 34);
+  ctx.closePath();
+  ctx.strokeStyle = goldColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 左D 內線
+  ctx.beginPath();
+  ctx.moveTo(cx - 30, cy - 26);
+  ctx.lineTo(cx - 30, cy + 26);
+  ctx.lineTo(cx - 18, cy + 26);
+  ctx.bezierCurveTo(cx - 5, cy + 26, cx + 5, cy + 18, cx + 5, cy);
+  ctx.bezierCurveTo(cx + 5, cy - 18, cx - 5, cy - 26, cx - 18, cy - 26);
+  ctx.closePath();
+  ctx.strokeStyle = goldColor;
+  ctx.lineWidth = 0.7;
+  ctx.globalAlpha = 0.35;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 右D 外框
+  ctx.beginPath();
+  ctx.moveTo(cx + 38, cy - 34);
+  ctx.lineTo(cx + 38, cy + 34);
+  ctx.lineTo(cx + 18, cy + 34);
+  ctx.bezierCurveTo(cx - 2, cy + 34, cx - 14, cy + 22, cx - 14, cy);
+  ctx.bezierCurveTo(cx - 14, cy - 22, cx - 2, cy - 34, cx + 18, cy - 34);
+  ctx.closePath();
+  ctx.strokeStyle = goldColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 右D 內線
+  ctx.beginPath();
+  ctx.moveTo(cx + 30, cy - 26);
+  ctx.lineTo(cx + 30, cy + 26);
+  ctx.lineTo(cx + 18, cy + 26);
+  ctx.bezierCurveTo(cx + 5, cy + 26, cx - 5, cy + 18, cx - 5, cy);
+  ctx.bezierCurveTo(cx - 5, cy - 18, cx + 5, cy - 26, cx + 18, cy - 26);
+  ctx.closePath();
+  ctx.strokeStyle = goldColor;
+  ctx.lineWidth = 0.7;
+  ctx.globalAlpha = 0.35;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 頂底裝飾線
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = goldColor;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(cx - 38, cy - 34); ctx.lineTo(cx + 38, cy - 34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 38, cy + 34); ctx.lineTo(cx + 38, cy + 34); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 分隔線
+  ctx.strokeStyle = mutedColor;
+  ctx.lineWidth = 0.8;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath(); ctx.moveTo(cx + 58, cy - 28); ctx.lineTo(cx + 58, cy + 28); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 主品牌名
+  ctx.font = "500 32px 'Cormorant Garamond', serif";
+  ctx.fillStyle = textColor;
+  ctx.letterSpacing = '4px';
+  ctx.fillText('DECO168', cx + 76, cy + 4);
+
+  // 副標
+  ctx.font = "300 11px 'Inter', sans-serif";
+  ctx.fillStyle = mutedColor;
+  ctx.fillText('DESIGN & DECO  ·  by ATARAPA™  ·  🇹🇼 TW', cx + 76, cy + 26);
+}
+
+window.addEventListener('load', () => {
+  // 深底
+  const darkCtx = document.getElementById('dark').getContext('2d');
+  drawLogo(darkCtx, '#111111', '#C9A96E', '#ffffff', '#666666');
+
+  // 白底
+  const lightCtx = document.getElementById('light').getContext('2d');
+  drawLogo(lightCtx, '#f5f0eb', '#8B6914', '#1a1a1a', '#999999');
+
+  // 透明
+  const transCtx = document.getElementById('transparent').getContext('2d');
+  drawLogo(transCtx, null, '#C9A96E', '#ffffff', '#888888');
+});
+
+function download(id, filename) {
+  const canvas = document.getElementById(id);
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>
