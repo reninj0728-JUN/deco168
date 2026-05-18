@@ -123,6 +123,7 @@
     .hero {
       position: relative;
       height: 100vh;
+      height: 100svh; /* iOS 網址列穩定版 */
       display: flex;
       align-items: flex-end;
       padding-bottom: 96px;
@@ -524,14 +525,17 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      /* 一頁一頁 snap，scroll-padding-top 補 nav 高度，不加 stop 才不會卡 */
+      /* 一頁一頁 snap */
       html {
         scroll-snap-type: y mandatory;
         scroll-padding-top: 60px;
+        overscroll-behavior-y: none; /* 防 iOS 橡皮筋干擾 snap */
       }
+      /* 100svh = 穩定 viewport（不含網址列），避免 iOS 滑動時高度跳動卡頓 */
       .hero, #story, .how-bg, #examples, #pricing, footer {
         scroll-snap-align: start;
         min-height: 100vh;
+        min-height: 100svh;
       }
 
       nav { padding: 0 16px; height: 60px; }
