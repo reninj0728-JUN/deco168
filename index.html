@@ -524,14 +524,12 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      /* 強制 section 停頓，解決卡一半問題 */
       html { scroll-snap-type: y mandatory; }
       .hero, #story, .how-bg, #examples, #pricing, footer {
         scroll-snap-align: start;
         scroll-snap-stop: always;
       }
 
-      /* NAV：移除按鈕，保留副標與導覽連結 */
       nav { padding: 0 16px; height: 60px; }
       .nav-links { display: flex; gap: 16px; }
       .nav-links a { font-size: 10px; letter-spacing: 0.5px; }
@@ -541,23 +539,41 @@
       .nav-logo .sub { font-size: 7px; letter-spacing: 1.5px; }
 
       .hero-content { padding: 0 20px; }
-      .hero-title { font-size: clamp(38px, 10vw, 60px); }
-      .hero-desc { font-size: 13px; }
-      .hero-actions { flex-direction: column; align-items: flex-start; gap: 14px; }
-      .btn-primary, .btn-ghost { padding: 14px 32px; width: 100%; text-align: center; }
+      .hero-title { font-size: clamp(36px, 9vw, 56px); }
+      .hero-desc { font-size: 13px; margin-bottom: 32px; }
+      .hero-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .btn-primary, .btn-ghost { padding: 13px 28px; width: 100%; text-align: center; }
 
-      .section { padding: 72px 20px; }
+      /* 縮短 section 內距，讓內容塞進一個螢幕 */
+      .section { padding: 48px 20px; }
+      .section-label { margin-bottom: 20px; }
+      .story-title { font-size: clamp(26px, 6vw, 36px); margin-bottom: 16px; }
 
-      .story-grid { grid-template-columns: 1fr; gap: 40px; }
+      /* 品牌故事：隱藏佔位圖，只留文字 */
+      .story-grid { grid-template-columns: 1fr; gap: 0; }
+      .story-visual { display: none; }
+      .story-body { font-size: 13px; line-height: 1.7; margin-bottom: 10px; }
+      .story-sig { margin-top: 16px; font-size: 15px; }
 
-      .steps { grid-template-columns: 1fr; }
-      .step { padding: 32px 24px; }
+      /* 四步驟：2×2 格，縮小字號與內距 */
+      .steps { grid-template-columns: 1fr 1fr; margin-top: 24px; }
+      .step { padding: 20px 14px; }
+      .step-num { font-size: 36px; margin-bottom: 8px; }
+      .step-icon { font-size: 18px; margin-bottom: 8px; }
+      .step-title { font-size: 12px; margin-bottom: 6px; }
+      .step-body { font-size: 11px; }
 
-      .examples-grid { grid-template-columns: 1fr !important; }
+      /* 設計案例：2 欄，3 排，整體較矮 */
+      .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 20px !important; }
 
-      .pricing-grid { grid-template-columns: 1fr; }
+      /* 方案定價：單欄，縮小卡片內距 */
+      .pricing-grid { grid-template-columns: 1fr; margin-top: 24px; }
+      .price-card { padding: 28px 22px; }
+      .price-amount { font-size: 44px; }
+      .price-note { margin-bottom: 24px; }
+      .price-features { margin-bottom: 24px; }
 
-      footer { flex-direction: column; gap: 24px; text-align: center; }
+      footer { flex-direction: column; gap: 20px; text-align: center; padding: 36px 20px; }
       .footer-copy { text-align: center; }
     }
   </style>
@@ -605,7 +621,7 @@
       從平面配置到 3D 透視，一份 1,999 元起。
     </p>
     <div class="hero-actions">
-      <button class="btn-primary" onclick="window.location.href='upload.html'">立即體驗</button>
+      <button class="btn-primary" onclick="window.location.href='upload.html'">開始設計</button>
       <button class="btn-ghost" onclick="document.getElementById('examples').scrollIntoView({behavior:'smooth'})">瀏覽設計案例</button>
     </div>
   </div>
