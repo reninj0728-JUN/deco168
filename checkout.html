@@ -444,8 +444,10 @@
         btn.disabled = false;
         return;
       }
-      // Demo mode — skip API
-      localStorage.setItem('deco_order_id',   'ORD-DEMO-' + Date.now());
+      // Demo mode — skip API, generate fake job ID
+      var demoId = Math.random().toString(36).substr(2, 8).toUpperCase();
+      localStorage.setItem('deco_job_id',      demoId);
+      localStorage.setItem('deco_order_id',    'ORD-' + demoId);
       localStorage.setItem('deco_plan',        selectedPlan);
       localStorage.setItem('deco_order_time',  String(Date.now()));
       setTimeout(function() { window.location.href = 'generate.html'; }, 800);

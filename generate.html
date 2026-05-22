@@ -254,7 +254,15 @@
 
   <div class="email-note">
     <strong>請記下你的訂單編號，完成後可在「查詢下載」頁面取得設計成果。</strong><br>
-    <span style="font-size:22px;letter-spacing:4px;color:var(--gold,#c9a96e);font-family:monospace;" id="displayJobId"></span><br>
+    <div style="display:flex;align-items:center;gap:14px;margin:12px 0;">
+      <span style="font-size:22px;letter-spacing:4px;color:var(--gold,#c9a96e);font-family:monospace;" id="displayJobId"></span>
+      <button id="copyBtn" onclick="copyJobId()"
+        style="background:none;border:1px solid var(--gold,#c9a96e);color:var(--gold,#c9a96e);
+               font-family:'Inter',sans-serif;font-size:10px;letter-spacing:2px;
+               padding:6px 14px;cursor:pointer;flex-shrink:0;transition:background 0.2s,color 0.2s;">
+        複製編號
+      </button>
+    </div>
     <span style="font-size:11px;color:var(--muted,#888);">前往 deco168.vercel.app → 查詢下載 → 輸入此編號</span>
   </div>
 </div>
@@ -271,6 +279,22 @@
   if (JOB_ID) {
     var el = document.getElementById('displayJobId');
     if (el) el.textContent = JOB_ID;
+  }
+
+  function copyJobId() {
+    var id = JOB_ID || '';
+    if (!id) return;
+    navigator.clipboard.writeText(id).then(function() {
+      var btn = document.getElementById('copyBtn');
+      btn.textContent = '已複製 ✓';
+      btn.style.background = 'var(--gold,#c9a96e)';
+      btn.style.color = '#111';
+      setTimeout(function() {
+        btn.textContent = '複製編號';
+        btn.style.background = 'none';
+        btn.style.color = 'var(--gold,#c9a96e)';
+      }, 2000);
+    });
   }
 
   // status → which step number is currently active
