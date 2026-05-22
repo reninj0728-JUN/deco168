@@ -596,16 +596,20 @@
   function handleLeave(boxId) {
     document.getElementById(boxId).classList.remove('active');
   }
+  var _photoFiles = [];
+
   function handleDrop(e, inputId, listId) {
     e.preventDefault();
     const box = e.currentTarget;
     box.classList.remove('active');
     const files = e.dataTransfer.files;
+    if (inputId === 'photo-input') Array.from(files).forEach(f => _photoFiles.push(f));
     renderFiles(files, listId);
   }
 
   // 檔案選取
   function handleFiles(input, listId) {
+    if (input.id === 'photo-input') Array.from(input.files).forEach(f => _photoFiles.push(f));
     renderFiles(input.files, listId);
   }
 
@@ -677,7 +681,7 @@
 
   async function nextStep() {
     var photoInput = document.getElementById('photo-input');
-    var files = Array.from(photoInput.files || []);
+    var files = _photoFiles.length > 0 ? _photoFiles : Array.from(photoInput.files || []);
 
     if (files.length === 0) {
       if (!confirm('沒有上傳照片，是否以示範模式繼續？')) return;
