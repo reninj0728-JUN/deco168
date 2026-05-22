@@ -46,11 +46,12 @@
     .report-header .sub { color: var(--muted); margin-top: 5px; font-size: 12px; letter-spacing: 1px; }
 
     /* META BAR */
-    .meta-bar { background: var(--dark); padding: 0 48px; display: flex; gap: 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-    .meta-item { padding: 16px 32px 16px 0; min-width: 140px; border-right: 1px solid var(--line); margin-right: 32px; }
-    .meta-item:last-child { border-right: none; }
-    .meta-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 5px; }
-    .meta-value { font-size: 13px; color: var(--white); }
+    .meta-bar { background: var(--dark); padding: 16px 48px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: center; gap: 40px; flex-wrap: wrap; }
+    .meta-item { display: flex; align-items: center; gap: 8px; }
+    .meta-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+    .meta-value { font-size: 13px; color: var(--gold); letter-spacing: 1px; font-family: 'Cormorant Garamond', serif; }
+    .meta-sep { color: var(--line); font-size: 16px; }
 
     /* TABS */
     .tabs { display: flex; background: var(--dark); border-bottom: 1px solid var(--line); padding: 0 48px; overflow-x: auto; }
@@ -178,16 +179,18 @@
 
 <div class="meta-bar">
   <div class="meta-item">
-    <div class="meta-label">訂單編號</div>
-    <div class="meta-value" id="metaOrderId">—</div>
+    <span class="meta-label">方案</span>
+    <span class="meta-value" id="metaPlan">—</span>
   </div>
+  <div class="meta-sep">·</div>
   <div class="meta-item">
-    <div class="meta-label">方案</div>
-    <div class="meta-value" id="metaPlan">—</div>
+    <span class="meta-label">訂單編號</span>
+    <span class="meta-value" id="metaOrderId">—</span>
   </div>
+  <div class="meta-sep">·</div>
   <div class="meta-item">
-    <div class="meta-label">付款日期</div>
-    <div class="meta-value" id="metaDate">—</div>
+    <span class="meta-label">付款日期</span>
+    <span class="meta-value" id="metaDate">—</span>
   </div>
 </div>
 
