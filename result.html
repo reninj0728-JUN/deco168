@@ -127,13 +127,27 @@
       width: 100%; aspect-ratio: 16/9; background: var(--dark);
       display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
     }
+    .overlay-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0 12px;
+    }
+    .overlay-title { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+    .overlay-actions { display: flex; align-items: center; gap: 12px; }
     .overlay-close {
-      position: absolute; top: -40px; right: 0;
       background: none; border: none; color: var(--muted);
-      font-size: 14px; cursor: pointer; letter-spacing: 1px;
-      font-family: 'Inter', sans-serif;
+      font-size: 13px; cursor: pointer; letter-spacing: 1px;
+      font-family: 'Inter', sans-serif; padding: 0;
     }
     .overlay-close:hover { color: var(--white); }
+    .btn-overlay-dl {
+      display: none; align-items: center; gap: 7px;
+      background: var(--gold); color: #111; border: none;
+      font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 2px;
+      padding: 9px 20px; cursor: pointer; text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+    .btn-overlay-dl:hover { opacity: 0.85; }
+    .btn-overlay-dl:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* DOWNLOADS */
     .report-row {
@@ -302,11 +316,17 @@
   <!-- OVERLAY -->
   <div class="overlay" id="overlay" onclick="closeOverlay()">
     <div class="overlay-inner" onclick="event.stopPropagation()">
-      <button class="overlay-close" onclick="closeOverlay()">✕ 關閉</button>
+      <div class="overlay-bar">
+        <div class="overlay-title" id="overlayLabel">渲染圖</div>
+        <div class="overlay-actions">
+          <button class="btn-overlay-dl" id="overlayDlBtn" onclick="downloadOverlayImg()">↓ &nbsp;下載圖片</button>
+          <button class="overlay-close" onclick="closeOverlay()">✕ 關閉</button>
+        </div>
+      </div>
       <img id="overlayImg" src="" alt="" style="width:100%;display:none;">
       <div class="overlay-ph" id="overlayPh">
         <div style="font-size:32px;color:var(--gold);opacity:0.3;">◈</div>
-        <div style="font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;" id="overlayLabel">渲染圖</div>
+        <div style="font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">渲染生成中</div>
       </div>
     </div>
   </div>
@@ -495,26 +515,62 @@
   loadResult();
 
   // ── Overlay ─────────────────────────────────────────────
+  var _currentOverlayUrl  = null;
+  var _currentOverlayName = '';
+
   function openOverlay(idx) {
     var render = _renders[idx];
     var img    = document.getElementById('overlayImg');
     var ph     = document.getElementById('overlayPh');
     var lbl    = document.getElementById('overlayLabel');
+    var dlBtn  = document.getElementById('overlayDlBtn');
 
-    lbl.textContent = (render ? ('方案 0' + (idx+1) + ' · ' + (render.style_label || render.style)) : '渲染圖');
+    var name = render ? ('方案 0' + (idx+1) + ' · ' + (render.style_label || render.style)) : '渲染圖';
+    lbl.textContent = name;
 
     var overlayUrl = (render && render.render_url)
       || (render && render.render_filename && JOB_ID
           ? API_BASE + '/jobs/' + JOB_ID + '/' + render.render_filename : null);
+
+    _currentOverlayUrl  = overlayUrl;
+    _currentOverlayName = render ? (render.style_label || render.style || ('方案0' + (idx+1))) : '渲染圖';
+
     if (overlayUrl) {
       img.src = overlayUrl;
       img.style.display = 'block';
       ph.style.display  = 'none';
+      dlBtn.style.display = 'flex';
+      dlBtn.textContent = '↓  下載圖片';
+      dlBtn.disabled = false;
     } else {
       img.style.display = 'none';
       ph.style.display  = 'flex';
+      dlBtn.style.display = 'none';
     }
     document.getElementById('overlay').classList.add('open');
+  }
+
+  function downloadOverlayImg() {
+    if (!_currentOverlayUrl) return;
+    var btn = document.getElementById('overlayDlBtn');
+    btn.textContent = '下載中…';
+    btn.disabled = true;
+    fetch(_currentOverlayUrl)
+      .then(function(r) { return r.blob(); })
+      .then(function(blob) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (_currentOverlayName || 'render') + '.jpg';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        btn.textContent = '↓  下載圖片';
+        btn.disabled = false;
+      })
+      .catch(function() {
+        window.open(_currentOverlayUrl, '_blank');
+        btn.textContent = '↓  下載圖片';
+        btn.disabled = false;
+      });
   }
 
   function closeOverlay() {
