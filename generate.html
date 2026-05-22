@@ -81,18 +81,18 @@
     .orb-inner {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%,-50%);
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 28px; color: var(--gold); opacity: 0.8;
-      animation: float 4s ease-in-out infinite;
+      opacity: 0.9;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .orb-logo {
+      animation: logoSpin 12s linear infinite reverse;
+      filter: drop-shadow(0 0 6px rgba(201,169,110,0.4));
     }
     @keyframes pulse {
       0%, 100% { transform: scale(1); opacity: 1; }
       50%       { transform: scale(1.04); opacity: 0.7; }
     }
-    @keyframes float {
-      0%, 100% { transform: translate(-50%,-50%) translateY(0); }
-      50%       { transform: translate(-50%,-50%) translateY(-6px); }
-    }
+    @keyframes logoSpin { to { transform: rotate(360deg); } }
     .ring {
       position: absolute; top: -8px; left: -8px; right: -8px; bottom: -8px;
       border-radius: 50%; border: 1px dashed rgba(201,169,110,0.2);
@@ -212,7 +212,14 @@
 <div class="stage">
   <div class="orb-wrap">
     <div class="ring"></div>
-    <div class="orb"><div class="orb-inner">✦</div></div>
+    <div class="orb">
+      <div class="orb-inner">
+        <svg class="orb-logo" width="76" height="56" viewBox="0 0 110 80" fill="none">
+          <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+          <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+        </svg>
+      </div>
+    </div>
   </div>
 
   <div class="stage-eyebrow">AI 正在工作</div>
