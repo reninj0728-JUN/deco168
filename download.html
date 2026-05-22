@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>查詢 / 下載 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a; --white: #f5f0eb; --gold: #c9a96e;
+      --muted: #666; --body: #999; --line: #1e1e1e;
+    }
+    body { background: var(--bg); color: var(--white); font-family: 'Inter', sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 40px 20px; }
+
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 22px;
+      letter-spacing: 6px; color: var(--gold); margin-bottom: 60px; }
+
+    .card { width: 100%; max-width: 480px; border: 1px solid var(--line); padding: 48px 40px; }
+
+    .eyebrow { font-size: 10px; letter-spacing: 3px; color: var(--gold); margin-bottom: 12px; }
+    h1 { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300;
+      color: var(--white); margin-bottom: 8px; }
+    .desc { font-size: 12px; color: var(--muted); margin-bottom: 36px; line-height: 1.6; }
+
+    .input-wrap { position: relative; margin-bottom: 16px; }
+    input[type=text] {
+      width: 100%; background: #111; border: 1px solid var(--line); color: var(--white);
+      font-family: 'Inter', sans-serif; font-size: 16px; letter-spacing: 3px;
+      padding: 16px 20px; outline: none; text-transform: uppercase;
+      transition: border-color 0.2s;
+    }
+    input[type=text]:focus { border-color: var(--gold); }
+    input[type=text]::placeholder { color: var(--muted); letter-spacing: 2px; font-size: 13px; }
+
+    .btn {
+      width: 100%; padding: 16px; background: var(--gold); color: #0a0a0a;
+      border: none; font-family: 'Inter', sans-serif; font-size: 12px;
+      letter-spacing: 3px; cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error { font-size: 12px; color: #e05a5a; margin-top: 12px; display: none; }
+    .hint  { font-size: 11px; color: var(--muted); margin-top: 20px; line-height: 1.6; }
+
+    /* Result section */
+    #resultSection { display: none; margin-top: 40px; width: 100%; max-width: 480px; }
+    .status-box { border: 1px solid var(--line); padding: 24px; margin-bottom: 16px; }
+    .status-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); margin-bottom: 8px; }
+    .status-value { font-size: 14px; color: var(--white); }
+    .status-value.done { color: var(--gold); }
+
+    .render-list { display: flex; flex-direction: column; gap: 12px; }
+    .render-item { border: 1px solid var(--line); padding: 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .render-item img { width: 80px; height: 60px; object-fit: cover; }
+    .render-name { font-size: 12px; color: var(--body); flex: 1; }
+    .btn-dl { background: none; border: 1px solid var(--gold); color: var(--gold);
+      font-size: 10px; letter-spacing: 2px; padding: 8px 16px; cursor: pointer; }
+    .btn-dl:hover { background: rgba(201,169,110,0.08); }
+
+    .processing-note { font-size: 12px; color: var(--muted); text-align: center;
+      padding: 20px; border: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+
+<div class="logo">DECO168</div>
+
+<div class="card">
+  <div class="eyebrow">RESULT LOOKUP</div>
+  <h1>查詢 / 下載</h1>
+  <p class="desc">輸入生成頁面顯示的訂單編號，即可查看並下載你的設計成果。</p>
+
+  <div class="input-wrap">
+    <input type="text" id="jobInput" placeholder="輸入訂單編號（如 A1B2C3D4）" maxlength="12"
+      oninput="this.value=this.value.toUpperCase()"
+      onkeydown="if(event.key==='Enter') lookup()">
+  </div>
+  <button class="btn" id="lookupBtn" onclick="lookup()">查詢訂單</button>
+  <div class="error" id="errorMsg"></div>
+  <p class="hint">訂單編號顯示於 AI 生成等待頁面，請截圖或記下備用。</p>
+</div>
+
+<div id="resultSection">
+  <div class="status-box">
+    <div class="status-label">訂單狀態</div>
+    <div class="status-value" id="statusText">—</div>
+  </div>
+  <div id="renderList" class="render-list"></div>
+  <div id="processingNote" class="processing-note" style="display:none;">
+    AI 正在生成設計方案中，請稍後再查詢（約 5-15 分鐘）。
+  </div>
+</div>
+
+<script>
+  var API_BASE = 'https://deco168-production.up.railway.app';
+
+  // Auto-fill from URL param
+  var _p = new URLSearchParams(window.location.search);
+  if (_p.get('job')) {
+    document.getElementById('jobInput').value = _p.get('job').toUpperCase();
+    lookup();
+  }
+
+  async function lookup() {
+    var jobId = document.getElementById('jobInput').value.trim().toUpperCase();
+    if (!jobId) return;
+
+    var btn = document.getElementById('lookupBtn');
+    btn.textContent = '查詢中…';
+    btn.disabled = true;
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('resultSection').style.display = 'none';
+
+    try {
+      var r = await fetch(API_BASE + '/api/job/' + jobId);
+      if (!r.ok) throw new Error('找不到此訂單編號，請確認後重試。');
+      var status = await r.json();
+
+      document.getElementById('resultSection').style.display = 'block';
+
+      if (status.status === 'completed') {
+        document.getElementById('statusText').textContent = '✓ 設計完成';
+        document.getElementById('statusText').className = 'status-value done';
+        document.getElementById('processingNote').style.display = 'none';
+        loadResult(jobId);
+      } else if (status.status === 'failed') {
+        document.getElementById('statusText').textContent = '處理失敗，請聯絡客服';
+        document.getElementById('processingNote').style.display = 'none';
+      } else {
+        document.getElementById('statusText').textContent =
+          status.message || '處理中（' + status.status + '）';
+        document.getElementById('processingNote').style.display = 'block';
+      }
+    } catch(e) {
+      document.getElementById('errorMsg').textContent = e.message;
+      document.getElementById('errorMsg').style.display = 'block';
+    }
+
+    btn.textContent = '查詢訂單';
+    btn.disabled = false;
+  }
+
+  async function loadResult(jobId) {
+    try {
+      var r = await fetch(API_BASE + '/api/job/' + jobId + '/result');
+      if (!r.ok) return;
+      var data = await r.json();
+      var renders = data.renders || [];
+      var list = document.getElementById('renderList');
+      list.innerHTML = '';
+      renders.forEach(function(render, i) {
+        var imgUrl = render.render_url || null;
+        var name = render.style_label || render.style || ('設計方案 ' + (i+1));
+        var item = document.createElement('div');
+        item.className = 'render-item';
+        item.innerHTML =
+          (imgUrl ? '<img src="' + imgUrl + '" alt="' + name + '">' : '') +
+          '<span class="render-name">' + name + '</span>' +
+          (imgUrl ? '<button class="btn-dl" onclick="dlImg(\'' + imgUrl + '\',\'' + name + '\')">下載</button>' : '<span style="font-size:11px;color:var(--muted)">生成中</span>');
+        list.appendChild(item);
+      });
+      if (!renders.length) list.innerHTML = '<p style="font-size:12px;color:var(--muted);padding:12px;">尚無渲染圖</p>';
+    } catch(e) {}
+  }
+
+  function dlImg(url, name) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name + '.jpg';
+    a.target = '_blank';
+    a.click();
+  }
+</script>
+</body>
+</html>
