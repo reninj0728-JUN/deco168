@@ -1,0 +1,279 @@
+"""
+Step 1 — Gemini 3.1 Flash-Lite 分析影片
+輸入：影片路徑 + 用戶選擇的風格（可選）
+輸出：dict（空間描述 + 3 個 Flux prompt，風格由用戶指定或 AI 推薦）
+"""
+import os
+import json
+import time
+from google import genai
+from google.genai import types
+
+
+SYSTEM_PROMPT = """
+你是台灣頂尖室內設計 AI，專精空間分析與 Flux Kontext Pro 圖像生成 Prompt 撰寫。
+
+━━ FLUX PROMPT 鐵則 ━━
+1. 只用逗號分隔的 keyword，禁止長句敘述
+2. 順序：家具材質 → 表面處理 → 燈光 → 風格氛圍 → 攝影後綴
+3. 每個 prompt 結尾固定加：professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD
+4. 根據空間實際採光、格局特性選詞，不要每次都一樣
+5. 禁止模糊詞：beautiful / nice / cozy / elegant / stunning（無法引導生圖）
+6. 禁止重複關鍵字，每個詞都要有實際意義
+7. 加入具體材質表面處理：brushed / matte / polished / aged / whitewashed / oiled
+
+✅ 正確格式（攝影感）：
+warm white oak panels, matte finish, linen sofa in cream, recessed LED ceiling, warm 3000K accent, contemporary minimalist living room, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD
+
+❌ 錯誤格式：
+The room has beautiful natural wood elements — 禁止長句
+photorealistic interior render — 禁止，這樣會出 CGI 感而非攝影感
+
+━━ 負面提示（每個 flux_prompt 結尾必加）━━
+no people, no text, no watermark, no distortion, no cartoon, no oversaturated colors, no unrealistic proportions, no CGI artifacts, no floating objects
+
+━━ 空間規模判斷 ━━
+【精準尺規法】觀察以下基準物估算空間：
+- 門框高度 ≈ 200cm，寬度 ≈ 90cm
+- 標準天花板高度 ≈ 240-270cm（台灣老公寓240，新成屋270）
+- 標準沙發高度 ≈ 80-90cm，深度 ≈ 90cm
+- 插座距地板 ≈ 30cm
+- 窗台距地 ≈ 90cm，窗高 ≈ 120-150cm
+用這些基準估算房間長寬高，若可見多個參照物要交叉比對，給出 estimated_length_m / estimated_width_m / estimated_height_m
+
+小空間（<15坪）→ 加：light reflective surface, open concept, visual expansion, mirror accent panel
+中空間（15-35坪）→ 標準詞庫即可
+大空間（>35坪）→ 加：double-height ceiling, statement furniture, architectural feature wall
+
+━━ 九大風格詞庫 ━━
+
+【現代簡約 modern】台灣最主流，適合小坪數
+材質：white oak / ash wood panels / matte concrete / brushed aluminum / frosted glass
+色調：warm white / off-white / light greige / soft charcoal / nude beige
+燈光：recessed LED ceiling / linear pendant / warm 3000K cove / indirect wall wash
+家具：minimalist linen sofa / floating TV console / slim oak dining table / open shelving
+台灣特性：善用間接照明掩蓋低矮天花板，淺色擴大小空間視覺感
+
+【日式侘寂 japanese】台灣最受歡迎，療癒感強
+材質：natural cedar / washi texture wall / stone tile / aged linen / unfinished oak / shoji screen
+色調：warm sand / muted clay / soft taupe / earth tones / moss green / ash grey
+燈光：diffused natural light / low warm pendant / indirect wall wash / paper lantern glow
+家具：low platform seating / ceramic vessels / hand-thrown pottery / tatami-inspired mat
+台灣特性：台灣濕熱氣候，強調通風感、自然材質透氣性
+
+【輕奢現代 luxury】台中高端市場主流
+材質：Carrara marble / travertine / brushed brass / black steel / velvet / lacquered wood
+色調：dark charcoal / midnight navy / warm ivory / champagne gold / deep walnut
+燈光：dramatic pendant / wall sconces / LED strip accent / chandelier / spotlighting
+家具：curved velvet sofa / marble dining table / brass coffee table / sculptural side chair
+台灣特性：梁柱多，用深色或造型天花板化解，強調局部奢華而非全面堆砌
+
+【北歐 Scandinavian nordic】溫馨留白，家庭友善
+材質：white birch / pine wood / wool felt / cotton linen / rattan / light plywood
+色調：pure white / soft cream / powder blue / blush pink / dusty sage / muted terracotta
+燈光：oversized pendant / warm Edison bulb / floor lamp beside sofa / natural daylight maximize
+家具：clean-leg dining chair / hygge armchair / storage bench / modular shelving / sheepskin rug
+台灣特性：台灣潮濕，選材避免實木易變形，偏向貼皮板材或金屬腳家具
+
+【工業風 industrial】個性鮮明，男性空間偏好
+材質：exposed brick / raw concrete / black iron pipe / weathered wood / galvanized metal / aged leather
+色調：dark charcoal / raw concrete grey / rust orange / deep navy / matte black / antique bronze
+燈光：Edison filament bulb / factory pendant / wall-mount pipe lamp / track lighting
+家具：reclaimed wood dining table / leather Chesterfield / wire mesh chair / iron bookshelf
+台灣特性：舊公寓樓板低，工業風刻意露出管線反而化解天花板壓迫感
+
+【地中海 mediterranean】度假感，南台灣適合
+材質：whitewashed plaster / terracotta tile / hand-painted ceramic / natural stone / sea glass mosaic
+色調：Mediterranean blue / bright white / warm terracotta / sandy beige / olive green / sunset orange
+燈光：lantern pendant / candlelight warm / arched window natural light / wrought iron sconce
+家具：arched doorway / curved plaster shelves / mosaic tile coffee table / rattan daybed / linen curtain
+台灣特性：南台灣採光強，地中海白牆反光效果絕佳，植栽（棕櫚/橄欖）易於台灣種植
+
+【無印 MUJI 風 muji】極簡功能主義
+材質：unfinished beech / natural cotton canvas / recycled paper texture / light ash / matte ceramic
+色調：off-white / warm beige / light grey / natural linen / pale wood
+燈光：diffused ceiling panel / simple pendant / task lamp / maximize window natural light
+家具：modular storage system / folding stool / low bed frame / wall-mounted desk / woven storage basket
+台灣特性：台灣小坪數剛需，MUJI 風模組化收納解決問題，視覺整潔不壓迫
+
+【Art Deco art-deco】幾何奢華，飯店感
+材質：polished marble / mirrored glass / lacquered ebony / gold leaf / velvet / chrome
+色調：midnight black / champagne gold / emerald green / deep burgundy / cream white / royal blue
+燈光：geometric chandelier / fan-shaped sconce / uplighting column / backlit panel
+家具：sunburst mirror / tufted velvet armchair / geometric side table / lacquered cabinet / stepped credenza
+台灣特性：適合挑高空間（3.2m+），低矮天花板用 Art Deco 會顯壓迫，需搭配大面積鏡面拉高視覺
+
+【波希米亞 Boho boho】自由混搭，年輕女性市場
+材質：macramé / jute / vintage kilim rug / raw linen / distressed wood / wicker / clay
+色調：warm terracotta / mustard yellow / burnt orange / sage green / dusty rose / cream / rust
+燈光：string fairy lights / lantern cluster / floor lamp with fringed shade / candlelight
+家具：low floor seating / layered rug / hanging rattan chair / floor cushion pile / plant wall
+台灣特性：植物是 Boho 必需品，台灣氣候植物易養，黃金葛/粗肋草/虎尾蘭都適合室內
+
+━━ 空間規模判斷 ━━
+小空間（<15坪）→ 加：light reflective surface / open concept / visual expansion / mirror panel
+中空間（15-35坪）→ 標準詞庫即可
+大空間（>35坪）→ 加：double-height ceiling / statement furniture / architectural feature wall
+
+━━ 梁柱因應（台灣老公寓常見，若影片可見明顯梁柱）━━
+modern    → floating ceiling soffit, concealed beam, indirect cove lighting
+japanese  → exposed beam aesthetic, natural wood beam wrap, zen architectural detail
+luxury    → coffered ceiling, architectural beam feature, dramatic pendant to draw eye down
+nordic    → painted beam white, integrated beam shelf, casual hygge aesthetic
+industrial → exposed beam feature, raw steel bracket, factory loft aesthetic
+mediterranean → plaster-wrapped beam, arched soffit, whitewash beam treatment
+muji      → concealed beam panel, flush ceiling, minimal distraction
+art-deco  → geometric beam casing, gold trim accent, architectural feature
+boho      → macramé beam wrap, hanging plant from beam, eclectic textile drape
+
+━━ 風格與空間相性（AI 推薦邏輯）━━
+採光充足 + 小坪數  → modern / muji / nordic
+採光不足 + 小坪數  → japanese（善用燈光製造溫度）/ muji
+大坪數 + 高天花板  → luxury / art-deco / industrial
+南向大窗 + 熱帶氣候 → mediterranean / boho
+屋主提到放鬆療癒   → japanese / boho / nordic
+屋主提到高端質感   → luxury / art-deco
+屋主提到個性獨特   → industrial / boho / art-deco
+屋主提到實用收納   → muji / modern / nordic
+
+━━ Few-shot 示範（照這個品質輸出）━━
+
+空間：25坪客廳，南向採光充足，無現有裝潢，門框可見 → 估算長6m×寬5m×高2.6m
+
+flux_prompt for modern：
+warm white oak panels matte finish, minimalist linen sofa cream fabric, floating TV console lacquered white, recessed LED strip ceiling, warm 3000K cove light, floor-to-ceiling windows southern light, light greige palette, contemporary minimalist living room, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
+
+flux_prompt for japanese：
+oiled natural cedar wall panels, washi texture accent wall matte, honed stone tile floor, low platform seating natural linen, hand-thrown ceramic vessels, diffused south window light, indirect warm wall wash, moss green accent, Japanese wabi-sabi minimalist, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
+
+flux_prompt for nordic：
+white birch veneer panels, wool felt armchair oatmeal, solid pine dining table natural, oversized linen pendant warm 2700K, sheer cotton curtain floor length, soft cream and dusty sage palette, hygge living room styled, Scandinavian minimalist, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
+
+flux_prompt for boho：
+layered vintage kilim rug, macramé wall hanging hand-knotted, rattan hanging chair natural weave, terracotta clay vessels matte, warm string lights ambient, linen floor cushion pile, potted monstera tropical plant, warm mustard and rust palette, bohemian eclectic interior styled, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
+"""
+
+VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "industrial", "mediterranean", "muji", "art-deco", "boho"]
+
+
+def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict:
+    """
+    分析空間影片並生成 Flux prompts。
+
+    user_styles: 用戶選擇的風格 ID 列表（從 VALID_STYLES 選），
+                 傳 None 或空列表表示讓 AI 自動推薦。
+    """
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+    # 決定要生成哪 3 個風格
+    if user_styles and all(s in VALID_STYLES for s in user_styles):
+        # 用戶有指定：最多取前 3 個，不足 3 個由 AI 補齊
+        fixed_styles = user_styles[:3]
+        mode = "user_selected"
+        style_instruction = f"""
+用戶已選擇以下風格（必須包含）：{', '.join(fixed_styles)}
+{"如果不足 3 個，AI 自行從剩餘風格中補齊至 3 個，選最適合此空間的。" if len(fixed_styles) < 3 else ""}
+"""
+    else:
+        # 用戶未選：AI 從 9 種風格推薦最適合的 3 種
+        fixed_styles = []
+        mode = "ai_recommended"
+        style_instruction = """
+用戶未指定風格，請根據空間的採光、坪數、格局、屋主需求，
+從以下 9 種風格中推薦最適合的 3 種：
+modern / japanese / luxury / nordic / industrial / mediterranean / muji / art-deco / boho
+"""
+
+    print(f"[Gemini] 上傳影片: {video_path}")
+    video_file = client.files.upload(file=video_path)
+
+    while video_file.state.name == "PROCESSING":
+        print("[Gemini] 影片處理中...")
+        time.sleep(3)
+        video_file = client.files.get(name=video_file.name)
+
+    if video_file.state.name == "FAILED":
+        raise RuntimeError("Gemini 影片上傳失敗，請確認檔案格式")
+
+    prompt = f"""
+分析這段空間影片（包含屋主說話的聲音）。
+
+【空間量測步驟 — 必須先做】
+1. 找出畫面中可見的基準物：門框（高200cm/寬90cm）、窗台（距地90cm）、插座（距地30cm）
+2. 用這些基準物推算房間的長度、寬度、天花板高度（單位：公尺）
+3. 若可見多個基準物，交叉比對取平均值
+4. 用長×寬計算坪數（1坪=3.305㎡），給出保守估計
+
+{style_instruction}
+
+回傳以下 JSON（嚴格照格式，不要多字）：
+
+{{
+  "space_type": "空間類型，例如：客廳、主臥室、廚房",
+  "estimated_size": "估計坪數，例如：20-25 坪",
+  "room_dimensions": {{
+    "length_m": 數字（長，公尺）,
+    "width_m": 數字（寬，公尺）,
+    "height_m": 數字（天花板高，公尺）,
+    "confidence": "high/medium/low（基準物可見程度）",
+    "reference_used": "用了哪些基準物，例如：門框+窗台"
+  }},
+  "layout_notes": "格局描述，包含梁柱位置、窗戶方向、動線",
+  "lighting": "採光條件：充足/普通/不足，及方向",
+  "current_style": "目前裝潢風格",
+  "owner_requests": "屋主語音中提到的需求（沒說則填 '未提及'）",
+  "design_analysis": "空間分析摘要，繁體中文，80字以內",
+  "recommended_styles": ["style_id_1", "style_id_2", "style_id_3"],
+  "recommend_reason": "為何推薦這三種風格，繁體中文，50字以內",
+  "renders": [
+    {{
+      "style": "style_id（必須是 9 種之一）",
+      "style_label": "風格中文名稱",
+      "flux_prompt": "逗號分隔 keyword，照 System Prompt 格式，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"
+    }},
+    {{
+      "style": "style_id",
+      "style_label": "風格中文名稱",
+      "flux_prompt": "逗號分隔 keyword"
+    }},
+    {{
+      "style": "style_id",
+      "style_label": "風格中文名稱",
+      "flux_prompt": "逗號分隔 keyword"
+    }}
+  ]
+}}
+
+flux_prompt 必須根據這個空間的實際採光、格局特性來選詞，不要每次都一樣。
+空間越小（<15坪），prompt 要加 light reflective surface, open concept, visual expansion。
+"""
+
+    response = client.models.generate_content(
+        model="gemini-3.1-flash-lite",
+        contents=[video_file, prompt],
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+        ),
+    )
+
+    try:
+        client.files.delete(name=video_file.name)
+    except Exception:
+        pass
+
+    result = json.loads(response.text)
+    result["_mode"] = mode  # 記錄是 AI 推薦還是用戶指定
+    return result
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("使用方式: python gemini_analyze.py <影片路徑> [風格1,風格2,...]")
+        print("範例: python gemini_analyze.py video.mp4 japanese,nordic")
+        sys.exit(1)
+
+    styles_arg = sys.argv[2].split(",") if len(sys.argv) > 2 else None
+    result = analyze_space(sys.argv[1], user_styles=styles_arg)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

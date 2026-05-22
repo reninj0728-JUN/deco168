@@ -1,0 +1,5339 @@
+[
+  {
+    "id": "ikea-soderhamn-sofa",
+    "name_zh": "SÖDERHAMN 沙發（亞麻米白）",
+    "brand": "IKEA",
+    "category": "sofa",
+    "style_tags": [
+      "modern",
+      "nordic",
+      "muji"
+    ],
+    "keywords": [
+      "linen sofa",
+      "minimalist sofa",
+      "low profile sofa"
+    ],
+    "colors": [
+      "beige",
+      "off-white",
+      "linen"
+    ],
+    "price_twd": 22900,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/soderhamn-sofa__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SODERHAMN+台灣",
+    "dimensions": "W186xD99xH83",
+    "flux_descriptor": "low-profile linen sofa, beige fabric, minimalist clean legs"
+  },
+  {
+    "id": "ikea-lack-coffee-white",
+    "name_zh": "LACK 茶几（白色）",
+    "brand": "IKEA",
+    "category": "table",
+    "style_tags": [
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "white coffee table",
+      "minimalist table"
+    ],
+    "colors": [
+      "white",
+      "off-white"
+    ],
+    "price_twd": 799,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/lack-coffee-white__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+LACK+台灣",
+    "dimensions": "W90xD55xH45",
+    "flux_descriptor": "flat white coffee table, minimalist rectangular"
+  },
+  {
+    "id": "ikea-kallax-oak",
+    "name_zh": "KALLAX 層架（橡木紋）",
+    "brand": "IKEA",
+    "category": "shelving",
+    "style_tags": [
+      "modern",
+      "nordic",
+      "muji"
+    ],
+    "keywords": [
+      "open shelving",
+      "oak shelving",
+      "modular storage"
+    ],
+    "colors": [
+      "oak",
+      "light wood"
+    ],
+    "price_twd": 3999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/kallax-oak__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+KALLAX+台灣",
+    "dimensions": "W77xD39xH77",
+    "flux_descriptor": "oak modular shelf unit, open storage grid"
+  },
+  {
+    "id": "ikea-hektar-pendant",
+    "name_zh": "HEKTAR 吊燈（深灰）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "modern",
+      "industrial"
+    ],
+    "keywords": [
+      "metal pendant",
+      "industrial pendant",
+      "dark pendant"
+    ],
+    "colors": [
+      "dark grey",
+      "charcoal"
+    ],
+    "price_twd": 1499,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/hektar-pendant__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+HEKTAR+台灣",
+    "dimensions": "Dia38",
+    "flux_descriptor": "metal dome pendant, dark grey matte, industrial style"
+  },
+  {
+    "id": "ikea-besta-tv-white",
+    "name_zh": "BESTÅ 電視櫃（白）",
+    "brand": "IKEA",
+    "category": "storage",
+    "style_tags": [
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "TV console",
+      "floating cabinet",
+      "white storage"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 4999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/besta-tv-white__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+BESTA+台灣",
+    "dimensions": "W180xD42xH38",
+    "flux_descriptor": "white floating TV console, handle-less modern cabinet"
+  },
+  {
+    "id": "ikea-billy-bookcase-white",
+    "name_zh": "BILLY 書架（白）",
+    "brand": "IKEA",
+    "category": "shelving",
+    "style_tags": [
+      "modern",
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "bookcase",
+      "white shelf",
+      "tall storage"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 1990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/billy-bookcase-white__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+BILLY+台灣",
+    "dimensions": "W80xD28xH202",
+    "flux_descriptor": "white bookcase, clean vertical lines, adjustable shelves"
+  },
+  {
+    "id": "ikea-malm-6drawer",
+    "name_zh": "MALM 六斗櫃（白）",
+    "brand": "IKEA",
+    "category": "storage",
+    "style_tags": [
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "white dresser",
+      "6 drawer",
+      "bedroom storage"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 9990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/malm-6drawer__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+MALM+台灣",
+    "dimensions": "W160xD48xH78",
+    "flux_descriptor": "white 6-drawer dresser, clean horizontal lines"
+  },
+  {
+    "id": "ikea-lisabo-dining-table",
+    "name_zh": "LISABO 餐桌（梣木貼皮）",
+    "brand": "IKEA",
+    "category": "table",
+    "style_tags": [
+      "modern",
+      "nordic"
+    ],
+    "keywords": [
+      "ash veneer dining table",
+      "slim legs",
+      "minimalist dining"
+    ],
+    "colors": [
+      "ash",
+      "light wood",
+      "warm wood"
+    ],
+    "price_twd": 6990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/lisabo-dining-table__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+LISABO+台灣",
+    "dimensions": "W140xD78xH74",
+    "flux_descriptor": "ash veneer dining table, slim black legs, Scandinavian modern"
+  },
+  {
+    "id": "ikea-henriksdal-chair",
+    "name_zh": "HENRIKSDAL 餐椅（白/棉麻）",
+    "brand": "IKEA",
+    "category": "chair",
+    "style_tags": [
+      "modern",
+      "nordic"
+    ],
+    "keywords": [
+      "upholstered dining chair",
+      "linen chair",
+      "white frame chair"
+    ],
+    "colors": [
+      "white",
+      "beige",
+      "linen"
+    ],
+    "price_twd": 3990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/henriksdal-chair__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+HENRIKSDAL+台灣",
+    "dimensions": "W56xD59xH95",
+    "flux_descriptor": "white frame dining chair, linen upholstery, Scandinavian modern"
+  },
+  {
+    "id": "ikea-symfonisk-lamp-speaker",
+    "name_zh": "SYMFONISK 音箱燈（白）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "modern"
+    ],
+    "keywords": [
+      "speaker lamp",
+      "smart lamp",
+      "table lamp"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 6990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/symfonisk-lamp-speaker__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SYMFONISK+台灣",
+    "dimensions": "Dia22xH37",
+    "flux_descriptor": "white lamp with built-in speaker, minimalist modern tech"
+  },
+  {
+    "id": "ikea-sinnerlig-pendant-bamboo",
+    "name_zh": "SINNERLIG 吊燈（竹/自然色）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "modern",
+      "japanese",
+      "nordic"
+    ],
+    "keywords": [
+      "bamboo pendant",
+      "natural pendant",
+      "warm pendant"
+    ],
+    "colors": [
+      "bamboo",
+      "natural"
+    ],
+    "price_twd": 1499,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/sinnerlig-pendant-bamboo__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SINNERLIG+台灣",
+    "dimensions": "Dia35",
+    "flux_descriptor": "bamboo weave pendant, warm diffused light, natural modern"
+  },
+  {
+    "id": "ikea-skarsta-desk",
+    "name_zh": "SKARSTA 升降桌（白）",
+    "brand": "IKEA",
+    "category": "table",
+    "style_tags": [
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "standing desk",
+      "adjustable desk",
+      "white desk"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 10900,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/skarsta-desk__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SKARSTA+台灣",
+    "dimensions": "W120xD70xH70-120",
+    "flux_descriptor": "white height-adjustable desk, minimalist workspace"
+  },
+  {
+    "id": "tb-modern-oak-tv",
+    "name_zh": "白橡木浮動電視櫃（推拉門）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "modern"
+    ],
+    "keywords": [
+      "floating TV console",
+      "white oak",
+      "wall-mounted cabinet"
+    ],
+    "colors": [
+      "white oak",
+      "warm white"
+    ],
+    "price_twd": 8900,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白橡木浮動電視櫃（推拉門）",
+    "dimensions": "W160xD35xH50",
+    "flux_descriptor": "white oak floating TV console, push-open doors, modern Taiwanese apartment"
+  },
+  {
+    "id": "tb-modern-concrete-side",
+    "name_zh": "霧面水泥感邊几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "modern",
+      "industrial"
+    ],
+    "keywords": [
+      "concrete side table",
+      "matte concrete",
+      "minimalist side table"
+    ],
+    "colors": [
+      "matte concrete grey"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=霧面水泥感邊几",
+    "dimensions": "Dia40xH55",
+    "flux_descriptor": "matte concrete texture side table, industrial-modern hybrid"
+  },
+  {
+    "id": "tb-modern-oak-diningchair",
+    "name_zh": "原木細腿餐椅（白橡木坐墊）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "modern",
+      "nordic"
+    ],
+    "keywords": [
+      "oak dining chair",
+      "slim legs chair",
+      "Scandinavian chair"
+    ],
+    "colors": [
+      "oak",
+      "beige"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=原木細腿餐椅（白橡木坐墊）",
+    "dimensions": "W45xD50xH80",
+    "flux_descriptor": "solid oak dining chair, slim tapered legs, linen cushion"
+  },
+  {
+    "id": "tb-modern-slim-bed",
+    "name_zh": "極簡白橡木床架（低床頭）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "slim bed frame",
+      "white oak bed",
+      "platform bed"
+    ],
+    "colors": [
+      "white oak",
+      "warm white"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=極簡白橡木床架（低床頭）",
+    "dimensions": "W150xD210xH25",
+    "flux_descriptor": "low-profile white oak platform bed, minimal headboard"
+  },
+  {
+    "id": "tb-modern-frosted-pendant",
+    "name_zh": "霧面玻璃吊燈（圓球）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "frosted glass pendant",
+      "globe pendant",
+      "minimalist pendant"
+    ],
+    "colors": [
+      "frosted white"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=霧面玻璃吊燈（圓球）",
+    "dimensions": "Dia20",
+    "flux_descriptor": "frosted glass globe pendant, soft diffused glow, clean modern"
+  },
+  {
+    "id": "tb-modern-linen-curtain",
+    "name_zh": "棉麻遮光窗簾（米白）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "modern",
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "linen curtain",
+      "blackout curtain",
+      "minimalist curtain"
+    ],
+    "colors": [
+      "off-white",
+      "linen"
+    ],
+    "price_twd": 3600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=棉麻遮光窗簾（米白）",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "linen semi-sheer curtain, off-white, minimal drape"
+  },
+  {
+    "id": "tb-modern-al-floorlamp",
+    "name_zh": "拉絲鋁管落地燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "modern"
+    ],
+    "keywords": [
+      "brushed aluminum lamp",
+      "arc floor lamp",
+      "metal floor lamp"
+    ],
+    "colors": [
+      "brushed silver",
+      "aluminum"
+    ],
+    "price_twd": 4500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=拉絲鋁管落地燈",
+    "dimensions": "H165",
+    "flux_descriptor": "brushed aluminum arc floor lamp, matte finish, task lighting"
+  },
+  {
+    "id": "tb-modern-white-sofa",
+    "name_zh": "簡約白色布藝三人沙發",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "modern"
+    ],
+    "keywords": [
+      "white sofa",
+      "minimalist sofa",
+      "clean sofa"
+    ],
+    "colors": [
+      "white",
+      "light grey"
+    ],
+    "price_twd": 16800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=簡約白色布藝三人沙發",
+    "dimensions": "W220xD90xH80",
+    "flux_descriptor": "white fabric 3-seater sofa, straight arms, minimalist Taiwanese living room"
+  },
+  {
+    "id": "tb-modern-marble-vase",
+    "name_zh": "大理石紋陶瓷花器（圓柱）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "modern",
+      "luxury"
+    ],
+    "keywords": [
+      "marble vase",
+      "ceramic vase",
+      "modern vase"
+    ],
+    "colors": [
+      "white marble",
+      "grey veins"
+    ],
+    "price_twd": 1200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石紋陶瓷花器（圓柱）",
+    "dimensions": "Dia12xH30",
+    "flux_descriptor": "marble-patterned cylindrical ceramic vase, modern minimalist"
+  },
+  {
+    "id": "tb-modern-led-strip",
+    "name_zh": "間接照明 LED 燈條套組",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "modern"
+    ],
+    "keywords": [
+      "LED strip",
+      "cove lighting",
+      "indirect lighting"
+    ],
+    "colors": [
+      "warm white"
+    ],
+    "price_twd": 1500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=間接照明+LED+燈條套組",
+    "dimensions": "500cm",
+    "flux_descriptor": "warm 3000K LED cove strip, indirect wall wash, modern ceiling detail"
+  },
+  {
+    "id": "tb-modern-oak-coffee",
+    "name_zh": "橡木色長方形茶几（黑腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "modern"
+    ],
+    "keywords": [
+      "oak coffee table",
+      "black legs",
+      "rectangular coffee table"
+    ],
+    "colors": [
+      "oak",
+      "black"
+    ],
+    "price_twd": 5800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=橡木色長方形茶几（黑腳）",
+    "dimensions": "W120xD60xH42",
+    "flux_descriptor": "oak-finish rectangular coffee table, matte black metal legs"
+  },
+  {
+    "id": "tb-modern-curtain-sheer",
+    "name_zh": "輕薄紗窗簾（白色飄逸）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "modern",
+      "mediterranean"
+    ],
+    "keywords": [
+      "sheer curtain",
+      "voile curtain",
+      "light curtain"
+    ],
+    "colors": [
+      "white",
+      "sheer"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=輕薄紗窗簾（白色飄逸）",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "white voile sheer curtain, airy drape, maximize natural light"
+  },
+  {
+    "id": "tb-modern-wall-mirror",
+    "name_zh": "圓形黑框掛鏡（大）",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "modern",
+      "industrial"
+    ],
+    "keywords": [
+      "black round mirror",
+      "wall mirror",
+      "bathroom mirror"
+    ],
+    "colors": [
+      "black",
+      "matte black"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=圓形黑框掛鏡（大）",
+    "dimensions": "Dia80",
+    "flux_descriptor": "large round mirror, matte black thin frame, modern minimal"
+  },
+  {
+    "id": "ikea-nordkisa-bamboo-wardrobe",
+    "name_zh": "NORDKISA 開放式衣櫥（竹）",
+    "brand": "IKEA",
+    "category": "storage",
+    "style_tags": [
+      "japanese",
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "bamboo storage",
+      "open wardrobe",
+      "zen storage"
+    ],
+    "colors": [
+      "bamboo",
+      "natural"
+    ],
+    "price_twd": 7999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/nordkisa-bamboo-wardrobe__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+NORDKISA+台灣",
+    "dimensions": "W120xD47xH180",
+    "flux_descriptor": "bamboo open wardrobe, natural grain, Japanese minimalist"
+  },
+  {
+    "id": "ikea-knixhult-bamboo-lamp",
+    "name_zh": "KNIXHULT 落地燈（竹）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "japanese",
+      "boho",
+      "nordic"
+    ],
+    "keywords": [
+      "paper lantern",
+      "bamboo lamp",
+      "natural lamp"
+    ],
+    "colors": [
+      "bamboo",
+      "natural"
+    ],
+    "price_twd": 1999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/knixhult-bamboo-lamp__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+KNIXHULT+台灣",
+    "dimensions": "H150",
+    "flux_descriptor": "bamboo floor lamp, paper shade, warm diffused glow"
+  },
+  {
+    "id": "ikea-sollinge-rug",
+    "name_zh": "SÖLLINGE 平織地毯（米白/棕）",
+    "brand": "IKEA",
+    "category": "rug",
+    "style_tags": [
+      "japanese",
+      "muji",
+      "modern"
+    ],
+    "keywords": [
+      "flat woven rug",
+      "natural rug",
+      "jute rug"
+    ],
+    "colors": [
+      "natural",
+      "beige"
+    ],
+    "price_twd": 2999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/sollinge-rug__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SOLLINGE+台灣",
+    "dimensions": "160x230",
+    "flux_descriptor": "flat-woven natural fiber rug, beige minimalist texture"
+  },
+  {
+    "id": "ikea-sinnerlig-pendant-cork",
+    "name_zh": "SINNERLIG 吊燈（軟木）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "japanese",
+      "nordic",
+      "muji"
+    ],
+    "keywords": [
+      "cork pendant",
+      "natural pendant",
+      "warm pendant"
+    ],
+    "colors": [
+      "cork",
+      "natural brown"
+    ],
+    "price_twd": 1499,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/sinnerlig-pendant-cork__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SINNERLIG+台灣",
+    "dimensions": "Dia35",
+    "flux_descriptor": "cork pendant lamp, organic texture, warm ambient glow"
+  },
+  {
+    "id": "tb-jp-low-sofa",
+    "name_zh": "日式低矮沙發組（深灰麻布）",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "japanese",
+      "boho"
+    ],
+    "keywords": [
+      "low platform sofa",
+      "floor sofa",
+      "tatami sofa"
+    ],
+    "colors": [
+      "dark grey",
+      "charcoal"
+    ],
+    "price_twd": 8500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=日式低矮沙發組（深灰麻布）",
+    "dimensions": "W180xD80xH30",
+    "flux_descriptor": "low platform floor sofa, charcoal linen, Japanese minimalist seating"
+  },
+  {
+    "id": "tb-jp-dining-table",
+    "name_zh": "日式矮腳餐桌（原木）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "low dining table",
+      "Japanese dining table",
+      "natural wood table"
+    ],
+    "colors": [
+      "natural wood",
+      "warm brown"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=日式矮腳餐桌（原木）",
+    "dimensions": "W160xD80xH35",
+    "flux_descriptor": "solid wood low dining table, natural grain, floor-seating Japanese style"
+  },
+  {
+    "id": "tb-jp-washi-pendant",
+    "name_zh": "和紙吊燈（圓球）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "washi paper lamp",
+      "paper lantern",
+      "Japanese pendant"
+    ],
+    "colors": [
+      "cream",
+      "warm white"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=和紙吊燈（圓球）",
+    "dimensions": "Dia35",
+    "flux_descriptor": "washi paper globe pendant, handmade texture, soft warm glow"
+  },
+  {
+    "id": "tb-jp-cedar-shelf",
+    "name_zh": "杉木壁掛層板（一組3片）",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "cedar shelf",
+      "wall shelf",
+      "floating shelf"
+    ],
+    "colors": [
+      "cedar",
+      "natural wood"
+    ],
+    "price_twd": 3600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=杉木壁掛層板（一組3片）",
+    "dimensions": "W60xD20",
+    "flux_descriptor": "natural cedar floating wall shelves, visible grain, wabi-sabi"
+  },
+  {
+    "id": "tb-jp-stone-sidetable",
+    "name_zh": "石板面邊几（黑胡桃木腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "japanese",
+      "luxury"
+    ],
+    "keywords": [
+      "stone side table",
+      "slate top",
+      "natural stone"
+    ],
+    "colors": [
+      "dark slate",
+      "black walnut"
+    ],
+    "price_twd": 6800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=石板面邊几（黑胡桃木腳）",
+    "dimensions": "Dia45xH50",
+    "flux_descriptor": "slate stone top side table, black walnut legs, Japanese Zen"
+  },
+  {
+    "id": "tb-jp-bamboo-curtain",
+    "name_zh": "竹簾捲簾（自然色）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "bamboo blind",
+      "roll-up curtain",
+      "natural shade"
+    ],
+    "colors": [
+      "bamboo",
+      "natural"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=竹簾捲簾（自然色）",
+    "dimensions": "W120xH180",
+    "flux_descriptor": "bamboo roll-up blind, natural tone, filter light Japanese style"
+  },
+  {
+    "id": "tb-jp-low-bed",
+    "name_zh": "日式低矮床架（原木）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "low bed frame",
+      "platform bed",
+      "natural wood bed"
+    ],
+    "colors": [
+      "natural wood",
+      "light oak"
+    ],
+    "price_twd": 15000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=日式低矮床架（原木）",
+    "dimensions": "W150xD210",
+    "flux_descriptor": "low-profile solid wood platform bed, minimal headboard, wabi-sabi"
+  },
+  {
+    "id": "tb-jp-zabuton",
+    "name_zh": "方形坐墊（厚款，亞麻）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "floor cushion",
+      "zabuton",
+      "meditation cushion"
+    ],
+    "colors": [
+      "dark grey",
+      "earth tone",
+      "linen"
+    ],
+    "price_twd": 2400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=方形坐墊（厚款，亞麻）",
+    "dimensions": "W70xD70xH15",
+    "flux_descriptor": "thick floor meditation cushion, linen cover, Japanese tatami seating"
+  },
+  {
+    "id": "tb-jp-ceramic-tea-table",
+    "name_zh": "陶燒茶几（不規則邊緣）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "ceramic table",
+      "wabi-sabi table",
+      "irregular edge"
+    ],
+    "colors": [
+      "muted clay",
+      "earthy tone"
+    ],
+    "price_twd": 9500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶燒茶几（不規則邊緣）",
+    "dimensions": "W80xD50xH40",
+    "flux_descriptor": "hand-formed ceramic coffee table, irregular organic edge, wabi-sabi"
+  },
+  {
+    "id": "tb-jp-pottery-vase",
+    "name_zh": "手拋陶器花瓶組（3件）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "hand-thrown pottery",
+      "ceramic vessels",
+      "wabi-sabi vase"
+    ],
+    "colors": [
+      "muted clay",
+      "ash grey",
+      "earth"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=手拋陶器花瓶組（3件）",
+    "dimensions": "various",
+    "flux_descriptor": "hand-thrown pottery vessels, earthy ash glaze, Japanese craft"
+  },
+  {
+    "id": "tb-jp-shoji-divider",
+    "name_zh": "和風格子屏風隔斷",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "shoji screen",
+      "room divider",
+      "paper screen"
+    ],
+    "colors": [
+      "natural wood",
+      "white paper"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=和風格子屏風隔斷",
+    "dimensions": "W90xH180",
+    "flux_descriptor": "shoji-style screen divider, natural wood frame, translucent paper"
+  },
+  {
+    "id": "tb-jp-jute-runner",
+    "name_zh": "黃麻走道地毯（長條）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "jute runner",
+      "natural rug",
+      "corridor rug"
+    ],
+    "colors": [
+      "natural jute",
+      "beige"
+    ],
+    "price_twd": 1900,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黃麻走道地毯（長條）",
+    "dimensions": "W70xL200",
+    "flux_descriptor": "jute fiber runner rug, natural texture, minimalist Japanese"
+  },
+  {
+    "id": "tb-jp-linen-sofa-cover",
+    "name_zh": "亞麻沙發套（米白/淺灰）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "japanese",
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "linen sofa cover",
+      "slipcover",
+      "sofa protector"
+    ],
+    "colors": [
+      "off-white",
+      "light grey",
+      "linen"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=亞麻沙發套（米白/淺灰）",
+    "dimensions": "universal",
+    "flux_descriptor": "washable linen sofa slipcover, relaxed drape, Japanese natural aesthetic"
+  },
+  {
+    "id": "tb-jp-oak-coffee",
+    "name_zh": "原木深色茶几（矮腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "aged oak table",
+      "dark wood table",
+      "low coffee table"
+    ],
+    "colors": [
+      "dark walnut",
+      "aged wood"
+    ],
+    "price_twd": 7200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=原木深色茶几（矮腳）",
+    "dimensions": "W100xD60xH38",
+    "flux_descriptor": "aged oak low coffee table, natural grain, Japanese living room"
+  },
+  {
+    "id": "tb-jp-sand-curtain",
+    "name_zh": "沙色麻布窗簾",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "sand curtain",
+      "linen drape",
+      "natural curtain"
+    ],
+    "colors": [
+      "sand",
+      "warm beige"
+    ],
+    "price_twd": 3400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=沙色麻布窗簾",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "sand-colored linen curtain, heavy drape, block harsh sunlight"
+  },
+  {
+    "id": "tb-jp-bamboo-rack",
+    "name_zh": "竹製雜誌架",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "bamboo magazine rack",
+      "natural storage",
+      "slim rack"
+    ],
+    "colors": [
+      "bamboo",
+      "natural"
+    ],
+    "price_twd": 1400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=竹製雜誌架",
+    "dimensions": "W30xD20xH50",
+    "flux_descriptor": "bamboo magazine and book rack, natural finish, floor-standing"
+  },
+  {
+    "id": "tb-jp-unfinished-lamp",
+    "name_zh": "原木圓柱落地燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "unfinished wood lamp",
+      "cylindrical lamp",
+      "natural floor lamp"
+    ],
+    "colors": [
+      "natural wood",
+      "cream"
+    ],
+    "price_twd": 4200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=原木圓柱落地燈",
+    "dimensions": "H140",
+    "flux_descriptor": "unfinished solid wood base floor lamp, linen shade, warm 3000K"
+  },
+  {
+    "id": "tb-jp-clay-vessels",
+    "name_zh": "陶土花器組（高/低款）",
+    "brand": "淘寶精選",
+    "category": "plant",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "clay pot",
+      "ceramic planter",
+      "organic shape"
+    ],
+    "colors": [
+      "matte clay",
+      "ash"
+    ],
+    "price_twd": 2600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶土花器組（高/低款）",
+    "dimensions": "various",
+    "flux_descriptor": "matte clay planters set, organic irregular forms, wabi-sabi display"
+  },
+  {
+    "id": "ikea-ikea-ofelia-throw",
+    "name_zh": "OFELIA 毯子（白色）",
+    "brand": "IKEA",
+    "category": "accessory",
+    "style_tags": [
+      "japanese",
+      "nordic",
+      "muji"
+    ],
+    "keywords": [
+      "soft throw",
+      "white blanket",
+      "bedroom throw"
+    ],
+    "colors": [
+      "white",
+      "off-white"
+    ],
+    "price_twd": 799,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/ikea-ofelia-throw__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+IKEA+台灣",
+    "dimensions": "130x170",
+    "flux_descriptor": "soft white knit throw, minimal fold, bedroom layering"
+  },
+  {
+    "id": "tb-jp-tatami-rug",
+    "name_zh": "仿榻榻米藺草地毯（方形）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "japanese"
+    ],
+    "keywords": [
+      "tatami mat",
+      "rush grass rug",
+      "Japanese mat"
+    ],
+    "colors": [
+      "natural green",
+      "grass"
+    ],
+    "price_twd": 4500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=仿榻榻米藺草地毯（方形）",
+    "dimensions": "200x200",
+    "flux_descriptor": "rush grass woven square mat, tatami-inspired texture, natural fragrance"
+  },
+  {
+    "id": "tb-jp-teak-stool",
+    "name_zh": "柚木浴室小矮凳",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "japanese",
+      "muji"
+    ],
+    "keywords": [
+      "teak stool",
+      "wood bench",
+      "bathroom stool"
+    ],
+    "colors": [
+      "teak",
+      "warm brown"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=柚木浴室小矮凳",
+    "dimensions": "W35xD25xH45",
+    "flux_descriptor": "solid teak small stool, indoor/outdoor, Japanese spa aesthetic"
+  },
+  {
+    "id": "tb-lux-marble-table",
+    "name_zh": "卡拉拉大理石茶几（黃銅腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "luxury",
+      "art-deco"
+    ],
+    "keywords": [
+      "marble coffee table",
+      "Carrara marble",
+      "brass legs"
+    ],
+    "colors": [
+      "white marble",
+      "brass"
+    ],
+    "price_twd": 15800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=卡拉拉大理石茶几（黃銅腳）",
+    "dimensions": "W100xD60xH40",
+    "flux_descriptor": "Carrara white marble coffee table, brushed brass legs, luxury"
+  },
+  {
+    "id": "tb-lux-velvet-sofa",
+    "name_zh": "弧形絲絨沙發（墨綠/勃艮第）",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "luxury",
+      "art-deco"
+    ],
+    "keywords": [
+      "curved velvet sofa",
+      "luxury sofa",
+      "sculptural sofa"
+    ],
+    "colors": [
+      "emerald green",
+      "burgundy"
+    ],
+    "price_twd": 38000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=弧形絲絨沙發（墨綠/勃艮第）",
+    "dimensions": "W220xD90xH80",
+    "flux_descriptor": "curved velvet sofa, deep emerald, sculptural silhouette, luxury"
+  },
+  {
+    "id": "tb-lux-brass-pendant",
+    "name_zh": "黃銅幾何吊燈（多頭）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "luxury",
+      "art-deco"
+    ],
+    "keywords": [
+      "brass pendant",
+      "chandelier",
+      "gold pendant"
+    ],
+    "colors": [
+      "brass",
+      "gold"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黃銅幾何吊燈（多頭）",
+    "dimensions": "Dia60",
+    "flux_descriptor": "brushed brass multi-arm chandelier, geometric design, luxury"
+  },
+  {
+    "id": "tb-lux-travertine-side",
+    "name_zh": "洞石邊几（圓柱腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "travertine side table",
+      "stone side table",
+      "luxury side table"
+    ],
+    "colors": [
+      "travertine",
+      "cream beige"
+    ],
+    "price_twd": 9800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=洞石邊几（圓柱腳）",
+    "dimensions": "Dia50xH55",
+    "flux_descriptor": "travertine stone top side table, natural pore texture, luxury warm"
+  },
+  {
+    "id": "tb-lux-velvet-diningchair",
+    "name_zh": "天鵝絨餐椅（香檳金腳）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "velvet dining chair",
+      "upholstered chair",
+      "luxury chair"
+    ],
+    "colors": [
+      "champagne",
+      "deep navy",
+      "blush"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=天鵝絨餐椅（香檳金腳）",
+    "dimensions": "W50xD56xH90",
+    "flux_descriptor": "velvet dining chair, button tufted back, champagne gold legs"
+  },
+  {
+    "id": "tb-lux-marble-dining",
+    "name_zh": "大理石餐桌（黑框腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "marble dining table",
+      "luxury dining",
+      "stone table"
+    ],
+    "colors": [
+      "white marble",
+      "black steel"
+    ],
+    "price_twd": 45000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石餐桌（黑框腳）",
+    "dimensions": "W200xD100xH76",
+    "flux_descriptor": "white marble dining table, black steel pedestal base, luxury"
+  },
+  {
+    "id": "tb-lux-crystal-chandelier",
+    "name_zh": "水晶串珠吊燈（多層）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "crystal chandelier",
+      "luxury chandelier",
+      "statement lighting"
+    ],
+    "colors": [
+      "crystal",
+      "chrome"
+    ],
+    "price_twd": 28000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=水晶串珠吊燈（多層）",
+    "dimensions": "Dia80",
+    "flux_descriptor": "multi-tier crystal bead chandelier, chrome frame, dramatic luxury"
+  },
+  {
+    "id": "tb-lux-brass-floorlamp",
+    "name_zh": "黃銅弧形落地燈（大理石底座）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "brass arc lamp",
+      "marble base lamp",
+      "luxury floor lamp"
+    ],
+    "colors": [
+      "brass",
+      "white marble"
+    ],
+    "price_twd": 8500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黃銅弧形落地燈（大理石底座）",
+    "dimensions": "H180",
+    "flux_descriptor": "brass arc floor lamp, marble base, warm spotlight, luxury interior"
+  },
+  {
+    "id": "tb-lux-velvet-curtain",
+    "name_zh": "絲絨遮光窗簾（午夜藍/墨綠）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "velvet curtain",
+      "blackout curtain",
+      "luxury curtain"
+    ],
+    "colors": [
+      "midnight blue",
+      "emerald",
+      "charcoal"
+    ],
+    "price_twd": 7800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=絲絨遮光窗簾（午夜藍/墨綠）",
+    "dimensions": "W250xH280",
+    "flux_descriptor": "heavy velvet blackout curtain, deep color, floor-puddling luxury drape"
+  },
+  {
+    "id": "tb-lux-cashmere-throw",
+    "name_zh": "喀什米爾混紡毯子",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "cashmere throw",
+      "luxury blanket",
+      "soft throw"
+    ],
+    "colors": [
+      "champagne",
+      "ivory",
+      "dark grey"
+    ],
+    "price_twd": 5800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=喀什米爾混紡毯子",
+    "dimensions": "130x180",
+    "flux_descriptor": "cashmere blend throw blanket, ultra-soft, luxury bedroom layering"
+  },
+  {
+    "id": "tb-lux-faux-fur-rug",
+    "name_zh": "仿狐狸毛地毯（米白）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "faux fur rug",
+      "luxury rug",
+      "plush rug"
+    ],
+    "colors": [
+      "ivory",
+      "cream",
+      "champagne"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=仿狐狸毛地毯（米白）",
+    "dimensions": "160x230",
+    "flux_descriptor": "faux fox fur area rug, ultra-plush pile, luxury bedroom floor"
+  },
+  {
+    "id": "tb-lux-lacquer-sideboard",
+    "name_zh": "黑胡桃木亮面側板櫃",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "lacquered sideboard",
+      "dark sideboard",
+      "luxury cabinet"
+    ],
+    "colors": [
+      "dark walnut",
+      "high gloss"
+    ],
+    "price_twd": 32000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑胡桃木亮面側板櫃",
+    "dimensions": "W180xD45xH75",
+    "flux_descriptor": "lacquered dark walnut sideboard, high-gloss finish, luxury dining"
+  },
+  {
+    "id": "tb-lux-sculptural-chair",
+    "name_zh": "雕塑感絨布休閒椅",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "sculptural lounge chair",
+      "velvet accent chair",
+      "statement chair"
+    ],
+    "colors": [
+      "dusty rose",
+      "deep blue"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=雕塑感絨布休閒椅",
+    "dimensions": "W70xD78xH80",
+    "flux_descriptor": "sculptural organic-form lounge chair, velvet upholstery, luxury accent"
+  },
+  {
+    "id": "tb-lux-marble-bedside",
+    "name_zh": "大理石紋床頭櫃（鏡面）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "marble bedside",
+      "mirrored cabinet",
+      "luxury nightstand"
+    ],
+    "colors": [
+      "white marble",
+      "mirror"
+    ],
+    "price_twd": 7200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石紋床頭櫃（鏡面）",
+    "dimensions": "W55xD40xH55",
+    "flux_descriptor": "marble-top bedside table, mirrored door, gold handle, luxury bedroom"
+  },
+  {
+    "id": "tb-lux-gold-mirror",
+    "name_zh": "金色橢圓掛鏡（波浪框）",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "gold wall mirror",
+      "oval mirror",
+      "luxury mirror"
+    ],
+    "colors": [
+      "champagne gold"
+    ],
+    "price_twd": 9500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=金色橢圓掛鏡（波浪框）",
+    "dimensions": "W70xH100",
+    "flux_descriptor": "champagne gold oval wall mirror, ripple frame, luxury vanity"
+  },
+  {
+    "id": "tb-lux-dark-ottoman",
+    "name_zh": "深色絨布腳凳（大）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "velvet ottoman",
+      "footstool",
+      "luxury ottoman"
+    ],
+    "colors": [
+      "midnight navy",
+      "charcoal",
+      "burgundy"
+    ],
+    "price_twd": 6800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=深色絨布腳凳（大）",
+    "dimensions": "W80xD80xH42",
+    "flux_descriptor": "large square velvet ottoman, brass pin legs, luxury lounge"
+  },
+  {
+    "id": "tb-lux-marble-lamp",
+    "name_zh": "大理石紋桌燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "marble table lamp",
+      "luxury lamp",
+      "stone lamp"
+    ],
+    "colors": [
+      "white marble",
+      "brass"
+    ],
+    "price_twd": 4500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石紋桌燈",
+    "dimensions": "H40",
+    "flux_descriptor": "marble-base table lamp, brass socket, linen shade, luxury bedside"
+  },
+  {
+    "id": "tb-lux-black-steel-shelf",
+    "name_zh": "黑鋼烤漆玻璃展示架",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "black steel shelf",
+      "glass shelf",
+      "display cabinet"
+    ],
+    "colors": [
+      "matte black",
+      "clear glass"
+    ],
+    "price_twd": 15000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑鋼烤漆玻璃展示架",
+    "dimensions": "W90xD35xH180",
+    "flux_descriptor": "black powder-coat steel open display shelving, tempered glass shelves"
+  },
+  {
+    "id": "tb-lux-champagne-side",
+    "name_zh": "香檳金幾何邊几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "luxury",
+      "art-deco"
+    ],
+    "keywords": [
+      "gold side table",
+      "geometric table",
+      "accent table"
+    ],
+    "colors": [
+      "champagne gold"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=香檳金幾何邊几",
+    "dimensions": "Dia40xH55",
+    "flux_descriptor": "champagne gold geometric side table, hexagonal top, luxury accent"
+  },
+  {
+    "id": "tb-lux-platform-bed",
+    "name_zh": "輕奢床架（布藝床頭牆）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "luxury bed frame",
+      "upholstered bed",
+      "platform bed"
+    ],
+    "colors": [
+      "champagne",
+      "dark grey",
+      "navy"
+    ],
+    "price_twd": 42000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=輕奢床架（布藝床頭牆）",
+    "dimensions": "W180xD220",
+    "flux_descriptor": "upholstered platform bed, tufted headboard wall panel, luxury bedroom"
+  },
+  {
+    "id": "tb-lux-velvet-headboard",
+    "name_zh": "天鵝絨嵌入式床頭板",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "velvet headboard",
+      "upholstered headboard",
+      "tufted headboard"
+    ],
+    "colors": [
+      "dusty rose",
+      "navy",
+      "champagne"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=天鵝絨嵌入式床頭板",
+    "dimensions": "W180xH120",
+    "flux_descriptor": "deep-button tufted velvet headboard, gold nail trim, luxury bedroom"
+  },
+  {
+    "id": "tb-lux-brass-frames",
+    "name_zh": "黃銅畫框組（三聯）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "brass picture frame",
+      "gallery wall",
+      "luxury frame"
+    ],
+    "colors": [
+      "brass",
+      "gold"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黃銅畫框組（三聯）",
+    "dimensions": "various",
+    "flux_descriptor": "set of 3 brushed brass picture frames, clean profile, luxury gallery wall"
+  },
+  {
+    "id": "tb-lux-blackout-velvet",
+    "name_zh": "全遮光絲絨窗簾（勃艮第）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "luxury"
+    ],
+    "keywords": [
+      "blackout curtain",
+      "luxury drape",
+      "velvet curtain"
+    ],
+    "colors": [
+      "burgundy",
+      "deep wine"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=全遮光絲絨窗簾（勃艮第）",
+    "dimensions": "W250xH280",
+    "flux_descriptor": "full blackout velvet drape, heavy weight, rich burgundy, luxury hotel feel"
+  },
+  {
+    "id": "tb-lux-sculpture",
+    "name_zh": "金屬抽象雕塑擺件",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "luxury",
+      "art-deco"
+    ],
+    "keywords": [
+      "sculpture decor",
+      "abstract art",
+      "metal sculpture"
+    ],
+    "colors": [
+      "gold",
+      "brass",
+      "black"
+    ],
+    "price_twd": 6500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=金屬抽象雕塑擺件",
+    "dimensions": "H35",
+    "flux_descriptor": "abstract brushed brass sculpture, luxury shelf or console display"
+  },
+  {
+    "id": "ikea-poang-armchair",
+    "name_zh": "POÄNG 扶手椅（樺木/棉麻）",
+    "brand": "IKEA",
+    "category": "chair",
+    "style_tags": [
+      "nordic",
+      "modern"
+    ],
+    "keywords": [
+      "hygge armchair",
+      "birch armchair",
+      "lounge chair"
+    ],
+    "colors": [
+      "birch",
+      "light beige"
+    ],
+    "price_twd": 5990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/poang-armchair__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+POANG+台灣",
+    "dimensions": "W68xD82xH100",
+    "flux_descriptor": "birch veneer lounge armchair, beige cushion, Scandinavian hygge"
+  },
+  {
+    "id": "ikea-stockholm-rug",
+    "name_zh": "STOCKHOLM 地毯（羊毛/米白）",
+    "brand": "IKEA",
+    "category": "rug",
+    "style_tags": [
+      "nordic",
+      "modern",
+      "boho"
+    ],
+    "keywords": [
+      "wool rug",
+      "handmade rug",
+      "geometric rug"
+    ],
+    "colors": [
+      "beige",
+      "off-white"
+    ],
+    "price_twd": 14999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/stockholm-rug__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+STOCKHOLM+台灣",
+    "dimensions": "170x240",
+    "flux_descriptor": "handmade wool rug, geometric pattern, off-white, Scandinavian"
+  },
+  {
+    "id": "ikea-ranarp-floor-lamp",
+    "name_zh": "RANARP 落地燈（米色）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "nordic",
+      "modern",
+      "muji"
+    ],
+    "keywords": [
+      "floor lamp",
+      "reading lamp",
+      "adjustable lamp"
+    ],
+    "colors": [
+      "off-white",
+      "cream"
+    ],
+    "price_twd": 2499,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/ranarp-floor-lamp__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+RANARP+台灣",
+    "dimensions": "H149",
+    "flux_descriptor": "classic floor reading lamp, off-white metal shade, adjustable arm"
+  },
+  {
+    "id": "ikea-hemnes-bed-white",
+    "name_zh": "HEMNES 床架（白）",
+    "brand": "IKEA",
+    "category": "bed",
+    "style_tags": [
+      "nordic",
+      "muji"
+    ],
+    "keywords": [
+      "white bed frame",
+      "pine bed",
+      "classic bed"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 12900,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/hemnes-bed-white__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+HEMNES+台灣",
+    "dimensions": "W150xD210",
+    "flux_descriptor": "solid wood white bed frame, clean classic lines, Scandinavian"
+  },
+  {
+    "id": "ikea-vedbo-armchair",
+    "name_zh": "VEDBO 扶手椅（深灰）",
+    "brand": "IKEA",
+    "category": "chair",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "accent chair",
+      "dark armchair",
+      "nordic chair"
+    ],
+    "colors": [
+      "dark grey",
+      "anthracite"
+    ],
+    "price_twd": 15990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/vedbo-armchair__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+VEDBO+台灣",
+    "dimensions": "W64xD62xH84",
+    "flux_descriptor": "dark grey accent armchair, clean Scandinavian lines, bold accent"
+  },
+  {
+    "id": "ikea-hemnes-daybed",
+    "name_zh": "HEMNES 日床（白）",
+    "brand": "IKEA",
+    "category": "bed",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "daybed",
+      "sofa bed",
+      "guest bed"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 14990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/hemnes-daybed__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+HEMNES+台灣",
+    "dimensions": "W80xD200",
+    "flux_descriptor": "white solid wood daybed, doubles as single sofa, Scandinavian"
+  },
+  {
+    "id": "ikea-sinnerlig-cork-pendant",
+    "name_zh": "SINNERLIG 吊燈（軟木）",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "nordic",
+      "japanese"
+    ],
+    "keywords": [
+      "cork pendant",
+      "organic pendant",
+      "natural pendant"
+    ],
+    "colors": [
+      "cork",
+      "warm brown"
+    ],
+    "price_twd": 1499,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/sinnerlig-cork-pendant__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SINNERLIG+台灣",
+    "dimensions": "Dia35",
+    "flux_descriptor": "cork pendant lamp, organic grain texture, warm ambient light"
+  },
+  {
+    "id": "ikea-ingolf-chair-white",
+    "name_zh": "INGOLF 餐椅（白）",
+    "brand": "IKEA",
+    "category": "chair",
+    "style_tags": [
+      "nordic",
+      "muji",
+      "modern"
+    ],
+    "keywords": [
+      "white dining chair",
+      "simple chair",
+      "functional chair"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 1790,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/ingolf-chair-white__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+INGOLF+台灣",
+    "dimensions": "W47xD50xH90",
+    "flux_descriptor": "classic white dining chair, simple wooden frame"
+  },
+  {
+    "id": "tb-no-birch-table",
+    "name_zh": "白樺木餐桌（細腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "birch dining table",
+      "white table",
+      "nordic dining"
+    ],
+    "colors": [
+      "white birch",
+      "off-white"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白樺木餐桌（細腳）",
+    "dimensions": "W160xD80xH75",
+    "flux_descriptor": "white birch dining table, tapered slim legs, bright Scandinavian dining"
+  },
+  {
+    "id": "tb-no-sheepskin-rug",
+    "name_zh": "純白羊毛皮地墊",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "nordic",
+      "boho"
+    ],
+    "keywords": [
+      "sheepskin rug",
+      "fluffy rug",
+      "natural rug"
+    ],
+    "colors": [
+      "ivory",
+      "cream white"
+    ],
+    "price_twd": 4800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=純白羊毛皮地墊",
+    "dimensions": "90x150",
+    "flux_descriptor": "genuine sheepskin floor rug, plush natural pile, hygge Scandinavian"
+  },
+  {
+    "id": "tb-no-knit-throw",
+    "name_zh": "粗針編織毛毯（奶白色）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "knit throw",
+      "cable knit blanket",
+      "cozy throw"
+    ],
+    "colors": [
+      "cream",
+      "off-white",
+      "dusty sage"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=粗針編織毛毯（奶白色）",
+    "dimensions": "130x160",
+    "flux_descriptor": "chunky cable-knit cotton throw, natural cream, Scandinavian hygge"
+  },
+  {
+    "id": "tb-no-pine-bench",
+    "name_zh": "松木長椅凳（附收納）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "storage bench",
+      "pine bench",
+      "hallway bench"
+    ],
+    "colors": [
+      "pine",
+      "natural wood"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=松木長椅凳（附收納）",
+    "dimensions": "W120xD40xH48",
+    "flux_descriptor": "pine wood storage bench, lift-top seat, Scandinavian entryway"
+  },
+  {
+    "id": "tb-no-cotton-curtain",
+    "name_zh": "純棉全遮光窗簾（白/米）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "nordic",
+      "modern"
+    ],
+    "keywords": [
+      "blackout curtain",
+      "cotton curtain",
+      "white curtain"
+    ],
+    "colors": [
+      "white",
+      "off-white",
+      "powder blue"
+    ],
+    "price_twd": 4200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=純棉全遮光窗簾（白/米）",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "heavy cotton blackout curtain, clean drape, Scandinavian window treatment"
+  },
+  {
+    "id": "tb-no-felt-pendant",
+    "name_zh": "羊毛氈燈罩吊燈（大）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "felt pendant",
+      "wool pendant",
+      "oversized pendant"
+    ],
+    "colors": [
+      "dusty grey",
+      "sage green",
+      "charcoal"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=羊毛氈燈罩吊燈（大）",
+    "dimensions": "Dia50",
+    "flux_descriptor": "oversized wool felt pendant shade, soft acoustic, Scandinavian"
+  },
+  {
+    "id": "tb-no-plywood-chair",
+    "name_zh": "成型夾板餐椅（自然色）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "plywood chair",
+      "molded chair",
+      "design chair"
+    ],
+    "colors": [
+      "natural plywood",
+      "beige"
+    ],
+    "price_twd": 4500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=成型夾板餐椅（自然色）",
+    "dimensions": "W48xD52xH80",
+    "flux_descriptor": "molded plywood dining chair, ergonomic shell, Scandinavian design"
+  },
+  {
+    "id": "tb-no-pine-shelf",
+    "name_zh": "松木模組層板架",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "pine shelf",
+      "modular shelving",
+      "open shelf"
+    ],
+    "colors": [
+      "pine",
+      "natural wood"
+    ],
+    "price_twd": 3800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=松木模組層板架",
+    "dimensions": "W80xD25",
+    "flux_descriptor": "natural pine adjustable shelf, peg system, Scandinavian storage"
+  },
+  {
+    "id": "tb-no-round-cushion",
+    "name_zh": "圓形地板坐墊（羊毛氈）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "nordic",
+      "japanese"
+    ],
+    "keywords": [
+      "floor cushion",
+      "round pouf",
+      "wool felt"
+    ],
+    "colors": [
+      "dusty pink",
+      "sage green",
+      "grey"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=圓形地板坐墊（羊毛氈）",
+    "dimensions": "Dia50xH25",
+    "flux_descriptor": "round wool felt floor cushion, hygge floor seating"
+  },
+  {
+    "id": "tb-no-candle-set",
+    "name_zh": "石蠟蠟燭組（多高度）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "candle set",
+      "hygge candle",
+      "pillar candle"
+    ],
+    "colors": [
+      "white",
+      "cream",
+      "pale grey"
+    ],
+    "price_twd": 1200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=石蠟蠟燭組（多高度）",
+    "dimensions": "various",
+    "flux_descriptor": "Nordic hygge pillar candle set, unscented, varying heights"
+  },
+  {
+    "id": "tb-no-natural-bed",
+    "name_zh": "淡木色床架（寬床頭板）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "nordic bed",
+      "wide headboard",
+      "natural wood bed"
+    ],
+    "colors": [
+      "light oak",
+      "birch"
+    ],
+    "price_twd": 22000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=淡木色床架（寬床頭板）",
+    "dimensions": "W180xD210",
+    "flux_descriptor": "light oak bed frame, wide flat headboard, Scandinavian bedroom"
+  },
+  {
+    "id": "tb-no-powder-chair",
+    "name_zh": "粉藍色布藝餐椅",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "powder blue chair",
+      "fabric chair",
+      "color accent chair"
+    ],
+    "colors": [
+      "powder blue",
+      "light blue"
+    ],
+    "price_twd": 3800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=粉藍色布藝餐椅",
+    "dimensions": "W48xD52xH85",
+    "flux_descriptor": "powder blue upholstered dining chair, tapered legs, Scandinavian pop"
+  },
+  {
+    "id": "tb-no-rattan-basket",
+    "name_zh": "原色藤籃收納組（三件）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "nordic",
+      "boho",
+      "japanese"
+    ],
+    "keywords": [
+      "rattan basket",
+      "wicker basket",
+      "storage basket"
+    ],
+    "colors": [
+      "natural rattan"
+    ],
+    "price_twd": 2400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=原色藤籃收納組（三件）",
+    "dimensions": "various",
+    "flux_descriptor": "natural rattan basket set of 3, Scandinavian living room storage"
+  },
+  {
+    "id": "tb-no-abstract-rug",
+    "name_zh": "北歐抽象圖案地毯（灰藍）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "abstract rug",
+      "geometric rug",
+      "Scandinavian rug"
+    ],
+    "colors": [
+      "grey blue",
+      "cream",
+      "dusty sage"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=北歐抽象圖案地毯（灰藍）",
+    "dimensions": "200x300",
+    "flux_descriptor": "low-pile abstract geometric rug, grey-blue palette, Scandinavian modern"
+  },
+  {
+    "id": "tb-no-edison-pendant",
+    "name_zh": "北歐風愛迪生燈泡吊燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "nordic",
+      "industrial"
+    ],
+    "keywords": [
+      "Edison bulb pendant",
+      "vintage bulb",
+      "warm pendant"
+    ],
+    "colors": [
+      "brass",
+      "amber",
+      "gold"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=北歐風愛迪生燈泡吊燈",
+    "dimensions": "H30 adj",
+    "flux_descriptor": "Edison filament pendant, warm 2700K amber glow, Scandinavian modern"
+  },
+  {
+    "id": "tb-no-white-sofa",
+    "name_zh": "白色三人布藝沙發（木腳）",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "nordic",
+      "modern"
+    ],
+    "keywords": [
+      "white sofa",
+      "fabric sofa",
+      "Scandinavian sofa"
+    ],
+    "colors": [
+      "white",
+      "off-white"
+    ],
+    "price_twd": 24000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白色三人布藝沙發（木腳）",
+    "dimensions": "W210xD88xH80",
+    "flux_descriptor": "white fabric 3-seater sofa, solid oak legs, Scandinavian hygge"
+  },
+  {
+    "id": "tb-no-storage-stool",
+    "name_zh": "儲物布藝腳凳（灰）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "nordic"
+    ],
+    "keywords": [
+      "storage ottoman",
+      "fabric stool",
+      "square pouf"
+    ],
+    "colors": [
+      "light grey",
+      "dusty pink"
+    ],
+    "price_twd": 3500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=儲物布藝腳凳（灰）",
+    "dimensions": "W50xD50xH40",
+    "flux_descriptor": "fabric storage ottoman, lift-top, Scandinavian multifunctional"
+  },
+  {
+    "id": "ikea-fjallbo-shelf",
+    "name_zh": "FJÄLLBO 層架（黑色鐵件）",
+    "brand": "IKEA",
+    "category": "shelving",
+    "style_tags": [
+      "industrial",
+      "modern"
+    ],
+    "keywords": [
+      "iron bookshelf",
+      "black metal shelf",
+      "pipe shelf"
+    ],
+    "colors": [
+      "black",
+      "matte black"
+    ],
+    "price_twd": 4999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/fjallbo-shelf__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+FJALLBO+台灣",
+    "dimensions": "W60xD36xH150",
+    "flux_descriptor": "black steel open shelving, industrial pipe design"
+  },
+  {
+    "id": "tb-ind-dining-table",
+    "name_zh": "復古工業風餐桌（實木+黑鐵腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "reclaimed wood table",
+      "industrial table",
+      "black iron legs"
+    ],
+    "colors": [
+      "dark walnut",
+      "black iron"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=復古工業風餐桌（實木+黑鐵腳）",
+    "dimensions": "W180xD80xH76",
+    "flux_descriptor": "reclaimed wood dining table, black iron hairpin legs, loft industrial"
+  },
+  {
+    "id": "tb-ind-edison-pendant",
+    "name_zh": "Edison 燈泡復古吊燈（3頭）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "industrial",
+      "boho"
+    ],
+    "keywords": [
+      "Edison filament",
+      "factory pendant",
+      "vintage pendant"
+    ],
+    "colors": [
+      "bronze",
+      "antique black"
+    ],
+    "price_twd": 3500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=Edison+燈泡復古吊燈（3頭）",
+    "dimensions": "Dia50(3heads)",
+    "flux_descriptor": "Edison filament 3-arm pendant, antique bronze, exposed bulb"
+  },
+  {
+    "id": "tb-ind-chesterfield",
+    "name_zh": "切斯特菲爾德皮革沙發（深棕）",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "Chesterfield sofa",
+      "leather sofa",
+      "tufted sofa"
+    ],
+    "colors": [
+      "dark brown",
+      "cognac leather"
+    ],
+    "price_twd": 35000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=切斯特菲爾德皮革沙發（深棕）",
+    "dimensions": "W210xD90xH82",
+    "flux_descriptor": "deep-button tufted Chesterfield leather sofa, dark brown, industrial"
+  },
+  {
+    "id": "tb-ind-wire-chair",
+    "name_zh": "工業風金屬網椅",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "wire mesh chair",
+      "metal chair",
+      "industrial chair"
+    ],
+    "colors": [
+      "black",
+      "chrome"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工業風金屬網椅",
+    "dimensions": "W48xD52xH80",
+    "flux_descriptor": "wire mesh dining chair, powder-coat black, industrial cafe style"
+  },
+  {
+    "id": "tb-ind-reclaimed-coffee",
+    "name_zh": "工業風拼木茶几（輪子）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "reclaimed coffee table",
+      "caster table",
+      "rolling table"
+    ],
+    "colors": [
+      "weathered oak",
+      "black casters"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工業風拼木茶几（輪子）",
+    "dimensions": "W120xD60xH45",
+    "flux_descriptor": "reclaimed wood coffee table, black iron frame, industrial casters"
+  },
+  {
+    "id": "tb-ind-pipe-wall-shelf",
+    "name_zh": "鐵管壁掛書架（4層）",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "pipe shelf",
+      "iron wall shelf",
+      "industrial shelving"
+    ],
+    "colors": [
+      "black iron",
+      "reclaimed wood"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鐵管壁掛書架（4層）",
+    "dimensions": "W80xD20xH120",
+    "flux_descriptor": "black iron pipe wall-mounted shelving unit, reclaimed wood boards"
+  },
+  {
+    "id": "tb-ind-track-light",
+    "name_zh": "軌道燈（3頭可調向）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "industrial",
+      "modern"
+    ],
+    "keywords": [
+      "track lighting",
+      "spotlight",
+      "adjustable lighting"
+    ],
+    "colors": [
+      "matte black"
+    ],
+    "price_twd": 3800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=軌道燈（3頭可調向）",
+    "dimensions": "L100",
+    "flux_descriptor": "matte black 3-head track lighting, adjustable direction, industrial"
+  },
+  {
+    "id": "tb-ind-bar-stool",
+    "name_zh": "工業風金屬高腳凳（可調高）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "bar stool",
+      "adjustable stool",
+      "metal stool"
+    ],
+    "colors": [
+      "black",
+      "rust orange"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工業風金屬高腳凳（可調高）",
+    "dimensions": "H60-80",
+    "flux_descriptor": "adjustable height metal bar stool, footrest ring, industrial cafe"
+  },
+  {
+    "id": "tb-ind-leather-armchair",
+    "name_zh": "做舊皮革扶手椅",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "aged leather chair",
+      "vintage armchair",
+      "leather lounge"
+    ],
+    "colors": [
+      "cognac",
+      "dark brown"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=做舊皮革扶手椅",
+    "dimensions": "W75xD80xH85",
+    "flux_descriptor": "distressed leather armchair, exposed rivets, industrial gentleman"
+  },
+  {
+    "id": "tb-ind-concrete-side",
+    "name_zh": "粗獷水泥邊几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "industrial",
+      "modern"
+    ],
+    "keywords": [
+      "concrete side table",
+      "raw concrete",
+      "industrial table"
+    ],
+    "colors": [
+      "raw concrete grey"
+    ],
+    "price_twd": 3500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=粗獷水泥邊几",
+    "dimensions": "Dia35xH55",
+    "flux_descriptor": "raw concrete side table, rough texture, industrial-modern"
+  },
+  {
+    "id": "tb-ind-black-bed",
+    "name_zh": "工業風黑鐵床架",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "iron bed frame",
+      "black metal bed",
+      "industrial bed"
+    ],
+    "colors": [
+      "matte black"
+    ],
+    "price_twd": 16000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工業風黑鐵床架",
+    "dimensions": "W150xD210",
+    "flux_descriptor": "matte black iron tube bed frame, industrial loft bedroom"
+  },
+  {
+    "id": "tb-ind-factory-cart",
+    "name_zh": "工廠搬運車改造咖啡桌",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "cart table",
+      "industrial cart",
+      "rolling coffee table"
+    ],
+    "colors": [
+      "black iron",
+      "oak top"
+    ],
+    "price_twd": 7500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工廠搬運車改造咖啡桌",
+    "dimensions": "W80xD50xH42",
+    "flux_descriptor": "vintage factory trolley coffee table, iron wheels, reclaimed oak top"
+  },
+  {
+    "id": "tb-ind-metal-cabinet",
+    "name_zh": "金屬文件抽屜櫃（5層）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "metal filing cabinet",
+      "industrial storage",
+      "steel cabinet"
+    ],
+    "colors": [
+      "matte grey",
+      "black"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=金屬文件抽屜櫃（5層）",
+    "dimensions": "W46xD62xH132",
+    "flux_descriptor": "industrial-style metal filing cabinet, label pull handles, workshop feel"
+  },
+  {
+    "id": "tb-ind-task-lamp",
+    "name_zh": "工業風夾式工作燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "task lamp",
+      "clip lamp",
+      "industrial desk lamp"
+    ],
+    "colors": [
+      "antique brass",
+      "matte black"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工業風夾式工作燈",
+    "dimensions": "H35",
+    "flux_descriptor": "articulated arm task lamp, factory-style shade, industrial desk"
+  },
+  {
+    "id": "tb-ind-galvanized-pendant",
+    "name_zh": "鍍鋅桶形吊燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "galvanized pendant",
+      "warehouse pendant",
+      "industrial light"
+    ],
+    "colors": [
+      "galvanized silver"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鍍鋅桶形吊燈",
+    "dimensions": "Dia25",
+    "flux_descriptor": "galvanized steel dome pendant, warehouse factory style, Edison compatible"
+  },
+  {
+    "id": "tb-ind-tv-reclaimed",
+    "name_zh": "工業風舊木電視櫃（鐵架）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "reclaimed wood TV",
+      "industrial TV console",
+      "iron frame"
+    ],
+    "colors": [
+      "weathered oak",
+      "black iron"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=工業風舊木電視櫃（鐵架）",
+    "dimensions": "W160xD40xH55",
+    "flux_descriptor": "reclaimed wood TV console, black iron open frame, industrial loft"
+  },
+  {
+    "id": "tb-ind-wire-basket",
+    "name_zh": "金屬網籃收納（3件組）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "wire basket",
+      "metal storage",
+      "industrial basket"
+    ],
+    "colors": [
+      "black",
+      "chrome"
+    ],
+    "price_twd": 2400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=金屬網籃收納（3件組）",
+    "dimensions": "various",
+    "flux_descriptor": "wire mesh storage baskets set of 3, powder-coat black, industrial"
+  },
+  {
+    "id": "tb-ind-charcoal-rug",
+    "name_zh": "深炭灰短毛地毯",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "charcoal rug",
+      "dark rug",
+      "concrete grey rug"
+    ],
+    "colors": [
+      "charcoal",
+      "dark grey"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=深炭灰短毛地毯",
+    "dimensions": "200x290",
+    "flux_descriptor": "charcoal grey low-pile rug, concrete-tone, industrial loft floor"
+  },
+  {
+    "id": "tb-ind-vintage-map",
+    "name_zh": "復古城市地圖掛畫",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "vintage map art",
+      "wall art",
+      "industrial decor"
+    ],
+    "colors": [
+      "sepia",
+      "aged paper"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=復古城市地圖掛畫",
+    "dimensions": "60x90",
+    "flux_descriptor": "vintage-style city blueprint framed print, industrial wall art"
+  },
+  {
+    "id": "tb-ind-iron-bookend",
+    "name_zh": "齒輪造型書擋（一對）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "gear bookend",
+      "iron decor",
+      "industrial accessory"
+    ],
+    "colors": [
+      "antique iron"
+    ],
+    "price_twd": 1200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=齒輪造型書擋（一對）",
+    "dimensions": "W10xH15",
+    "flux_descriptor": "cast iron gear-shaped bookends, antique finish, industrial shelf"
+  },
+  {
+    "id": "tb-ind-rust-pillow",
+    "name_zh": "鐵鏽橙工業風抱枕",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "industrial",
+      "boho"
+    ],
+    "keywords": [
+      "rust orange pillow",
+      "throw pillow",
+      "accent pillow"
+    ],
+    "colors": [
+      "rust orange",
+      "mustard"
+    ],
+    "price_twd": 850,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鐵鏽橙工業風抱枕",
+    "dimensions": "45x45",
+    "flux_descriptor": "rust orange textured throw pillow, earthy industrial accent"
+  },
+  {
+    "id": "tb-ind-linen-curtain",
+    "name_zh": "炭灰亞麻遮光窗簾",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "charcoal curtain",
+      "linen blackout",
+      "dark curtain"
+    ],
+    "colors": [
+      "charcoal",
+      "dark grey"
+    ],
+    "price_twd": 5200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=炭灰亞麻遮光窗簾",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "charcoal linen blackout curtain, industrial dark palette"
+  },
+  {
+    "id": "tb-ind-plank-shelf",
+    "name_zh": "舊木板牆面層板（120cm）",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "industrial",
+      "boho"
+    ],
+    "keywords": [
+      "reclaimed plank shelf",
+      "wall shelf",
+      "rustic shelf"
+    ],
+    "colors": [
+      "weathered grey",
+      "reclaimed wood"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=舊木板牆面層板（120cm）",
+    "dimensions": "W120xD22",
+    "flux_descriptor": "single reclaimed plank wall shelf, raw edge, industrial-rustic"
+  },
+  {
+    "id": "tb-ind-pipe-lamp",
+    "name_zh": "黑鐵管壁燈（工廠風）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "industrial"
+    ],
+    "keywords": [
+      "wall sconce",
+      "pipe lamp",
+      "industrial sconce"
+    ],
+    "colors": [
+      "matte black",
+      "aged steel"
+    ],
+    "price_twd": 2500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑鐵管壁燈（工廠風）",
+    "dimensions": "H30",
+    "flux_descriptor": "black iron pipe wall lamp, adjustable angle, industrial factory style"
+  },
+  {
+    "id": "tb-med-mosaic-table",
+    "name_zh": "手工馬賽克磁磚咖啡桌（藍白）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "mosaic tile table",
+      "Mediterranean table",
+      "blue white tile"
+    ],
+    "colors": [
+      "blue",
+      "white",
+      "turquoise"
+    ],
+    "price_twd": 9800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=手工馬賽克磁磚咖啡桌（藍白）",
+    "dimensions": "W80xD80xH45",
+    "flux_descriptor": "hand-painted mosaic tile coffee table, Mediterranean blue-white"
+  },
+  {
+    "id": "ikea-buskbo-rattan",
+    "name_zh": "BUSKBO 扶手椅（藤）",
+    "brand": "IKEA",
+    "category": "chair",
+    "style_tags": [
+      "mediterranean",
+      "boho",
+      "japanese"
+    ],
+    "keywords": [
+      "rattan chair",
+      "wicker chair",
+      "natural chair"
+    ],
+    "colors": [
+      "natural rattan",
+      "light brown"
+    ],
+    "price_twd": 4999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/buskbo-rattan__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+BUSKBO+台灣",
+    "dimensions": "W73xD65xH76",
+    "flux_descriptor": "handwoven rattan armchair, natural finish, Mediterranean boho"
+  },
+  {
+    "id": "tb-med-terracotta-lamp",
+    "name_zh": "陶土圓柱落地燈（摩洛哥風）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "terracotta lamp",
+      "Moroccan lamp",
+      "clay lamp"
+    ],
+    "colors": [
+      "terracotta",
+      "warm orange"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶土圓柱落地燈（摩洛哥風）",
+    "dimensions": "H150",
+    "flux_descriptor": "terracotta clay floor lamp, Moroccan cut-out pattern, warm amber glow"
+  },
+  {
+    "id": "tb-med-sea-glass-art",
+    "name_zh": "海玻璃馬賽克壁飾",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "sea glass art",
+      "mosaic wall",
+      "coastal decor"
+    ],
+    "colors": [
+      "turquoise",
+      "sea green",
+      "cobalt"
+    ],
+    "price_twd": 4200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=海玻璃馬賽克壁飾",
+    "dimensions": "W60xH60",
+    "flux_descriptor": "sea glass mosaic wall art panel, Mediterranean coastal"
+  },
+  {
+    "id": "tb-med-whitewash-table",
+    "name_zh": "白洗舊木餐桌（地中海風）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "whitewash dining table",
+      "Mediterranean table",
+      "coastal dining"
+    ],
+    "colors": [
+      "whitewash",
+      "driftwood"
+    ],
+    "price_twd": 14000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白洗舊木餐桌（地中海風）",
+    "dimensions": "W160xD85xH75",
+    "flux_descriptor": "whitewashed solid wood dining table, aged Mediterranean coastal"
+  },
+  {
+    "id": "tb-med-iron-sconce",
+    "name_zh": "鍛鐵壁燈（西班牙風格）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "wrought iron sconce",
+      "wall lamp",
+      "Mediterranean lighting"
+    ],
+    "colors": [
+      "antique black iron",
+      "amber"
+    ],
+    "price_twd": 3500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鍛鐵壁燈（西班牙風格）",
+    "dimensions": "H30",
+    "flux_descriptor": "wrought iron wall sconce, candelabra style, Mediterranean Spanish"
+  },
+  {
+    "id": "tb-med-arch-mirror",
+    "name_zh": "白色拱形掛鏡",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "arched mirror",
+      "whitewash mirror",
+      "arch decor"
+    ],
+    "colors": [
+      "white",
+      "whitewash"
+    ],
+    "price_twd": 6800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白色拱形掛鏡",
+    "dimensions": "W60xH120",
+    "flux_descriptor": "white arch-top wall mirror, smooth plaster-look frame, Mediterranean boho"
+  },
+  {
+    "id": "tb-med-stripe-rug",
+    "name_zh": "藍白條紋地毯",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "stripe rug",
+      "blue white rug",
+      "coastal rug"
+    ],
+    "colors": [
+      "Mediterranean blue",
+      "white"
+    ],
+    "price_twd": 5800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藍白條紋地毯",
+    "dimensions": "160x230",
+    "flux_descriptor": "blue and white stripe woven rug, Mediterranean coastal"
+  },
+  {
+    "id": "tb-med-voile-curtain",
+    "name_zh": "白色薄紗窗簾（飄逸）",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "mediterranean",
+      "modern"
+    ],
+    "keywords": [
+      "voile curtain",
+      "sheer curtain",
+      "white drape"
+    ],
+    "colors": [
+      "white",
+      "sheer"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白色薄紗窗簾（飄逸）",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "white voile sheer curtain, breezy Mediterranean drape, maximize sunlight"
+  },
+  {
+    "id": "tb-med-terracotta-pot",
+    "name_zh": "陶土花器（大型，適合棕櫚）",
+    "brand": "淘寶精選",
+    "category": "plant",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "terracotta planter",
+      "large pot",
+      "clay pot"
+    ],
+    "colors": [
+      "terracotta",
+      "burnt orange"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶土花器（大型，適合棕櫚）",
+    "dimensions": "Dia35xH45",
+    "flux_descriptor": "large terracotta floor planter, hand-formed clay, Mediterranean garden"
+  },
+  {
+    "id": "tb-med-wicker-sofa",
+    "name_zh": "藤編戶外風沙發組",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "wicker sofa",
+      "rattan sofa",
+      "outdoor-style sofa"
+    ],
+    "colors": [
+      "natural rattan",
+      "white cushion"
+    ],
+    "price_twd": 28000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤編戶外風沙發組",
+    "dimensions": "W200xD85xH80",
+    "flux_descriptor": "wicker rattan sofa set, Mediterranean terrace-style, indoor use"
+  },
+  {
+    "id": "tb-med-ceramic-tiles",
+    "name_zh": "手繪馬賽克磁磚壁飾板",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "ceramic tile art",
+      "hand painted tile",
+      "decorative tiles"
+    ],
+    "colors": [
+      "blue",
+      "white",
+      "yellow"
+    ],
+    "price_twd": 3600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=手繪馬賽克磁磚壁飾板",
+    "dimensions": "30x30(set4)",
+    "flux_descriptor": "hand-painted Mediterranean ceramic decorative tile set of 4"
+  },
+  {
+    "id": "tb-med-rattan-daybed",
+    "name_zh": "藤編日床（度假風）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "rattan daybed",
+      "wicker daybed",
+      "boho bed"
+    ],
+    "colors": [
+      "natural rattan",
+      "white cushion"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤編日床（度假風）",
+    "dimensions": "W90xD200",
+    "flux_descriptor": "wicker rattan daybed, tropical Mediterranean relaxation"
+  },
+  {
+    "id": "tb-med-iron-lantern",
+    "name_zh": "鍛鐵燈籠吊燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "lantern pendant",
+      "iron lantern",
+      "Moroccan lantern"
+    ],
+    "colors": [
+      "antique black",
+      "amber glass"
+    ],
+    "price_twd": 4500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鍛鐵燈籠吊燈",
+    "dimensions": "H40",
+    "flux_descriptor": "wrought iron lantern pendant, amber glass panels, Moroccan Mediterranean"
+  },
+  {
+    "id": "tb-med-cobalt-vase",
+    "name_zh": "深藍陶瓷花器（高型）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "cobalt vase",
+      "blue ceramic",
+      "Mediterranean vase"
+    ],
+    "colors": [
+      "cobalt blue",
+      "Mediterranean blue"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=深藍陶瓷花器（高型）",
+    "dimensions": "Dia18xH50",
+    "flux_descriptor": "tall cobalt blue ceramic vase, hand-glazed, Mediterranean accent"
+  },
+  {
+    "id": "tb-med-driftwood-coffee",
+    "name_zh": "漂流木邊緣茶几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "driftwood table",
+      "natural edge table",
+      "coastal table"
+    ],
+    "colors": [
+      "driftwood",
+      "natural grey"
+    ],
+    "price_twd": 9500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=漂流木邊緣茶几",
+    "dimensions": "W100xD55xH42",
+    "flux_descriptor": "driftwood natural-edge coffee table, Mediterranean coastal chic"
+  },
+  {
+    "id": "tb-med-stone-side",
+    "name_zh": "天然石材邊几（圓形）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "stone side table",
+      "natural stone",
+      "round side"
+    ],
+    "colors": [
+      "stone grey",
+      "travertine"
+    ],
+    "price_twd": 7800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=天然石材邊几（圓形）",
+    "dimensions": "Dia45xH55",
+    "flux_descriptor": "natural stone disc side table, rough hewn edge, Mediterranean earthy"
+  },
+  {
+    "id": "tb-med-whitewash-bed",
+    "name_zh": "白洗木床架（地中海風）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "whitewash bed",
+      "Mediterranean bed",
+      "coastal bedroom"
+    ],
+    "colors": [
+      "whitewash",
+      "driftwood white"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白洗木床架（地中海風）",
+    "dimensions": "W150xD210",
+    "flux_descriptor": "whitewashed wood bed frame, plank headboard, Mediterranean coastal"
+  },
+  {
+    "id": "tb-med-palmleaf-fan",
+    "name_zh": "棕櫚葉吊扇燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "ceiling fan light",
+      "palm fan",
+      "tropical light"
+    ],
+    "colors": [
+      "natural palm",
+      "bamboo"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=棕櫚葉吊扇燈",
+    "dimensions": "Dia100",
+    "flux_descriptor": "palm leaf ceiling fan with light, tropical Mediterranean, quiet motor"
+  },
+  {
+    "id": "tb-med-shell-curtain",
+    "name_zh": "貝殼串珠門簾",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "shell curtain",
+      "bead curtain",
+      "coastal partition"
+    ],
+    "colors": [
+      "natural shell",
+      "cream"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=貝殼串珠門簾",
+    "dimensions": "W90xH200",
+    "flux_descriptor": "natural shell beaded door curtain, coastal Mediterranean divider"
+  },
+  {
+    "id": "tb-med-blue-sofa",
+    "name_zh": "地中海藍色亞麻沙發",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "blue sofa",
+      "Mediterranean sofa",
+      "coastal sofa"
+    ],
+    "colors": [
+      "Mediterranean blue",
+      "ocean blue"
+    ],
+    "price_twd": 22000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=地中海藍色亞麻沙發",
+    "dimensions": "W210xD88xH80",
+    "flux_descriptor": "Mediterranean blue linen sofa, white piping trim, coastal living"
+  },
+  {
+    "id": "tb-med-terracotta-rug",
+    "name_zh": "磚紅色仿陶土地毯",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "mediterranean",
+      "boho"
+    ],
+    "keywords": [
+      "terracotta rug",
+      "earth tone rug",
+      "warm rug"
+    ],
+    "colors": [
+      "terracotta",
+      "burnt sienna"
+    ],
+    "price_twd": 6800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=磚紅色仿陶土地毯",
+    "dimensions": "160x230",
+    "flux_descriptor": "terracotta-tone flat-weave rug, Mediterranean warm palette"
+  },
+  {
+    "id": "tb-med-woven-pendant",
+    "name_zh": "藤編圓形吊燈罩",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "mediterranean",
+      "boho",
+      "nordic"
+    ],
+    "keywords": [
+      "woven pendant",
+      "rattan shade",
+      "natural pendant"
+    ],
+    "colors": [
+      "natural rattan",
+      "warm brown"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤編圓形吊燈罩",
+    "dimensions": "Dia45",
+    "flux_descriptor": "woven rattan dome pendant, warm filtered light, Mediterranean coastal"
+  },
+  {
+    "id": "tb-med-sea-pillow",
+    "name_zh": "海洋藍抱枕組（刺繡）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "ocean pillow",
+      "embroidered pillow",
+      "coastal pillow"
+    ],
+    "colors": [
+      "sea blue",
+      "white",
+      "turquoise"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=海洋藍抱枕組（刺繡）",
+    "dimensions": "45x45(set2)",
+    "flux_descriptor": "embroidered Mediterranean coastal throw pillow set, anchor motif"
+  },
+  {
+    "id": "tb-med-ceramic-stool",
+    "name_zh": "陶瓷鼓形邊几/凳（藍白）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "keywords": [
+      "ceramic stool",
+      "garden stool",
+      "decorative stool"
+    ],
+    "colors": [
+      "blue",
+      "white",
+      "hand-painted"
+    ],
+    "price_twd": 4800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶瓷鼓形邊几/凳（藍白）",
+    "dimensions": "Dia33xH48",
+    "flux_descriptor": "hand-painted blue-white ceramic garden stool, Mediterranean accent"
+  },
+  {
+    "id": "ikea-alex-drawer",
+    "name_zh": "ALEX 抽屜櫃（白）",
+    "brand": "IKEA",
+    "category": "storage",
+    "style_tags": [
+      "muji",
+      "modern"
+    ],
+    "keywords": [
+      "white drawer",
+      "modular storage",
+      "functional storage"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 5490,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/alex-drawer__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+ALEX+台灣",
+    "dimensions": "W36xD58xH116",
+    "flux_descriptor": "slim white drawer unit, handle-less, minimalist functional"
+  },
+  {
+    "id": "ikea-ingolf-chair",
+    "name_zh": "INGOLF 餐椅（白）",
+    "brand": "IKEA",
+    "category": "chair",
+    "style_tags": [
+      "muji",
+      "modern",
+      "nordic"
+    ],
+    "keywords": [
+      "white dining chair",
+      "simple chair",
+      "functional chair"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 1790,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/ingolf-chair__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+INGOLF+台灣",
+    "dimensions": "W47xD50xH90",
+    "flux_descriptor": "classic white dining chair, simple wooden frame"
+  },
+  {
+    "id": "ikea-ivar-shelf",
+    "name_zh": "IVAR 松木層架",
+    "brand": "IKEA",
+    "category": "shelving",
+    "style_tags": [
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "pine shelf",
+      "open shelving",
+      "natural wood"
+    ],
+    "colors": [
+      "pine",
+      "natural"
+    ],
+    "price_twd": 2990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/ivar-shelf__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+IVAR+台灣",
+    "dimensions": "W89xD30xH124",
+    "flux_descriptor": "solid pine open shelving, adjustable, natural functional"
+  },
+  {
+    "id": "ikea-raskog-trolley",
+    "name_zh": "RÅSKOG 廚房推車（白）",
+    "brand": "IKEA",
+    "category": "storage",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "rolling cart",
+      "kitchen trolley",
+      "white storage"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 1490,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/raskog-trolley__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+RASKOG+台灣",
+    "dimensions": "W35xD45xH78",
+    "flux_descriptor": "white 3-tier rolling cart, bathroom or kitchen utility"
+  },
+  {
+    "id": "ikea-hemnes-linen-cabinet",
+    "name_zh": "HEMNES 亞麻收納櫃",
+    "brand": "IKEA",
+    "category": "storage",
+    "style_tags": [
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "linen cabinet",
+      "white storage",
+      "bedroom storage"
+    ],
+    "colors": [
+      "white"
+    ],
+    "price_twd": 8990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/hemnes-linen-cabinet__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+HEMNES+台灣",
+    "dimensions": "W70xD35xH130",
+    "flux_descriptor": "solid wood white linen cabinet, classic clean lines"
+  },
+  {
+    "id": "ikea-lersta-floor-lamp",
+    "name_zh": "LERSTA 落地/讀書燈",
+    "brand": "IKEA",
+    "category": "lighting",
+    "style_tags": [
+      "muji",
+      "modern",
+      "nordic"
+    ],
+    "keywords": [
+      "floor lamp",
+      "reading lamp",
+      "task lamp",
+      "simple lamp"
+    ],
+    "colors": [
+      "aluminum",
+      "silver"
+    ],
+    "price_twd": 999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/lersta-floor-lamp__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+LERSTA+台灣",
+    "dimensions": "H149",
+    "flux_descriptor": "aluminum adjustable floor lamp, minimal industrial design"
+  },
+  {
+    "id": "ikea-knopparp-sofa",
+    "name_zh": "KNOPPARP 雙人沙發（米白）",
+    "brand": "IKEA",
+    "category": "sofa",
+    "style_tags": [
+      "muji",
+      "modern"
+    ],
+    "keywords": [
+      "small sofa",
+      "loveseat",
+      "compact sofa"
+    ],
+    "colors": [
+      "off-white",
+      "beige"
+    ],
+    "price_twd": 6990,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/knopparp-sofa__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+KNOPPARP+台灣",
+    "dimensions": "W120xD88xH80",
+    "flux_descriptor": "compact 2-seater sofa, removable cover, minimalist Muji style"
+  },
+  {
+    "id": "tb-muji-beech-shelf",
+    "name_zh": "山毛櫸木壁掛展示架",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "beech shelf",
+      "wall shelf",
+      "display shelf"
+    ],
+    "colors": [
+      "beech",
+      "warm wood"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=山毛櫸木壁掛展示架",
+    "dimensions": "W80xD20",
+    "flux_descriptor": "natural beech wood floating wall shelf, functional minimalist"
+  },
+  {
+    "id": "tb-muji-folding-stool",
+    "name_zh": "摺疊圓凳（山毛櫸）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "folding stool",
+      "wooden stool",
+      "compact stool"
+    ],
+    "colors": [
+      "beech",
+      "natural"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=摺疊圓凳（山毛櫸）",
+    "dimensions": "Dia30xH45",
+    "flux_descriptor": "solid beech folding stool, compact storage, Muji functional design"
+  },
+  {
+    "id": "tb-muji-low-bed",
+    "name_zh": "原木低矮床架（無印風格）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "low bed frame",
+      "natural wood bed",
+      "minimal bed"
+    ],
+    "colors": [
+      "beech",
+      "ash",
+      "natural wood"
+    ],
+    "price_twd": 16000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=原木低矮床架（無印風格）",
+    "dimensions": "W150xD210",
+    "flux_descriptor": "low-profile natural wood bed, minimal headboard, Muji aesthetic"
+  },
+  {
+    "id": "tb-muji-canvas-basket",
+    "name_zh": "帆布收納籃組（3件）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "canvas basket",
+      "fabric storage",
+      "organizing basket"
+    ],
+    "colors": [
+      "natural beige",
+      "off-white"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=帆布收納籃組（3件）",
+    "dimensions": "various",
+    "flux_descriptor": "natural cotton canvas storage baskets, minimal label design, Muji"
+  },
+  {
+    "id": "tb-muji-recycled-pendant",
+    "name_zh": "再生紙吊燈（大圓球）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "paper pendant",
+      "recycled paper lamp",
+      "globe pendant"
+    ],
+    "colors": [
+      "natural cream",
+      "warm white"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=再生紙吊燈（大圓球）",
+    "dimensions": "Dia40",
+    "flux_descriptor": "handmade recycled paper globe pendant, warm ambient, Muji eco"
+  },
+  {
+    "id": "tb-muji-cotton-curtain",
+    "name_zh": "棉質米色窗簾",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "muji",
+      "nordic",
+      "japanese"
+    ],
+    "keywords": [
+      "cotton curtain",
+      "beige drape",
+      "natural curtain"
+    ],
+    "colors": [
+      "off-white",
+      "beige",
+      "light grey"
+    ],
+    "price_twd": 3400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=棉質米色窗簾",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "cotton semi-sheer curtain, off-white natural tone, Muji window"
+  },
+  {
+    "id": "tb-muji-ash-table",
+    "name_zh": "白蠟木餐桌（四人用）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "muji",
+      "modern"
+    ],
+    "keywords": [
+      "ash dining table",
+      "natural wood table",
+      "simple table"
+    ],
+    "colors": [
+      "ash",
+      "light warm wood"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=白蠟木餐桌（四人用）",
+    "dimensions": "W140xD75xH72",
+    "flux_descriptor": "solid ash dining table, tapered legs, natural grain, Muji functional"
+  },
+  {
+    "id": "tb-muji-bedside",
+    "name_zh": "無印風床頭小几（抽屜）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "bedside table",
+      "nightstand",
+      "drawer table"
+    ],
+    "colors": [
+      "beech",
+      "light oak"
+    ],
+    "price_twd": 3800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=無印風床頭小几（抽屜）",
+    "dimensions": "W40xD40xH55",
+    "flux_descriptor": "compact bedside table with drawer, natural wood, Muji minimalist"
+  },
+  {
+    "id": "tb-muji-wall-desk",
+    "name_zh": "壁掛折疊書桌",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "wall desk",
+      "fold-down desk",
+      "space-saving desk"
+    ],
+    "colors": [
+      "white",
+      "beige"
+    ],
+    "price_twd": 4500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=壁掛折疊書桌",
+    "dimensions": "W80xD40foldout",
+    "flux_descriptor": "wall-mounted fold-down desk, space-saving, Muji functional"
+  },
+  {
+    "id": "tb-muji-cotton-rug",
+    "name_zh": "棉質素色地毯（淺灰）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "muji",
+      "modern",
+      "nordic"
+    ],
+    "keywords": [
+      "cotton rug",
+      "plain rug",
+      "simple rug"
+    ],
+    "colors": [
+      "light grey",
+      "off-white",
+      "beige"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=棉質素色地毯（淺灰）",
+    "dimensions": "160x230",
+    "flux_descriptor": "flat-weave cotton rug, plain neutral tone, Muji minimal floor"
+  },
+  {
+    "id": "tb-muji-linen-throw",
+    "name_zh": "天然亞麻毯子（米白）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "linen throw",
+      "natural blanket",
+      "unbleached throw"
+    ],
+    "colors": [
+      "natural linen",
+      "off-white"
+    ],
+    "price_twd": 2600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=天然亞麻毯子（米白）",
+    "dimensions": "130x170",
+    "flux_descriptor": "unbleached natural linen throw, relaxed fold, Muji organic texture"
+  },
+  {
+    "id": "tb-muji-cube-storage",
+    "name_zh": "模組立方收納盒組",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "cube storage",
+      "modular box",
+      "organizing system"
+    ],
+    "colors": [
+      "white",
+      "off-white"
+    ],
+    "price_twd": 4800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=模組立方收納盒組",
+    "dimensions": "30x30x30each",
+    "flux_descriptor": "stackable cube storage modules, clean grid system, Muji"
+  },
+  {
+    "id": "tb-muji-ceramic-holder",
+    "name_zh": "陶瓷筆筒/收納罐組",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "ceramic organizer",
+      "stationery holder",
+      "desk accessory"
+    ],
+    "colors": [
+      "matte white",
+      "light grey"
+    ],
+    "price_twd": 1200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶瓷筆筒/收納罐組",
+    "dimensions": "various",
+    "flux_descriptor": "matte white ceramic desk organizers, Muji functional minimal"
+  },
+  {
+    "id": "tb-muji-globe-lamp",
+    "name_zh": "紙質球形燈罩（落地）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "paper globe lamp",
+      "Muji lamp",
+      "simple floor lamp"
+    ],
+    "colors": [
+      "cream",
+      "warm white"
+    ],
+    "price_twd": 3600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=紙質球形燈罩（落地）",
+    "dimensions": "H155",
+    "flux_descriptor": "natural paper globe floor lamp, warm glow, Muji bedroom"
+  },
+  {
+    "id": "tb-muji-pine-chair",
+    "name_zh": "松木餐椅（自然色）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "muji",
+      "nordic"
+    ],
+    "keywords": [
+      "pine dining chair",
+      "simple chair",
+      "natural wood"
+    ],
+    "colors": [
+      "pine",
+      "natural"
+    ],
+    "price_twd": 2400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=松木餐椅（自然色）",
+    "dimensions": "W44xD48xH82",
+    "flux_descriptor": "solid pine dining chair, straightforward functional, Muji natural"
+  },
+  {
+    "id": "tb-muji-slim-mirror",
+    "name_zh": "原木細框掛鏡（長型）",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "wood framed mirror",
+      "slim mirror",
+      "functional mirror"
+    ],
+    "colors": [
+      "beech",
+      "natural wood"
+    ],
+    "price_twd": 3800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=原木細框掛鏡（長型）",
+    "dimensions": "W45xH120",
+    "flux_descriptor": "natural beech framed full-length mirror, slim profile, Muji"
+  },
+  {
+    "id": "tb-muji-storage-unit",
+    "name_zh": "寬版抽屜收納高櫃",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "muji"
+    ],
+    "keywords": [
+      "tall storage",
+      "drawer tower",
+      "bedroom storage"
+    ],
+    "colors": [
+      "white",
+      "light beige"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=寬版抽屜收納高櫃",
+    "dimensions": "W60xD40xH120",
+    "flux_descriptor": "tall slim storage tower with multiple drawers, handle-less, Muji"
+  },
+  {
+    "id": "tb-ad-sunburst-mirror",
+    "name_zh": "Art Deco 太陽放射形金色掛鏡",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "sunburst mirror",
+      "gold mirror",
+      "Art Deco mirror"
+    ],
+    "colors": [
+      "gold",
+      "champagne"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=Art+Deco+太陽放射形金色掛鏡",
+    "dimensions": "Dia80",
+    "flux_descriptor": "sunburst gold wall mirror, geometric Art Deco rays, statement"
+  },
+  {
+    "id": "tb-ad-chandelier",
+    "name_zh": "幾何黃銅吊燈（Art Deco 扇形）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "geometric chandelier",
+      "Art Deco chandelier",
+      "brass chandelier"
+    ],
+    "colors": [
+      "gold",
+      "brass"
+    ],
+    "price_twd": 22000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=幾何黃銅吊燈（Art+Deco+扇形）",
+    "dimensions": "Dia70",
+    "flux_descriptor": "Art Deco fan-shaped chandelier, stepped brass geometry"
+  },
+  {
+    "id": "tb-ad-velvet-armchair",
+    "name_zh": "絲絨鈕扣扶手椅（孔雀藍）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "tufted velvet armchair",
+      "button tufted",
+      "luxury chair"
+    ],
+    "colors": [
+      "peacock blue",
+      "emerald",
+      "burgundy"
+    ],
+    "price_twd": 15000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=絲絨鈕扣扶手椅（孔雀藍）",
+    "dimensions": "W75xD80xH85",
+    "flux_descriptor": "deep-button tufted velvet armchair, Art Deco silhouette"
+  },
+  {
+    "id": "tb-ad-credenza",
+    "name_zh": "階梯形黑漆木側板櫃",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "stepped credenza",
+      "lacquer sideboard",
+      "Art Deco cabinet"
+    ],
+    "colors": [
+      "gloss black",
+      "ebony"
+    ],
+    "price_twd": 28000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=階梯形黑漆木側板櫃",
+    "dimensions": "W180xD45xH80",
+    "flux_descriptor": "stepped profile lacquered ebony credenza, Art Deco geometry"
+  },
+  {
+    "id": "tb-ad-marble-table",
+    "name_zh": "黑金大理石幾何茶几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "black marble table",
+      "geometric table",
+      "Art Deco table"
+    ],
+    "colors": [
+      "black marble",
+      "gold veins"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑金大理石幾何茶几",
+    "dimensions": "W100xD60xH42",
+    "flux_descriptor": "nero marquina black marble coffee table, gold brass base, Art Deco"
+  },
+  {
+    "id": "tb-ad-gold-side",
+    "name_zh": "金葉鑲嵌邊几（六邊形）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "gold leaf side table",
+      "hexagonal table",
+      "luxury accent"
+    ],
+    "colors": [
+      "champagne gold",
+      "gold leaf"
+    ],
+    "price_twd": 7200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=金葉鑲嵌邊几（六邊形）",
+    "dimensions": "Dia45xH55",
+    "flux_descriptor": "gold leaf hexagonal side table, hand-applied gilt, Art Deco"
+  },
+  {
+    "id": "tb-ad-mirror-dresser",
+    "name_zh": "鏡面梳妝台（Art Deco 款）",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "mirrored dresser",
+      "vanity table",
+      "Art Deco dresser"
+    ],
+    "colors": [
+      "mirror glass",
+      "chrome"
+    ],
+    "price_twd": 25000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鏡面梳妝台（Art+Deco+款）",
+    "dimensions": "W120xD45xH75",
+    "flux_descriptor": "full-mirror dresser, chrome geometric handles, Art Deco glamour"
+  },
+  {
+    "id": "tb-ad-fan-sconce",
+    "name_zh": "扇形鍍鉻壁燈（一對）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "fan wall sconce",
+      "Art Deco sconce",
+      "chrome lamp"
+    ],
+    "colors": [
+      "chrome",
+      "frosted glass"
+    ],
+    "price_twd": 6500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=扇形鍍鉻壁燈（一對）",
+    "dimensions": "H25(set2)",
+    "flux_descriptor": "fan-shaped chrome wall sconce pair, frosted glass panel, Art Deco"
+  },
+  {
+    "id": "tb-ad-chevron-rug",
+    "name_zh": "人字紋幾何地毯（黑金）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "chevron rug",
+      "geometric rug",
+      "Art Deco rug"
+    ],
+    "colors": [
+      "black",
+      "gold",
+      "ivory"
+    ],
+    "price_twd": 14000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=人字紋幾何地毯（黑金）",
+    "dimensions": "200x290",
+    "flux_descriptor": "chevron geometric area rug, black and gold ivory, Art Deco dramatic"
+  },
+  {
+    "id": "tb-ad-chrome-bar",
+    "name_zh": "鍍鉻移動吧台車",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "bar cart",
+      "chrome trolley",
+      "drinks cabinet"
+    ],
+    "colors": [
+      "chrome",
+      "mirror glass"
+    ],
+    "price_twd": 8800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鍍鉻移動吧台車",
+    "dimensions": "W60xD40xH90",
+    "flux_descriptor": "chrome and mirrored glass bar cart, Art Deco cocktail party"
+  },
+  {
+    "id": "tb-ad-ebony-bed",
+    "name_zh": "亮黑漆木床架（裝飾鑲嵌）",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "lacquer bed",
+      "ebony bed",
+      "Art Deco bed"
+    ],
+    "colors": [
+      "gloss black",
+      "gold trim"
+    ],
+    "price_twd": 45000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=亮黑漆木床架（裝飾鑲嵌）",
+    "dimensions": "W180xD220",
+    "flux_descriptor": "lacquered ebony platform bed, gold inlay headboard, Art Deco drama"
+  },
+  {
+    "id": "tb-ad-velvet-sofa",
+    "name_zh": "絨布孔雀藍雙人沙發",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "velvet loveseat",
+      "Art Deco sofa",
+      "tuxedo sofa"
+    ],
+    "colors": [
+      "peacock blue",
+      "midnight navy"
+    ],
+    "price_twd": 28000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=絨布孔雀藍雙人沙發",
+    "dimensions": "W170xD80xH82",
+    "flux_descriptor": "peacock blue velvet tuxedo sofa, pin-leg, Art Deco glamour"
+  },
+  {
+    "id": "tb-ad-geo-pendant",
+    "name_zh": "黑金幾何球形吊燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "geometric pendant",
+      "gold pendant",
+      "Art Deco pendant"
+    ],
+    "colors": [
+      "matte black",
+      "gold"
+    ],
+    "price_twd": 9500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑金幾何球形吊燈",
+    "dimensions": "Dia35",
+    "flux_descriptor": "geometric polyhedron pendant, matte black with gold edges, Art Deco"
+  },
+  {
+    "id": "tb-ad-marble-console",
+    "name_zh": "大理石台面玄關桌（金腳）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "marble console",
+      "gold console",
+      "entry table"
+    ],
+    "colors": [
+      "white marble",
+      "gold",
+      "brass"
+    ],
+    "price_twd": 22000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石台面玄關桌（金腳）",
+    "dimensions": "W120xD40xH82",
+    "flux_descriptor": "white marble console table, gold metal geometric base, Art Deco"
+  },
+  {
+    "id": "tb-ad-emerald-curtain",
+    "name_zh": "祖母綠天鵝絨窗簾",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "emerald velvet",
+      "velvet curtain",
+      "luxury drape"
+    ],
+    "colors": [
+      "emerald green",
+      "deep green"
+    ],
+    "price_twd": 9500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=祖母綠天鵝絨窗簾",
+    "dimensions": "W250xH280",
+    "flux_descriptor": "emerald green velvet full-length curtain, dramatic Art Deco window"
+  },
+  {
+    "id": "tb-ad-octagon-table",
+    "name_zh": "八角大理石茶几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "octagon table",
+      "geometric coffee",
+      "Art Deco table"
+    ],
+    "colors": [
+      "cream marble",
+      "black",
+      "gold"
+    ],
+    "price_twd": 16000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=八角大理石茶几",
+    "dimensions": "Dia90xH42",
+    "flux_descriptor": "octagonal cream marble coffee table, black and gold accent edge"
+  },
+  {
+    "id": "tb-ad-gold-floorlamp",
+    "name_zh": "刷金落地燈（圓柱式）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "gold floor lamp",
+      "brushed gold lamp",
+      "luxury lamp"
+    ],
+    "colors": [
+      "brushed gold",
+      "champagne"
+    ],
+    "price_twd": 8200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=刷金落地燈（圓柱式）",
+    "dimensions": "H180",
+    "flux_descriptor": "brushed gold column floor lamp, drum shade, Art Deco classic"
+  },
+  {
+    "id": "tb-ad-diamond-headboard",
+    "name_zh": "鑽石菱格紋床頭板",
+    "brand": "淘寶精選",
+    "category": "bed",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "diamond tufted headboard",
+      "velvet headboard",
+      "Art Deco bed"
+    ],
+    "colors": [
+      "midnight navy",
+      "champagne"
+    ],
+    "price_twd": 14000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=鑽石菱格紋床頭板",
+    "dimensions": "W180xH130",
+    "flux_descriptor": "diamond-tufted velvet headboard, gold nail trim, Art Deco bedroom"
+  },
+  {
+    "id": "tb-ad-black-lacquer-side",
+    "name_zh": "黑漆圓筒邊几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "black lacquer side",
+      "cylindrical table",
+      "Art Deco side"
+    ],
+    "colors": [
+      "gloss black"
+    ],
+    "price_twd": 4800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑漆圓筒邊几",
+    "dimensions": "Dia35xH55",
+    "flux_descriptor": "high-gloss black lacquered cylindrical side table, Art Deco minimal"
+  },
+  {
+    "id": "tb-ad-crystal-drop",
+    "name_zh": "水晶垂飾球形吊燈",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "crystal pendant",
+      "drop pendant",
+      "glamour lighting"
+    ],
+    "colors": [
+      "crystal",
+      "chrome",
+      "gold"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=水晶垂飾球形吊燈",
+    "dimensions": "Dia50",
+    "flux_descriptor": "crystal drop sphere pendant, chrome armature, Art Deco Hollywood"
+  },
+  {
+    "id": "tb-ad-gold-geo-mirror",
+    "name_zh": "金色幾何切割掛鏡",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "art-deco",
+      "luxury"
+    ],
+    "keywords": [
+      "geometric mirror",
+      "gold decor mirror",
+      "Art Deco mirror"
+    ],
+    "colors": [
+      "gold",
+      "mirror"
+    ],
+    "price_twd": 11000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=金色幾何切割掛鏡",
+    "dimensions": "W80xH80",
+    "flux_descriptor": "geometric segmented mirror, gold frame dividers, Art Deco feature"
+  },
+  {
+    "id": "tb-ad-peacock-sofa",
+    "name_zh": "孔雀尾羽圖案沙發",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "Art Deco sofa",
+      "patterned sofa",
+      "luxury sofa"
+    ],
+    "colors": [
+      "peacock blue",
+      "emerald",
+      "gold"
+    ],
+    "price_twd": 35000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=孔雀尾羽圖案沙發",
+    "dimensions": "W210xD85xH80",
+    "flux_descriptor": "peacock feather pattern velvet sofa, gold tapered legs, Art Deco"
+  },
+  {
+    "id": "tb-ad-bookcase-stepped",
+    "name_zh": "階梯形開放書架",
+    "brand": "淘寶精選",
+    "category": "shelving",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "stepped bookcase",
+      "Art Deco shelf",
+      "geometric bookcase"
+    ],
+    "colors": [
+      "walnut",
+      "gold trim"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=階梯形開放書架",
+    "dimensions": "W90xD35xH180",
+    "flux_descriptor": "stepped asymmetric open bookcase, walnut veneer, gold metal trim"
+  },
+  {
+    "id": "tb-ad-marble-top-console",
+    "name_zh": "大理石桌面梳妝台",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "marble vanity",
+      "console storage",
+      "Art Deco vanity"
+    ],
+    "colors": [
+      "white marble",
+      "chrome"
+    ],
+    "price_twd": 28000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石桌面梳妝台",
+    "dimensions": "W100xD45xH78",
+    "flux_descriptor": "marble top console with bevelled mirror, chrome legs, Art Deco"
+  },
+  {
+    "id": "tb-ad-hollywood-mirror",
+    "name_zh": "好萊塢球泡燈鏡",
+    "brand": "淘寶精選",
+    "category": "mirror",
+    "style_tags": [
+      "art-deco"
+    ],
+    "keywords": [
+      "Hollywood mirror",
+      "vanity mirror",
+      "bulb mirror"
+    ],
+    "colors": [
+      "chrome",
+      "warm bulbs"
+    ],
+    "price_twd": 8500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=好萊塢球泡燈鏡",
+    "dimensions": "W70xH90",
+    "flux_descriptor": "Hollywood vanity mirror, surround bulbs, Art Deco glam dressing"
+  },
+  {
+    "id": "ikea-sandskadda-throw",
+    "name_zh": "SANDSKÄDDA 毯子（米白/流蘇）",
+    "brand": "IKEA",
+    "category": "accessory",
+    "style_tags": [
+      "boho",
+      "nordic",
+      "japanese"
+    ],
+    "keywords": [
+      "fringe throw",
+      "woven blanket",
+      "boho textile"
+    ],
+    "colors": [
+      "natural",
+      "beige",
+      "cream"
+    ],
+    "price_twd": 999,
+    "image_url": "https://www.ikea.com/tw/zh/images/products/sandskadda-throw__s5.jpg",
+    "purchase_url": "https://www.google.com/search?q=IKEA+SANDSKADDA+台灣",
+    "dimensions": "130x170",
+    "flux_descriptor": "fringed woven throw blanket, natural cream, boho layered textile"
+  },
+  {
+    "id": "tb-boho-rattan-chair",
+    "name_zh": "藤編懸掛椅（附棉墊）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "boho",
+      "mediterranean"
+    ],
+    "keywords": [
+      "hanging rattan chair",
+      "egg chair",
+      "swing chair"
+    ],
+    "colors": [
+      "natural rattan",
+      "brown"
+    ],
+    "price_twd": 12000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤編懸掛椅（附棉墊）",
+    "dimensions": "Dia100",
+    "flux_descriptor": "hanging rattan egg chair, natural weave, cotton cushion, bohemian"
+  },
+  {
+    "id": "tb-boho-kilim-rug",
+    "name_zh": "土耳其 Kilim 幾何地毯（混色）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "kilim rug",
+      "Turkish rug",
+      "tribal rug"
+    ],
+    "colors": [
+      "terracotta",
+      "mustard",
+      "rust",
+      "multicolor"
+    ],
+    "price_twd": 7500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=土耳其+Kilim+幾何地毯（混色）",
+    "dimensions": "160x230",
+    "flux_descriptor": "vintage Turkish kilim rug, geometric tribal, terracotta-mustard"
+  },
+  {
+    "id": "tb-boho-macrame-wall",
+    "name_zh": "大型麻繩編織壁掛（60cm）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "macrame wall hanging",
+      "fiber art",
+      "wall decor"
+    ],
+    "colors": [
+      "cream",
+      "natural cotton"
+    ],
+    "price_twd": 3800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大型麻繩編織壁掛（60cm）",
+    "dimensions": "W60xH90",
+    "flux_descriptor": "large hand-knotted macramé wall hanging, cotton rope, boho statement"
+  },
+  {
+    "id": "tb-boho-jute-rug",
+    "name_zh": "黃麻圓形地毯（自然色）",
+    "brand": "淘寶精選",
+    "category": "rug",
+    "style_tags": [
+      "boho",
+      "mediterranean"
+    ],
+    "keywords": [
+      "jute rug",
+      "natural fiber rug",
+      "round rug"
+    ],
+    "colors": [
+      "natural jute",
+      "warm beige"
+    ],
+    "price_twd": 4200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黃麻圓形地毯（自然色）",
+    "dimensions": "Dia150",
+    "flux_descriptor": "round jute area rug, chunky braid, natural earthy boho"
+  },
+  {
+    "id": "tb-boho-floor-cushion",
+    "name_zh": "波西米亞地板大坐墊（印花）",
+    "brand": "淘寶精選",
+    "category": "chair",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "floor cushion",
+      "pouf",
+      "Moroccan floor pillow"
+    ],
+    "colors": [
+      "terracotta",
+      "mustard",
+      "indigo"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=波西米亞地板大坐墊（印花）",
+    "dimensions": "W80xD80xH20",
+    "flux_descriptor": "large floor meditation cushion, Moroccan block-print cover"
+  },
+  {
+    "id": "tb-boho-terracotta-pots",
+    "name_zh": "陶土花器組（大/中/小）",
+    "brand": "淘寶精選",
+    "category": "plant",
+    "style_tags": [
+      "boho",
+      "mediterranean"
+    ],
+    "keywords": [
+      "terracotta pot",
+      "clay planter",
+      "earthy pot"
+    ],
+    "colors": [
+      "terracotta",
+      "burnt orange"
+    ],
+    "price_twd": 2600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶土花器組（大/中/小）",
+    "dimensions": "various",
+    "flux_descriptor": "set of 3 terracotta planters, handmade finish, boho earthy display"
+  },
+  {
+    "id": "tb-boho-fairy-lights",
+    "name_zh": "暖光銅線串燈（10m）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "boho",
+      "nordic"
+    ],
+    "keywords": [
+      "fairy lights",
+      "string lights",
+      "LED string"
+    ],
+    "colors": [
+      "warm amber",
+      "copper wire"
+    ],
+    "price_twd": 1200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=暖光銅線串燈（10m）",
+    "dimensions": "10m",
+    "flux_descriptor": "warm copper wire fairy lights, warm 2200K amber, boho bedroom magic"
+  },
+  {
+    "id": "tb-boho-wicker-basket",
+    "name_zh": "大型藤編收納籃",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "boho",
+      "nordic",
+      "mediterranean"
+    ],
+    "keywords": [
+      "wicker basket",
+      "large basket",
+      "storage"
+    ],
+    "colors": [
+      "natural wicker"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大型藤編收納籃",
+    "dimensions": "Dia50xH60",
+    "flux_descriptor": "large wicker belly basket, boho living room throw storage"
+  },
+  {
+    "id": "tb-boho-tassel-pillow",
+    "name_zh": "流蘇裝飾抱枕組（2件）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "tassel pillow",
+      "fringe pillow",
+      "boho cushion"
+    ],
+    "colors": [
+      "mustard",
+      "terracotta",
+      "rust",
+      "sage"
+    ],
+    "price_twd": 1600,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=流蘇裝飾抱枕組（2件）",
+    "dimensions": "45x45each",
+    "flux_descriptor": "block-print tassel throw pillow set, earthy boho palette"
+  },
+  {
+    "id": "tb-boho-dreamcatcher",
+    "name_zh": "手工捕夢網掛飾（大）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "dreamcatcher",
+      "wall hanging",
+      "feather decor"
+    ],
+    "colors": [
+      "cream",
+      "feather",
+      "natural"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=手工捕夢網掛飾（大）",
+    "dimensions": "Dia40",
+    "flux_descriptor": "hand-crafted dreamcatcher with feathers, boho bedroom wall"
+  },
+  {
+    "id": "tb-boho-low-coffee",
+    "name_zh": "矮腳木質茶几（不規則邊）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "boho",
+      "japanese"
+    ],
+    "keywords": [
+      "low coffee table",
+      "natural edge table",
+      "boho table"
+    ],
+    "colors": [
+      "natural wood",
+      "dark walnut"
+    ],
+    "price_twd": 6800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=矮腳木質茶几（不規則邊）",
+    "dimensions": "W110xD60xH35",
+    "flux_descriptor": "natural edge slab low coffee table, organic form, boho living"
+  },
+  {
+    "id": "tb-boho-rattan-side",
+    "name_zh": "藤編側桌（小）",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "boho",
+      "mediterranean"
+    ],
+    "keywords": [
+      "rattan side table",
+      "wicker table",
+      "round side"
+    ],
+    "colors": [
+      "natural rattan"
+    ],
+    "price_twd": 2200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤編側桌（小）",
+    "dimensions": "Dia40xH55",
+    "flux_descriptor": "woven rattan round side table, natural finish, boho accent"
+  },
+  {
+    "id": "tb-boho-trunk-table",
+    "name_zh": "復古皮革行李箱茶几",
+    "brand": "淘寶精選",
+    "category": "table",
+    "style_tags": [
+      "boho",
+      "industrial"
+    ],
+    "keywords": [
+      "vintage trunk",
+      "storage table",
+      "bohemian table"
+    ],
+    "colors": [
+      "caramel brown",
+      "brass"
+    ],
+    "price_twd": 8500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=復古皮革行李箱茶几",
+    "dimensions": "W90xD55xH45",
+    "flux_descriptor": "vintage-style leather trunk coffee table, brass corner guards, boho"
+  },
+  {
+    "id": "tb-boho-embroid-curtain",
+    "name_zh": "刺繡波西米亞窗簾",
+    "brand": "淘寶精選",
+    "category": "curtain",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "embroidered curtain",
+      "boho drape",
+      "pattern curtain"
+    ],
+    "colors": [
+      "cream",
+      "mustard",
+      "terracotta"
+    ],
+    "price_twd": 5500,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=刺繡波西米亞窗簾",
+    "dimensions": "W250xH270",
+    "flux_descriptor": "hand-embroidered boho curtain, folk pattern, warm earthy tones"
+  },
+  {
+    "id": "tb-boho-linen-sofa",
+    "name_zh": "棉麻布藝低矮沙發（鬆弛感）",
+    "brand": "淘寶精選",
+    "category": "sofa",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "low sofa",
+      "linen sofa",
+      "casual sofa"
+    ],
+    "colors": [
+      "cream",
+      "natural linen",
+      "rust"
+    ],
+    "price_twd": 18000,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=棉麻布藝低矮沙發（鬆弛感）",
+    "dimensions": "W220xD100xH70",
+    "flux_descriptor": "oversized low linen sofa, relaxed cushions, boho casual living"
+  },
+  {
+    "id": "tb-boho-plant-stand",
+    "name_zh": "黑色不規則鐵藝花架",
+    "brand": "淘寶精選",
+    "category": "plant",
+    "style_tags": [
+      "boho",
+      "industrial"
+    ],
+    "keywords": [
+      "plant stand",
+      "floor planter",
+      "monstera stand"
+    ],
+    "colors": [
+      "matte black"
+    ],
+    "price_twd": 2400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=黑色不規則鐵藝花架",
+    "dimensions": "Dia30xH120",
+    "flux_descriptor": "slim matte black iron plant stand, boho indoor jungle display"
+  },
+  {
+    "id": "tb-boho-globe-lights",
+    "name_zh": "藤球串燈（10顆）",
+    "brand": "淘寶精選",
+    "category": "lighting",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "rattan ball light",
+      "globe string lights",
+      "warm string"
+    ],
+    "colors": [
+      "natural rattan",
+      "warm white"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤球串燈（10顆）",
+    "dimensions": "10globes/5m",
+    "flux_descriptor": "rattan globe string lights, warm 3000K, boho bedroom ceiling"
+  },
+  {
+    "id": "tb-boho-wood-tray",
+    "name_zh": "手繪圖騰木質托盤",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "painted tray",
+      "wooden tray",
+      "decorative tray"
+    ],
+    "colors": [
+      "terracotta",
+      "indigo",
+      "cream"
+    ],
+    "price_twd": 1400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=手繪圖騰木質托盤",
+    "dimensions": "W40xD30",
+    "flux_descriptor": "hand-painted folk-pattern wooden serving tray, boho display"
+  },
+  {
+    "id": "tb-boho-cactus-pot",
+    "name_zh": "多肉仙人掌陶瓷花盆（臉型）",
+    "brand": "淘寶精選",
+    "category": "plant",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "cactus pot",
+      "face planter",
+      "succulent pot"
+    ],
+    "colors": [
+      "terracotta",
+      "blush",
+      "sage"
+    ],
+    "price_twd": 980,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=多肉仙人掌陶瓷花盆（臉型）",
+    "dimensions": "Dia12",
+    "flux_descriptor": "face-shaped ceramic succulent planter, boho quirky plant display"
+  },
+  {
+    "id": "tb-boho-fringe-runner",
+    "name_zh": "流蘇桌旗（印花）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "fringe table runner",
+      "boho textile",
+      "decorative runner"
+    ],
+    "colors": [
+      "mustard",
+      "terracotta",
+      "cream"
+    ],
+    "price_twd": 1200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=流蘇桌旗（印花）",
+    "dimensions": "W35xL180",
+    "flux_descriptor": "hand block-printed cotton table runner with knotted fringe, boho"
+  },
+  {
+    "id": "tb-boho-rattan-mag",
+    "name_zh": "藤編雜誌架",
+    "brand": "淘寶精選",
+    "category": "storage",
+    "style_tags": [
+      "boho",
+      "mediterranean",
+      "nordic"
+    ],
+    "keywords": [
+      "rattan magazine rack",
+      "wicker holder",
+      "floor rack"
+    ],
+    "colors": [
+      "natural rattan"
+    ],
+    "price_twd": 1800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=藤編雜誌架",
+    "dimensions": "W30xD20xH50",
+    "flux_descriptor": "woven rattan magazine and book floor rack, boho living room"
+  },
+  {
+    "id": "tb-boho-botanical-art",
+    "name_zh": "植物拓印裝飾畫（4聯）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho",
+      "nordic"
+    ],
+    "keywords": [
+      "botanical print",
+      "wall art",
+      "plant illustration"
+    ],
+    "colors": [
+      "sage green",
+      "cream",
+      "dusty rose"
+    ],
+    "price_twd": 3200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=植物拓印裝飾畫（4聯）",
+    "dimensions": "30x40each(set4)",
+    "flux_descriptor": "botanical leaf illustration print set of 4, boho gallery wall"
+  },
+  {
+    "id": "tb-boho-crochet-blanket",
+    "name_zh": "手工鉤織毯子（漸層色）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "crochet blanket",
+      "handmade throw",
+      "colorful throw"
+    ],
+    "colors": [
+      "mustard",
+      "rust",
+      "terracotta",
+      "sage"
+    ],
+    "price_twd": 4200,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=手工鉤織毯子（漸層色）",
+    "dimensions": "150x180",
+    "flux_descriptor": "hand-crochet cotton blanket, boho earthy gradient, sofa throw"
+  },
+  {
+    "id": "tb-boho-gallery-frame",
+    "name_zh": "波西米亞混材質相框組（6件）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "boho"
+    ],
+    "keywords": [
+      "gallery frame set",
+      "boho frames",
+      "mixed material frames"
+    ],
+    "colors": [
+      "rattan",
+      "macrame",
+      "wood",
+      "rope"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=波西米亞混材質相框組（6件）",
+    "dimensions": "various",
+    "flux_descriptor": "mixed material gallery wall frame set, rattan, wood, rope, boho eclectic"
+  },
+  {
+    "id": "tb-lux-marble-tray",
+    "name_zh": "大理石托盤（黃銅邊框）",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "luxury",
+      "art-deco"
+    ],
+    "keywords": [
+      "marble tray",
+      "decorative tray",
+      "luxury tray"
+    ],
+    "colors": [
+      "white marble",
+      "brass"
+    ],
+    "price_twd": 2800,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=大理石托盤（黃銅邊框）",
+    "dimensions": "W35xD25",
+    "flux_descriptor": "white marble serving tray, brushed brass rim, luxury coffee table"
+  },
+  {
+    "id": "tb-muji-aroma-diffuser",
+    "name_zh": "陶瓷超聲波香氛機",
+    "brand": "淘寶精選",
+    "category": "accessory",
+    "style_tags": [
+      "muji",
+      "japanese"
+    ],
+    "keywords": [
+      "aroma diffuser",
+      "humidifier",
+      "ceramic diffuser"
+    ],
+    "colors": [
+      "matte white",
+      "off-white"
+    ],
+    "price_twd": 2400,
+    "image_url": "",
+    "purchase_url": "https://s.taobao.com/search?q=陶瓷超聲波香氛機",
+    "dimensions": "Dia10xH15",
+    "flux_descriptor": "matte white ceramic ultrasonic diffuser, Muji wellness minimalist"
+  }
+]
