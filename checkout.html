@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>選擇方案 · 付款 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black:   #111111;
+      --dark:    #181818;
+      --card:    #1e1e1e;
+      --line:    #2e2e2e;
+      --gold:    #C9A96E;
+      --gold-lt: #e0c99a;
+      --white:   #ffffff;
+      --muted:   #777777;
+      --body:    #aaaaaa;
+    }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 48px;
+      height: 68px;
+      background: rgba(17,17,17,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .nav-logo .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; letter-spacing: 4px; color: var(--gold); }
+    .nav-logo .sub { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+    .nav-logo .text-block { display: flex; flex-direction: column; }
+    .tw-badge { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; }
+
+    /* PROGRESS BAR */
+    .progress-bar {
+      position: fixed;
+      top: 68px; left: 0; right: 0;
+      z-index: 99;
+      background: var(--dark);
+      border-bottom: 1px solid var(--line);
+      padding: 0 48px;
+      display: flex;
+      align-items: center;
+      height: 52px;
+      gap: 0;
+    }
+    .step-item {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--muted); padding: 0 24px; position: relative;
+    }
+    .step-item.active { color: var(--gold); }
+    .step-item.done  { color: var(--muted); }
+    .step-num {
+      width: 22px; height: 22px;
+      border: 1px solid var(--line); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; flex-shrink: 0;
+    }
+    .step-item.active .step-num { border-color: var(--gold); color: var(--gold); }
+    .step-item.done  .step-num  { background: var(--gold); border-color: var(--gold); color: var(--black); }
+    .step-arrow { color: var(--line); font-size: 12px; }
+
+    /* MAIN */
+    main {
+      padding: 148px 48px 100px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .page-eyebrow {
+      font-size: 9px; letter-spacing: 4px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .page-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
+
+    .page-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 40px; font-weight: 300; color: var(--white);
+      margin-bottom: 10px; line-height: 1.1;
+    }
+    .page-title em { font-style: italic; color: var(--gold); }
+
+    .page-desc { font-size: 13px; color: var(--body); line-height: 1.8; margin-bottom: 48px; max-width: 520px; }
+
+    /* ORDER SUMMARY */
+    .summary-bar {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--gold);
+      padding: 16px 24px;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .summary-label { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .summary-val { font-size: 13px; color: var(--white); }
+
+    /* PLAN CARDS */
+    .plans-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .plan-card {
+      border: 1px solid var(--line);
+      padding: 32px 28px;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.2s;
+    }
+    .plan-card:hover { border-color: var(--gold); }
+    .plan-card.selected {
+      border-color: var(--gold);
+      background: rgba(201,169,110,0.04);
+    }
+    .plan-card.selected::after {
+      content: '✓';
+      position: absolute;
+      top: 16px; right: 20px;
+      width: 24px; height: 24px;
+      background: var(--gold);
+      color: var(--black);
+      border-radius: 50%;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .plan-badge {
+      font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 12px;
+    }
+    .plan-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 26px; font-weight: 300; color: var(--white);
+      margin-bottom: 4px;
+    }
+    .plan-price {
+      font-size: 32px; font-weight: 500; color: var(--gold);
+      margin-bottom: 20px; letter-spacing: -0.5px;
+    }
+    .plan-price span { font-size: 14px; font-weight: 300; color: var(--muted); margin-left: 4px; }
+    .plan-divider { height: 1px; background: var(--line); margin-bottom: 20px; }
+    .plan-features { list-style: none; }
+    .plan-features li {
+      font-size: 12px; color: var(--body); padding: 7px 0;
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .plan-features li:last-child { border-bottom: none; }
+    .plan-features li .ico { color: var(--gold); font-size: 11px; flex-shrink: 0; }
+    .plan-features li .ico.grey { color: var(--line); }
+    .plan-note {
+      font-size: 10px; color: var(--muted); margin-top: 16px;
+      padding-top: 12px; border-top: 1px solid var(--line);
+      line-height: 1.6;
+    }
+
+    /* PLAN B HIGHLIGHT */
+    .plan-card.plan-b { border-color: #333; }
+    .plan-card.plan-b .plan-badge { color: #aaa; }
+    .recommended-tag {
+      position: absolute; top: -1px; left: 28px;
+      background: var(--gold); color: var(--black);
+      font-size: 8px; letter-spacing: 2px; text-transform: uppercase;
+      padding: 3px 10px;
+    }
+
+    /* PAYMENT SECTION */
+    .pay-section {
+      border-top: 1px solid var(--line);
+      padding-top: 36px;
+    }
+    .pay-title {
+      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 20px;
+    }
+    .pay-total-row {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .pay-total-label { font-size: 14px; color: var(--body); }
+    .pay-total-amount {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 42px; font-weight: 300; color: var(--white);
+    }
+    .pay-total-amount em { color: var(--gold); font-style: normal; font-size: 20px; vertical-align: super; }
+
+    .btn-pay {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 20px;
+      background: var(--gold);
+      color: var(--black);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 500; letter-spacing: 2px;
+      text-transform: uppercase;
+      border: none; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-pay:hover { background: var(--gold-lt); }
+    .btn-pay .line-icon {
+      width: 22px; height: 22px;
+      background: var(--black);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .pay-note {
+      text-align: center; font-size: 11px; color: var(--muted);
+      margin-top: 16px; line-height: 1.7;
+    }
+    .pay-guarantee {
+      display: flex; align-items: center; justify-content: center; gap: 20px;
+      margin-top: 24px; flex-wrap: wrap;
+    }
+    .guarantee-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase;
+    }
+    .guarantee-item .ico { color: var(--gold); }
+
+    /* MOBILE */
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      .progress-bar { padding: 0 16px; overflow-x: auto; }
+      .step-item { padding: 0 12px; white-space: nowrap; font-size: 9px; }
+      main { padding: 140px 20px 80px; }
+      .plans-grid { grid-template-columns: 1fr; }
+      .summary-bar { gap: 16px; }
+      .tw-badge { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg width="32" height="24" viewBox="0 0 110 80" fill="none">
+      <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+      <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+    </svg>
+    <div class="text-block">
+      <span class="brand">DECO168</span>
+      <span class="sub">Design & Deco · ATARAPA™</span>
+    </div>
+  </a>
+  <div class="tw-badge">🇹🇼 台灣本土服務</div>
+</nav>
+
+<!-- PROGRESS BAR -->
+<div class="progress-bar">
+  <div class="step-item done"><div class="step-num">✓</div>上傳空間</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item done"><div class="step-num">✓</div>設計偏好</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item active"><div class="step-num">3</div>選擇方案</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item"><div class="step-num">4</div>AI 生成</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item"><div class="step-num">5</div>取得成品</div>
+</div>
+
+<main>
+  <div class="page-eyebrow">Step 3 — 選擇方案</div>
+  <h1 class="page-title">選擇最適合你的<em>設計方案</em></h1>
+  <p class="page-desc">付款完成後，AI 將立即開始分析你的空間。方案 A 約 15 分鐘交付；方案 B 含設計師人工審核，48 小時內完成。</p>
+
+  <!-- ORDER SUMMARY -->
+  <div class="summary-bar" id="summaryBar">
+    <div>
+      <div class="summary-label">上傳空間</div>
+      <div class="summary-val" id="summaryFiles">—</div>
+    </div>
+    <div>
+      <div class="summary-label">設計風格</div>
+      <div class="summary-val" id="summaryStyle">—</div>
+    </div>
+    <div>
+      <div class="summary-label">空間坪數</div>
+      <div class="summary-val" id="summarySize">—</div>
+    </div>
+    <div>
+      <div class="summary-label">預算範圍</div>
+      <div class="summary-val" id="summaryBudget">—</div>
+    </div>
+  </div>
+
+  <!-- PLAN CARDS -->
+  <div class="plans-grid">
+
+    <!-- Plan A -->
+    <div class="plan-card selected" id="planA" onclick="selectPlan('A')">
+      <div class="plan-badge">方案 A · AI 概念渲染</div>
+      <div class="plan-name">AI 設計方案</div>
+      <div class="plan-price">NT$1,999<span>/ 次</span></div>
+      <div class="plan-divider"></div>
+      <ul class="plan-features">
+        <li><span class="ico">✦</span> AI 空間格局分析（影片 + 語音）</li>
+        <li><span class="ico">✦</span> 風格渲染圖 × 3 張（高解析）</li>
+        <li><span class="ico">✦</span> 風格定位報告</li>
+        <li><span class="ico">✦</span> 材料 / 色調建議 PDF</li>
+        <li><span class="ico">✦</span> 約 15 分鐘內交付</li>
+        <li><span class="ico grey">—</span><span style="color:var(--muted)">設計師人工審核</span></li>
+        <li><span class="ico grey">—</span><span style="color:var(--muted)">法規可行性確認</span></li>
+      </ul>
+      <div class="plan-note">適合：裝潢前先看看方向，或作為與設計師溝通的視覺依據</div>
+    </div>
+
+    <!-- Plan B -->
+    <div class="plan-card plan-b" id="planB" onclick="selectPlan('B')">
+      <div class="recommended-tag">推薦</div>
+      <div class="plan-badge" style="color:var(--gold)">方案 B · 設計師審核</div>
+      <div class="plan-name">專業審核方案</div>
+      <div class="plan-price">NT$9,800<span>/ 次</span></div>
+      <div class="plan-divider"></div>
+      <ul class="plan-features">
+        <li><span class="ico">✦</span> 方案 A 全部內容</li>
+        <li><span class="ico">✦</span> 人工設計師審核 + 修正建議</li>
+        <li><span class="ico">✦</span> 法規 / 結構可行性確認</li>
+        <li><span class="ico">✦</span> 專業建議書（可帶去找施工隊）</li>
+        <li><span class="ico">✦</span> 設計師後續承接諮詢（選配）</li>
+        <li><span class="ico">✦</span> 48 小時內完整交付</li>
+        <li><span class="ico">✦</span> 一對一設計師溝通</li>
+      </ul>
+      <div class="plan-note">適合：認真考慮動工、需要可執行方案帶去跟施工隊討論的屋主</div>
+    </div>
+
+  </div>
+
+  <!-- PAYMENT -->
+  <div class="pay-section">
+    <div class="pay-title">付款資訊</div>
+    <div class="pay-total-row">
+      <div class="pay-total-label" id="payLabel">方案 A · AI 設計方案</div>
+      <div class="pay-total-amount"><em>NT$</em><span id="payAmount">1,999</span></div>
+    </div>
+
+    <button class="btn-pay" id="payBtn" onclick="handlePay()">
+      <div class="line-icon">L</div>
+      以 LINE Pay 付款
+    </button>
+
+    <p class="pay-note">
+      付款後立即開始 AI 分析 · 結果以 Email 通知 · 可隨時登入查看進度<br>
+      如有問題請聯絡客服
+    </p>
+
+    <div class="pay-guarantee">
+      <div class="guarantee-item"><span class="ico">🔒</span> SSL 加密傳輸</div>
+      <div class="guarantee-item"><span class="ico">✦</span> 48hr 交付保證（方案 B）</div>
+      <div class="guarantee-item"><span class="ico">✦</span> 台灣本土設計師審核</div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // 從 localStorage 讀取前面步驟帶來的資料
+  (function loadSummary() {
+    try {
+      var files   = localStorage.getItem('deco_files_count');
+      var style   = localStorage.getItem('deco_style');
+      var size    = localStorage.getItem('deco_size');
+      var budget  = localStorage.getItem('deco_budget');
+      if (files)  document.getElementById('summaryFiles').textContent  = files + ' 個檔案';
+      if (style)  document.getElementById('summaryStyle').textContent  = style;
+      if (size)   document.getElementById('summarySize').textContent   = size;
+      if (budget) document.getElementById('summaryBudget').textContent = budget;
+    } catch(e) {}
+  })();
+
+  var selectedPlan = 'A';
+
+  function selectPlan(plan) {
+    selectedPlan = plan;
+    document.getElementById('planA').classList.toggle('selected', plan === 'A');
+    document.getElementById('planB').classList.toggle('selected', plan === 'B');
+
+    if (plan === 'A') {
+      document.getElementById('payLabel').textContent  = '方案 A · AI 設計方案';
+      document.getElementById('payAmount').textContent = '1,999';
+    } else {
+      document.getElementById('payLabel').textContent  = '方案 B · 專業審核方案';
+      document.getElementById('payAmount').textContent = '9,800';
+    }
+  }
+
+  var API_BASE = 'https://deco168-production.up.railway.app';
+
+  async function handlePay() {
+    var btn = document.getElementById('payBtn');
+    btn.textContent = '處理中…';
+    btn.disabled = true;
+
+    var uploadId = localStorage.getItem('deco_upload_id');
+    if (!uploadId) {
+      if (!confirm('找不到上傳照片（示範模式）。是否繼續測試流程？')) {
+        btn.innerHTML = '<div class="line-icon">L</div>以 LINE Pay 付款';
+        btn.disabled = false;
+        return;
+      }
+      // Demo mode — skip API
+      localStorage.setItem('deco_order_id',   'ORD-DEMO-' + Date.now());
+      localStorage.setItem('deco_plan',        selectedPlan);
+      localStorage.setItem('deco_order_time',  String(Date.now()));
+      setTimeout(function() { window.location.href = 'generate.html'; }, 800);
+      return;
+    }
+
+    var styles = localStorage.getItem('deco_style') || '';
+
+    try {
+      var fd = new FormData();
+      fd.append('upload_id', uploadId);
+      fd.append('styles',    styles);
+      fd.append('plan',      selectedPlan);
+
+      var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var data = await resp.json();
+
+      localStorage.setItem('deco_job_id',      data.job_id);
+      localStorage.setItem('deco_order_id',    'ORD-' + data.job_id);
+      localStorage.setItem('deco_plan',        selectedPlan);
+      localStorage.setItem('deco_order_time',  String(Date.now()));
+
+      window.location.href = 'generate.html';
+    } catch (e) {
+      alert('建立任務失敗：' + e.message);
+      btn.innerHTML = '<div class="line-icon">L</div>以 LINE Pay 付款';
+      btn.disabled = false;
+    }
+  }
+</script>
+
+</body>
+</html>

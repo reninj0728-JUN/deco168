@@ -9,56 +9,32 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --black:   #111111;
-      --dark:    #181818;
-      --card:    #1e1e1e;
-      --line:    #2e2e2e;
-      --gold:    #C9A96E;
-      --gold-lt: #e0c99a;
-      --white:   #ffffff;
-      --muted:   #777777;
-      --body:    #aaaaaa;
+      --black: #111111; --dark: #181818; --card: #1e1e1e;
+      --line: #2e2e2e; --gold: #C9A96E; --gold-lt: #e0c99a;
+      --white: #ffffff; --muted: #777777; --body: #aaaaaa;
     }
 
     body {
-      background: var(--black);
-      color: var(--white);
-      font-family: 'Inter', sans-serif;
-      font-weight: 300;
-      min-height: 100vh;
+      background: var(--black); color: var(--white);
+      font-family: 'Inter', sans-serif; font-weight: 300;
+      min-height: 100vh; display: flex; flex-direction: column;
     }
 
     /* NAV */
     nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 48px;
-      height: 68px;
-      background: rgba(17,17,17,0.92);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 68px;
+      border-bottom: 1px solid var(--line); flex-shrink: 0;
     }
     .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
     .nav-logo .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; letter-spacing: 4px; color: var(--gold); }
     .nav-logo .sub { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
     .nav-logo .text-block { display: flex; flex-direction: column; }
-    .tw-badge { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; }
 
-    /* PROGRESS BAR */
+    /* PROGRESS */
     .progress-bar {
-      position: fixed;
-      top: 68px; left: 0; right: 0;
-      z-index: 99;
-      background: var(--dark);
-      border-bottom: 1px solid var(--line);
-      padding: 0 48px;
-      display: flex;
-      align-items: center;
-      height: 52px;
+      background: var(--dark); border-bottom: 1px solid var(--line);
+      padding: 0 48px; display: flex; align-items: center; height: 52px; flex-shrink: 0;
     }
     .step-item {
       display: flex; align-items: center; gap: 10px;
@@ -66,550 +42,285 @@
       color: var(--muted); padding: 0 24px;
     }
     .step-item.active { color: var(--gold); }
-    .step-item.done { color: var(--muted); }
+    .step-item.done  { color: var(--muted); }
     .step-num {
       width: 22px; height: 22px; border: 1px solid var(--line);
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
       font-size: 9px; flex-shrink: 0;
     }
     .step-item.active .step-num { border-color: var(--gold); color: var(--gold); }
-    .step-item.done .step-num { background: var(--gold); border-color: var(--gold); color: var(--black); }
+    .step-item.done  .step-num  { background: var(--gold); border-color: var(--gold); color: var(--black); }
     .step-arrow { color: var(--line); font-size: 12px; }
 
-    /* MAIN */
-    main {
-      padding: 148px 48px 80px;
-      max-width: 960px;
-      margin: 0 auto;
+    /* CENTER STAGE */
+    .stage {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 60px 24px; text-align: center;
     }
 
-    /* TOP STATUS */
-    .status-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 56px;
+    /* ANIMATED ORB */
+    .orb-wrap { position: relative; width: 160px; height: 160px; margin-bottom: 48px; }
+    .orb {
+      width: 160px; height: 160px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(201,169,110,0.25), transparent 70%);
+      border: 1px solid rgba(201,169,110,0.3);
+      animation: pulse 3s ease-in-out infinite;
+      position: relative;
     }
-    .status-left {}
-    .page-eyebrow {
+    .orb::before {
+      content: ''; position: absolute; inset: 12px; border-radius: 50%;
+      border: 1px solid rgba(201,169,110,0.15);
+      animation: pulse 3s ease-in-out infinite 0.5s;
+    }
+    .orb::after {
+      content: ''; position: absolute; inset: 28px; border-radius: 50%;
+      border: 1px solid rgba(201,169,110,0.08);
+      animation: pulse 3s ease-in-out infinite 1s;
+    }
+    .orb-inner {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px; color: var(--gold); opacity: 0.8;
+      animation: float 4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%       { transform: scale(1.04); opacity: 0.7; }
+    }
+    @keyframes float {
+      0%, 100% { transform: translate(-50%,-50%) translateY(0); }
+      50%       { transform: translate(-50%,-50%) translateY(-6px); }
+    }
+    .ring {
+      position: absolute; top: -8px; left: -8px; right: -8px; bottom: -8px;
+      border-radius: 50%; border: 1px dashed rgba(201,169,110,0.2);
+      animation: spin 20s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .stage-eyebrow {
       font-size: 9px; letter-spacing: 4px; text-transform: uppercase;
       color: var(--gold); margin-bottom: 16px;
       display: flex; align-items: center; gap: 12px;
     }
-    .page-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
-    .page-title {
+    .stage-eyebrow::before, .stage-eyebrow::after {
+      content: ''; flex: 1; max-width: 40px; height: 1px; background: rgba(201,169,110,0.4);
+    }
+    .stage-title {
       font-family: 'Cormorant Garamond', serif;
-      font-size: 40px; font-weight: 300; color: var(--white);
-      margin-bottom: 10px; line-height: 1.1;
+      font-size: 38px; font-weight: 300; color: var(--white);
+      margin-bottom: 12px; line-height: 1.15;
     }
-    .page-title em { font-style: italic; color: var(--gold); }
-    .page-desc { font-size: 13px; color: var(--body); line-height: 1.8; max-width: 440px; }
+    .stage-title em { color: var(--gold); font-style: italic; }
+    .stage-desc { font-size: 13px; color: var(--body); line-height: 1.8; max-width: 440px; margin-bottom: 48px; }
 
-    /* PERCENT RING */
-    .ring-wrap {
-      flex-shrink: 0;
-      display: flex; flex-direction: column; align-items: center; gap: 12px;
-    }
-    .ring-svg { transform: rotate(-90deg); }
-    .ring-track { fill: none; stroke: var(--line); stroke-width: 3; }
-    .ring-fill {
-      fill: none; stroke: var(--gold); stroke-width: 3;
-      stroke-linecap: round;
-      stroke-dasharray: 283;
-      stroke-dashoffset: 283;
-      transition: stroke-dashoffset 0.6s ease;
-    }
-    .ring-center {
-      position: relative; display: inline-block;
-    }
-    .ring-label {
-      position: absolute; inset: 0;
+    /* AI STEPS */
+    .ai-steps {
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
+      width: 100%; max-width: 440px; margin-bottom: 32px; text-align: left;
     }
-    .ring-pct {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 28px; color: var(--gold); line-height: 1;
+    .ai-step {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 0; border-bottom: 1px solid var(--line);
+      font-size: 12px; color: var(--muted); transition: color 0.4s;
     }
-    .ring-unit { font-size: 9px; color: var(--muted); letter-spacing: 2px; margin-top: 2px; }
+    .ai-step:last-child { border-bottom: none; }
+    .ai-step.done  { color: var(--body); }
+    .ai-step.active { color: var(--white); }
+    .ai-step-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--line); flex-shrink: 0; transition: background 0.4s;
+    }
+    .ai-step.done  .ai-step-dot { background: var(--gold); }
+    .ai-step.active .ai-step-dot {
+      background: var(--gold);
+      box-shadow: 0 0 0 4px rgba(201,169,110,0.2);
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes dotPulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(201,169,110,0.2); }
+      50%       { box-shadow: 0 0 0 8px rgba(201,169,110,0.08); }
+    }
+    .ai-step-text { flex: 1; }
+    .ai-step-check { color: var(--gold); font-size: 11px; opacity: 0; transition: opacity 0.4s; }
+    .ai-step.done .ai-step-check { opacity: 1; }
 
-    /* MAIN GRID */
-    .gen-grid {
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 24px;
-      align-items: start;
+    .timer-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; color: var(--muted); margin-bottom: 28px;
     }
+    .timer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: dotPulse 1.5s ease-in-out infinite; }
 
-    /* RENDER PREVIEW GRID */
-    .render-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
+    .email-note {
+      background: var(--card); border: 1px solid var(--line);
+      padding: 16px 24px; max-width: 440px; width: 100%;
+      font-size: 12px; color: var(--muted); line-height: 1.7; text-align: left;
     }
-
-    .render-slot {
-      aspect-ratio: 4/3;
-      background: var(--dark);
-      border: 1px solid var(--line);
-      position: relative;
-      overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-    }
-
-    .render-slot .slot-num {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 24px; color: var(--line);
-    }
-
-    .render-slot .shimmer {
-      position: absolute; inset: 0;
-      background: linear-gradient(90deg,
-        transparent 0%,
-        rgba(201,169,110,0.06) 50%,
-        transparent 100%
-      );
-      background-size: 200% 100%;
-      animation: shimmer 1.6s infinite;
-      opacity: 0;
-    }
-    .render-slot.loading .shimmer { opacity: 1; }
-
-    @keyframes shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-
-    /* gradient placeholders that appear when done */
-    .render-slot .render-img {
-      position: absolute; inset: 0;
-      opacity: 0;
-      transition: opacity 0.8s ease;
-    }
-    .render-slot.done .render-img { opacity: 1; }
-    .render-slot.done .slot-num { opacity: 0; }
-    .render-slot.done .shimmer { opacity: 0; animation: none; }
-
-    .render-slot .done-badge {
-      position: absolute; top: 8px; right: 8px;
-      font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
-      color: var(--gold); background: rgba(17,17,17,0.85);
-      border: 1px solid rgba(201,169,110,0.3);
-      padding: 3px 7px; opacity: 0; transition: opacity 0.4s;
-    }
-    .render-slot.done .done-badge { opacity: 1; }
-
-    /* large slot = first render spans 2 cols */
-    .render-slot.large {
-      grid-column: span 2;
-      aspect-ratio: 16/9;
-    }
-
-    /* LOG PANEL */
-    .log-panel {
-      background: var(--dark);
-      border: 1px solid var(--line);
-      padding: 24px;
-      display: flex; flex-direction: column; gap: 0;
-    }
-
-    .log-title {
-      font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 20px;
-    }
-
-    .log-item {
-      display: flex; align-items: flex-start; gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--line);
-      opacity: 0.3;
-      transition: opacity 0.4s;
-    }
-    .log-item:last-child { border-bottom: none; }
-    .log-item.active { opacity: 1; }
-    .log-item.done { opacity: 0.6; }
-
-    .log-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--line); flex-shrink: 0; margin-top: 5px;
-      transition: background 0.3s;
-    }
-    .log-item.active .log-dot { background: var(--gold); animation: pulse-dot 1.2s infinite; }
-    .log-item.done .log-dot { background: var(--gold); animation: none; }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.6); }
-    }
-
-    .log-text { font-size: 11px; line-height: 1.6; }
-    .log-main { color: var(--white); }
-    .log-item.done .log-main { color: var(--muted); }
-    .log-sub { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 0.3px; }
-
-    .log-time {
-      margin-left: auto; font-size: 9px; color: var(--muted);
-      flex-shrink: 0; font-variant-numeric: tabular-nums;
-    }
-
-    /* OVERALL PROGRESS BAR */
-    .overall-bar-wrap {
-      margin-top: 24px;
-      background: var(--dark);
-      border: 1px solid var(--line);
-      padding: 20px 24px;
-    }
-    .overall-bar-label {
-      display: flex; justify-content: space-between;
-      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 12px;
-    }
-    .overall-bar-track {
-      height: 2px; background: var(--line); position: relative; overflow: hidden;
-    }
-    .overall-bar-fill {
-      height: 100%; background: var(--gold);
-      width: 0%; transition: width 0.6s ease;
-      position: relative;
-    }
-    .overall-bar-fill::after {
-      content: '';
-      position: absolute; right: 0; top: -2px;
-      width: 6px; height: 6px;
-      background: var(--gold); border-radius: 50%;
-    }
-
-    /* ESTIMATED TIME */
-    .eta-row {
-      display: flex; align-items: center; gap: 24px;
-      margin-top: 16px;
-    }
-    .eta-item { display: flex; flex-direction: column; gap: 4px; }
-    .eta-label { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
-    .eta-val { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--white); }
-
-    /* DONE OVERLAY */
-    .done-overlay {
-      display: none;
-      position: fixed; inset: 0; z-index: 200;
-      background: rgba(17,17,17,0.96);
-      flex-direction: column; align-items: center; justify-content: center;
-      gap: 24px;
-      backdrop-filter: blur(8px);
-    }
-    .done-overlay.show { display: flex; animation: fadeIn 0.6s ease; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .done-icon {
-      width: 72px; height: 72px; border: 1px solid var(--gold);
-      border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      font-size: 28px;
-      animation: scaleIn 0.5s ease;
-    }
-    @keyframes scaleIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-    .done-title {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 36px; color: var(--white); text-align: center;
-    }
-    .done-title em { color: var(--gold); font-style: italic; }
-    .done-sub { font-size: 12px; color: var(--body); letter-spacing: 0.5px; }
-
-    .btn-primary {
-      font-family: 'Inter', sans-serif;
-      font-size: 10px; font-weight: 400; letter-spacing: 2.5px; text-transform: uppercase;
-      padding: 14px 40px; background: var(--gold); color: var(--black);
-      border: none; cursor: pointer; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 10px;
-      transition: background .2s; margin-top: 8px;
-    }
-    .btn-primary:hover { background: var(--gold-lt); }
+    .email-note strong { color: var(--body); }
 
     @media (max-width: 768px) {
       nav { padding: 0 20px; }
-      main { padding: 140px 20px 60px; }
-      .progress-bar { padding: 0 20px; overflow-x: auto; }
-      .status-row { flex-direction: column; align-items: flex-start; gap: 32px; }
-      .gen-grid { grid-template-columns: 1fr; }
-      .render-grid { grid-template-columns: 1fr 1fr; }
-      .render-slot.large { grid-column: span 2; }
+      .progress-bar { padding: 0 12px; overflow-x: auto; }
+      .step-item { padding: 0 10px; font-size: 9px; white-space: nowrap; }
+      .orb-wrap { width: 120px; height: 120px; }
+      .orb { width: 120px; height: 120px; }
+      .stage-title { font-size: 28px; }
     }
   </style>
 </head>
 <body>
 
-<!-- NAV -->
 <nav>
   <a href="index.html" class="nav-logo">
-    <svg width="44" height="32" viewBox="0 0 110 80" fill="none">
-      <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
-      <path d="M16 20 L16 60 L30 60 C42 60 51 51.5 51 40 C51 28.5 42 20 30 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.7" opacity="0.4"/>
-      <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2"/>
-      <path d="M94 20 L94 60 L80 60 C68 60 59 51.5 59 40 C59 28.5 68 20 80 20 Z" fill="none" stroke="#C9A96E" stroke-width="0.7" opacity="0.4"/>
-      <line x1="8" y1="12" x2="102" y2="12" stroke="#C9A96E" stroke-width="0.7" opacity="0.3"/>
-      <line x1="8" y1="68" x2="102" y2="68" stroke="#C9A96E" stroke-width="0.7" opacity="0.3"/>
+    <svg width="32" height="24" viewBox="0 0 110 80" fill="none">
+      <path d="M8 12 L8 68 L30 68 C48 68 60 57 60 40 C60 23 48 12 30 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
+      <path d="M102 12 L102 68 L80 68 C62 68 50 57 50 40 C50 23 62 12 80 12 Z" fill="none" stroke="#C9A96E" stroke-width="2.5"/>
     </svg>
     <div class="text-block">
       <span class="brand">DECO168</span>
-      <span class="sub">Design &amp; Deco · by ATARAPA™</span>
+      <span class="sub">Design & Deco · ATARAPA™</span>
     </div>
   </a>
-  <div class="tw-badge">🇹🇼 TW</div>
 </nav>
 
-<!-- PROGRESS BAR -->
 <div class="progress-bar">
-  <div class="step-item done"><div class="step-num">✓</div><span>上傳空間</span></div>
-  <span class="step-arrow">›</span>
-  <div class="step-item done"><div class="step-num">✓</div><span>設計偏好</span></div>
-  <span class="step-arrow">›</span>
-  <div class="step-item active"><div class="step-num">3</div><span>AI 生成</span></div>
-  <span class="step-arrow">›</span>
-  <div class="step-item"><div class="step-num">4</div><span>付款領取</span></div>
+  <div class="step-item done"><div class="step-num">✓</div>上傳空間</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item done"><div class="step-num">✓</div>設計偏好</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item done"><div class="step-num">✓</div>付款完成</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item active"><div class="step-num">4</div>AI 生成中</div>
+  <div class="step-arrow">›</div>
+  <div class="step-item"><div class="step-num">5</div>取得成品</div>
 </div>
 
-<!-- MAIN -->
-<main>
+<div class="stage">
+  <div class="orb-wrap">
+    <div class="ring"></div>
+    <div class="orb"><div class="orb-inner">✦</div></div>
+  </div>
 
-  <!-- STATUS ROW -->
-  <div class="status-row">
-    <div class="status-left">
-      <div class="page-eyebrow">Step 03 / 04</div>
-      <h1 class="page-title">AI 正在<br><em>設計您的家</em></h1>
-      <p class="page-desc">請勿關閉此頁面。AI 正在分析您的空間並生成專屬設計方案，預計需要 2–3 分鐘。</p>
+  <div class="stage-eyebrow">AI 正在工作</div>
+  <h1 class="stage-title">分析你的<em>空間</em>，<br>設計正在生成</h1>
+  <p class="stage-desc">AI 正在讀取你的空間影片、理解你說的需求，並生成專屬設計方案。請稍候，不需要停留在此頁面。</p>
+
+  <div class="ai-steps" id="aiSteps">
+    <div class="ai-step done" id="step1">
+      <div class="ai-step-dot"></div>
+      <div class="ai-step-text">付款確認完成</div>
+      <div class="ai-step-check">✓</div>
     </div>
-
-    <!-- RING -->
-    <div class="ring-wrap">
-      <div class="ring-center">
-        <svg class="ring-svg" width="120" height="120" viewBox="0 0 100 100">
-          <circle class="ring-track" cx="50" cy="50" r="45"/>
-          <circle class="ring-fill" id="ringFill" cx="50" cy="50" r="45"/>
-        </svg>
-        <div class="ring-label">
-          <div class="ring-pct" id="ringPct">0</div>
-          <div class="ring-unit">%</div>
-        </div>
-      </div>
+    <div class="ai-step active" id="step2">
+      <div class="ai-step-dot"></div>
+      <div class="ai-step-text">Gemini AI 分析空間影片 + 理解語音需求</div>
+      <div class="ai-step-check">✓</div>
+    </div>
+    <div class="ai-step" id="step3">
+      <div class="ai-step-dot"></div>
+      <div class="ai-step-text">生成風格定位 + 設計邏輯</div>
+      <div class="ai-step-check">✓</div>
+    </div>
+    <div class="ai-step" id="step4">
+      <div class="ai-step-dot"></div>
+      <div class="ai-step-text">渲染風格圖 × 3 張</div>
+      <div class="ai-step-check">✓</div>
+    </div>
+    <div class="ai-step" id="step5">
+      <div class="ai-step-dot"></div>
+      <div class="ai-step-text">產出材料建議 PDF 報告</div>
+      <div class="ai-step-check">✓</div>
     </div>
   </div>
 
-  <!-- GEN GRID -->
-  <div class="gen-grid">
-
-    <!-- LEFT: render previews + bar -->
-    <div>
-      <div class="render-grid" id="renderGrid">
-        <div class="render-slot large" id="slot0">
-          <div class="render-img" id="img0"></div>
-          <span class="slot-num">01</span>
-          <div class="shimmer"></div>
-          <div class="done-badge">完成</div>
-        </div>
-        <div class="render-slot" id="slot1">
-          <div class="render-img" id="img1"></div>
-          <span class="slot-num">02</span>
-          <div class="shimmer"></div>
-          <div class="done-badge">完成</div>
-        </div>
-        <div class="render-slot" id="slot2">
-          <div class="render-img" id="img2"></div>
-          <span class="slot-num">03</span>
-          <div class="shimmer"></div>
-          <div class="done-badge">完成</div>
-        </div>
-        <div class="render-slot" id="slot3">
-          <div class="render-img" id="img3"></div>
-          <span class="slot-num">04</span>
-          <div class="shimmer"></div>
-          <div class="done-badge">完成</div>
-        </div>
-        <div class="render-slot" id="slot4">
-          <div class="render-img" id="img4"></div>
-          <span class="slot-num">05</span>
-          <div class="shimmer"></div>
-          <div class="done-badge">完成</div>
-        </div>
-      </div>
-
-      <!-- OVERALL BAR -->
-      <div class="overall-bar-wrap">
-        <div class="overall-bar-label">
-          <span id="barLabel">初始化中</span>
-          <span id="barPct">0%</span>
-        </div>
-        <div class="overall-bar-track">
-          <div class="overall-bar-fill" id="barFill"></div>
-        </div>
-        <div class="eta-row">
-          <div class="eta-item">
-            <span class="eta-label">預計剩餘</span>
-            <span class="eta-val" id="etaTime">2:30</span>
-          </div>
-          <div class="eta-item">
-            <span class="eta-label">已完成</span>
-            <span class="eta-val" id="etaDone">0 / 5 張</span>
-          </div>
-          <div class="eta-item">
-            <span class="eta-label">方案</span>
-            <span class="eta-val" style="font-size:14px;font-family:'Inter',sans-serif;" id="etaPlan">AI 概念方案</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: log -->
-    <div class="log-panel">
-      <div class="log-title">生成紀錄</div>
-      <div id="logList"></div>
-    </div>
-
+  <div class="timer-row">
+    <div class="timer-dot"></div>
+    <span id="timerText">預計剩餘 15 分鐘</span>
   </div>
-</main>
 
-<!-- DONE OVERLAY -->
-<div class="done-overlay" id="doneOverlay">
-  <div class="done-icon">✦</div>
-  <div class="done-title">設計方案<br><em>已完成</em></div>
-  <div class="done-sub">5 張渲染圖 · 風格分析報告 · 材料建議清單</div>
-  <a href="result.html" class="btn-primary">查看並下載成果 →</a>
+  <div class="email-note">
+    <strong>完成後會以 Email 通知你。</strong><br>
+    你可以關閉此頁面，結果也會保存。完成後直接點信件連結即可查看成品。
+  </div>
 </div>
 
 <script>
-// ── GRADIENT PALETTES for placeholder renders ──────────────────────────────
-const gradients = [
-  'linear-gradient(135deg, #2a2420 0%, #4a3828 40%, #c8a878 100%)',
-  'linear-gradient(135deg, #1e2428 0%, #2a3840 50%, #8090a0 100%)',
-  'linear-gradient(135deg, #282420 0%, #403830 50%, #d0b888 100%)',
-  'linear-gradient(135deg, #201e24 0%, #383048 50%, #9080b0 100%)',
-  'linear-gradient(135deg, #1e2820 0%, #283830 50%, #90b098 100%)',
-];
+  (function guard() {
+    if (!localStorage.getItem('deco_order_id')) {
+      window.location.href = 'index.html';
+    }
+  })();
 
-// ── STEPS ──────────────────────────────────────────────────────────────────
-const steps = [
-  { label: '讀取上傳資料',        sub: '影片、照片、建坪文件',       dur: 2000,  pct: 5  },
-  { label: '空間結構分析',        sub: 'AI 識別格局、採光、比例',     dur: 3500,  pct: 15 },
-  { label: '解析風格偏好',        sub: '對應您選擇的現代簡約 + 暖白', dur: 2500,  pct: 22 },
-  { label: '生成渲染圖 1／5',     sub: '主視角全景',                  dur: 6000,  pct: 36, render: 0 },
-  { label: '生成渲染圖 2／5',     sub: '沙發區特寫',                  dur: 5000,  pct: 50, render: 1 },
-  { label: '生成渲染圖 3／5',     sub: '廚房餐廳視角',                dur: 5000,  pct: 64, render: 2 },
-  { label: '生成渲染圖 4／5',     sub: '臥室方向',                    dur: 4500,  pct: 76, render: 3 },
-  { label: '生成渲染圖 5／5',     sub: '細節材質特寫',                dur: 4500,  pct: 88, render: 4 },
-  { label: '整合設計分析報告',    sub: '色調、材質、品牌建議',         dur: 3000,  pct: 96 },
-  { label: '輸出 PDF 成果包',     sub: '壓縮並準備下載連結',          dur: 2000,  pct: 100 },
-];
+  var API_BASE = 'https://deco168-production.up.railway.app';
+  var JOB_ID   = localStorage.getItem('deco_job_id');
 
-// ── INIT LOG ───────────────────────────────────────────────────────────────
-const logList = document.getElementById('logList');
-steps.forEach((s, i) => {
-  const el = document.createElement('div');
-  el.className = 'log-item';
-  el.id = `log${i}`;
-  el.innerHTML = `
-    <div class="log-dot"></div>
-    <div class="log-text">
-      <div class="log-main">${s.label}</div>
-      <div class="log-sub">${s.sub}</div>
-    </div>
-    <div class="log-time" id="logtime${i}">—</div>
-  `;
-  logList.appendChild(el);
-});
+  // status → which step number is currently active
+  var STATUS_STEP = {
+    'queued':    2,
+    'analyzing': 2,
+    'matching':  3,
+    'rendering': 4,
+    'completed': 5,
+    'failed':    2
+  };
 
-// ── STATE ──────────────────────────────────────────────────────────────────
-let rendersComplete = 0;
-const totalRenders = 5;
-const circumference = 2 * Math.PI * 45; // 283
-
-function setProgress(pct) {
-  const offset = circumference * (1 - pct / 100);
-  document.getElementById('ringFill').style.strokeDashoffset = offset;
-  document.getElementById('ringPct').textContent = Math.round(pct);
-  document.getElementById('barFill').style.width = pct + '%';
-  document.getElementById('barPct').textContent = Math.round(pct) + '%';
-}
-
-function formatEta(ms) {
-  const s = Math.ceil(ms / 1000);
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec.toString().padStart(2, '0')}`;
-}
-
-function completeRender(idx) {
-  const slot = document.getElementById(`slot${idx}`);
-  const img = document.getElementById(`img${idx}`);
-  slot.classList.remove('loading');
-  img.style.background = gradients[idx];
-  setTimeout(() => slot.classList.add('done'), 100);
-  rendersComplete++;
-  document.getElementById('etaDone').textContent = `${rendersComplete} / ${totalRenders} 張`;
-}
-
-// ── RUN SEQUENCE ───────────────────────────────────────────────────────────
-async function runSequence() {
-  let elapsed = 0;
-  const totalDur = steps.reduce((a, s) => a + s.dur, 0);
-
-  // kick off loading shimmer on all slots
-  for (let i = 0; i < 5; i++) document.getElementById(`slot${i}`).classList.add('loading');
-
-  for (let i = 0; i < steps.length; i++) {
-    const s = steps[i];
-    const prevLog = document.getElementById(`log${i - 1}`);
-    const curLog  = document.getElementById(`log${i}`);
-
-    if (prevLog) { prevLog.classList.remove('active'); prevLog.classList.add('done'); }
-    curLog.classList.add('active');
-
-    document.getElementById('barLabel').textContent = s.label;
-
-    // animate progress smoothly over duration
-    const startPct = i === 0 ? 0 : steps[i - 1].pct;
-    const endPct   = s.pct;
-    const startTime = Date.now();
-
-    await new Promise(resolve => {
-      function tick() {
-        const now = Date.now();
-        const prog = Math.min((now - startTime) / s.dur, 1);
-        const cur  = startPct + (endPct - startPct) * ease(prog);
-        setProgress(cur);
-
-        // remaining eta
-        elapsed = steps.slice(0, i).reduce((a, x) => a + x.dur, 0) + (now - startTime);
-        const remaining = Math.max(0, totalDur - elapsed);
-        document.getElementById('etaTime').textContent = formatEta(remaining);
-
-        if (prog < 1) requestAnimationFrame(tick);
-        else resolve();
-      }
-      requestAnimationFrame(tick);
-    });
-
-    // log timestamp
-    document.getElementById(`logtime${i}`).textContent = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    // complete render slot if this step has one
-    if (s.render !== undefined) completeRender(s.render);
+  function updateSteps(cur) {
+    for (var i = 1; i <= 5; i++) {
+      var el = document.getElementById('step' + i);
+      if (!el) continue;
+      if (i < cur)      el.className = 'ai-step done';
+      else if (i === cur) el.className = 'ai-step active';
+      else               el.className = 'ai-step';
+    }
   }
 
-  // mark last log done
-  document.getElementById(`log${steps.length - 1}`).classList.remove('active');
-  document.getElementById(`log${steps.length - 1}`).classList.add('done');
+  var pollTimer;
 
-  // show done overlay after short pause
-  setTimeout(() => {
-    document.getElementById('doneOverlay').classList.add('show');
-  }, 800);
-}
+  function poll() {
+    fetch(API_BASE + '/api/job/' + JOB_ID)
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data) return;
+        var step = STATUS_STEP[data.status] || 2;
+        updateSteps(step);
+        document.getElementById('timerText').textContent = data.message || data.status;
 
-function ease(t) {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-}
+        if (data.status === 'completed') {
+          clearInterval(pollTimer);
+          updateSteps(5);
+          document.getElementById('step5').className = 'ai-step done';
+          document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
+          setTimeout(function() { window.location.href = 'result.html'; }, 1500);
+        } else if (data.status === 'failed') {
+          clearInterval(pollTimer);
+          document.getElementById('timerText').textContent = data.message || '處理失敗，請聯絡客服';
+        }
+      })
+      .catch(function() {});  // silently retry
+  }
 
-// start
-window.addEventListener('load', () => setTimeout(runSequence, 600));
+  if (JOB_ID) {
+    // Real mode: poll API every 3 s
+    poll();
+    pollTimer = setInterval(poll, 3000);
+  } else {
+    // Demo mode (no job_id): fake animation
+    var steps  = ['step2','step3','step4','step5'];
+    var delays = [2500, 5500, 9000, 13000];
+    steps.forEach(function(id, i) {
+      setTimeout(function() {
+        if (i > 0) document.getElementById(steps[i-1]).className = 'ai-step done';
+        document.getElementById(id).className = 'ai-step active';
+      }, delays[i]);
+    });
+    setTimeout(function() {
+      document.getElementById('step5').className = 'ai-step done';
+      document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
+      setTimeout(function() { window.location.href = 'result.html'; }, 1200);
+    }, 15000);
+  }
 </script>
 </body>
 </html>

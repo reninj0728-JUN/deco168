@@ -673,9 +673,43 @@
   }
 
   // 下一步
-  function nextStep() {
-    const text = document.getElementById('style-text').value || document.getElementById('transcript').textContent;
-    window.location.href = 'style-form.html';
+  var API_BASE = 'https://deco168-production.up.railway.app';
+
+  async function nextStep() {
+    var photoInput = document.getElementById('photo-input');
+    var files = Array.from(photoInput.files || []);
+
+    if (files.length === 0) {
+      if (!confirm('沒有上傳照片，是否以示範模式繼續？')) return;
+      window.location.href = 'style-form.html';
+      return;
+    }
+
+    var btn = document.querySelector('.btn-next');
+    var orig = btn.textContent;
+    btn.textContent = '上傳中…';
+    btn.disabled = true;
+
+    try {
+      var formData = new FormData();
+      files.forEach(function(f) { formData.append('photos', f); });
+
+      var resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var data = await resp.json();
+
+      localStorage.setItem('deco_upload_id', data.upload_id);
+      localStorage.setItem('deco_files_count', String(data.count));
+
+      var styleText = document.getElementById('style-text').value.trim();
+      if (styleText) localStorage.setItem('deco_style_text', styleText);
+
+      window.location.href = 'style-form.html';
+    } catch (e) {
+      alert('上傳失敗：' + e.message);
+      btn.textContent = orig;
+      btn.disabled = false;
+    }
   }
 </script>
 </body>
