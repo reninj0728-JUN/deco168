@@ -516,7 +516,51 @@
       .check-grid { grid-template-columns: 1fr 1fr; }
       .render-options { grid-template-columns: 1fr; }
       .ref-preview-grid { grid-template-columns: repeat(3, 1fr); }
+      .diag-grid { grid-template-columns: 1fr; }
     }
+
+    /* AI DIAGNOSIS PANEL */
+    .diagnosis-panel {
+      display: none;
+      border: 1px solid rgba(201,169,110,0.4);
+      background: rgba(201,169,110,0.03);
+      padding: 32px 36px;
+      margin-bottom: 32px;
+      animation: fadeSlideIn 0.5s ease;
+    }
+    .diagnosis-panel.show { display: block; }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .diag-eyebrow {
+      font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .diag-eyebrow::after { content: ''; flex: 1; height: 1px; background: rgba(201,169,110,0.3); }
+    .diag-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 20px 40px; margin-bottom: 24px;
+    }
+    .diag-item-label {
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .diag-item-val { font-size: 13px; color: var(--white); line-height: 1.6; }
+    .diag-insight {
+      font-size: 12px; color: var(--body); line-height: 1.9;
+      border-top: 1px solid var(--line); padding-top: 18px; margin-bottom: 24px;
+    }
+    .diag-insight em { color: var(--gold); font-style: normal; }
+    .btn-proceed {
+      width: 100%; background: var(--gold); color: var(--black);
+      border: none; padding: 16px;
+      font-family: 'Inter', sans-serif; font-size: 11px;
+      font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-proceed:hover { background: var(--gold-lt); }
   </style>
 </head>
 <body>
@@ -675,7 +719,11 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">主要設計風格</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6;">選擇一種主風格。<span style="color:var(--gold);">✦</span> 為 AI 根據您的空間推薦的選項。</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">最多選 <strong style="color:var(--gold)">2 種</strong>風格，AI 另外推薦 1 種，共 3 張渲染圖。<span style="color:var(--gold);">✦</span> 為 AI 推薦選項。</p>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <span id="styleCounter" style="font-size:11px;color:var(--gold);letter-spacing:2px;">已選 1 / 2 種</span>
+      <span id="extraStyleNote" style="font-size:11px;color:var(--muted);display:none;">每多選 1 種 +NT$399</span>
+    </div>
 
     <div class="style-grid" id="styleGrid">
       <!-- cards injected by JS -->
@@ -872,10 +920,36 @@
     </div>
   </div>
 
+  <!-- AI DIAGNOSIS PANEL -->
+  <hr class="section-divider" id="diagDivider" style="display:none;">
+  <div class="diagnosis-panel" id="diagPanel">
+    <div class="diag-eyebrow">✦ AI 空間診斷 — 免費預覽</div>
+    <div class="diag-grid">
+      <div>
+        <div class="diag-item-label">你的空間</div>
+        <div class="diag-item-val" id="diagSpace">—</div>
+      </div>
+      <div>
+        <div class="diag-item-label">AI 判斷最適風格</div>
+        <div class="diag-item-val" id="diagStyles">—</div>
+      </div>
+      <div>
+        <div class="diag-item-label">建議主色調</div>
+        <div class="diag-item-val" id="diagColor">—</div>
+      </div>
+      <div>
+        <div class="diag-item-label">裝修預算參考</div>
+        <div class="diag-item-val" id="diagBudget">—</div>
+      </div>
+    </div>
+    <div class="diag-insight" id="diagInsight">—</div>
+    <button class="btn-proceed" onclick="goCheckout()">確認偏好，前往選擇方案 →</button>
+  </div>
+
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <a href="upload.html" class="btn btn-ghost">← 返回上傳</a>
-    <button class="btn btn-primary" onclick="submitForm()">送出並生成設計 →</button>
+    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">查看 AI 空間診斷 →</button>
   </div>
 </main>
 
@@ -932,25 +1006,42 @@ const renderCounts = [
 
 // ── RENDER UI ─────────────────────────────────────────────────────────────────
 
+function updateStyleCounter() {
+  var count = document.querySelectorAll('.style-card.selected').length;
+  document.getElementById('styleCounter').textContent = '已選 ' + count + ' / 2 種';
+}
+
 function buildStyleGrid() {
   const grid = document.getElementById('styleGrid');
   styles.forEach((s, i) => {
     const card = document.createElement('label');
     card.className = 'style-card' + (s.ai ? ' ai-pick' : '') + (i===0 ? ' selected' : '');
     card.innerHTML = `
-      <input type="radio" name="mainStyle" value="${s.id}" ${i===0?'checked':''}>
+      <input type="checkbox" name="mainStyle" value="${s.id}" ${i===0?'checked':''}>
       ${s.ai ? '<div class="ai-dot"></div>' : ''}
       <div class="style-emoji">${s.emoji}</div>
       <div class="style-name">${s.name}</div>
       <div class="style-hint">${s.hint}</div>
     `;
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      const cb = card.querySelector('input[type=checkbox]');
+      const alreadySelected = card.classList.contains('selected');
+      if (alreadySelected) {
+        card.classList.remove('selected');
+        cb.checked = false;
+      } else {
+        const count = document.querySelectorAll('.style-card.selected').length;
+        if (count >= 2) { alert('最多選 2 種風格'); return; }
+        card.classList.add('selected');
+        cb.checked = true;
+      }
+      updateStyleCounter();
       updateSummary();
     });
     grid.appendChild(card);
   });
+  updateStyleCounter();
 }
 
 function buildExtraStyles() {
@@ -1095,14 +1186,81 @@ document.getElementById('spaceType').addEventListener('change', updateSummary);
 document.getElementById('spaceSize').addEventListener('change', updateSummary);
 document.getElementById('plan').addEventListener('change', updateSummary);
 
-// ── SUBMIT ────────────────────────────────────────────────────────────────────
+// ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
+var budgetMap = {
+  '10 坪以下': 'NT$20~40 萬', '10–20 坪': 'NT$30~60 萬',
+  '20–30 坪':  'NT$50~90 萬', '30–45 坪': 'NT$80~150 萬',
+  '45–60 坪':  'NT$120~200 萬', '60 坪以上': 'NT$180 萬以上',
+};
+
+var insightMap = {
+  modern:      '你偏好乾淨俐落的線條與機能效率。AI 建議以<em>無主燈設計</em>為基礎，嵌燈搭配局部懸掛燈，讓空間層次豐富而不複雜。選用淺木紋地板搭配深色金屬框架，視覺比例最均衡。',
+  nordic:      '北歐風的核心在於<em>溫暖留白</em>。建議保留大面積淺色基底，透過木質家具與織物軟裝製造溫度，避免過多裝飾性元素讓空間看起來太「滿」。',
+  japanese:    '侘寂風最難的是「減法」。AI 建議聚焦在<em>材質觸感</em>（石、木、藤），而非形狀的複雜；窗邊刻意留白比堆砌家具更能呈現這種靜謐美學。',
+  industrial:  '工業風需要結構感與溫度的平衡。建議以鐵件骨架搭配裸露管線，再加入皮革或木質軟化比例，避免空間全面偏冷、失去居住感。',
+  luxury:      '輕奢現代靠的是<em>材質等級</em>而非數量。建議在單一焦點（主牆或床頭）放置高質感材料，其餘保持克制——比例感比堆料更重要。',
+  mediterranean: '地中海風格的靈魂在<em>拱形線條與藍白對比</em>。建議以白牆為底，磁磚選用手工質感而非過於光亮的款式，植栽是不可省略的視覺重點。',
+  muji:        'MUJI 風的關鍵是<em>系統性一致</em>。建議統一所有把手、門縫、層板厚度與顏色，細節一致才能讓空間看起來是「設計過的」而非單純的簡單。',
+  'art-deco':  'Art Deco 的視覺張力來自<em>幾何對稱與金屬光澤</em>。建議以深色主牆搭配黃銅件，局部使用人字拼地板，控制重點裝飾不超過兩處。',
+  boho:        '波希米亞風貴在<em>層次感</em>而不是雜亂。建議先定一個主色調（大地橘或酒紅），再疊加不同材質的布料與植物，讓空間豐富但不失重心。',
+};
+
+var styleLabels = {
+  modern:'現代簡約', nordic:'北歐 Scandinavian', japanese:'日式侘寂',
+  industrial:'工業風', luxury:'輕奢現代', mediterranean:'地中海',
+  muji:'無印 MUJI 風', 'art-deco':'Art Deco', boho:'波希米亞 Boho',
+};
+
+function getSelectedStyleId() {
+  var checked = Array.from(document.querySelectorAll('input[name="mainStyle"]:checked'));
+  return checked.length > 0 ? checked.map(r => r.value).join(',') : 'modern';
+}
+
+function getSelectedPaletteName() {
+  var el = document.querySelector('.palette-card.selected .palette-name');
+  return el ? el.textContent : '暖白 + 淺木';
+}
+
+function buildDiagnosis() {
+  var spaceType = document.getElementById('spaceType').value;
+  var spaceSize = document.getElementById('spaceSize').value;
+  var styleId   = getSelectedStyleId();
+  var budget    = budgetMap[spaceSize] || 'NT$50~90 萬';
+  var insight   = insightMap[styleId]  || insightMap['modern'];
+  var styleName = styleLabels[styleId] || '現代簡約';
+  var palName   = getSelectedPaletteName();
+
+  document.getElementById('diagSpace').textContent  = spaceType + '・' + spaceSize;
+  document.getElementById('diagStyles').textContent = styleName;
+  document.getElementById('diagColor').textContent  = palName;
+  document.getElementById('diagBudget').textContent = budget + '（依建材等級調整）';
+  document.getElementById('diagInsight').innerHTML  = insight;
+}
+
 function submitForm() {
-  const btn = document.querySelector('.btn-primary');
-  btn.textContent = '處理中…';
+  var styleIds = getSelectedStyleId();
+  localStorage.setItem('deco_style',       styleIds);
+  localStorage.setItem('deco_style_count', String(styleIds.split(',').filter(Boolean).length));
+  localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
+  localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
+
+  buildDiagnosis();
+
+  document.getElementById('diagDivider').style.display = 'block';
+  var panel = document.getElementById('diagPanel');
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  var btn = document.getElementById('submitBtn');
+  btn.textContent = '✓ 診斷完成，請見下方';
+  btn.style.background = 'transparent';
+  btn.style.border = '1px solid rgba(201,169,110,0.5)';
+  btn.style.color = 'var(--gold)';
   btn.style.pointerEvents = 'none';
-  setTimeout(() => {
-    window.location.href = 'generate.html';
-  }, 800);
+}
+
+function goCheckout() {
+  window.location.href = 'checkout.html';
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

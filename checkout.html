@@ -393,20 +393,30 @@
   })();
 
   var selectedPlan = 'A';
+  var extraStyles  = Math.max(0, parseInt(localStorage.getItem('deco_style_count') || '1') - 2);
+  var extraFee     = extraStyles * 399;
+
+  function calcTotal(base) { return base + extraFee; }
+
+  function fmt(n) { return n.toLocaleString(); }
+
+  function updatePriceUI() {
+    var base  = selectedPlan === 'A' ? 1999 : 9800;
+    var total = calcTotal(base);
+    var label = selectedPlan === 'A' ? '方案 A · AI 設計方案' : '方案 B · 專業審核方案';
+    if (extraFee > 0) label += '  +  額外風格 ×' + extraStyles;
+    document.getElementById('payLabel').textContent  = label;
+    document.getElementById('payAmount').textContent = fmt(total);
+  }
 
   function selectPlan(plan) {
     selectedPlan = plan;
     document.getElementById('planA').classList.toggle('selected', plan === 'A');
     document.getElementById('planB').classList.toggle('selected', plan === 'B');
-
-    if (plan === 'A') {
-      document.getElementById('payLabel').textContent  = '方案 A · AI 設計方案';
-      document.getElementById('payAmount').textContent = '1,999';
-    } else {
-      document.getElementById('payLabel').textContent  = '方案 B · 專業審核方案';
-      document.getElementById('payAmount').textContent = '9,800';
-    }
+    updatePriceUI();
   }
+
+  updatePriceUI();
 
   var API_BASE = 'https://deco168-production.up.railway.app';
 
