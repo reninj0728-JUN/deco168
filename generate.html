@@ -168,6 +168,18 @@
       .orb { width: 120px; height: 120px; }
       .stage-title { font-size: 28px; }
     }
+
+    /* FAB — 查詢下載 */
+    .fab-dl {
+      position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; background: rgba(17,17,17,0.92);
+      border: 1px solid var(--gold); color: var(--gold);
+      text-decoration: none; font-family: 'Inter', sans-serif;
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s;
+    }
+    .fab-dl:hover { background: var(--gold); color: #111; }
   </style>
 </head>
 <body>
@@ -241,8 +253,9 @@
   </div>
 
   <div class="email-note">
-    <strong>完成後會以 Email 通知你。</strong><br>
-    你可以關閉此頁面，結果也會保存。完成後直接點信件連結即可查看成品。
+    <strong>請記下你的訂單編號，完成後可在「查詢下載」頁面取得設計成果。</strong><br>
+    <span style="font-size:22px;letter-spacing:4px;color:var(--gold,#c9a96e);font-family:monospace;" id="displayJobId"></span><br>
+    <span style="font-size:11px;color:var(--muted,#888);">前往 deco168.vercel.app → 查詢下載 → 輸入此編號</span>
   </div>
 </div>
 
@@ -255,6 +268,10 @@
 
   var API_BASE = 'https://deco168-production.up.railway.app';
   var JOB_ID   = localStorage.getItem('deco_job_id');
+  if (JOB_ID) {
+    var el = document.getElementById('displayJobId');
+    if (el) el.textContent = JOB_ID;
+  }
 
   // status → which step number is currently active
   var STATUS_STEP = {
@@ -292,7 +309,7 @@
           updateSteps(5);
           document.getElementById('step5').className = 'ai-step done';
           document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
-          setTimeout(function() { window.location.href = 'result.html'; }, 1500);
+          setTimeout(function() { window.location.href = 'result.html?job=' + JOB_ID; }, 1500);
         } else if (data.status === 'failed') {
           clearInterval(pollTimer);
           document.getElementById('timerText').textContent = data.message || '處理失敗，請聯絡客服';
@@ -318,9 +335,18 @@
     setTimeout(function() {
       document.getElementById('step5').className = 'ai-step done';
       document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
-      setTimeout(function() { window.location.href = 'result.html'; }, 1200);
+      setTimeout(function() { window.location.href = 'result.html?job=' + (JOB_ID || 'DEMO'); }, 1200);
     }, 15000);
   }
 </script>
+
+<a href="download.html" class="fab-dl" title="查詢 / 下載訂單">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+  <span>查詢下載</span>
+</a>
 </body>
 </html>

@@ -252,6 +252,18 @@
       .summary-bar { gap: 16px; }
       .tw-badge { display: none; }
     }
+
+    /* FAB — 查詢下載 */
+    .fab-dl {
+      position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; background: rgba(17,17,17,0.92);
+      border: 1px solid var(--gold); color: var(--gold);
+      text-decoration: none; font-family: 'Inter', sans-serif;
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s;
+    }
+    .fab-dl:hover { background: var(--gold); color: #111; }
   </style>
 </head>
 <body>
@@ -466,5 +478,14 @@
   }
 </script>
 
+
+<a href="download.html" class="fab-dl" title="查詢 / 下載訂單">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+  <span>查詢下載</span>
+</a>
 </body>
 </html>

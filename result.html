@@ -242,6 +242,18 @@
       .designer-section { padding: 24px 20px; }
       .order-meta { gap: 16px; }
     }
+
+    /* FAB — 查詢下載 */
+    .fab-dl {
+      position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; background: rgba(17,17,17,0.92);
+      border: 1px solid var(--gold); color: var(--gold);
+      text-decoration: none; font-family: 'Inter', sans-serif;
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s;
+    }
+    .fab-dl:hover { background: var(--gold); color: #111; }
   </style>
 </head>
 <body>
@@ -368,9 +380,10 @@
 </div>
 
 <script>
-  // Guard
+  // Guard — allow access via URL ?job= param (from download.html or generate.html redirect)
   (function() {
-    if (!localStorage.getItem('deco_order_id')) {
+    var p = new URLSearchParams(window.location.search);
+    if (!localStorage.getItem('deco_order_id') && !p.get('job')) {
       window.location.href = 'index.html';
     }
   })();
@@ -400,7 +413,7 @@
 
   // ── Dynamic render loading ──────────────────────────────
   var API_BASE = 'https://deco168-production.up.railway.app';
-  var JOB_ID   = localStorage.getItem('deco_job_id');
+  var JOB_ID   = new URLSearchParams(window.location.search).get('job') || localStorage.getItem('deco_job_id');
   var _renders = [];
 
   function buildRenderCard(render, idx) {
@@ -529,5 +542,14 @@
     window.open('https://social-plugins.line.me/lineit/share?url=' + url + '&text=' + text, '_blank');
   }
 </script>
+
+<a href="download.html" class="fab-dl" title="查詢 / 下載訂單">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+  <span>查詢下載</span>
+</a>
 </body>
 </html>
