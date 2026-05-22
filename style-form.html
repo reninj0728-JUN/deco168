@@ -718,15 +718,27 @@
   <!-- LAYER 2：風格選擇 -->
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
-    <div class="section-title">主要設計風格</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">最多選 <strong style="color:var(--gold)">2 種</strong>風格，AI 另外推薦 1 種，共 3 張渲染圖。<span style="color:var(--gold);">✦</span> 為 AI 推薦選項。</p>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-      <span id="styleCounter" style="font-size:11px;color:var(--gold);letter-spacing:2px;">已選 1 / 2 種</span>
-      <span id="extraStyleNote" style="font-size:11px;color:var(--muted);display:none;">每多選 1 種 +NT$399</span>
+    <div class="section-title">設計方向</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇最多 <strong style="color:var(--gold)">2 個</strong>設計方向（風格 + 色系），AI 再推薦 1 種，共 3 張渲染圖。</p>
+
+    <!-- 已選方向 chips -->
+    <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
+    <div style="margin-bottom:20px;">
+      <span id="styleCounter" style="font-size:11px;color:var(--gold);letter-spacing:2px;">已選 0 / 2 個方向</span>
     </div>
 
-    <div class="style-grid" id="styleGrid">
-      <!-- cards injected by JS -->
+    <!-- Step 1: 選風格 -->
+    <div id="stylePicker">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;">STEP 1 — 點選風格</div>
+      <div class="style-grid" id="styleGrid"><!-- injected by JS --></div>
+    </div>
+
+    <!-- Step 2: 選色系（點風格後展開） -->
+    <div id="colorPickerPanel" style="display:none;margin-top:20px;padding:20px;border:1px solid rgba(201,169,110,0.4);background:rgba(201,169,110,0.03);">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;">STEP 2 — 選擇色系</div>
+      <div id="colorPickerTitle" style="font-size:13px;color:var(--body);margin-bottom:16px;"></div>
+      <div class="palette-grid" id="inlinePaletteGrid"></div>
+      <button onclick="cancelPairing()" style="margin-top:16px;background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;letter-spacing:1px;">← 重選風格</button>
     </div>
 
     <!-- Reference photo upload -->
@@ -747,14 +759,6 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 03</div>
     <div class="section-title">細節設計偏好</div>
-
-    <!-- 色調 -->
-    <div style="margin-bottom:28px;">
-      <label class="field-label" style="display:block;margin-bottom:14px;">主色調 <span class="ai-preset-badge">AI 推薦</span></label>
-      <div class="palette-grid" id="paletteGrid">
-        <!-- injected by JS -->
-      </div>
-    </div>
 
     <!-- 備註 -->
     <div class="field-group">
@@ -955,61 +959,94 @@ const renderCounts = [
 
 // ── RENDER UI ─────────────────────────────────────────────────────────────────
 
+// ── 風格 + 色系 配對邏輯 ──────────────────────────────────────────────────────
+var selectedDirections = []; // [{styleId, styleName, colorId, colorName}]
+var pendingStyle = null;
+
 function updateStyleCounter() {
-  var count = document.querySelectorAll('.style-card.selected').length;
-  document.getElementById('styleCounter').textContent = '已選 ' + count + ' / 2 種';
+  document.getElementById('styleCounter').textContent =
+    '已選 ' + selectedDirections.length + ' / 2 個方向';
 }
 
 function buildStyleGrid() {
   const grid = document.getElementById('styleGrid');
-  styles.forEach((s, i) => {
-    const card = document.createElement('label');
-    card.className = 'style-card' + (s.ai ? ' ai-pick' : '') + (i===0 ? ' selected' : '');
+  styles.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'style-card' + (s.ai ? ' ai-pick' : '');
+    card.dataset.id = s.id;
     card.innerHTML = `
-      <input type="checkbox" name="mainStyle" value="${s.id}" ${i===0?'checked':''}>
       ${s.ai ? '<div class="ai-dot"></div>' : ''}
       <div class="style-emoji">${s.emoji}</div>
       <div class="style-name">${s.name}</div>
       <div class="style-hint">${s.hint}</div>
     `;
-    card.addEventListener('click', (e) => {
-      e.preventDefault();
-      const cb = card.querySelector('input[type=checkbox]');
-      const alreadySelected = card.classList.contains('selected');
-      if (alreadySelected) {
-        card.classList.remove('selected');
-        cb.checked = false;
-      } else {
-        const count = document.querySelectorAll('.style-card.selected').length;
-        if (count >= 2) { alert('最多選 2 種風格'); return; }
-        card.classList.add('selected');
-        cb.checked = true;
-      }
-      updateStyleCounter();
-      updateSummary();
+    card.addEventListener('click', () => {
+      if (selectedDirections.length >= 2) { alert('最多 2 個設計方向'); return; }
+      pendingStyle = s;
+      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('pending'));
+      card.classList.add('pending');
+      showColorPicker(s);
     });
     grid.appendChild(card);
   });
-  updateStyleCounter();
 }
 
-function buildExtraStyles() {
-  const grid = document.getElementById('extraStyleGrid');
-  extraStyles.forEach(name => {
-    const label = document.createElement('label');
-    label.className = 'check-item';
-    label.innerHTML = `
-      <input type="checkbox" value="${name}">
-      <div class="check-box">✓</div>
-      <span class="check-text">${name}</span>
-    `;
-    label.addEventListener('click', () => label.classList.toggle('selected'));
-    grid.appendChild(label);
+function showColorPicker(s) {
+  document.getElementById('colorPickerTitle').textContent =
+    '你選了「' + s.name + '」，現在選一個色系：';
+  const grid = document.getElementById('inlinePaletteGrid');
+  grid.innerHTML = '';
+  palettes.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'palette-card';
+    const swatchHtml = p.colors.map(c => `<span style="background:${c}"></span>`).join('');
+    card.innerHTML = `<div class="palette-swatch">${swatchHtml}</div><div class="palette-label">${p.name}</div>`;
+    card.addEventListener('click', () => confirmDirection(s, p));
+    grid.appendChild(card);
+  });
+  document.getElementById('colorPickerPanel').style.display = 'block';
+  document.getElementById('colorPickerPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function confirmDirection(style, palette) {
+  selectedDirections.push({ styleId: style.id, styleName: style.name,
+    colorId: palette.id, colorName: palette.name });
+  document.getElementById('colorPickerPanel').style.display = 'none';
+  document.querySelectorAll('.style-card').forEach(c => c.classList.remove('pending'));
+  pendingStyle = null;
+  updateDirectionChips();
+  updateStyleCounter();
+  updateSummary();
+}
+
+function cancelPairing() {
+  document.getElementById('colorPickerPanel').style.display = 'none';
+  document.querySelectorAll('.style-card').forEach(c => c.classList.remove('pending'));
+  pendingStyle = null;
+}
+
+function removeDirection(i) {
+  selectedDirections.splice(i, 1);
+  updateDirectionChips();
+  updateStyleCounter();
+  updateSummary();
+}
+
+function updateDirectionChips() {
+  const container = document.getElementById('directionChips');
+  container.innerHTML = '';
+  selectedDirections.forEach((d, i) => {
+    const chip = document.createElement('div');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--gold);font-size:11px;color:var(--white);letter-spacing:1px;';
+    chip.innerHTML = `<span style="color:var(--gold);">${i+1}</span> ${d.styleName} × ${d.colorName}
+      <button onclick="removeDirection(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 0 0 4px;">✕</button>`;
+    container.appendChild(chip);
   });
 }
 
 function buildPalettes() {
   const grid = document.getElementById('paletteGrid');
+  if (!grid) return;
   palettes.forEach((p, i) => {
     const label = document.createElement('label');
     label.className = 'palette-card' + (i===0 ? ' selected' : '');
@@ -1161,8 +1198,13 @@ var styleLabels = {
 };
 
 function getSelectedStyleId() {
-  var checked = Array.from(document.querySelectorAll('input[name="mainStyle"]:checked'));
-  return checked.length > 0 ? checked.map(r => r.value).join(',') : 'modern';
+  if (selectedDirections.length > 0)
+    return selectedDirections.map(d => d.styleId).join(',');
+  return 'modern';
+}
+
+function getSelectedDirectionsJson() {
+  return JSON.stringify(selectedDirections);
 }
 
 function getSelectedPaletteName() {
@@ -1189,7 +1231,8 @@ function buildDiagnosis() {
 function submitForm() {
   var styleIds = getSelectedStyleId();
   localStorage.setItem('deco_style',       styleIds);
-  localStorage.setItem('deco_style_count', String(styleIds.split(',').filter(Boolean).length));
+  localStorage.setItem('deco_style_count', String(selectedDirections.length));
+  localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
 
