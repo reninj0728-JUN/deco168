@@ -12,8 +12,13 @@ from pathlib import Path
 # Force UTF-8 output on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAX2N4IIbpg4Z2CjNUrktKb3KrthOU094Y'
-os.environ['FAL_KEY'] = 'f7a5e217-b7ca-4c8a-b852-f53b25610f11:5b6396d8af1370127eb244c4460f6109'
+# API keys 從環境變數讀取，禁止 hardcode
+# 本地測試：在 backend/.env 設定後執行 `python-dotenv` 或手動 export
+# Railway：從 Railway 後台 Variables 頁面設定
+if not os.environ.get('GEMINI_API_KEY'):
+    raise RuntimeError("GEMINI_API_KEY 未設定，請在環境變數或 .env 設定")
+if not os.environ.get('FAL_KEY'):
+    raise RuntimeError("FAL_KEY 未設定，請在環境變數或 .env 設定")
 
 from google import genai
 from google.genai import types
