@@ -660,15 +660,14 @@
       </div>
 
       <div class="field-group">
-        <label class="field-label">設計模式 <span class="ai-preset-badge">AI 推薦</span></label>
+        <label class="field-label">你想要 AI 幫你規劃什麼？<span class="ai-preset-badge">AI 推薦</span></label>
         <div class="select-wrapper">
-          <select id="designMode">
-            <option>全新設計（翻新）</option>
-            <option>現有空間優化</option>
-            <option>軟裝搭配（不動格局）</option>
-            <option>局部改造</option>
+          <select id="designMode" onchange="updateDesignHint()">
+            <option value="furnish">傢俱＋軟裝（不動牆壁）</option>
+            <option value="full">裝潢＋傢俱（含隔間／天花板）</option>
           </select>
         </div>
+        <div id="designHint" style="margin-top:8px; font-size:11px; color:#666; letter-spacing:0.3px; line-height:1.6; padding-left:2px;"></div>
       </div>
 
       <div class="field-group">
@@ -798,10 +797,8 @@
         <label class="field-label">渲染視角偏好</label>
         <div class="select-wrapper">
           <select id="renderAngle">
-            <option>主要空間全景</option>
-            <option selected>多角度（各 2–3 張）</option>
-            <option>細節特寫為主</option>
-            <option>鳥瞰配置圖</option>
+            <option>單一全景（1 張主視角）</option>
+            <option selected>多角度（3 張不同視角）</option>
           </select>
         </div>
       </div>
@@ -1149,6 +1146,19 @@ function renderRefPreviews() {
   });
 }
 
+// ── DESIGN MODE HINT ──────────────────────────────────────────────────────────
+var designHints = {
+  furnish: 'AI 從 5,000+ 件傢俱中挑選最搭的沙發、桌椅、燈具、窗簾、裝飾品，直接配進你的空間。牆壁、天花板、地板完全不動，費用最省，效果立竿見影。',
+  full:    'AI 同時規劃木工天花板、系統櫃，以及所有傢俱軟裝的搭配。一張渲染圖看到底，最完整的改造方案。'
+};
+function updateDesignHint() {
+  var sel = document.getElementById('designMode');
+  var hint = document.getElementById('designHint');
+  if (!sel || !hint) return;
+  hint.textContent = designHints[sel.value] || '';
+}
+updateDesignHint();
+
 // ── BUDGET SLIDER ─────────────────────────────────────────────────────────────
 const budgetSlider = document.getElementById('budgetSlider');
 const budgetVal = document.getElementById('budgetVal');
@@ -1191,8 +1201,8 @@ var budgetMap = {
 
 var insightMap = {
   modern:      '你偏好乾淨俐落的線條與機能效率。AI 建議以<em>無主燈設計</em>為基礎，嵌燈搭配局部懸掛燈，讓空間層次豐富而不複雜。選用淺木紋地板搭配深色金屬框架，視覺比例最均衡。',
-  nordic:      '北歐風的核心在於<em>溫暖留白</em>。建議保留大面積淺色基底，透過木質家具與織物軟裝製造溫度，避免過多裝飾性元素讓空間看起來太「滿」。',
-  japanese:    '侘寂風最難的是「減法」。AI 建議聚焦在<em>材質觸感</em>（石、木、藤），而非形狀的複雜；窗邊刻意留白比堆砌家具更能呈現這種靜謐美學。',
+  nordic:      '北歐風的核心在於<em>溫暖留白</em>。建議保留大面積淺色基底，透過木質傢俱與織物軟裝製造溫度，避免過多裝飾性元素讓空間看起來太「滿」。',
+  japanese:    '侘寂風最難的是「減法」。AI 建議聚焦在<em>材質觸感</em>（石、木、藤），而非形狀的複雜；窗邊刻意留白比堆砌傢俱更能呈現這種靜謐美學。',
   industrial:  '工業風需要結構感與溫度的平衡。建議以鐵件骨架搭配裸露管線，再加入皮革或木質軟化比例，避免空間全面偏冷、失去居住感。',
   luxury:      '輕奢現代靠的是<em>材質等級</em>而非數量。建議在單一焦點（主牆或床頭）放置高質感材料，其餘保持克制——比例感比堆料更重要。',
   mediterranean: '地中海風格的靈魂在<em>拱形線條與藍白對比</em>。建議以白牆為底，磁磚選用手工質感而非過於光亮的款式，植栽是不可省略的視覺重點。',
@@ -1245,6 +1255,8 @@ function submitForm() {
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
+  localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
+  localStorage.setItem('deco_budget', budgetLabels[document.getElementById('budgetSlider').value]);
 
   buildDiagnosis();
 
