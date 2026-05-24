@@ -252,4 +252,9 @@ def get_result(job_id: str):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "base_dir": str(BASE_DIR)}
+    return {
+        "status": "ok",
+        "base_dir": str(BASE_DIR),
+        "gemini_key": "set" if os.environ.get("GEMINI_API_KEY") else "MISSING",
+        "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
+    }
