@@ -9,29 +9,35 @@
 import os, sys, json, base64, time, io
 from pathlib import Path
 
-# Force UTF-8 output on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-# API keys 從環境變數讀取，禁止 hardcode
-# 本地測試：在 backend/.env 設定後執行 `python-dotenv` 或手動 export
-# Railway：從 Railway 後台 Variables 頁面設定
-if not os.environ.get('GEMINI_API_KEY'):
-    raise RuntimeError("GEMINI_API_KEY 未設定，請在環境變數或 .env 設定")
-if not os.environ.get('FAL_KEY'):
-    raise RuntimeError("FAL_KEY 未設定，請在環境變數或 .env 設定")
+VALID_STYLES = ["modern","japanese","luxury","nordic","industrial","mediterranean","muji","art-deco","boho"]
 
-from google import genai
+_client = None
+_SYSTEM_PROMPT = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        key = os.environ.get('GEMINI_API_KEY')
+        if not key:
+            raise RuntimeError("GEMINI_API_KEY 未設定，請在 Railway Variables 設定")
+        from google import genai
+        _client = genai.Client(api_key=key)
+    return _client
+
+def _get_system_prompt():
+    global _SYSTEM_PROMPT
+    if _SYSTEM_PROMPT is None:
+        base = Path(__file__).parent
+        txt = (base / "gemini_analyze.py").read_text(encoding="utf-8")
+        _SYSTEM_PROMPT = txt.split('SYSTEM_PROMPT = """')[1].split('"""')[0]
+    return _SYSTEM_PROMPT
+
 from google.genai import types
 from furniture_match import enrich_renders
 import fal_client
 import requests
-
-GEMINI_KEY = os.environ['GEMINI_API_KEY']
-client = genai.Client(api_key=GEMINI_KEY)
-
-VALID_STYLES = ["modern","japanese","luxury","nordic","industrial","mediterranean","muji","art-deco","boho"]
-
-SYSTEM_PROMPT = open("gemini_analyze.py", encoding="utf-8").read().split('SYSTEM_PROMPT = """')[1].split('"""')[0]
 
 # ─── Step 1: Gemini 分析照片（支援多張）─────────────────────────────────────
 
@@ -118,11 +124,11 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
     ] + [prompt]
 
     t0 = time.time()
-    resp = client.models.generate_content(
-        model="gemini-3.1-flash-lite",
+    resp = _get_client().models.generate_content(
+        model="gemini-2.0-flash",
         contents=contents,
         config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=_get_system_prompt(),
             response_mime_type="application/json",
         ),
     )
