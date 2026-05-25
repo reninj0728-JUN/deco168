@@ -255,6 +255,6 @@ def health():
     return {
         "status": "ok",
         "base_dir": str(BASE_DIR),
-        "gemini_key": "set" if os.environ.get("GEMINI_API_KEY") else "MISSING",
+        "gemini_key": "set" if (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")) else "MISSING",
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
     }

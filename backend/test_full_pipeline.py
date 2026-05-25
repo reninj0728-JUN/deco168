@@ -19,7 +19,7 @@ _SYSTEM_PROMPT = None
 def _get_client():
     global _client
     if _client is None:
-        key = os.environ.get('GEMINI_API_KEY')
+        key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_AI_KEY')
         if not key:
             raise RuntimeError("GEMINI_API_KEY 未設定，請在 Railway Variables 設定")
         from google import genai
