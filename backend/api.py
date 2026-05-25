@@ -135,7 +135,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
 
     except Exception as e:
         err_txt = traceback.format_exc()
-        write_status(job_id, job_dir, "failed", 0, f"處理失敗：{e}")
+        write_status(job_id, job_dir, "failed", 0, f"處理失敗，請聯絡客服")
+        sb_upsert({"job_id": job_id, "status": "failed", "message": f"處理失敗，請聯絡客服",
+                   "result_json": {"error": str(e), "traceback": err_txt[-2000:]}})
         with open(job_dir / "error.log", "w", encoding="utf-8") as f:
             f.write(err_txt)
 
