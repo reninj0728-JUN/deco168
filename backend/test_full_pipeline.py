@@ -224,8 +224,11 @@ def generate_renders(image_path: str, enriched_renders: list[dict], output_dir: 
             )
             elapsed = time.time() - t0
 
-            img_url = result["images"][0]["url"]
+            img_url = (result.get("images") or [{}])[0].get("url")
+            if not img_url:
+                raise ValueError(f"fal.ai 未回傳圖片 URL，result keys: {list(result.keys())}")
             resp = requests.get(img_url, timeout=60)
+            resp.raise_for_status()
             out_path = os.path.join(output_dir, f"render_{style}.jpg")
             with open(out_path, "wb") as f:
                 f.write(resp.content)
