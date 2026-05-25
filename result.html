@@ -278,8 +278,13 @@
       var furnItems = furn.length
         ? furn.map(function(f, j) {
             var price   = f.price_twd ? 'NT$' + Number(f.price_twd).toLocaleString() : '—';
-            var linkBtn = (f.purchase_url || f.link)
-              ? '<a href="' + (f.purchase_url || f.link) + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
+            var rawUrl = f.purchase_url || f.link || '';
+            if (rawUrl.includes('google.com/search')) {
+              var m = rawUrl.match(/q=IKEA\+([^&+]+)/);
+              rawUrl = m ? 'https://www.ikea.com.tw/zh/search/?query=' + m[1] : 'https://www.ikea.com.tw';
+            }
+            var linkBtn = rawUrl
+              ? '<a href="' + rawUrl + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
               : '';
             return '<div class="f-item">' +
               '<div class="f-num">' + (j+1) + '</div>' +
