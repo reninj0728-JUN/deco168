@@ -259,4 +259,5 @@ def health():
         "gemini_key": "set" if (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")) else "MISSING",
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
         "matching_keys": keys,
+        "all_keys": sorted(os.environ.keys()),
     }
