@@ -252,9 +252,11 @@ def get_result(job_id: str):
 
 @app.get("/health")
 def health():
+    keys = [k for k in os.environ if "GEMINI" in k or "GOOGLE" in k or "FAL" in k or "AI" in k]
     return {
         "status": "ok",
         "base_dir": str(BASE_DIR),
         "gemini_key": "set" if (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")) else "MISSING",
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
+        "matching_keys": keys,
     }
