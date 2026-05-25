@@ -107,7 +107,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
 
-        write_status(job_id, job_dir, "rendering", 60, "Flux AI 生成渲染圖（約 5-10 分鐘）…")
+        write_status(job_id, job_dir, "rendering", 60, "AI 渲染圖生成中（約 5-10 分鐘）…")
         final = generate_renders(main_photo, enriched, output_dir=str(job_dir))
 
         result = {"analysis": analysis, "renders": final}
@@ -248,6 +248,14 @@ def get_result(job_id: str):
         path = render.get("render_path", "")
         render["render_filename"] = Path(path).name if path else None
     return result
+
+
+@app.get("/api/job/{job_id}/error")
+def get_error(job_id: str):
+    error_file = JOBS_DIR / job_id / "error.log"
+    if not error_file.exists():
+        return {"error": "no error log"}
+    return {"log": error_file.read_text(encoding="utf-8", errors="replace")}
 
 
 @app.get("/health")
