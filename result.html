@@ -278,8 +278,8 @@
       var furnItems = furn.length
         ? furn.map(function(f, j) {
             var price   = f.price_twd ? 'NT$' + Number(f.price_twd).toLocaleString() : '—';
-            var linkBtn = f.link
-              ? '<a href="' + f.link + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
+            var linkBtn = (f.purchase_url || f.link)
+              ? '<a href="' + (f.purchase_url || f.link) + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
               : '';
             return '<div class="f-item">' +
               '<div class="f-num">' + (j+1) + '</div>' +
@@ -295,15 +295,15 @@
               '</div></div>';
           }).join('') +
           (total > 0
-            ? '<div class="total-bar"><div class="total-label">家具小計（' + furn.length + '件）</div>' +
+            ? '<div class="total-bar"><div class="total-label">傢俱小計（' + furn.length + '件）</div>' +
               '<div class="total-price">NT$' + total.toLocaleString() + '</div></div>'
             : '')
-        : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">家具清單生成中…</p>';
+        : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">傢俱清單生成中…</p>';
 
       return '<div class="style-panel' + (i === 0 ? ' active' : '') + '" id="panel-' + i + '">' +
              '<div class="panel-grid">' +
              '<div class="render-box">' + imgSection + '</div>' +
-             '<div class="furniture-box"><h3>推薦家具清單</h3>' + furnItems + '</div>' +
+             '<div class="furniture-box"><h3>推薦傢俱清單</h3>' + furnItems + '</div>' +
              '</div></div>';
     }).join('');
     document.getElementById('panelsContainer').innerHTML = panelsHtml;
