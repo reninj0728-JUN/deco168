@@ -117,15 +117,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
         for r in final:
-            render_path = Path(r.get("render_path", ""))
+            raw_path = r.get("render_path") or ""
+            render_path = Path(raw_path) if raw_path else None
             render_url = None
-            if render_path.exists():
+            if render_path and render_path.exists():
                 render_url = sb_upload_render(job_id, render_path)
             slim_renders.append({
                 "style":             r.get("style"),
                 "style_label":       r.get("style_label"),
-                "render_filename":   render_path.name if render_path.name else None,
-                "render_url":        render_url,  # Supabase 公開 URL
+                "render_filename":   render_path.name if render_path else None,
+                "render_url":        render_url,
+                "render_error":      r.get("error"),
                 "matched_furniture": r.get("matched_furniture", [])[:3],
             })
 
