@@ -14,7 +14,7 @@ LOG_PATH      = Path(__file__).parent / "reclassify_log.txt"
 MODEL         = "gemini-3.1-flash-lite"
 SLEEP_SEC     = 2
 
-VALID_STYLES = ["modern","japanese","luxury","nordic","mediterranean","muji","art-deco","cream","wood","french","chinese-modern","boho","industrial"]
+VALID_STYLES = ["modern","japanese","luxury","nordic","mediterranean","muji","cream","wood","french","chinese-modern","boho","industrial"]
 
 CLASSIFY_PROMPT = """你是專業室內設計師，請仔細分析這張傢俱產品圖。
 
