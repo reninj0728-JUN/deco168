@@ -45,7 +45,7 @@ no people, no text, no watermark, no distortion, no cartoon, no oversaturated co
 中空間（15-35坪）→ 標準詞庫即可
 大空間（>35坪）→ 加：double-height ceiling, statement furniture, architectural feature wall
 
-━━ 九大風格詞庫 ━━
+━━ 11 種風格詞庫 ━━
 
 【現代簡約 modern】台灣最主流，適合小坪數
 材質：white oak / ash wood panels / matte concrete / brushed aluminum / frosted glass
@@ -75,13 +75,6 @@ no people, no text, no watermark, no distortion, no cartoon, no oversaturated co
 家具：clean-leg dining chair / hygge armchair / storage bench / modular shelving / sheepskin rug
 台灣特性：台灣潮濕，選材避免實木易變形，偏向貼皮板材或金屬腳家具
 
-【工業風 industrial】個性鮮明，男性空間偏好
-材質：exposed brick / raw concrete / black iron pipe / weathered wood / galvanized metal / aged leather
-色調：dark charcoal / raw concrete grey / rust orange / deep navy / matte black / antique bronze
-燈光：Edison filament bulb / factory pendant / wall-mount pipe lamp / track lighting
-家具：reclaimed wood dining table / leather Chesterfield / wire mesh chair / iron bookshelf
-台灣特性：舊公寓樓板低，工業風刻意露出管線反而化解天花板壓迫感
-
 【地中海 mediterranean】度假感，南台灣適合
 材質：whitewashed plaster / terracotta tile / hand-painted ceramic / natural stone / sea glass mosaic
 色調：Mediterranean blue / bright white / warm terracotta / sandy beige / olive green / sunset orange
@@ -103,12 +96,33 @@ no people, no text, no watermark, no distortion, no cartoon, no oversaturated co
 家具：sunburst mirror / tufted velvet armchair / geometric side table / lacquered cabinet / stepped credenza
 台灣特性：適合挑高空間（3.2m+），低矮天花板用 Art Deco 會顯壓迫，需搭配大面積鏡面拉高視覺
 
-【波希米亞 Boho boho】自由混搭，年輕女性市場
-材質：macramé / jute / vintage kilim rug / raw linen / distressed wood / wicker / clay
-色調：warm terracotta / mustard yellow / burnt orange / sage green / dusty rose / cream / rust
-燈光：string fairy lights / lantern cluster / floor lamp with fringed shade / candlelight
-家具：low floor seating / layered rug / hanging rattan chair / floor cushion pile / plant wall
-台灣特性：植物是 Boho 必需品，台灣氣候植物易養，黃金葛/粗肋草/虎尾蘭都適合室內
+【奶油風 cream】近年台灣最主流，溫柔質感
+材質：light oak / natural linen / boucle fabric / matte ceramic / rattan / warm plaster
+色調：warm ivory / cream white / linen beige / soft camel / warm sand / oatmeal
+燈光：warm 2700K pendant / fabric shade floor lamp / indirect warm wash / sheer curtain diffused natural light
+家具：rounded boucle sofa / curved wood side table / woven storage basket / soft linen cushions
+台灣特性：搭配木地板和大理石紋磚效果最佳，近年台灣 IG 裝潢最多點讚風格
+
+【原木風 wood】自然療癒，森系氣息
+材質：solid oak / walnut / cedar / bamboo / natural stone / cotton linen / hand-woven textile
+色調：warm amber / honey wood / caramel / natural sand / forest green / earthy brown
+燈光：warm Edison bulb / rattan pendant / maximize skylight / candle warmth
+家具：solid wood dining table / live-edge coffee table / woven rattan chair / wooden open shelving
+台灣特性：結合台灣在地木材文化，搭配植栽（黃金葛/虎尾蘭）效果自然，台灣氣候易於養植
+
+【法式優雅 french】弧線美學，女性市場首選
+材質：carved wood moulding / aged linen / velvet / polished brass / marble / cane rattan
+色調：ivory white / soft grey / dusty blue / rose blush / champagne / antique white
+燈光：crystal chandelier / brass wall sconce / draped fabric shade / warm romantic diffused light
+家具：curved Louis-style sofa / cane bistro chair / ornate mirror / antique console table / floor-length linen curtain
+台灣特性：法式風台灣女性市場接受度高，適合採光好或挑高空間，梁柱可用石膏線條裝飾
+
+【新中式 chinese-modern】東方美學，高端市場
+材質：dark walnut / rosewood veneer / jade green tile / brushed bronze / rice paper screen / black stone
+色調：deep walnut / terracotta / ink black / jade green / warm gold / cream white
+燈光：low hanging lantern-inspired pendant / indirect cove / architectural spotlighting / paper screen ambient
+家具：low profile tea table / lattice screen partition / ceramic accent piece / calligraphy wall art / woven cushion
+台灣特性：30-50 歲高端客群，融合東方美學，強調留白精緻工藝，適合中大坪數開放格局
 
 ━━ 空間規模判斷 ━━
 小空間（<15坪）→ 加：light reflective surface / open concept / visual expansion / mirror panel
@@ -116,24 +130,26 @@ no people, no text, no watermark, no distortion, no cartoon, no oversaturated co
 大空間（>35坪）→ 加：double-height ceiling / statement furniture / architectural feature wall
 
 ━━ 梁柱因應（台灣老公寓常見，若影片可見明顯梁柱）━━
-modern    → floating ceiling soffit, concealed beam, indirect cove lighting
-japanese  → exposed beam aesthetic, natural wood beam wrap, zen architectural detail
-luxury    → coffered ceiling, architectural beam feature, dramatic pendant to draw eye down
-nordic    → painted beam white, integrated beam shelf, casual hygge aesthetic
-industrial → exposed beam feature, raw steel bracket, factory loft aesthetic
-mediterranean → plaster-wrapped beam, arched soffit, whitewash beam treatment
-muji      → concealed beam panel, flush ceiling, minimal distraction
-art-deco  → geometric beam casing, gold trim accent, architectural feature
-boho      → macramé beam wrap, hanging plant from beam, eclectic textile drape
+modern         → floating ceiling soffit, concealed beam, indirect cove lighting
+japanese       → exposed beam aesthetic, natural wood beam wrap, zen architectural detail
+luxury         → coffered ceiling, architectural beam feature, dramatic pendant to draw eye down
+nordic         → painted beam white, integrated beam shelf, casual hygge aesthetic
+mediterranean  → plaster-wrapped beam, arched soffit, whitewash beam treatment
+muji           → concealed beam panel, flush ceiling, minimal distraction
+art-deco       → geometric beam casing, gold trim accent, architectural feature
+cream          → soft plaster beam wrap, warm ivory tone, indirect warm cove light above
+wood           → celebrate natural beam, stain to match floor, wooden beam as design feature
+french         → decorative plaster moulding wrap, champagne tone, ornate corbel accent
+chinese-modern → dark walnut beam casing, lattice screen integration, architectural statement
 
 ━━ 風格與空間相性（AI 推薦邏輯）━━
-採光充足 + 小坪數  → modern / muji / nordic
-採光不足 + 小坪數  → japanese（善用燈光製造溫度）/ muji
-大坪數 + 高天花板  → luxury / art-deco / industrial
-南向大窗 + 熱帶氣候 → mediterranean / boho
-屋主提到放鬆療癒   → japanese / boho / nordic
-屋主提到高端質感   → luxury / art-deco
-屋主提到個性獨特   → industrial / boho / art-deco
+採光充足 + 小坪數  → modern / muji / nordic / cream
+採光不足 + 小坪數  → japanese（善用燈光製造溫度）/ muji / wood
+大坪數 + 高天花板  → luxury / art-deco / french / chinese-modern
+南向大窗 + 熱帶氣候 → mediterranean / wood
+屋主提到放鬆療癒   → japanese / wood / nordic / cream
+屋主提到高端質感   → luxury / art-deco / french / chinese-modern
+屋主提到個性獨特   → art-deco / chinese-modern / french
 屋主提到實用收納   → muji / modern / nordic
 
 ━━ Few-shot 示範（照這個品質輸出）━━
@@ -149,11 +165,11 @@ oiled natural cedar wall panels, washi texture accent wall matte, honed stone ti
 flux_prompt for nordic：
 white birch veneer panels, wool felt armchair oatmeal, solid pine dining table natural, oversized linen pendant warm 2700K, sheer cotton curtain floor length, soft cream and dusty sage palette, hygge living room styled, Scandinavian minimalist, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
 
-flux_prompt for boho：
-layered vintage kilim rug, macramé wall hanging hand-knotted, rattan hanging chair natural weave, terracotta clay vessels matte, warm string lights ambient, linen floor cushion pile, potted monstera tropical plant, warm mustard and rust palette, bohemian eclectic interior styled, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
+flux_prompt for cream：
+warm ivory boucle sofa rounded silhouette, light oak side table matte finish, linen curtain sheer floor length, rattan woven storage basket, soft cream terrazzo tile floor, warm 2700K pendant fabric shade, cream and camel warm palette, warm minimalist cream interior styled, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
 """
 
-VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "industrial", "mediterranean", "muji", "art-deco", "boho"]
+VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "mediterranean", "muji", "art-deco", "cream", "wood", "french", "chinese-modern"]
 
 
 def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict:
@@ -175,13 +191,13 @@ def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict
 {"如果不足 3 個，AI 自行從剩餘風格中補齊至 3 個，選最適合此空間的。" if len(fixed_styles) < 3 else ""}
 """
     else:
-        # 用戶未選：AI 從 9 種風格推薦最適合的 3 種
+        # 用戶未選：AI 從 11 種風格推薦最適合的 3 種
         fixed_styles = []
         mode = "ai_recommended"
         style_instruction = """
 用戶未指定風格，請根據空間的採光、坪數、格局、屋主需求，
-從以下 9 種風格中推薦最適合的 3 種：
-modern / japanese / luxury / nordic / industrial / mediterranean / muji / art-deco / boho
+從以下 11 種風格中推薦最適合的 3 種：
+modern / japanese / luxury / nordic / mediterranean / muji / art-deco / cream / wood / french / chinese-modern
 """
 
     print(f"[Gemini] 上傳影片: {video_path}")

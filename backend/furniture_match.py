@@ -1,14 +1,34 @@
 """
-家具配對模組
+傢俱配對模組
 輸入：Gemini 分析的 renders[] (含 flux_prompt)
-輸出：每個 render 附帶 3~5 件真實家具推薦 + 產品圖片 URL
+輸出：每個 render 附帶 3~5 件真實傢俱推薦 + 產品圖片 URL
 """
 import json
 import os
 import re
 from pathlib import Path
 
-CATALOG_PATH = Path(__file__).parent / "furniture_catalog.json"
+# 真實商品目錄（momo 爬取，有真實圖片和購買連結）
+CATALOG_REAL_PATH = Path(__file__).parent / "furniture_catalog_real.json"
+# 舊目錄作為備用（AI 生成，無真實圖片）
+CATALOG_FALLBACK_PATH = Path(__file__).parent / "furniture_catalog.json"
+
+# 中文類別 → 英文類別對照（配合 CATEGORY_KEYWORDS）
+CATEGORY_ZH_TO_EN = {
+    '沙發': 'sofa',
+    '桌子': 'table',
+    '椅子': 'chair',
+    '床架': 'bed',
+    '茶几': 'table',
+    '收納': 'storage',
+    '燈具': 'lighting',
+    '地毯': 'rug',
+    '窗簾': 'curtain',
+    '裝飾': 'mirror',
+    '抱枕': 'pillow',
+    '寢具': 'bedding',
+    '傢俱': 'other',
+}
 
 # 家具類別關鍵字 → category
 CATEGORY_KEYWORDS = {
@@ -27,11 +47,17 @@ CATEGORY_KEYWORDS = {
 
 
 def load_catalog() -> list[dict]:
-    """載入家具目錄"""
-    if not CATALOG_PATH.exists():
-        return []
-    with open(CATALOG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """載入傢俱目錄：優先用真實商品，不足時補舊目錄"""
+    catalog = []
+    if CATALOG_REAL_PATH.exists():
+        with open(CATALOG_REAL_PATH, "r", encoding="utf-8") as f:
+            catalog = json.load(f)
+        print(f"[furniture_match] 真實目錄: {len(catalog)} 件 (momo)")
+    if not catalog and CATALOG_FALLBACK_PATH.exists():
+        with open(CATALOG_FALLBACK_PATH, "r", encoding="utf-8") as f:
+            catalog = json.load(f)
+        print(f"[furniture_match] 備用目錄: {len(catalog)} 件 (AI生成)")
+    return catalog
 
 
 def extract_categories_from_prompt(flux_prompt: str) -> list[str]:
@@ -68,16 +94,20 @@ def match_furniture(style: str, flux_prompt: str, catalog: list[dict], top_n: in
         elif any(s in item_styles for s in _get_related_styles(style)):
             score += 1
 
-        # 類別命中（prompt 需要的類別）
-        item_cat = item.get("category", "")
+        # 類別命中（prompt 需要的類別）—— 支援中英文類別
+        item_cat_raw = item.get("category", "")
+        item_cat = CATEGORY_ZH_TO_EN.get(item_cat_raw, item_cat_raw.lower())
         if item_cat in needed_cats:
             score += 2
 
         # flux_prompt 關鍵字命中
+        # flux_descriptor 可能為空（momo 未跑 Gemini），改以 name_zh 補充
         item_keywords = [kw.lower() for kw in item.get("keywords", [])]
         item_descriptor = item.get("flux_descriptor", "").lower()
+        item_name = item.get("name_zh", "").lower()
+        search_text = item_descriptor or item_name  # 優先用 descriptor，沒有就用名稱
         for pkw in prompt_keywords:
-            if any(pkw in ikw for ikw in item_keywords) or pkw in item_descriptor:
+            if any(pkw in ikw for ikw in item_keywords) or pkw in search_text:
                 score += 1
 
         # 顏色符合
@@ -115,11 +145,17 @@ def match_furniture(style: str, flux_prompt: str, catalog: list[dict], top_n: in
 def _get_related_styles(style: str) -> list[str]:
     """風格相近群組，用於寬鬆配對"""
     groups = [
-        ["modern", "muji", "nordic"],
-        ["japanese", "muji"],
-        ["luxury", "art-deco"],
-        ["boho", "mediterranean"],
-        ["industrial"],
+        ["modern", "muji", "nordic", "cream"],
+        ["japanese", "muji", "wood"],
+        ["luxury", "art-deco", "french"],
+        ["cream", "nordic", "muji", "wood"],
+        ["wood", "japanese", "muji", "nordic"],
+        ["french", "luxury", "art-deco"],
+        ["chinese-modern", "luxury"],
+        ["mediterranean"],
+        # 舊風格保留相性（catalog 舊品項仍有這些 tag）
+        ["boho", "mediterranean", "wood"],
+        ["industrial", "modern"],
     ]
     for group in groups:
         if style in group:
@@ -188,7 +224,7 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
     estimated_size = analysis.get("estimated_size", "") if analysis else ""
     room_dims = analysis.get("room_dimensions") if analysis else None
     max_w = parse_max_width_cm(estimated_size, room_dims)
-    print(f"[furniture_match] 空間: {estimated_size} → 家具寬度上限: {max_w}cm")
+    print(f"[furniture_match] 空間: {estimated_size} → 傢俱寬度上限: {max_w}cm")
 
     enriched = []
     for render in renders:
@@ -207,7 +243,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
                 "price_twd": item.get("price_twd", 0),
                 "image_url": item.get("image_url", ""),
                 "purchase_url": item.get("purchase_url", ""),
-                "flux_descriptor": item.get("flux_descriptor", ""),
+                # flux_descriptor 空時退回 name_zh，確保 Flux 有可用描述
+                "flux_descriptor": item.get("flux_descriptor", "") or item.get("name_zh", ""),
                 "dimensions": item.get("dimensions", ""),
                 "colors": item.get("colors", []),
             }

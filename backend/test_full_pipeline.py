@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-VALID_STYLES = ["modern","japanese","luxury","nordic","industrial","mediterranean","muji","art-deco","boho"]
+VALID_STYLES = ["modern","japanese","luxury","nordic","mediterranean","muji","art-deco","cream","wood","french","chinese-modern"]
 
 _client = None
 _SYSTEM_PROMPT = None
