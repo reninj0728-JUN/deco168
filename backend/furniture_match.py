@@ -152,9 +152,8 @@ def _get_related_styles(style: str) -> list[str]:
         ["wood", "japanese", "muji", "nordic"],
         ["french", "luxury", "art-deco"],
         ["chinese-modern", "luxury"],
-        ["mediterranean"],
         # 舊風格保留相性（catalog 舊品項仍有這些 tag）
-        ["boho", "mediterranean", "wood"],
+        ["boho", "wood"],
         ["industrial", "modern"],
     ]
     for group in groups:

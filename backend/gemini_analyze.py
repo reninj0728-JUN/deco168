@@ -75,13 +75,6 @@ no people, no text, no watermark, no distortion, no cartoon, no oversaturated co
 家具：clean-leg dining chair / hygge armchair / storage bench / modular shelving / sheepskin rug
 台灣特性：台灣潮濕，選材避免實木易變形，偏向貼皮板材或金屬腳家具
 
-【普羅旺斯／地中海 mediterranean】度假感，南歐氣息
-材質：whitewashed plaster / terracotta tile / hand-painted ceramic / natural stone / sea glass mosaic
-色調：Mediterranean blue / bright white / warm terracotta / sandy beige / olive green / sunset orange
-燈光：lantern pendant / candlelight warm / arched window natural light / wrought iron sconce
-家具：arched doorway / curved plaster shelves / mosaic tile coffee table / rattan daybed / linen curtain
-台灣特性：南台灣採光強，地中海白牆反光效果絕佳，植栽（棕櫚/橄欖）易於台灣種植
-
 【無印極簡 muji】功能主義，極簡美學
 材質：unfinished beech / natural cotton canvas / recycled paper texture / light ash / matte ceramic
 色調：off-white / warm beige / light grey / natural linen / pale wood
@@ -127,7 +120,6 @@ modern         → floating ceiling soffit, concealed beam, indirect cove lighti
 japanese       → exposed beam aesthetic, natural wood beam wrap, zen architectural detail
 luxury         → coffered ceiling, architectural beam feature, dramatic pendant to draw eye down
 nordic         → painted beam white, integrated beam shelf, casual hygge aesthetic
-mediterranean  → plaster-wrapped beam, arched soffit, whitewash beam treatment
 muji           → concealed beam panel, flush ceiling, minimal distraction
 art-deco       → geometric beam casing, gold trim accent, architectural feature
 cream          → soft plaster beam wrap, warm ivory tone, indirect warm cove light above
@@ -139,7 +131,7 @@ chinese-modern → dark walnut beam casing, lattice screen integration, architec
 採光充足 + 小坪數  → modern / muji / nordic / cream
 採光不足 + 小坪數  → japanese（善用燈光製造溫度）/ muji / wood
 大坪數 + 高天花板  → luxury / art-deco / french / chinese-modern
-南向大窗 + 熱帶氣候 → mediterranean / wood
+南向大窗 + 熱帶氣候 → wood / cream
 屋主提到放鬆療癒   → japanese / wood / nordic / cream
 屋主提到高端質感   → luxury / art-deco / french / chinese-modern
 屋主提到個性獨特   → art-deco / chinese-modern / french
@@ -162,7 +154,7 @@ flux_prompt for cream：
 warm ivory boucle sofa rounded silhouette, light oak side table matte finish, linen curtain sheer floor length, rattan woven storage basket, soft cream terrazzo tile floor, warm 2700K pendant fabric shade, cream and camel warm palette, warm minimalist cream interior styled, professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts
 """
 
-VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "mediterranean", "muji", "cream", "wood", "french", "chinese-modern"]
+VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "muji", "cream", "wood", "french", "chinese-modern"]
 
 
 def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict:
@@ -189,8 +181,8 @@ def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict
         mode = "ai_recommended"
         style_instruction = """
 用戶未指定風格，請根據空間的採光、坪數、格局、屋主需求，
-從以下 10 種風格中推薦最適合的 3 種：
-modern / japanese / luxury / nordic / mediterranean / muji / cream / wood / french / chinese-modern
+從以下 9 種風格中推薦最適合的 3 種：
+modern / japanese / luxury / nordic / muji / cream / wood / french / chinese-modern
 """
 
     print(f"[Gemini] 上傳影片: {video_path}")
