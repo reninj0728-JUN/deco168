@@ -612,12 +612,16 @@ def get_error(job_id: str):
 
 @app.get("/health")
 def health():
-    keys = [k for k in os.environ if "GEMINI" in k or "GOOGLE" in k or "FAL" in k or "AI" in k]
+    keys = [k for k in os.environ if "GEMINI" in k or "GOOGLE" in k or "FAL" in k or "AI" in k or "R2" in k]
     return {
         "status": "ok",
         "base_dir": str(BASE_DIR),
         "gemini_key": "set" if (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")) else "MISSING",
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
+        "r2_access_key": "set" if R2_ACCESS_KEY_ID else "MISSING",
+        "r2_secret":     "set" if R2_SECRET_ACCESS_KEY else "MISSING",
+        "r2_endpoint":   R2_ENDPOINT or "MISSING",
+        "r2_bucket":     R2_BUCKET or "MISSING",
         "matching_keys": keys,
         "all_keys": sorted(os.environ.keys()),
     }
