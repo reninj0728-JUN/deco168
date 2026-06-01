@@ -644,17 +644,11 @@
         <label class="field-label">空間類型</label>
         <div class="select-wrapper">
           <select id="spaceType">
-            <option>客廳</option>
-            <option>臥室</option>
-            <option>主臥室</option>
-            <option>兒童房</option>
-            <option>廚房</option>
-            <option>餐廳</option>
-            <option>書房 / 工作室</option>
-            <option>衛浴</option>
-            <option>玄關 / 走廊</option>
-            <option>陽台 / 戶外</option>
-            <option>整戶全室</option>
+            <option value="living">客廳</option>
+            <option value="dining">餐廳</option>
+            <option value="bedroom">臥室</option>
+            <option value="study">書房</option>
+            <option value="whole">全室</option>
           </select>
         </div>
       </div>
@@ -730,7 +724,7 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">設計方向</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇最多 <strong style="color:var(--gold)">2 個</strong>設計方向（風格 + 色系），AI 再推薦 1 種，共 3 張渲染圖。</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇 <strong style="color:var(--gold)">2 個</strong>風格方向（風格 + 色系），AI 為每個風格生成多角度渲染圖。</p>
 
     <!-- 已選方向 chips -->
     <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
@@ -1254,6 +1248,10 @@ function submitForm() {
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
+  var raSel = document.getElementById('renderAngle');
+  // single = 單一全景；multi = 多角度
+  var raVal = raSel && raSel.selectedIndex === 0 ? 'single' : 'multi';
+  localStorage.setItem('deco_render_angle', raVal);
   localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
   localStorage.setItem('deco_budget', budgetLabels[document.getElementById('budgetSlider').value]);
 

@@ -157,37 +157,45 @@ warm ivory boucle sofa rounded silhouette, light oak side table matte finish, li
 VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "muji", "cream", "wood", "french", "chinese-modern"]
 
 
+SPACE_TYPE_LABELS = {
+    "living":  "客廳",
+    "dining":  "餐廳",
+    "bedroom": "臥室",
+    "study":   "書房",
+    "whole":   "全室",
+}
+
+
 def analyze_space(
     video_path: str,
     user_styles: list[str] | None = None,
     is_uri: bool = False,
     extra_photos: list[str] | None = None,
+    space_type: str = "living",
 ) -> dict:
     """
     分析空間影片並生成 Flux prompts。
     video_path: 本機路徑 或 Gemini Files URI（is_uri=True 時直接使用）
     extra_photos: 用戶另外上傳的照片清單，會一起送 Gemini 幫助理解全室
+    space_type: 用戶選的目標空間（living/dining/bedroom/study/whole）
     """
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY / GOOGLE_AI_KEY 未設定，請在 Railway Variables 設定")
     client = genai.Client(api_key=api_key.strip())
 
+    # 用戶必須選 2 種風格（前端強制），不再 AI 自動推薦補齊
     if user_styles and all(s in VALID_STYLES for s in user_styles):
-        fixed_styles = user_styles[:3]
+        fixed_styles = user_styles[:2]
         mode = "user_selected"
-        style_instruction = f"""
-用戶已選擇以下風格（必須包含）：{', '.join(fixed_styles)}
-{"如果不足 3 個，AI 自行從剩餘風格中補齊至 3 個，選最適合此空間的。" if len(fixed_styles) < 3 else ""}
-"""
     else:
-        fixed_styles = []
-        mode = "ai_recommended"
-        style_instruction = """
-用戶未指定風格，請根據空間的採光、坪數、格局、屋主需求，
-從以下 9 種風格中推薦最適合的 3 種：
-modern / japanese / luxury / nordic / muji / cream / wood / french / chinese-modern
-"""
+        # 沒指定 fallback：給 2 種最通用
+        fixed_styles = ["modern", "nordic"]
+        mode = "fallback"
+    style_instruction = (
+        f"用戶選定 {len(fixed_styles)} 種風格：{', '.join(fixed_styles)}。"
+        f"renders 陣列必須恰好 {len(fixed_styles)} 個，順序、style 欄位完全對應。"
+    )
 
     if is_uri:
         # 直接用已上傳的 Gemini Files URI，不重複上傳
@@ -225,9 +233,23 @@ modern / japanese / luxury / nordic / muji / cream / wood / french / chinese-mod
         f"影片用來理解整體格局，照片是用戶選的「想呈現的角度」。"
         if photo_parts else "本次只有影片，沒有額外照片。"
     )
+    space_label = SPACE_TYPE_LABELS.get(space_type, "客廳")
+    if space_type == "whole":
+        scope_instruction = (
+            "用戶選的是【全室】——要識別空間裡有幾個不同的房間/區域"
+            "（例如：客廳、餐廳、廚房、主臥、書房、玄關）。"
+            "把它們列在 regions 陣列裡。"
+        )
+    else:
+        scope_instruction = (
+            f"用戶選的是【{space_label}】——這次只聚焦這一個房間。"
+            "regions 陣列只放一個元素（就是這個房間）。"
+        )
 
     prompt = f"""
-分析這個空間（影片 + 照片）。
+分析這個空間（影片 + 照片）。本次用戶目標空間：【{space_label}】
+
+{scope_instruction}
 
 {photos_note}
 
@@ -276,18 +298,20 @@ modern / japanese / luxury / nordic / muji / cream / wood / french / chinese-mod
   "recommended_styles": ["style_id_1", "style_id_2", "style_id_3"],
   "recommend_reason": "推薦原因，繁體中文，50字以內",
   "best_photo_index": {("這個欄位回傳 0~" + str(len(photo_parts)-1) + " 之間的整數，指出哪一張用戶照片最適合當「設計呈現的主角度」（最美、構圖最完整、最能看出空間感）。若全部都不好就填 0。") if photo_parts else "null"},
+  "regions": [
+    {{"name": "區域名稱（例如：客廳、餐廳、主臥）", "description": "這個區域的格局描述（30字以內）"}}
+  ],
   "renders": [
-    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"逗號分隔 keyword，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"}},
-    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"..."}},
-    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"..."}}
+    {{"style":"style_id（必須對應用戶選的 {fixed_styles}）","style_label":"中文名稱","flux_prompt":"逗號分隔 keyword，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"}}
   ]
 }}
 
+renders 陣列必須恰好 {len(fixed_styles)} 個，順序對應用戶選的風格：{fixed_styles}。
 flux_prompt 要根據空間實際採光、格局選詞。<15坪加 light reflective surface, open concept, visual expansion。
 """
 
     response = client.models.generate_content(
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.1-pro",
         contents=[video_file] + photo_parts + [prompt],
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,

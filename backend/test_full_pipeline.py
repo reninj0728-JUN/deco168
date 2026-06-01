@@ -66,11 +66,13 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
     img_b64, mime = imgs[0]  # 主照片（給 Flux 用）
 
     if user_styles and all(s in VALID_STYLES for s in user_styles):
-        style_instruction = f"用戶已選擇風格：{', '.join(user_styles[:3])}，必須包含在 renders 中。"
-        if len(user_styles) < 3:
-            style_instruction += "不足 3 個請 AI 補齊。"
+        fixed_styles = user_styles[:2]
     else:
-        style_instruction = "用戶未指定風格，請從 9 種風格推薦最適合的 3 種。"
+        fixed_styles = ["modern", "nordic"]
+    style_instruction = (
+        f"用戶選定 {len(fixed_styles)} 種風格：{', '.join(fixed_styles)}。"
+        f"renders 陣列必須恰好 {len(fixed_styles)} 個，順序與 style 完全對應。"
+    )
 
     photo_count_note = (
         f"你現在看到 {len(all_paths)} 張照片：第1張是主視角（Flux 生成用基底），"
@@ -109,12 +111,13 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
   "design_analysis": "空間分析摘要，繁體中文，80字以內",
   "recommended_styles": ["style1","style2","style3"],
   "recommend_reason": "推薦原因，50字以內",
+  "best_photo_index": {(str(0) + " ~ " + str(len(all_paths)-1) + " 的整數，指最美/最完整的角度") if len(all_paths) > 1 else "0"},
   "renders": [
-    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"逗號分隔keyword，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"}},
-    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"..."}},
-    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"..."}}
+    {{"style":"style_id（要對應 {fixed_styles}）","style_label":"中文名稱","flux_prompt":"逗號分隔keyword，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"}}
   ]
 }}
+
+renders 陣列必須恰好 {len(fixed_styles)} 個，順序對應 {fixed_styles}。
 """
 
     # 組合所有照片 + prompt 送給 Gemini
@@ -125,7 +128,7 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
 
     t0 = time.time()
     resp = _get_client().models.generate_content(
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.1-pro",
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=_get_system_prompt(),

@@ -164,7 +164,8 @@ def extract_frame(video_path: str, out_path: str, position: float = 0.33) -> str
     return out_path
 
 
-def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
+def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
+                 space_type: str = "living", render_angle: str = "single"):
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
 
@@ -173,46 +174,103 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         from test_full_pipeline import analyze_image, generate_renders
         from furniture_match import enrich_renders
 
-        # 分類影片與照片（含 gemini:// URI）
         gemini_uris = [p[len("gemini://"):] for p in photo_paths if p.startswith("gemini://")]
         video_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() in VIDEO_EXTS]
         image_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() not in VIDEO_EXTS]
 
         if gemini_uris or video_paths:
-            # ── 影片模式：Gemini 看影片+照片，理解完整空間 ──
             from gemini_analyze import analyze_space
             if gemini_uris:
-                write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片+照片（理解整體格局）…")
+                write_status(job_id, job_dir, "analyzing", 15, "Gemini Pro 分析影片+照片（理解整體格局）…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None,
-                                         is_uri=True, extra_photos=image_paths or None)
+                                         is_uri=True, extra_photos=image_paths or None,
+                                         space_type=space_type)
             else:
                 write_status(job_id, job_dir, "analyzing", 10, "上傳影片到 Gemini（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None,
-                                         extra_photos=image_paths or None)
+                                         extra_photos=image_paths or None,
+                                         space_type=space_type)
         else:
-            # ── 照片模式 ──
-            write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間照片…")
+            write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 分析空間照片…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra)
 
-        # ── 選最美角度：Gemini 推薦 best_photo_index → 3 個風格共用同一張 ──
-        if image_paths:
-            best_idx = analysis.get("best_photo_index")
-            if not isinstance(best_idx, int) or not (0 <= best_idx < len(image_paths)):
-                best_idx = 0
-            main_photo = image_paths[best_idx]
-            print(f"[pipeline] 主角度: photo[{best_idx}] = {Path(main_photo).name}")
-        elif video_paths:
-            frame_path = str(job_dir / "frame_for_flux.jpg")
-            main_photo = extract_frame(video_paths[0], frame_path, position=0.5)
+        # ── 決定 Flux 輸入角度 ──
+        # 單一全景 → 1 張最美角度；多角度 → 多張（照片 + 影片抽幀）
+        base_video = video_paths[0] if video_paths else None
+        flux_bases: list[str] = []  # 每張對應「該渲染哪個角度」
+        angle_labels: list[str] = []  # 角度的中文標籤
+
+        if render_angle == "multi":
+            # 全室 → 3 個區域；單一房間 → 3 個角度
+            target_count = 3
+            # 用戶照片優先
+            for i, p in enumerate(image_paths[:target_count]):
+                flux_bases.append(p)
+                angle_labels.append(f"角度{i+1}")
+            # 不夠就從影片均勻抽幀補
+            if len(flux_bases) < target_count and base_video:
+                positions = [0.2, 0.5, 0.8]
+                for j in range(target_count - len(flux_bases)):
+                    frame_path = str(job_dir / f"frame_{len(flux_bases):02d}.jpg")
+                    extract_frame(base_video, frame_path, position=positions[j])
+                    if Path(frame_path).exists():
+                        flux_bases.append(frame_path)
+                        angle_labels.append(f"角度{len(flux_bases)}")
         else:
+            # single：Gemini 挑最美 1 張
+            if image_paths:
+                best_idx = analysis.get("best_photo_index")
+                if not isinstance(best_idx, int) or not (0 <= best_idx < len(image_paths)):
+                    best_idx = 0
+                flux_bases.append(image_paths[best_idx])
+                angle_labels.append("主視角")
+            elif base_video:
+                frame_path = str(job_dir / "frame_main.jpg")
+                extract_frame(base_video, frame_path, position=0.5)
+                flux_bases.append(frame_path)
+                angle_labels.append("主視角")
+
+        if not flux_bases:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
+
+        print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{[Path(p).name for p in flux_bases]}")
 
         write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
 
-        write_status(job_id, job_dir, "rendering", 60, "AI 渲染圖生成中（約 5-10 分鐘）…")
-        final = generate_renders(main_photo, enriched, output_dir=str(job_dir))
+        # ── 2 風格 × N 角度 = 多張渲染 ──
+        # 為每個風格、每個角度產生一個 render entry
+        expanded: list[dict] = []
+        for style_entry in enriched:
+            for base, label in zip(flux_bases, angle_labels):
+                copy = dict(style_entry)
+                copy["_angle_label"] = label
+                copy["_base_path"] = base
+                expanded.append(copy)
+
+        total = len(expanded)
+        write_status(job_id, job_dir, "rendering", 60,
+                     f"AI 生成 {total} 張渲染圖（{len(enriched)} 風格 × {len(flux_bases)} 角度）…")
+
+        # 一次渲染一張：對應 base 不同
+        final = []
+        for idx, entry in enumerate(expanded):
+            single_result = generate_renders(entry["_base_path"], [entry], output_dir=str(job_dir))
+            if single_result:
+                r = single_result[0]
+                r["angle_label"] = entry["_angle_label"]
+                # 用 style + angle 區分檔名
+                if r.get("render_path"):
+                    src = Path(r["render_path"])
+                    new_name = f"render_{entry.get('style','x')}_{idx:02d}{src.suffix}"
+                    new_path = src.parent / new_name
+                    try:
+                        src.rename(new_path)
+                        r["render_path"] = str(new_path)
+                    except Exception:
+                        pass
+                final.append(r)
 
         result = {"analysis": analysis, "renders": final}
         with open(job_dir / "result.json", "w", encoding="utf-8") as f:
@@ -229,6 +287,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
             slim_renders.append({
                 "style":             r.get("style"),
                 "style_label":       r.get("style_label"),
+                "angle_label":       r.get("angle_label", "主視角"),
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
@@ -300,9 +359,11 @@ async def upload_photos(
 @app.post("/api/job")
 async def create_job(
     background_tasks: BackgroundTasks,
-    upload_id: str = Form(...),
-    styles: str   = Form(default=""),
-    plan: str     = Form(default="A"),
+    upload_id: str    = Form(...),
+    styles: str       = Form(default=""),
+    plan: str         = Form(default="A"),
+    space_type: str   = Form(default="living"),    # living/dining/bedroom/study/whole
+    render_angle: str = Form(default="single"),    # single/multi
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -359,15 +420,16 @@ async def create_job(
     styles_list = [s.strip() for s in styles.split(",") if s.strip()]
     with open(job_dir / "meta.json", "w", encoding="utf-8") as f:
         json.dump({"job_id": job_id, "plan": plan, "styles": styles_list,
+                   "space_type": space_type, "render_angle": render_angle,
                    "photo_count": len(new_paths)}, f, ensure_ascii=False)
 
-    # 寫入 Supabase（初始記錄）
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
                "photo_count": len(new_paths), "status": "queued",
                "progress": 5, "message": "已排入隊列，即將開始分析…"})
 
     write_status(job_id, job_dir, "queued", 5, "已排入隊列，即將開始分析…")
-    background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan)
+    background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
+                              space_type, render_angle)
 
     return {"job_id": job_id}
 
