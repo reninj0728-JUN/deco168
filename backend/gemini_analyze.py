@@ -157,10 +157,16 @@ warm ivory boucle sofa rounded silhouette, light oak side table matte finish, li
 VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "muji", "cream", "wood", "french", "chinese-modern"]
 
 
-def analyze_space(video_path: str, user_styles: list[str] | None = None, is_uri: bool = False) -> dict:
+def analyze_space(
+    video_path: str,
+    user_styles: list[str] | None = None,
+    is_uri: bool = False,
+    extra_photos: list[str] | None = None,
+) -> dict:
     """
     分析空間影片並生成 Flux prompts。
     video_path: 本機路徑 或 Gemini Files URI（is_uri=True 時直接使用）
+    extra_photos: 用戶另外上傳的照片清單，會一起送 Gemini 幫助理解全室
     """
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")
     if not api_key:
@@ -199,62 +205,90 @@ modern / japanese / luxury / nordic / muji / cream / wood / french / chinese-mod
     if video_file.state.name == "FAILED":
         raise RuntimeError("Gemini 影片上傳失敗，請確認檔案格式")
 
+    # 把用戶照片也讀進來給 Gemini（建立完整空間理解）
+    import base64 as _b64
+    photo_parts = []
+    if extra_photos:
+        for p in extra_photos:
+            try:
+                ext = os.path.splitext(p)[1].lower()
+                mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
+                with open(p, "rb") as f:
+                    photo_parts.append(types.Part.from_bytes(
+                        data=f.read(), mime_type=mime
+                    ))
+            except Exception as _e:
+                print(f"[Gemini] 無法讀照片 {p}: {_e}")
+
+    photos_note = (
+        f"另外附 {len(photo_parts)} 張用戶上傳的照片（第 0~{len(photo_parts)-1} 張）。"
+        f"影片用來理解整體格局，照片是用戶選的「想呈現的角度」。"
+        if photo_parts else "本次只有影片，沒有額外照片。"
+    )
+
     prompt = f"""
-分析這段空間影片（包含屋主說話的聲音）。
+分析這個空間（影片 + 照片）。
+
+{photos_note}
 
 【空間量測步驟 — 必須先做】
-1. 找出畫面中可見的基準物：門框（高200cm/寬90cm）、窗台（距地90cm）、插座（距地30cm）
-2. 用這些基準物推算房間的長度、寬度、天花板高度（單位：公尺）
-3. 若可見多個基準物，交叉比對取平均值
-4. 用長×寬計算坪數（1坪=3.305㎡），給出保守估計
+1. 找出可見的基準物：門框（高200cm/寬90cm）、窗台（距地90cm）、插座（距地30cm）
+2. 用基準物推算房間的長度、寬度、天花板高度（公尺）
+3. 交叉比對影片不同段落和各張照片的基準物
+4. 用長×寬計算坪數（1坪=3.305㎡），給保守估計
+
+【完整空間理解 — 完美復刻所需資訊】
+找出並回報：
+- 門的位置（主入口、房門、浴室門各在哪面牆、什麼方位）
+- 廚房位置（如果有；開放式/獨立、靠哪面牆）
+- 窗戶位置（哪面牆、大小估計、是否落地窗）
+- 天花板特徵（梁柱、明管、灑水頭、燈具位置）
+- 地板材質與顏色
+- 牆面現況（油漆顏色、是否有裝潢）
 
 {style_instruction}
 
-回傳以下 JSON（嚴格照格式，不要多字）：
+回傳以下 JSON（嚴格照格式）：
 
 {{
-  "space_type": "空間類型，例如：客廳、主臥室、廚房",
-  "estimated_size": "估計坪數，例如：20-25 坪",
+  "space_type": "空間類型",
+  "estimated_size": "估計坪數",
   "room_dimensions": {{
-    "length_m": 數字（長，公尺）,
-    "width_m": 數字（寬，公尺）,
-    "height_m": 數字（天花板高，公尺）,
-    "confidence": "high/medium/low（基準物可見程度）",
-    "reference_used": "用了哪些基準物，例如：門框+窗台"
+    "length_m": 數字,
+    "width_m": 數字,
+    "height_m": 數字,
+    "confidence": "high/medium/low",
+    "reference_used": "用了哪些基準物"
   }},
-  "layout_notes": "格局描述，包含梁柱位置、窗戶方向、動線",
-  "lighting": "採光條件：充足/普通/不足，及方向",
+  "architectural_features": {{
+    "doors": "門位置描述，例如：主入口在北牆中央，浴室門在東牆",
+    "kitchen": "廚房位置或 '無'",
+    "windows": "窗戶位置描述",
+    "ceiling": "天花板特徵，例如：明管走線、有梁",
+    "floor": "地板材質與顏色",
+    "walls": "牆面現況"
+  }},
+  "layout_notes": "格局描述",
+  "lighting": "採光條件",
   "current_style": "目前裝潢風格",
-  "owner_requests": "屋主語音中提到的需求（沒說則填 '未提及'）",
+  "owner_requests": "屋主需求（沒說填 '未提及'）",
   "design_analysis": "空間分析摘要，繁體中文，80字以內",
   "recommended_styles": ["style_id_1", "style_id_2", "style_id_3"],
-  "recommend_reason": "為何推薦這三種風格，繁體中文，50字以內",
+  "recommend_reason": "推薦原因，繁體中文，50字以內",
+  "best_photo_index": {("這個欄位回傳 0~" + str(len(photo_parts)-1) + " 之間的整數，指出哪一張用戶照片最適合當「設計呈現的主角度」（最美、構圖最完整、最能看出空間感）。若全部都不好就填 0。") if photo_parts else "null"},
   "renders": [
-    {{
-      "style": "style_id（必須是 9 種之一）",
-      "style_label": "風格中文名稱",
-      "flux_prompt": "逗號分隔 keyword，照 System Prompt 格式，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"
-    }},
-    {{
-      "style": "style_id",
-      "style_label": "風格中文名稱",
-      "flux_prompt": "逗號分隔 keyword"
-    }},
-    {{
-      "style": "style_id",
-      "style_label": "風格中文名稱",
-      "flux_prompt": "逗號分隔 keyword"
-    }}
+    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"逗號分隔 keyword，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"}},
+    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"..."}},
+    {{"style":"style_id","style_label":"中文名稱","flux_prompt":"..."}}
   ]
 }}
 
-flux_prompt 必須根據這個空間的實際採光、格局特性來選詞，不要每次都一樣。
-空間越小（<15坪），prompt 要加 light reflective surface, open concept, visual expansion。
+flux_prompt 要根據空間實際採光、格局選詞。<15坪加 light reflective surface, open concept, visual expansion。
 """
 
     response = client.models.generate_content(
         model="gemini-3.1-flash-lite",
-        contents=[video_file, prompt],
+        contents=[video_file] + photo_parts + [prompt],
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
             response_mime_type="application/json",

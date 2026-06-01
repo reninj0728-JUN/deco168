@@ -179,37 +179,40 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         image_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() not in VIDEO_EXTS]
 
         if gemini_uris or video_paths:
-            # ── 影片模式：Gemini 分析影片，理解完整空間 ──
+            # ── 影片模式：Gemini 看影片+照片，理解完整空間 ──
             from gemini_analyze import analyze_space
             if gemini_uris:
-                write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片（理解整體格局）…")
-                analysis = analyze_space(gemini_uris[0], user_styles=styles or None, is_uri=True)
+                write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片+照片（理解整體格局）…")
+                analysis = analyze_space(gemini_uris[0], user_styles=styles or None,
+                                         is_uri=True, extra_photos=image_paths or None)
             else:
                 write_status(job_id, job_dir, "analyzing", 10, "上傳影片到 Gemini（大檔案需要幾分鐘）…")
-                analysis = analyze_space(video_paths[0], user_styles=styles or None)
+                analysis = analyze_space(video_paths[0], user_styles=styles or None,
+                                         extra_photos=image_paths or None)
         else:
             # ── 照片模式 ──
             write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間照片…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra)
 
-        # ── 收集 Flux 輸入：所有照片 + 影片均勻抽幀補足到 3 張 ──
-        flux_inputs: list[str] = list(image_paths)
-        if video_paths and not gemini_uris and len(flux_inputs) < 3:
-            positions = [0.25, 0.5, 0.75]
-            for i in range(3 - len(flux_inputs)):
-                frame_path = str(job_dir / f"frame_{i:02d}.jpg")
-                extract_frame(video_paths[0], frame_path, position=positions[i])
-                if Path(frame_path).exists():
-                    flux_inputs.append(frame_path)
-        if not flux_inputs:
+        # ── 選最美角度：Gemini 推薦 best_photo_index → 3 個風格共用同一張 ──
+        if image_paths:
+            best_idx = analysis.get("best_photo_index")
+            if not isinstance(best_idx, int) or not (0 <= best_idx < len(image_paths)):
+                best_idx = 0
+            main_photo = image_paths[best_idx]
+            print(f"[pipeline] 主角度: photo[{best_idx}] = {Path(main_photo).name}")
+        elif video_paths:
+            frame_path = str(job_dir / "frame_for_flux.jpg")
+            main_photo = extract_frame(video_paths[0], frame_path, position=0.5)
+        else:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
 
         write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
 
         write_status(job_id, job_dir, "rendering", 60, "AI 渲染圖生成中（約 5-10 分鐘）…")
-        final = generate_renders(flux_inputs, enriched, output_dir=str(job_dir))
+        final = generate_renders(main_photo, enriched, output_dir=str(job_dir))
 
         result = {"analysis": analysis, "renders": final}
         with open(job_dir / "result.json", "w", encoding="utf-8") as f:
