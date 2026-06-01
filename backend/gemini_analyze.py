@@ -311,7 +311,7 @@ flux_prompt 要根據空間實際採光、格局選詞。<15坪加 light reflect
 """
 
     response = client.models.generate_content(
-        model="gemini-3.1-flash",
+        model="gemini-3.1-flash-lite",
         contents=[video_file] + photo_parts + [prompt],
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
