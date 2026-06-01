@@ -575,6 +575,11 @@
     <div class="voice-or">或直接文字輸入</div>
 
     <textarea class="voice-textarea" id="style-text" placeholder="例如：我想要北歐風格，喜歡木質感，預算約 80 萬，客廳希望開放式，需要大量收納..."></textarea>
+
+    <div style="margin-top:12px; display:flex; align-items:center; gap:8px; font-size:11px; color:#555; letter-spacing:0.5px; line-height:1.6;">
+      <span style="color:#C9A96E; font-size:13px; flex-shrink:0;">✦</span>
+      <span>可以不填——AI 會自動分析你的空間照片，推薦最適合的 3 種設計風格。</span>
+    </div>
   </div>
 
   <!-- 拍攝提示 -->
@@ -609,6 +614,7 @@
     document.getElementById(boxId).classList.remove('active');
   }
   var _photoFiles = [];
+  var _videoFiles = [];
 
   function handleDrop(e, inputId, listId) {
     e.preventDefault();
@@ -616,12 +622,14 @@
     box.classList.remove('active');
     const files = e.dataTransfer.files;
     if (inputId === 'photo-input') Array.from(files).forEach(f => _photoFiles.push(f));
+    if (inputId === 'video-input') Array.from(files).forEach(f => _videoFiles.push(f));
     renderFiles(files, listId);
   }
 
   // 檔案選取
   function handleFiles(input, listId) {
     if (input.id === 'photo-input') Array.from(input.files).forEach(f => _photoFiles.push(f));
+    if (input.id === 'video-input') Array.from(input.files).forEach(f => _videoFiles.push(f));
     renderFiles(input.files, listId);
   }
 
@@ -709,6 +717,11 @@
     try {
       var formData = new FormData();
       files.forEach(function(f) { formData.append('photos', f); });
+
+      // 影片也一起上傳
+      var videoInput = document.getElementById('video-input');
+      var videoFiles = _videoFiles && _videoFiles.length > 0 ? _videoFiles : Array.from(videoInput.files || []);
+      videoFiles.forEach(function(f) { formData.append('videos', f); });
 
       var resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
