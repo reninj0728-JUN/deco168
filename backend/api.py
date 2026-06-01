@@ -29,6 +29,60 @@ JOBS_DIR    = BASE_DIR / "jobs"
 UPLOADS_DIR.mkdir(exist_ok=True)
 JOBS_DIR.mkdir(exist_ok=True)
 
+# ─── R2 (Cloudflare) 設定 ─────────────────────────────────────────────────────
+R2_ACCESS_KEY_ID     = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
+R2_ENDPOINT          = os.environ.get("R2_ENDPOINT", "").strip()
+R2_BUCKET            = os.environ.get("R2_BUCKET", "deco168-uploads").strip()
+
+def _r2_client():
+    """惰性建立 R2 boto3 client（避免 import 時就要求金鑰）"""
+    import boto3
+    return boto3.client(
+        "s3",
+        endpoint_url=R2_ENDPOINT,
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        region_name="auto",
+    )
+
+def r2_presign_put(key: str, content_type: str = "video/mp4", expires_in: int = 3600) -> str | None:
+    """產生 PUT presigned URL，讓前端直接上傳影片到 R2"""
+    if not (R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_ENDPOINT):
+        return None
+    try:
+        return _r2_client().generate_presigned_url(
+            "put_object",
+            Params={"Bucket": R2_BUCKET, "Key": key, "ContentType": content_type},
+            ExpiresIn=expires_in,
+            HttpMethod="PUT",
+        )
+    except Exception as e:
+        print(f"[r2_presign_put] 失敗: {e}")
+        return None
+
+def r2_download_object(key: str, dest: Path) -> str | None:
+    """從 R2 下載物件到本機"""
+    if not (R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_ENDPOINT):
+        return None
+    try:
+        _r2_client().download_file(R2_BUCKET, key, str(dest))
+        return str(dest)
+    except Exception as e:
+        print(f"[r2_download] {key} 失敗: {e}")
+        return None
+
+def r2_delete_object(key: str) -> bool:
+    """從 R2 刪除物件（pipeline 跑完用）"""
+    if not (R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_ENDPOINT):
+        return False
+    try:
+        _r2_client().delete_object(Bucket=R2_BUCKET, Key=key)
+        return True
+    except Exception as e:
+        print(f"[r2_delete] {key} 失敗: {e}")
+        return False
+
 app = FastAPI(title="DECO168 API", version="1.0")
 
 app.add_middleware(
@@ -194,10 +248,24 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         from test_full_pipeline import analyze_image, generate_renders
         from furniture_match import enrich_renders
 
-        # 先把 supabase:// 影片從 Storage 下載到本機 job_dir
+        # 先把 r2:// 或 supabase:// 影片從雲端下載到本機 job_dir
+        # r2_keys_to_delete: pipeline 跑完後要清掉的 R2 物件
+        r2_keys_to_delete: list[str] = []
         resolved_paths: list[str] = []
         for p in photo_paths:
-            if p.startswith("supabase://"):
+            if p.startswith("r2://"):
+                key = p[len("r2://"):]
+                fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
+                dest = job_dir / fname
+                write_status(job_id, job_dir, "downloading", 8, "從雲端下載影片…")
+                local = r2_download_object(key, dest)
+                if local:
+                    resolved_paths.append(local)
+                    r2_keys_to_delete.append(key)
+                else:
+                    print(f"[pipeline] R2 影片 {key} 下載失敗，跳過")
+            elif p.startswith("supabase://"):
+                # 舊版相容
                 key = p[len("supabase://"):]
                 fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
                 dest = job_dir / fname
@@ -206,7 +274,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if local:
                     resolved_paths.append(local)
                 else:
-                    print(f"[pipeline] 影片 {key} 下載失敗，跳過")
+                    print(f"[pipeline] Supabase 影片 {key} 下載失敗，跳過")
             else:
                 resolved_paths.append(p)
         photo_paths = resolved_paths
@@ -335,6 +403,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                    "message": "設計方案生成完畢！",
                    "result_json": {"analysis": analysis, "renders": slim_renders}})
 
+        # 跑完自動清掉 R2 上的影片（隱私 + 省空間）
+        for key in r2_keys_to_delete:
+            ok = r2_delete_object(key)
+            print(f"[pipeline] R2 清除 {key}: {'OK' if ok else 'FAIL'}")
+
     except Exception as e:
         err_txt = traceback.format_exc()
         write_status(job_id, job_dir, "failed", 0, f"處理失敗，請聯絡客服")
@@ -346,6 +419,21 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
+@app.post("/api/r2/presign")
+async def r2_presign(
+    upload_id: str = Form(...),
+    filename:  str = Form(...),
+    content_type: str = Form(default="video/mp4"),
+):
+    """給前端一個 presigned PUT URL，讓影片直接 PUT 到 R2（繞過 Railway 5min timeout）"""
+    safe = filename.replace("/", "_").replace("\\", "_")
+    key = f"{upload_id}/{safe}"
+    url = r2_presign_put(key, content_type=content_type, expires_in=3600)
+    if not url:
+        return JSONResponse(status_code=500, content={"error": "R2 未配置或 presign 失敗"})
+    return {"url": url, "key": key}
+
+
 @app.post("/api/upload")
 async def upload_photos(
     upload_id:  str               = Form(...),
@@ -354,7 +442,7 @@ async def upload_photos(
 ):
     """
     上傳註冊端點：
-    - 影片：前端用 TUS 直接上傳到 Supabase Storage，這裡只收 Supabase 物件 key（不收影片本體）
+    - 影片：前端用 presigned PUT 直接上傳到 R2，這裡只收 R2 物件 key
     - 照片：本機保留 + Supabase Storage 備份
     """
     upload_dir = UPLOADS_DIR / upload_id
@@ -363,7 +451,7 @@ async def upload_photos(
     local_paths: list[str] = []
     photo_urls:  list[str] = []
 
-    # 影片：前端已直接傳 Supabase，把 key 轉成 supabase://<bucket>/<obj> 的虛擬路徑
+    # 影片：前端已直接傳 R2，把 key 轉成 r2://<obj> 的虛擬路徑
     try:
         keys = json.loads(video_keys or "[]")
         if not isinstance(keys, list):
@@ -372,7 +460,7 @@ async def upload_photos(
         keys = []
     for k in keys:
         if isinstance(k, str) and k.strip():
-            local_paths.append(f"supabase://{k.strip()}")
+            local_paths.append(f"r2://{k.strip()}")
 
     # 照片：本機 + Supabase Storage
     for i, photo in enumerate(photos):
@@ -414,10 +502,10 @@ async def create_job(
             return JSONResponse(status_code=404, content={"error": "upload_id not found，請重新上傳"})
         upload_dir.mkdir(parents=True, exist_ok=True)
         recovered: list[str] = []
-        # 影片：用 Supabase keys 重建 supabase:// 虛擬路徑
+        # 影片：用 R2 keys 重建 r2:// 虛擬路徑
         for k in (record.get("video_keys") or []):
             if isinstance(k, str) and k.strip():
-                recovered.append(f"supabase://{k.strip()}")
+                recovered.append(f"r2://{k.strip()}")
         # 照片：從 Supabase URL 下載回本機
         for url in (record.get("photo_urls") or []):
             fname = url.split("/")[-1]
@@ -447,7 +535,7 @@ async def create_job(
 
     new_paths: list[str] = []
     for path in photo_paths:
-        if path.startswith(("gemini://", "supabase://")):
+        if path.startswith(("gemini://", "supabase://", "r2://")):
             new_paths.append(path)  # 虛擬路徑保留，pipeline 內處理
             continue
         src = Path(path)

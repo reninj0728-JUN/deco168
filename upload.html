@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>上傳空間資料 — DECO168</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -699,44 +698,45 @@
 
   // 下一步
   var API_BASE = 'https://deco168-production.up.railway.app';
-  var SUPABASE_URL = 'https://cjezgczjjsxfoeifduaj.supabase.co';
-  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4';
 
   function randomUploadId() {
     return Math.random().toString(16).substring(2, 10).toUpperCase();
   }
 
-  // 把單支影片直接 TUS 上傳到 Supabase Storage（不經過 Railway）
-  function uploadVideoToSupabase(file, uploadId, onProgress) {
-    return new Promise(function(resolve, reject) {
-      var ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-      var safeName = 'video_' + Date.now() + '.' + ext;
-      var objectName = uploadId + '/' + safeName;
-      var upload = new tus.Upload(file, {
-        endpoint: SUPABASE_URL + '/storage/v1/upload/resumable',
-        retryDelays: [0, 3000, 5000, 10000, 20000],
-        headers: {
-          authorization: 'Bearer ' + SUPABASE_ANON_KEY,
-          'x-upsert': 'true'
-        },
-        uploadDataDuringCreation: true,
-        removeFingerprintOnSuccess: true,
-        metadata: {
-          bucketName: 'uploads',
-          objectName: objectName,
-          contentType: file.type || 'video/mp4',
-          cacheControl: '3600'
-        },
-        chunkSize: 6 * 1024 * 1024,
-        onError: function(err) { reject(err); },
-        onProgress: function(uploaded, total) {
-          if (onProgress) onProgress(Math.round((uploaded / total) * 100));
-        },
-        onSuccess: function() {
-          resolve('uploads/' + objectName);
-        }
-      });
-      upload.start();
+  // 把單支影片直接 PUT 到 Cloudflare R2（用後端產生的 presigned URL，繞過 Railway timeout）
+  function uploadVideoToR2(file, uploadId, onProgress) {
+    return new Promise(async function(resolve, reject) {
+      try {
+        var ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+        var safeName = 'video_' + Date.now() + '.' + ext;
+
+        // 跟後端要 presigned PUT URL
+        var fd = new FormData();
+        fd.append('upload_id',    uploadId);
+        fd.append('filename',     safeName);
+        fd.append('content_type', file.type || 'video/mp4');
+        var presignResp = await fetch(API_BASE + '/api/r2/presign', { method: 'POST', body: fd });
+        if (!presignResp.ok) throw new Error('presign failed HTTP ' + presignResp.status);
+        var presign = await presignResp.json();
+
+        // 用 XHR PUT 才能拿到上傳進度
+        var xhr = new XMLHttpRequest();
+        xhr.open('PUT', presign.url, true);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        xhr.upload.onprogress = function(e) {
+          if (e.lengthComputable && onProgress) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) resolve(presign.key);
+          else reject(new Error('R2 PUT failed HTTP ' + xhr.status + ': ' + xhr.responseText.substring(0,200)));
+        };
+        xhr.onerror = function() { reject(new Error('R2 PUT network error')); };
+        xhr.send(file);
+      } catch (e) {
+        reject(e);
+      }
     });
   }
 
@@ -761,12 +761,12 @@
     try {
       var uploadId = randomUploadId();
 
-      // ── 影片走 TUS 直接到 Supabase（不經 Railway 的 5 分鐘 timeout）──
+      // ── 影片直接 PUT 到 Cloudflare R2（不經 Railway 的 5 分鐘 timeout）──
       var videoKeys = [];
       for (var i = 0; i < videoFiles.length; i++) {
         var idx = i + 1;
         btn.textContent = '影片 ' + idx + '/' + videoFiles.length + ' 上傳中 0%';
-        var key = await uploadVideoToSupabase(videoFiles[i], uploadId, function(pct) {
+        var key = await uploadVideoToR2(videoFiles[i], uploadId, function(pct) {
           btn.textContent = '影片 ' + idx + '/' + videoFiles.length + ' 上傳中 ' + pct + '%';
         });
         videoKeys.push(key);
