@@ -125,7 +125,7 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
 
     t0 = time.time()
     resp = _get_client().models.generate_content(
-        model="gemini-3.1-flash-lite",
+        model="gemini-2.5-flash-lite",
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=_get_system_prompt(),
