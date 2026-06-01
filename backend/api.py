@@ -3,7 +3,7 @@
 import os, sys, json, uuid, shutil, traceback
 
 # 清除環境變數可能的換行符（Railway 有時會多帶 \n）
-for _k in ("FAL_KEY", "GEMINI_API_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
+for _k in ("FAL_KEY", "GEMINI_API_KEY", "GOOGLE_AI_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
     if os.environ.get(_k):
         os.environ[_k] = os.environ[_k].strip()
 from pathlib import Path
@@ -267,7 +267,7 @@ async def upload_photos(
         local_paths.append(str(dest))
         # 上傳到 Gemini Files API，存 URI（48小時有效）
         try:
-            gemini_key = os.environ.get("GEMINI_API_KEY", "")
+            gemini_key = (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY") or "").strip()
             if gemini_key:
                 from google import genai as _genai
                 _gc = _genai.Client(api_key=gemini_key)

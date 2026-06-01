@@ -162,7 +162,10 @@ def analyze_space(video_path: str, user_styles: list[str] | None = None, is_uri:
     分析空間影片並生成 Flux prompts。
     video_path: 本機路徑 或 Gemini Files URI（is_uri=True 時直接使用）
     """
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY / GOOGLE_AI_KEY 未設定，請在 Railway Variables 設定")
+    client = genai.Client(api_key=api_key.strip())
 
     if user_styles and all(s in VALID_STYLES for s in user_styles):
         fixed_styles = user_styles[:3]
