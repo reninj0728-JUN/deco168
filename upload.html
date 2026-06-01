@@ -629,7 +629,15 @@
   // 檔案選取
   function handleFiles(input, listId) {
     if (input.id === 'photo-input') Array.from(input.files).forEach(f => _photoFiles.push(f));
-    if (input.id === 'video-input') Array.from(input.files).forEach(f => _videoFiles.push(f));
+    if (input.id === 'video-input') {
+      Array.from(input.files).forEach(function(f) {
+        if (f.size > 80 * 1024 * 1024) {
+          alert('影片「' + f.name + '」(' + (f.size/1024/1024).toFixed(0) + 'MB) 超過 80MB 限制。\n\n請先壓縮：\n• iPhone：分享 → 選「最小大小」\n• 電腦：用 HandBrake 壓縮\n\n或改用多張照片代替影片。');
+          return;
+        }
+        _videoFiles.push(f);
+      });
+    }
     renderFiles(input.files, listId);
   }
 
