@@ -181,11 +181,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         if gemini_uris or video_paths:
             # ── 影片模式：Gemini 分析影片，理解完整空間 ──
             from gemini_analyze import analyze_space
-            write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片（理解整體格局）…")
-            # 優先用已上傳的 Gemini URI，否則用本機路徑
+            # 優先用已上傳的 Gemini URI，否則本機影片走完整流程
             if gemini_uris:
+                write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片（理解整體格局）…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None, is_uri=True)
             else:
+                write_status(job_id, job_dir, "analyzing", 10, "上傳影片到 Gemini（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None)
 
             # Flux 渲染基底：優先用用戶上傳的照片，否則從影片抽幀
@@ -255,35 +256,21 @@ async def upload_photos(
 
     local_paths: list[str] = []
     photo_urls:  list[str] = []
-    video_uri:   str       = ""
 
-    # 影片 — 先存本機，再非同步上傳 Gemini Files（由 pipeline 使用 URI）
+    # 影片 — 只存本機，Gemini Files 上傳延後到 pipeline 階段（避免 /api/upload 卡住）
     for i, video in enumerate(videos):
         ext  = Path(video.filename or "video.mp4").suffix.lower() or ".mp4"
         dest = upload_dir / f"video_{i:02d}{ext}"
-        data = await video.read()
+        # 串流寫檔，避免大檔案塞滿記憶體
         with open(dest, "wb") as f:
-            f.write(data)
+            while True:
+                chunk = await video.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                f.write(chunk)
         local_paths.append(str(dest))
-        # 上傳到 Gemini Files API，存 URI（48小時有效）
-        try:
-            gemini_key = (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY") or "").strip()
-            if gemini_key:
-                from google import genai as _genai
-                _gc = _genai.Client(api_key=gemini_key)
-                gfile = _gc.files.upload(file=str(dest))
-                import time as _time
-                for _ in range(30):
-                    if gfile.state.name != "PROCESSING":
-                        break
-                    _time.sleep(3)
-                    gfile = _gc.files.get(name=gfile.name)
-                if gfile.state.name == "ACTIVE":
-                    video_uri = gfile.uri
-        except Exception:
-            pass  # fallback: pipeline 用本機路徑
 
-    # 照片 — 存本機 + 上傳 Supabase Storage
+    # 照片 — 存本機 + 上傳 Supabase Storage（檔案小，秒上）
     for i, photo in enumerate(photos):
         ext  = Path(photo.filename or "photo.jpg").suffix.lower() or ".jpg"
         dest = upload_dir / f"photo_{i:02d}{ext}"
@@ -296,10 +283,10 @@ async def upload_photos(
         if url:
             photo_urls.append(url)
 
-    # 儲存到本機 paths.json + Supabase uploads table
+    # 儲存到本機 paths.json + Supabase uploads table（video_uri 留空，pipeline 再填）
     with open(upload_dir / "paths.json", "w", encoding="utf-8") as f:
         json.dump(local_paths, f)
-    sb_save_upload(upload_id, photo_urls, video_uri)
+    sb_save_upload(upload_id, photo_urls, "")
 
     return {"upload_id": upload_id, "count": len(local_paths)}
 
