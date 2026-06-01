@@ -60,6 +60,49 @@ def sb_get(job_id: str) -> dict | None:
     except Exception:
         return None
 
+def sb_upload_file(upload_id: str, filename: str, data: bytes, content_type: str) -> str | None:
+    """照片上傳到 Supabase Storage uploads bucket"""
+    try:
+        storage_path = f"{upload_id}/{filename}"
+        headers = {
+            "apikey":        SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type":  content_type,
+        }
+        r = _req.post(
+            f"{SUPABASE_URL}/storage/v1/object/uploads/{storage_path}",
+            data=data, headers=headers, timeout=60
+        )
+        if r.status_code in (200, 201):
+            return f"{SUPABASE_URL}/storage/v1/object/uploads/{storage_path}"
+        return None
+    except Exception:
+        return None
+
+def sb_save_upload(upload_id: str, photo_urls: list, video_uri: str):
+    """把上傳紀錄存到 Supabase uploads table"""
+    try:
+        _req.post(
+            f"{SUPABASE_URL}/rest/v1/uploads",
+            json={"upload_id": upload_id, "photo_urls": photo_urls, "video_uri": video_uri},
+            headers=_SB_HEADERS, timeout=8
+        )
+    except Exception:
+        pass
+
+def sb_get_upload(upload_id: str) -> dict | None:
+    """從 Supabase 取回上傳紀錄"""
+    try:
+        r = _req.get(
+            f"{SUPABASE_URL}/rest/v1/uploads",
+            params={"upload_id": f"eq.{upload_id}", "select": "*"},
+            headers=_SB_HEADERS, timeout=8
+        )
+        rows = r.json()
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
 def sb_upload_render(job_id: str, file_path: Path) -> str | None:
     """上傳渲染圖到 Supabase Storage，回傳公開 URL"""
     try:
@@ -130,15 +173,20 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         from test_full_pipeline import analyze_image, generate_renders
         from furniture_match import enrich_renders
 
-        # 分類影片與照片
-        video_paths = [p for p in photo_paths if Path(p).suffix.lower() in VIDEO_EXTS]
-        image_paths = [p for p in photo_paths if Path(p).suffix.lower() not in VIDEO_EXTS]
+        # 分類影片與照片（含 gemini:// URI）
+        gemini_uris = [p[len("gemini://"):] for p in photo_paths if p.startswith("gemini://")]
+        video_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() in VIDEO_EXTS]
+        image_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() not in VIDEO_EXTS]
 
-        if video_paths:
+        if gemini_uris or video_paths:
             # ── 影片模式：Gemini 分析影片，理解完整空間 ──
             from gemini_analyze import analyze_space
             write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片（理解整體格局）…")
-            analysis = analyze_space(video_paths[0], user_styles=styles or None)
+            # 優先用已上傳的 Gemini URI，否則用本機路徑
+            if gemini_uris:
+                analysis = analyze_space(gemini_uris[0], user_styles=styles or None, is_uri=True)
+            else:
+                analysis = analyze_space(video_paths[0], user_styles=styles or None)
 
             # Flux 渲染基底：優先用用戶上傳的照片，否則從影片抽幀
             if image_paths:
@@ -200,30 +248,60 @@ async def upload_photos(
     photos: List[UploadFile] = File(default=[]),
     videos: List[UploadFile] = File(default=[]),
 ):
-    """暫存照片與影片；返回 upload_id 供 /api/job 使用"""
+    """照片存 Supabase Storage；影片送 Gemini Files API；元資料存 DB"""
     upload_id  = uuid.uuid4().hex[:8].upper()
     upload_dir = UPLOADS_DIR / upload_id
     upload_dir.mkdir(parents=True)
 
-    paths: list[str] = []
+    local_paths: list[str] = []
+    photo_urls:  list[str] = []
+    video_uri:   str       = ""
+
+    # 影片 — 先存本機，再非同步上傳 Gemini Files（由 pipeline 使用 URI）
     for i, video in enumerate(videos):
         ext  = Path(video.filename or "video.mp4").suffix.lower() or ".mp4"
         dest = upload_dir / f"video_{i:02d}{ext}"
+        data = await video.read()
         with open(dest, "wb") as f:
-            f.write(await video.read())
-        paths.append(str(dest))
+            f.write(data)
+        local_paths.append(str(dest))
+        # 上傳到 Gemini Files API，存 URI（48小時有效）
+        try:
+            gemini_key = os.environ.get("GEMINI_API_KEY", "")
+            if gemini_key:
+                from google import genai as _genai
+                _gc = _genai.Client(api_key=gemini_key)
+                gfile = _gc.files.upload(file=str(dest))
+                import time as _time
+                for _ in range(30):
+                    if gfile.state.name != "PROCESSING":
+                        break
+                    _time.sleep(3)
+                    gfile = _gc.files.get(name=gfile.name)
+                if gfile.state.name == "ACTIVE":
+                    video_uri = gfile.uri
+        except Exception:
+            pass  # fallback: pipeline 用本機路徑
 
+    # 照片 — 存本機 + 上傳 Supabase Storage
     for i, photo in enumerate(photos):
         ext  = Path(photo.filename or "photo.jpg").suffix.lower() or ".jpg"
         dest = upload_dir / f"photo_{i:02d}{ext}"
+        data = await photo.read()
         with open(dest, "wb") as f:
-            f.write(await photo.read())
-        paths.append(str(dest))
+            f.write(data)
+        local_paths.append(str(dest))
+        mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
+        url = sb_upload_file(upload_id, dest.name, data, mime)
+        if url:
+            photo_urls.append(url)
 
+    # 儲存到本機 paths.json + Supabase uploads table
     with open(upload_dir / "paths.json", "w", encoding="utf-8") as f:
-        json.dump(paths, f)
+        json.dump(local_paths, f)
+    sb_save_upload(upload_id, photo_urls, video_uri)
 
-    return {"upload_id": upload_id, "count": len(paths)}
+    return {"upload_id": upload_id, "count": len(local_paths)}
 
 
 @app.post("/api/job")
@@ -235,8 +313,34 @@ async def create_job(
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
+    upload_dir = UPLOADS_DIR / upload_id
+
+    # 本機找不到時，從 Supabase 恢復
     if not paths_file.exists():
-        return JSONResponse(status_code=404, content={"error": "upload_id not found"})
+        record = sb_get_upload(upload_id)
+        if not record:
+            return JSONResponse(status_code=404, content={"error": "upload_id not found，請重新上傳"})
+        # 重建本機目錄
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        recovered: list[str] = []
+        for url in (record.get("photo_urls") or []):
+            fname = url.split("/")[-1]
+            dest  = upload_dir / fname
+            try:
+                r = _req.get(url, headers={
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}"
+                }, timeout=30)
+                if r.ok:
+                    dest.write_bytes(r.content)
+                    recovered.append(str(dest))
+            except Exception:
+                pass
+        # 影片：若有 Gemini URI 則加入 paths（pipeline 會識別）
+        if record.get("video_uri"):
+            recovered.insert(0, f"gemini://{record['video_uri']}")
+        with open(upload_dir / "paths.json", "w", encoding="utf-8") as f:
+            json.dump(recovered, f)
 
     with open(paths_file, encoding="utf-8") as f:
         photo_paths: list[str] = json.load(f)
@@ -250,6 +354,9 @@ async def create_job(
 
     new_paths: list[str] = []
     for path in photo_paths:
+        if path.startswith("gemini://"):
+            new_paths.append(path)  # Gemini URI 直接保留
+            continue
         src = Path(path)
         if src.exists():
             dst = job_dir / src.name

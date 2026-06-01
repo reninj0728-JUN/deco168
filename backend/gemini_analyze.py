@@ -157,18 +157,14 @@ warm ivory boucle sofa rounded silhouette, light oak side table matte finish, li
 VALID_STYLES = ["modern", "japanese", "luxury", "nordic", "muji", "cream", "wood", "french", "chinese-modern"]
 
 
-def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict:
+def analyze_space(video_path: str, user_styles: list[str] | None = None, is_uri: bool = False) -> dict:
     """
     分析空間影片並生成 Flux prompts。
-
-    user_styles: 用戶選擇的風格 ID 列表（從 VALID_STYLES 選），
-                 傳 None 或空列表表示讓 AI 自動推薦。
+    video_path: 本機路徑 或 Gemini Files URI（is_uri=True 時直接使用）
     """
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-    # 決定要生成哪 3 個風格
     if user_styles and all(s in VALID_STYLES for s in user_styles):
-        # 用戶有指定：最多取前 3 個，不足 3 個由 AI 補齊
         fixed_styles = user_styles[:3]
         mode = "user_selected"
         style_instruction = f"""
@@ -176,7 +172,6 @@ def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict
 {"如果不足 3 個，AI 自行從剩餘風格中補齊至 3 個，選最適合此空間的。" if len(fixed_styles) < 3 else ""}
 """
     else:
-        # 用戶未選：AI 從 11 種風格推薦最適合的 3 種
         fixed_styles = []
         mode = "ai_recommended"
         style_instruction = """
@@ -185,13 +180,18 @@ def analyze_space(video_path: str, user_styles: list[str] | None = None) -> dict
 modern / japanese / luxury / nordic / muji / cream / wood / french / chinese-modern
 """
 
-    print(f"[Gemini] 上傳影片: {video_path}")
-    video_file = client.files.upload(file=video_path)
-
-    while video_file.state.name == "PROCESSING":
-        print("[Gemini] 影片處理中...")
-        time.sleep(3)
-        video_file = client.files.get(name=video_file.name)
+    if is_uri:
+        # 直接用已上傳的 Gemini Files URI，不重複上傳
+        from google.genai import types as _types
+        video_file = type('F', (), {'uri': video_path, 'mime_type': 'video/mp4'})()
+        print(f"[Gemini] 使用既有影片 URI: {video_path[:60]}")
+    else:
+        print(f"[Gemini] 上傳影片: {video_path}")
+        video_file = client.files.upload(file=video_path)
+        while video_file.state.name == "PROCESSING":
+            print("[Gemini] 影片處理中...")
+            time.sleep(3)
+            video_file = client.files.get(name=video_file.name)
 
     if video_file.state.name == "FAILED":
         raise RuntimeError("Gemini 影片上傳失敗，請確認檔案格式")
