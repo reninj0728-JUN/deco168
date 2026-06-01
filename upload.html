@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>上傳空間資料 — DECO168</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -698,30 +699,85 @@
 
   // 下一步
   var API_BASE = 'https://deco168-production.up.railway.app';
+  var SUPABASE_URL = 'https://cjezgczjjsxfoeifduaj.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4';
+
+  function randomUploadId() {
+    return Math.random().toString(16).substring(2, 10).toUpperCase();
+  }
+
+  // 把單支影片直接 TUS 上傳到 Supabase Storage（不經過 Railway）
+  function uploadVideoToSupabase(file, uploadId, onProgress) {
+    return new Promise(function(resolve, reject) {
+      var ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+      var safeName = 'video_' + Date.now() + '.' + ext;
+      var objectName = uploadId + '/' + safeName;
+      var upload = new tus.Upload(file, {
+        endpoint: SUPABASE_URL + '/storage/v1/upload/resumable',
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        headers: {
+          authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+          'x-upsert': 'true'
+        },
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        metadata: {
+          bucketName: 'uploads',
+          objectName: objectName,
+          contentType: file.type || 'video/mp4',
+          cacheControl: '3600'
+        },
+        chunkSize: 6 * 1024 * 1024,
+        onError: function(err) { reject(err); },
+        onProgress: function(uploaded, total) {
+          if (onProgress) onProgress(Math.round((uploaded / total) * 100));
+        },
+        onSuccess: function() {
+          resolve('uploads/' + objectName);
+        }
+      });
+      upload.start();
+    });
+  }
 
   async function nextStep() {
     var photoInput = document.getElementById('photo-input');
     var files = _photoFiles.length > 0 ? _photoFiles : Array.from(photoInput.files || []);
 
-    if (files.length === 0) {
-      if (!confirm('沒有上傳照片，是否以示範模式繼續？')) return;
+    var videoInput = document.getElementById('video-input');
+    var videoFiles = _videoFiles && _videoFiles.length > 0 ? _videoFiles : Array.from(videoInput.files || []);
+
+    if (files.length === 0 && videoFiles.length === 0) {
+      if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) return;
       window.location.href = 'style-form.html';
       return;
     }
 
     var btn = document.querySelector('.btn-next');
     var orig = btn.textContent;
-    btn.textContent = '上傳中…';
+    btn.textContent = '準備中…';
     btn.disabled = true;
 
     try {
-      var formData = new FormData();
-      files.forEach(function(f) { formData.append('photos', f); });
+      var uploadId = randomUploadId();
 
-      // 影片也一起上傳
-      var videoInput = document.getElementById('video-input');
-      var videoFiles = _videoFiles && _videoFiles.length > 0 ? _videoFiles : Array.from(videoInput.files || []);
-      videoFiles.forEach(function(f) { formData.append('videos', f); });
+      // ── 影片走 TUS 直接到 Supabase（不經 Railway 的 5 分鐘 timeout）──
+      var videoKeys = [];
+      for (var i = 0; i < videoFiles.length; i++) {
+        var idx = i + 1;
+        btn.textContent = '影片 ' + idx + '/' + videoFiles.length + ' 上傳中 0%';
+        var key = await uploadVideoToSupabase(videoFiles[i], uploadId, function(pct) {
+          btn.textContent = '影片 ' + idx + '/' + videoFiles.length + ' 上傳中 ' + pct + '%';
+        });
+        videoKeys.push(key);
+      }
+
+      // ── 照片走 Railway（小檔案沒問題）+ 註冊 metadata ──
+      btn.textContent = '照片上傳中…';
+      var formData = new FormData();
+      formData.append('upload_id', uploadId);
+      files.forEach(function(f) { formData.append('photos', f); });
+      formData.append('video_keys', JSON.stringify(videoKeys));
 
       var resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -735,7 +791,7 @@
 
       window.location.href = 'style-form.html';
     } catch (e) {
-      alert('上傳失敗：' + e.message);
+      alert('上傳失敗：' + (e && e.message ? e.message : e));
       btn.textContent = orig;
       btn.disabled = false;
     }

@@ -79,16 +79,36 @@ def sb_upload_file(upload_id: str, filename: str, data: bytes, content_type: str
     except Exception:
         return None
 
-def sb_save_upload(upload_id: str, photo_urls: list, video_uri: str):
+def sb_save_upload(upload_id: str, photo_urls: list, video_uri: str = "", video_keys: list | None = None):
     """把上傳紀錄存到 Supabase uploads table"""
     try:
         _req.post(
             f"{SUPABASE_URL}/rest/v1/uploads",
-            json={"upload_id": upload_id, "photo_urls": photo_urls, "video_uri": video_uri},
+            json={"upload_id": upload_id, "photo_urls": photo_urls,
+                  "video_uri": video_uri, "video_keys": video_keys or []},
             headers=_SB_HEADERS, timeout=8
         )
     except Exception:
         pass
+
+
+def sb_download_object(key: str, dest: Path) -> str | None:
+    """從 Supabase Storage 下載物件到本機（key 格式：bucket/obj/path）"""
+    try:
+        url = f"{SUPABASE_URL}/storage/v1/object/{key}"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        with _req.get(url, headers=headers, timeout=300, stream=True) as r:
+            if not r.ok:
+                print(f"[sb_download] {key} 失敗 HTTP {r.status_code}")
+                return None
+            with open(dest, "wb") as f:
+                for chunk in r.iter_content(1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+        return str(dest)
+    except Exception as e:
+        print(f"[sb_download] {key} 例外: {e}")
+        return None
 
 def sb_get_upload(upload_id: str) -> dict | None:
     """從 Supabase 取回上傳紀錄"""
@@ -173,6 +193,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         sys.path.insert(0, str(BASE_DIR))
         from test_full_pipeline import analyze_image, generate_renders
         from furniture_match import enrich_renders
+
+        # 先把 supabase:// 影片從 Storage 下載到本機 job_dir
+        resolved_paths: list[str] = []
+        for p in photo_paths:
+            if p.startswith("supabase://"):
+                key = p[len("supabase://"):]
+                fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
+                dest = job_dir / fname
+                write_status(job_id, job_dir, "downloading", 8, "從雲端下載影片…")
+                local = sb_download_object(key, dest)
+                if local:
+                    resolved_paths.append(local)
+                else:
+                    print(f"[pipeline] 影片 {key} 下載失敗，跳過")
+            else:
+                resolved_paths.append(p)
+        photo_paths = resolved_paths
 
         gemini_uris = [p[len("gemini://"):] for p in photo_paths if p.startswith("gemini://")]
         video_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() in VIDEO_EXTS]
@@ -311,31 +348,33 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
 @app.post("/api/upload")
 async def upload_photos(
-    photos: List[UploadFile] = File(default=[]),
-    videos: List[UploadFile] = File(default=[]),
+    upload_id:  str               = Form(...),
+    photos:     List[UploadFile]  = File(default=[]),
+    video_keys: str               = Form(default="[]"),
 ):
-    """照片存 Supabase Storage；影片送 Gemini Files API；元資料存 DB"""
-    upload_id  = uuid.uuid4().hex[:8].upper()
+    """
+    上傳註冊端點：
+    - 影片：前端用 TUS 直接上傳到 Supabase Storage，這裡只收 Supabase 物件 key（不收影片本體）
+    - 照片：本機保留 + Supabase Storage 備份
+    """
     upload_dir = UPLOADS_DIR / upload_id
-    upload_dir.mkdir(parents=True)
+    upload_dir.mkdir(parents=True, exist_ok=True)
 
     local_paths: list[str] = []
     photo_urls:  list[str] = []
 
-    # 影片 — 只存本機，Gemini Files 上傳延後到 pipeline 階段（避免 /api/upload 卡住）
-    for i, video in enumerate(videos):
-        ext  = Path(video.filename or "video.mp4").suffix.lower() or ".mp4"
-        dest = upload_dir / f"video_{i:02d}{ext}"
-        # 串流寫檔，避免大檔案塞滿記憶體
-        with open(dest, "wb") as f:
-            while True:
-                chunk = await video.read(1024 * 1024)  # 1MB chunks
-                if not chunk:
-                    break
-                f.write(chunk)
-        local_paths.append(str(dest))
+    # 影片：前端已直接傳 Supabase，把 key 轉成 supabase://<bucket>/<obj> 的虛擬路徑
+    try:
+        keys = json.loads(video_keys or "[]")
+        if not isinstance(keys, list):
+            keys = []
+    except Exception:
+        keys = []
+    for k in keys:
+        if isinstance(k, str) and k.strip():
+            local_paths.append(f"supabase://{k.strip()}")
 
-    # 照片 — 存本機 + 上傳 Supabase Storage（檔案小，秒上）
+    # 照片：本機 + Supabase Storage
     for i, photo in enumerate(photos):
         ext  = Path(photo.filename or "photo.jpg").suffix.lower() or ".jpg"
         dest = upload_dir / f"photo_{i:02d}{ext}"
@@ -348,10 +387,9 @@ async def upload_photos(
         if url:
             photo_urls.append(url)
 
-    # 儲存到本機 paths.json + Supabase uploads table（video_uri 留空，pipeline 再填）
     with open(upload_dir / "paths.json", "w", encoding="utf-8") as f:
         json.dump(local_paths, f)
-    sb_save_upload(upload_id, photo_urls, "")
+    sb_save_upload(upload_id, photo_urls, "", keys)
 
     return {"upload_id": upload_id, "count": len(local_paths)}
 
@@ -374,9 +412,13 @@ async def create_job(
         record = sb_get_upload(upload_id)
         if not record:
             return JSONResponse(status_code=404, content={"error": "upload_id not found，請重新上傳"})
-        # 重建本機目錄
         upload_dir.mkdir(parents=True, exist_ok=True)
         recovered: list[str] = []
+        # 影片：用 Supabase keys 重建 supabase:// 虛擬路徑
+        for k in (record.get("video_keys") or []):
+            if isinstance(k, str) and k.strip():
+                recovered.append(f"supabase://{k.strip()}")
+        # 照片：從 Supabase URL 下載回本機
         for url in (record.get("photo_urls") or []):
             fname = url.split("/")[-1]
             dest  = upload_dir / fname
@@ -390,9 +432,6 @@ async def create_job(
                     recovered.append(str(dest))
             except Exception:
                 pass
-        # 影片：若有 Gemini URI 則加入 paths（pipeline 會識別）
-        if record.get("video_uri"):
-            recovered.insert(0, f"gemini://{record['video_uri']}")
         with open(upload_dir / "paths.json", "w", encoding="utf-8") as f:
             json.dump(recovered, f)
 
@@ -408,8 +447,8 @@ async def create_job(
 
     new_paths: list[str] = []
     for path in photo_paths:
-        if path.startswith("gemini://"):
-            new_paths.append(path)  # Gemini URI 直接保留
+        if path.startswith(("gemini://", "supabase://")):
+            new_paths.append(path)  # 虛擬路徑保留，pipeline 內處理
             continue
         src = Path(path)
         if src.exists():
