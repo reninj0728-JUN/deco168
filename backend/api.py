@@ -30,30 +30,37 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 JOBS_DIR.mkdir(exist_ok=True)
 
 # ─── R2 (Cloudflare) 設定 ─────────────────────────────────────────────────────
-R2_ACCESS_KEY_ID     = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
-R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
-R2_ENDPOINT          = os.environ.get("R2_ENDPOINT", "").strip()
-R2_BUCKET            = os.environ.get("R2_BUCKET", "deco168-uploads").strip()
+# 改為「每次呼叫即時讀 env」，避免 Railway env var 同步時機問題
+
+def _r2_cfg():
+    return (
+        os.environ.get("R2_ACCESS_KEY_ID", "").strip(),
+        os.environ.get("R2_SECRET_ACCESS_KEY", "").strip(),
+        os.environ.get("R2_ENDPOINT", "").strip(),
+        os.environ.get("R2_BUCKET", "deco168-uploads").strip(),
+    )
 
 def _r2_client():
-    """惰性建立 R2 boto3 client（避免 import 時就要求金鑰）"""
+    """惰性建立 R2 boto3 client，每次都即時讀 env vars"""
     import boto3
+    ak, sk, ep, _ = _r2_cfg()
     return boto3.client(
         "s3",
-        endpoint_url=R2_ENDPOINT,
-        aws_access_key_id=R2_ACCESS_KEY_ID,
-        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        endpoint_url=ep,
+        aws_access_key_id=ak,
+        aws_secret_access_key=sk,
         region_name="auto",
     )
 
 def r2_presign_put(key: str, content_type: str = "video/mp4", expires_in: int = 3600) -> str | None:
-    """產生 PUT presigned URL，讓前端直接上傳影片到 R2"""
-    if not (R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_ENDPOINT):
+    ak, sk, ep, bucket = _r2_cfg()
+    if not (ak and sk and ep):
+        print(f"[r2_presign_put] env vars 缺：ak={bool(ak)} sk={bool(sk)} ep={bool(ep)}")
         return None
     try:
         return _r2_client().generate_presigned_url(
             "put_object",
-            Params={"Bucket": R2_BUCKET, "Key": key, "ContentType": content_type},
+            Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=expires_in,
             HttpMethod="PUT",
         )
@@ -62,22 +69,22 @@ def r2_presign_put(key: str, content_type: str = "video/mp4", expires_in: int = 
         return None
 
 def r2_download_object(key: str, dest: Path) -> str | None:
-    """從 R2 下載物件到本機"""
-    if not (R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_ENDPOINT):
+    ak, sk, ep, bucket = _r2_cfg()
+    if not (ak and sk and ep):
         return None
     try:
-        _r2_client().download_file(R2_BUCKET, key, str(dest))
+        _r2_client().download_file(bucket, key, str(dest))
         return str(dest)
     except Exception as e:
         print(f"[r2_download] {key} 失敗: {e}")
         return None
 
 def r2_delete_object(key: str) -> bool:
-    """從 R2 刪除物件（pipeline 跑完用）"""
-    if not (R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_ENDPOINT):
+    ak, sk, ep, bucket = _r2_cfg()
+    if not (ak and sk and ep):
         return False
     try:
-        _r2_client().delete_object(Bucket=R2_BUCKET, Key=key)
+        _r2_client().delete_object(Bucket=bucket, Key=key)
         return True
     except Exception as e:
         print(f"[r2_delete] {key} 失敗: {e}")
@@ -613,15 +620,16 @@ def get_error(job_id: str):
 @app.get("/health")
 def health():
     keys = [k for k in os.environ if "GEMINI" in k or "GOOGLE" in k or "FAL" in k or "AI" in k or "R2" in k]
+    ak, sk, ep, bucket = _r2_cfg()
     return {
         "status": "ok",
         "base_dir": str(BASE_DIR),
         "gemini_key": "set" if (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")) else "MISSING",
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
-        "r2_access_key": "set" if R2_ACCESS_KEY_ID else "MISSING",
-        "r2_secret":     "set" if R2_SECRET_ACCESS_KEY else "MISSING",
-        "r2_endpoint":   R2_ENDPOINT or "MISSING",
-        "r2_bucket":     R2_BUCKET or "MISSING",
+        "r2_access_key": "set" if ak else "MISSING",
+        "r2_secret":     "set" if sk else "MISSING",
+        "r2_endpoint":   ep or "MISSING",
+        "r2_bucket":     bucket or "MISSING",
         "matching_keys": keys,
         "all_keys": sorted(os.environ.keys()),
     }
