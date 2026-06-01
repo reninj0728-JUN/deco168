@@ -128,7 +128,7 @@ renders 陣列必須恰好 {len(fixed_styles)} 個，順序對應 {fixed_styles}
 
     t0 = time.time()
     resp = _get_client().models.generate_content(
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash",
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=_get_system_prompt(),
