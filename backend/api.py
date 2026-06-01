@@ -1,6 +1,11 @@
 # DECO168 FastAPI Backend
 # 啟動: cd backend && python3.11 -m uvicorn api:app --reload --port 8000
 import os, sys, json, uuid, shutil, traceback
+
+# 清除環境變數可能的換行符（Railway 有時會多帶 \n）
+for _k in ("FAL_KEY", "GEMINI_API_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
+    if os.environ.get(_k):
+        os.environ[_k] = os.environ[_k].strip()
 from pathlib import Path
 from typing import List
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
