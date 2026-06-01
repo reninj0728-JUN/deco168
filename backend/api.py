@@ -140,13 +140,13 @@ def write_status(job_id: str, job_dir: Path, status: str, progress: int, message
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
 
-def extract_frame(video_path: str, out_path: str) -> str:
-    """從影片中段抽一幀作為 Flux 輸入，回傳儲存路徑"""
+def extract_frame(video_path: str, out_path: str, position: float = 0.33) -> str:
+    """從影片指定位置（0.0~1.0）抽一幀，回傳儲存路徑"""
     try:
         import cv2
         cap = cv2.VideoCapture(video_path)
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, total // 3))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, int(total * position)))
         ok, frame = cap.read()
         cap.release()
         if ok:
@@ -154,10 +154,10 @@ def extract_frame(video_path: str, out_path: str) -> str:
             return out_path
     except Exception:
         pass
-    # fallback: 用 ffmpeg
     import subprocess
+    ts = max(1, int(position * 30))  # 粗估秒數 fallback
     subprocess.run(
-        ["ffmpeg", "-y", "-ss", "3", "-i", video_path,
+        ["ffmpeg", "-y", "-ss", str(ts), "-i", video_path,
          "-vframes", "1", "-q:v", "2", out_path],
         capture_output=True
     )
@@ -181,32 +181,35 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str):
         if gemini_uris or video_paths:
             # ── 影片模式：Gemini 分析影片，理解完整空間 ──
             from gemini_analyze import analyze_space
-            # 優先用已上傳的 Gemini URI，否則本機影片走完整流程
             if gemini_uris:
                 write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間影片（理解整體格局）…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None, is_uri=True)
             else:
                 write_status(job_id, job_dir, "analyzing", 10, "上傳影片到 Gemini（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None)
-
-            # Flux 渲染基底：優先用用戶上傳的照片，否則從影片抽幀
-            if image_paths:
-                main_photo = image_paths[0]
-            else:
-                frame_path = str(job_dir / "frame_for_flux.jpg")
-                main_photo = extract_frame(video_paths[0], frame_path)
         else:
-            # ── 照片模式（原有邏輯）──
+            # ── 照片模式 ──
             write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 正在分析空間照片…")
-            main_photo = image_paths[0]
             extra = image_paths[1:] if len(image_paths) > 1 else None
-            analysis = analyze_image(main_photo, styles or None, extra_photos=extra)
+            analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra)
+
+        # ── 收集 Flux 輸入：所有照片 + 影片均勻抽幀補足到 3 張 ──
+        flux_inputs: list[str] = list(image_paths)
+        if video_paths and not gemini_uris and len(flux_inputs) < 3:
+            positions = [0.25, 0.5, 0.75]
+            for i in range(3 - len(flux_inputs)):
+                frame_path = str(job_dir / f"frame_{i:02d}.jpg")
+                extract_frame(video_paths[0], frame_path, position=positions[i])
+                if Path(frame_path).exists():
+                    flux_inputs.append(frame_path)
+        if not flux_inputs:
+            raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
 
         write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
 
         write_status(job_id, job_dir, "rendering", 60, "AI 渲染圖生成中（約 5-10 分鐘）…")
-        final = generate_renders(main_photo, enriched, output_dir=str(job_dir))
+        final = generate_renders(flux_inputs, enriched, output_dir=str(job_dir))
 
         result = {"analysis": analysis, "renders": final}
         with open(job_dir / "result.json", "w", encoding="utf-8") as f:

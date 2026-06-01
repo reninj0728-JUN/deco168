@@ -125,16 +125,16 @@ def match_furniture(style: str, flux_prompt: str, catalog: list[dict], top_n: in
         if score > 0:
             scored.append((score, item))
 
-    # 依分數排序，每個類別最多取 2 件避免同質
+    # 依分數排序，每個類別最多取 1 件（避免同一風格出現 2 個沙發）
     scored.sort(key=lambda x: -x[0])
     selected = []
-    cat_count: dict[str, int] = {}
+    cat_seen: set[str] = set()
 
     for score, item in scored:
         cat = item.get("category", "other")
-        if cat_count.get(cat, 0) >= 2:
+        if cat in cat_seen:
             continue
-        cat_count[cat] = cat_count.get(cat, 0) + 1
+        cat_seen.add(cat)
         selected.append(item)
         if len(selected) >= top_n:
             break

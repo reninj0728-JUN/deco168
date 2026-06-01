@@ -169,25 +169,36 @@ def show_furniture(enriched_renders: list[dict]):
 
 # ─── Step 3: Flux 生成渲染圖 ─────────────────────────────────────────────────
 
-def generate_renders(image_path: str, enriched_renders: list[dict], output_dir: str = "output"):
+def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output"):
+    """
+    image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
+    """
     print(f"\n{'='*56}")
     print("[Step 3] Flux Kontext Pro 生成渲染圖")
     print(f"{'='*56}")
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # 圖片轉 data URL
-    ext = Path(image_path).suffix.lower()
-    mime = "image/jpeg" if ext in [".jpg", ".jpeg"] else "image/png"
-    with open(image_path, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
-    image_url = f"data:{mime};base64,{b64}"
+    if isinstance(image_paths, str):
+        image_paths = [image_paths]
+
+    def _to_data_url(path: str) -> str:
+        ext = Path(path).suffix.lower()
+        mime = "image/jpeg" if ext in [".jpg", ".jpeg"] else "image/png"
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f"data:{mime};base64,{b64}"
+
+    img_urls = [_to_data_url(p) for p in image_paths]
+    print(f"  渲染基底：{len(img_urls)} 張角度（輪流套用到 {len(enriched_renders)} 個風格）")
 
     results = []
-    for render in enriched_renders:
+    for idx, render in enumerate(enriched_renders):
         style = render.get("style", "unknown")
         label = render.get("style_label", style)
         flux_prompt = render.get("flux_prompt", "")
+        image_url = img_urls[idx % len(img_urls)]
+        print(f"  風格 {idx+1} ({label}) 用角度: {Path(image_paths[idx % len(img_urls)]).name}")
 
         # 把家具 flux_descriptor 加進 prompt
         furniture_desc = ", ".join(
