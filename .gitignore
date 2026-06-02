@@ -26,3 +26,7 @@ backend/momo_sample.html
 # 桌面 / 個人筆記
 R2_KEYS.txt
 *.pdf
+
+# POC 實驗腳本（不進 production）
+backend/poc_*.py
+backend/poc_output/
