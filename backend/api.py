@@ -314,27 +314,46 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra)
 
         # ── 決定 Flux 輸入角度 ──
-        # 單一全景 → 1 張最美角度；多角度 → 多張（照片 + 影片抽幀）
+        # multi：用 Gemini regions[]（全室=不同房間 / 單房=同房不同角度）
+        # single：Gemini best_photo_index 挑 1 張最美
         base_video = video_paths[0] if video_paths else None
-        flux_bases: list[str] = []  # 每張對應「該渲染哪個角度」
-        angle_labels: list[str] = []  # 角度的中文標籤
+        flux_bases: list[str] = []
+        angle_labels: list[str] = []
+
+        def _resolve_region_base(region: dict, idx: int) -> tuple[str | None, str]:
+            """從 region 元素挑出一張 Flux 基底，回傳 (path, label)"""
+            label = region.get("name") or f"角度{idx+1}"
+            # 1. 優先用 Gemini 指定的 photo index
+            ph_idx = region.get("best_photo_index")
+            if image_paths and isinstance(ph_idx, int) and 0 <= ph_idx < len(image_paths):
+                return image_paths[ph_idx], label
+            # 2. 備案：用 video_position 抽幀
+            if base_video:
+                pos = region.get("video_position")
+                if isinstance(pos, (int, float)) and 0 <= pos <= 1:
+                    frame_path = str(job_dir / f"region_{idx:02d}.jpg")
+                    extract_frame(base_video, frame_path, position=float(pos))
+                    if Path(frame_path).exists():
+                        return frame_path, label
+            # 3. 最後 fallback：均勻抽影片 / 取照片
+            if image_paths:
+                return image_paths[idx % len(image_paths)], label
+            if base_video:
+                frame_path = str(job_dir / f"region_{idx:02d}_fallback.jpg")
+                extract_frame(base_video, frame_path, position=(idx + 1) / 4)
+                if Path(frame_path).exists():
+                    return frame_path, label
+            return None, label
 
         if render_angle == "multi":
-            # 全室 → 3 個區域；單一房間 → 3 個角度
-            target_count = 3
-            # 用戶照片優先
-            for i, p in enumerate(image_paths[:target_count]):
-                flux_bases.append(p)
-                angle_labels.append(f"角度{i+1}")
-            # 不夠就從影片均勻抽幀補
-            if len(flux_bases) < target_count and base_video:
-                positions = [0.2, 0.5, 0.8]
-                for j in range(target_count - len(flux_bases)):
-                    frame_path = str(job_dir / f"frame_{len(flux_bases):02d}.jpg")
-                    extract_frame(base_video, frame_path, position=positions[j])
-                    if Path(frame_path).exists():
-                        flux_bases.append(frame_path)
-                        angle_labels.append(f"角度{len(flux_bases)}")
+            regions = analysis.get("regions") or []
+            # Gemini 應該回 3 個；不足就補
+            for i in range(3):
+                region = regions[i] if i < len(regions) else {}
+                path, label = _resolve_region_base(region, i)
+                if path:
+                    flux_bases.append(path)
+                    angle_labels.append(label)
         else:
             # single：Gemini 挑最美 1 張
             if image_paths:
@@ -352,7 +371,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if not flux_bases:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
 
-        print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{[Path(p).name for p in flux_bases]}")
+        print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{list(zip(angle_labels, [Path(p).name for p in flux_bases]))}")
 
         write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)

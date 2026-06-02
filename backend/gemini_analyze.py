@@ -236,14 +236,14 @@ def analyze_space(
     space_label = SPACE_TYPE_LABELS.get(space_type, "客廳")
     if space_type == "whole":
         scope_instruction = (
-            "用戶選的是【全室】——要識別空間裡有幾個不同的房間/區域"
+            "用戶選的是【全室】——識別空間裡幾個主要房間/區域"
             "（例如：客廳、餐廳、廚房、主臥、書房、玄關）。"
-            "把它們列在 regions 陣列裡。"
+            "regions 陣列**必須恰好 3 個**：挑最值得渲染的 3 個房間（優先客廳/主臥/餐廳之類核心空間）。"
         )
     else:
         scope_instruction = (
-            f"用戶選的是【{space_label}】——這次只聚焦這一個房間。"
-            "regions 陣列只放一個元素（就是這個房間）。"
+            f"用戶選的是【{space_label}】——只聚焦這一個房間。"
+            "regions 陣列**必須恰好 3 個**：同一個房間的 3 個不同角度（例如：全景、沙發角、電視牆角）。"
         )
 
     prompt = f"""
@@ -297,17 +297,27 @@ def analyze_space(
   "design_analysis": "空間分析摘要，繁體中文，80字以內",
   "recommended_styles": ["style_id_1", "style_id_2", "style_id_3"],
   "recommend_reason": "推薦原因，繁體中文，50字以內",
-  "best_photo_index": {("這個欄位回傳 0~" + str(len(photo_parts)-1) + " 之間的整數，指出哪一張用戶照片最適合當「設計呈現的主角度」（最美、構圖最完整、最能看出空間感）。若全部都不好就填 0。") if photo_parts else "null"},
+  "best_photo_index": {("0~" + str(len(photo_parts)-1) + " 整數，指最美/最完整的主角度") if photo_parts else "null"},
   "regions": [
-    {{"name": "區域名稱（例如：客廳、餐廳、主臥）", "description": "這個區域的格局描述（30字以內）"}}
+    {{
+      "name": "區域名稱（例如：客廳、餐廳、主臥；或 全景視角、沙發角度 之類）",
+      "description": "區域格局描述，30字內",
+      "best_photo_index": {("0~" + str(len(photo_parts)-1) + " 整數，這個區域最適合用第幾張用戶照片渲染") if photo_parts else "null"},
+      "video_position": "0.0~1.0 浮點數，這個區域在影片裡大約出現的位置（用戶若沒上傳照片或照片不足時用）"
+    }}
   ],
   "renders": [
     {{"style":"style_id（必須對應用戶選的 {fixed_styles}）","style_label":"中文名稱","flux_prompt":"逗號分隔 keyword，結尾必須是 professional interior design photography, staged showroom, editorial styling, 35mm wide angle, soft natural light, UHD, no people, no text, no watermark, no distortion, no CGI artifacts"}}
   ]
 }}
 
-renders 陣列必須恰好 {len(fixed_styles)} 個，順序對應用戶選的風格：{fixed_styles}。
-flux_prompt 要根據空間實際採光、格局選詞。<15坪加 light reflective surface, open concept, visual expansion。
+【極重要規則】
+- regions 陣列**必須恰好 3 個**，順序為「最重要/最值得呈現」優先。
+- 每個 region 的 best_photo_index 與 video_position **都要填**：best_photo_index 是首選，video_position 是備案。
+- 全室模式（space_type=whole）：每個 region 對應不同房間，可能要用不同照片或不同影片時間點。
+- 單房模式（其他）：每個 region 對應同一個房間的不同角度。
+- renders 陣列必須恰好 {len(fixed_styles)} 個，順序對應用戶選的風格：{fixed_styles}。
+- flux_prompt 要根據空間實際採光、格局選詞。<15坪加 light reflective surface, open concept, visual expansion。
 """
 
     response = client.models.generate_content(
