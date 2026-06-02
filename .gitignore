@@ -6,3 +6,23 @@ backend/jobs/
 backend/output/
 backend/room*.jpg
 backend/*.pyc
+
+# ── 開發暫存 / 爬蟲 / 批次資料，不該進 repo ──────────────────────────────
+backend/catalog_batch*.py
+backend/check_*.py
+backend/clean_catalog.py
+backend/merge_catalogs.py
+backend/rebuild_full_catalog.py
+backend/reclassify_*.py
+backend/reclassify_*.json
+backend/reclassify_*.txt
+backend/scraper_*.py
+backend/test_ikea*.py
+backend/test_momo*.py
+backend/furniture_raw_*.json
+backend/ikea_scrape_result.json
+backend/momo_sample.html
+
+# 桌面 / 個人筆記
+R2_KEYS.txt
+*.pdf
