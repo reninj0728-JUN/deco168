@@ -276,7 +276,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
 
         t0 = time.time()
         try:
-            # 回到單圖 endpoint（multi 會把家具圖合成進去，不是當風格參考）
+            # ── 正式 endpoint（鎖定 kontext，POC 結論 2026-06-03）──
+            # kontext/max、ControlNet Canny/Depth/Depth+Canny 經 POC 比較後
+            # 都未達可用門檻或無明顯收益，僅保留在 backend/poc_*.py 作未來研究。
+            # 不要在沒有新 POC 證明前切換。
             result = fal_client.subscribe(
                 "fal-ai/flux-pro/kontext",
                 arguments={
