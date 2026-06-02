@@ -31,13 +31,20 @@ JOBS_DIR.mkdir(exist_ok=True)
 
 # ─── R2 (Cloudflare) 設定 ─────────────────────────────────────────────────────
 # 改為「每次呼叫即時讀 env」，避免 Railway env var 同步時機問題
+# TODO: Railway env vars 同步 bug 修好後，移除下方 fallback 寫死值
+_R2_FALLBACK = {
+    "R2_ACCESS_KEY_ID":     "b76764a49bc835b699a0c7d4d38efe97",
+    "R2_SECRET_ACCESS_KEY": "c5bfd3d3c117cf8aafd45327c368643ba25d58a895a56c6d45b2c212ff16abb7",
+    "R2_ENDPOINT":          "https://3f9e56a8da931f36227f832a90129fff.r2.cloudflarestorage.com",
+    "R2_BUCKET":            "deco168-uploads",
+}
 
 def _r2_cfg():
     return (
-        os.environ.get("R2_ACCESS_KEY_ID", "").strip(),
-        os.environ.get("R2_SECRET_ACCESS_KEY", "").strip(),
-        os.environ.get("R2_ENDPOINT", "").strip(),
-        os.environ.get("R2_BUCKET", "deco168-uploads").strip(),
+        (os.environ.get("R2_ACCESS_KEY_ID") or _R2_FALLBACK["R2_ACCESS_KEY_ID"]).strip(),
+        (os.environ.get("R2_SECRET_ACCESS_KEY") or _R2_FALLBACK["R2_SECRET_ACCESS_KEY"]).strip(),
+        (os.environ.get("R2_ENDPOINT") or _R2_FALLBACK["R2_ENDPOINT"]).strip(),
+        (os.environ.get("R2_BUCKET") or _R2_FALLBACK["R2_BUCKET"]).strip(),
     )
 
 def _r2_client():
