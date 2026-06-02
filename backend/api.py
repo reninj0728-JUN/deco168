@@ -90,7 +90,14 @@ def r2_delete_object(key: str) -> bool:
         print(f"[r2_delete] {key} 失敗: {e}")
         return False
 
-app = FastAPI(title="DECO168 API", version="1.0")
+app = FastAPI(title="DECO168 API", version="1.0.1")
+
+# 啟動時印出實際看到的 env vars
+print(f"[startup] R2_ACCESS_KEY_ID set: {bool(os.environ.get('R2_ACCESS_KEY_ID'))}")
+print(f"[startup] R2_SECRET_ACCESS_KEY set: {bool(os.environ.get('R2_SECRET_ACCESS_KEY'))}")
+print(f"[startup] R2_ENDPOINT set: {bool(os.environ.get('R2_ENDPOINT'))}")
+print(f"[startup] R2_BUCKET set: {bool(os.environ.get('R2_BUCKET'))}")
+print(f"[startup] total env count: {len(os.environ)}")
 
 app.add_middleware(
     CORSMiddleware,
