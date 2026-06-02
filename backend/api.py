@@ -252,7 +252,8 @@ def extract_frame(video_path: str, out_path: str, position: float = 0.33) -> str
 
 
 def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
-                 space_type: str = "living", render_angle: str = "single"):
+                 space_type: str = "living", render_angle: str = "single",
+                 design_mode: str = "furnish"):
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
 
@@ -299,17 +300,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if gemini_uris or video_paths:
             from gemini_analyze import analyze_space
             if gemini_uris:
-                write_status(job_id, job_dir, "analyzing", 15, "Gemini Pro 分析影片+照片（理解整體格局）…")
+                write_status(job_id, job_dir, "analyzing", 15, "分析影片+照片（理解整體格局）…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None,
                                          is_uri=True, extra_photos=image_paths or None,
                                          space_type=space_type)
             else:
-                write_status(job_id, job_dir, "analyzing", 10, "上傳影片到 Gemini（大檔案需要幾分鐘）…")
+                write_status(job_id, job_dir, "analyzing", 10, "影片上傳分析中（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None,
                                          extra_photos=image_paths or None,
                                          space_type=space_type)
         else:
-            write_status(job_id, job_dir, "analyzing", 15, "Gemini AI 分析空間照片…")
+            write_status(job_id, job_dir, "analyzing", 15, "分析空間照片中…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra)
 
@@ -390,11 +391,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         write_status(job_id, job_dir, "rendering", 60,
                      f"AI 生成 {total} 張渲染圖（{len(enriched)} 風格 × {len(flux_bases)} 角度）…")
 
-        # 一次渲染一張：對應 base 不同（analysis 傳進去讓 PRESERVE prompt 具體化）
+        # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
         for idx, entry in enumerate(expanded):
             single_result = generate_renders(entry["_base_path"], [entry],
-                                             output_dir=str(job_dir), analysis=analysis)
+                                             output_dir=str(job_dir),
+                                             analysis=analysis, design_mode=design_mode)
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -523,6 +525,7 @@ async def create_job(
     plan: str         = Form(default="A"),
     space_type: str   = Form(default="living"),    # living/dining/bedroom/study/whole
     render_angle: str = Form(default="single"),    # single/multi
+    design_mode: str  = Form(default="furnish"),   # furnish (只動家具) / full (含裝潢)
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -581,6 +584,7 @@ async def create_job(
     with open(job_dir / "meta.json", "w", encoding="utf-8") as f:
         json.dump({"job_id": job_id, "plan": plan, "styles": styles_list,
                    "space_type": space_type, "render_angle": render_angle,
+                   "design_mode": design_mode,
                    "photo_count": len(new_paths)}, f, ensure_ascii=False)
 
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
@@ -589,7 +593,7 @@ async def create_job(
 
     write_status(job_id, job_dir, "queued", 5, "已排入隊列，即將開始分析…")
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
-                              space_type, render_angle)
+                              space_type, render_angle, design_mode)
 
     return {"job_id": job_id}
 

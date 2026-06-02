@@ -172,31 +172,56 @@ def show_furniture(enriched_renders: list[dict]):
 
 # ─── Step 3: Flux 生成渲染圖 ─────────────────────────────────────────────────
 
-def _build_preserve_clause(analysis: dict | None) -> str:
-    """把 Gemini 抓到的 architectural_features 變成具體 PRESERVE 指令"""
-    if not analysis:
-        return ("PRESERVE EXACTLY: ceiling height, room shape, all walls, window positions, door openings, "
-                "ceiling fixtures (sprinklers, lights, beams), floor plan structure. ")
-    feats = analysis.get("architectural_features") or {}
-    dims  = analysis.get("room_dimensions") or {}
-    parts = ["PRESERVE EXACTLY the architecture of this room:"]
+def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") -> str:
+    """
+    把 Gemini 抓到的 architectural_features 變成具體 PRESERVE 指令。
+    design_mode:
+      - furnish: 只動家具/軟裝，禁止任何裝潢更動（天花板/牆/門/窗一律保留）
+      - full:    可以改表面飾材+輕裝修（仍鎖格局結構）
+    """
+    feats = (analysis or {}).get("architectural_features") or {}
+    dims  = (analysis or {}).get("room_dimensions") or {}
+
+    # 反幻想語句（不論模式都加）
+    anti_halluc = (
+        "STRICT RULES: do not add extra windows; do not add extra doors; "
+        "do not add new ceiling lights or fixtures that were not in the source photo; "
+        "do not add wall paneling, marble walls, or wood walls unless already present; "
+        "keep the exact same room dimensions and proportions as the source photo. "
+    )
+
+    parts = ["PRESERVE EXACTLY:"]
     if dims:
         L = dims.get("length_m"); W = dims.get("width_m"); H = dims.get("height_m")
         if L and W and H:
-            parts.append(f"room is {L}m long x {W}m wide x {H}m tall;")
-    if feats.get("doors"):     parts.append(f"doors: {feats['doors']};")
-    if feats.get("windows"):   parts.append(f"windows: {feats['windows']};")
+            parts.append(f"room measures {L}m long x {W}m wide x {H}m tall — keep this exact aspect;")
+    if feats.get("doors"):   parts.append(f"doors: {feats['doors']} — same count, same positions;")
+    if feats.get("windows"): parts.append(f"windows: {feats['windows']} — same count, same positions;")
     if feats.get("kitchen") and feats["kitchen"] != "無":
         parts.append(f"kitchen: {feats['kitchen']};")
-    if feats.get("ceiling"):   parts.append(f"ceiling: {feats['ceiling']} — keep all pipes/sprinklers/beams visible;")
-    if feats.get("floor"):     parts.append(f"floor: {feats['floor']} — keep same material;")
-    if feats.get("walls"):     parts.append(f"walls: {feats['walls']};")
-    parts.append("DO NOT move/remove walls, doors, windows, or ceiling fixtures. ONLY change surface finishes, furniture, decor, lighting mood.")
-    return " ".join(parts)
+    if feats.get("ceiling"):
+        parts.append(f"ceiling: {feats['ceiling']} — keep pipes/sprinklers/beams visible if present;")
+    if feats.get("floor"):
+        parts.append(f"floor: {feats['floor']};")
+    if feats.get("walls"):
+        parts.append(f"walls: {feats['walls']};")
+
+    if design_mode == "furnish":
+        parts.append(
+            "MODE: furniture-only restyle. DO NOT modify walls, ceiling, doors, windows, floor finish. "
+            "ONLY change movable furniture, soft furnishings (rugs, curtains, cushions), decor objects, and lighting mood."
+        )
+    else:
+        parts.append(
+            "MODE: interior refinish. Wall/ceiling surface finish may be updated but DO NOT add structural elements. "
+            "ONLY change surface finishes, furniture, decor, lighting mood."
+        )
+
+    return anti_halluc + " ".join(parts)
 
 
 def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output",
-                     analysis: dict | None = None):
+                     analysis: dict | None = None, design_mode: str = "furnish"):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
@@ -218,9 +243,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         return f"data:{mime};base64,{b64}"
 
     img_urls = [_to_data_url(p) for p in image_paths]
-    preserve_clause = _build_preserve_clause(analysis)
-    print(f"  渲染基底：{len(img_urls)} 張角度")
-    print(f"  PRESERVE 指令: {preserve_clause[:120]}...")
+    preserve_clause = _build_preserve_clause(analysis, design_mode=design_mode)
+    # furnish 模式 guidance_scale 更低（更聽原圖），full 模式稍高
+    guidance = 3.0 if design_mode == "furnish" else 4.0
+    print(f"  渲染基底：{len(img_urls)} 張角度，design_mode={design_mode}, guidance={guidance}")
+    print(f"  PRESERVE 指令: {preserve_clause[:160]}...")
 
     results = []
     for idx, render in enumerate(enriched_renders):
@@ -230,39 +257,33 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         base_image_url = img_urls[idx % len(img_urls)]
         print(f"  風格 {idx+1} ({label}) 用角度: {Path(image_paths[idx % len(img_urls)]).name}")
 
-        # 家具描述 + 家具產品圖（multi 模式：當作參考圖丟給 Flux）
+        # 家具描述（家具產品圖暫不直接傳，因為 multi endpoint 會做合成而非參考）
         furniture_items = render.get("matched_furniture", [])[:3]
         furniture_desc = ", ".join(
             item.get("flux_descriptor", "") for item in furniture_items
             if item.get("flux_descriptor")
         )
-        furniture_ref_urls = [
-            item.get("image_url") for item in furniture_items
-            if item.get("image_url") and item["image_url"].startswith("http")
-        ][:3]
 
         full_prompt = f"{flux_prompt}, {furniture_desc}" if furniture_desc else flux_prompt
 
-        # 組合最終 prompt：具體 PRESERVE + style + 家具描述
         final_prompt = (
             preserve_clause + " "
-            f"Apply this interior design style: {full_prompt}"
+            f"Apply this interior design style ONLY to surfaces/furniture/lighting (do not modify architecture): {full_prompt}"
         )
 
         print(f"\n  生成【{label}】...")
-        print(f"  家具參考圖: {len(furniture_ref_urls)} 張")
         print(f"  Prompt 結尾: ...{full_prompt[-80:]}")
 
         t0 = time.time()
         try:
-            # 用 multi endpoint，把房間照片 + 家具產品圖一起當參考
-            all_image_urls = [base_image_url] + furniture_ref_urls
+            # 回到單圖 endpoint（multi 會把家具圖合成進去，不是當風格參考）
             result = fal_client.subscribe(
-                "fal-ai/flux-pro/kontext/multi",
+                "fal-ai/flux-pro/kontext",
                 arguments={
-                    "image_urls": all_image_urls,
+                    "image_url": base_image_url,
                     "prompt": final_prompt,
-                    "guidance_scale": 4.0,
+                    "guidance_scale": guidance,
+                    "num_inference_steps": 40,
                     "output_format": "jpeg",
                     "safety_tolerance": "5",
                 },

@@ -251,7 +251,7 @@
     var orderId   = localStorage.getItem('deco_order_id') || (_params.get('job') ? 'ORD-' + _params.get('job') : '—');
     var plan      = localStorage.getItem('deco_plan') || 'A';
     var orderTime = localStorage.getItem('deco_order_time');
-    var planLabel = plan === 'B' ? '方案 B（含設計師審核）' : '方案 A（AI 渲染）';
+    var planLabel = plan === 'B' ? '方案 B（含設計師審核）' : '方案 A（概念渲染）';
     var timeStr   = '';
     if (orderTime) {
       var d = new Date(parseInt(orderTime, 10));
@@ -406,7 +406,7 @@
 
   function handleDownload(e, type) {
     e.preventDefault();
-    alert(type === 'style' ? '風格報告將在 AI 生成完整後提供下載。' : '材料清單將在 AI 生成完整後提供下載。');
+    alert(type === 'style' ? '風格報告將在生成完整後提供下載。' : '材料清單將在生成完整後提供下載。');
   }
 
   var _demoRenders = [
@@ -432,7 +432,7 @@
         var msg = e.message || '';
         if (msg.startsWith('pending:')) {
           document.getElementById('tabsContainer').innerHTML =
-            '<div class="loading-msg">AI 仍在處理中（' + msg.split(':')[1] + '）<br>請稍後再重新整理頁面。</div>';
+            '<div class="loading-msg">仍在處理中（' + msg.split(':')[1] + '）<br>請稍後再重新整理頁面。</div>';
         } else {
           buildUI(_demoRenders);
         }

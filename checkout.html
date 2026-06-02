@@ -469,6 +469,7 @@
     var styles      = localStorage.getItem('deco_style') || '';
     var spaceType   = localStorage.getItem('deco_space_type') || 'living';
     var renderAngle = localStorage.getItem('deco_render_angle') || 'multi';
+    var designMode  = localStorage.getItem('deco_design_mode') || 'furnish';
 
     try {
       var fd = new FormData();
@@ -477,6 +478,7 @@
       fd.append('plan',         selectedPlan);
       fd.append('space_type',   spaceType);
       fd.append('render_angle', renderAngle);
+      fd.append('design_mode',  designMode);
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);

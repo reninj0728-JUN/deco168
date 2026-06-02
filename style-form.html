@@ -610,7 +610,7 @@
   <span class="step-arrow">›</span>
   <div class="step-item">
     <div class="step-num">3</div>
-    <span>AI 生成</span>
+    <span>系統生成</span>
   </div>
   <span class="step-arrow">›</span>
   <div class="step-item">
@@ -623,14 +623,14 @@
 <main>
   <div class="page-eyebrow">Step 02 / 04</div>
   <h1 class="page-title">確認您的<br><em>設計偏好</em></h1>
-  <p class="page-desc">AI 已根據您上傳的影片與描述，預先填入建議選項。您可以直接確認，或依照個人喜好調整各項設定。</p>
+  <p class="page-desc">系統已根據您上傳的影片與描述，預先填入建議選項。您可以直接確認，或依照個人喜好調整各項設定。</p>
 
   <!-- AI BANNER -->
   <div class="ai-banner">
     <div class="ai-icon">✦</div>
     <div class="ai-text-block">
-      <div class="ai-label">AI 分析結果</div>
-      <p class="ai-text">偵測到空間約 <strong>25–30 坪</strong>，光線充足，現有風格傾向<strong>現代簡約</strong>。AI 建議主色調選用<strong>暖白 + 淺木色</strong>，並在下方以 <span style="color:var(--gold);">✦</span> 標記推薦選項。您可自由修改任何欄位。</p>
+      <div class="ai-label">空間分析結果</div>
+      <p class="ai-text">偵測到空間約 <strong>25–30 坪</strong>，光線充足，現有風格傾向<strong>現代簡約</strong>。系統建議主色調選用<strong>暖白 + 淺木色</strong>，並在下方以 <span style="color:var(--gold);">✦</span> 標記推薦選項。您可自由修改任何欄位。</p>
     </div>
   </div>
 
@@ -654,7 +654,7 @@
       </div>
 
       <div class="field-group">
-        <label class="field-label">你想要 AI 幫你規劃什麼？<span class="ai-preset-badge">AI 推薦</span></label>
+        <label class="field-label">你想要規劃什麼？<span class="ai-preset-badge">系統推薦</span></label>
         <div class="select-wrapper">
           <select id="designMode" onchange="updateDesignHint()">
             <option value="furnish">傢俱＋軟裝（不動牆壁）</option>
@@ -724,7 +724,7 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">設計方向</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇 <strong style="color:var(--gold)">2 個</strong>風格方向（風格 + 色系），AI 為每個風格生成多角度渲染圖。</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇 <strong style="color:var(--gold)">2 個</strong>風格方向（風格 + 色系），系統為每個風格生成 3 張不同角度／空間的渲染圖，共 <strong style="color:var(--gold)">2 × 3 = 6 張</strong>。</p>
 
     <!-- 已選方向 chips -->
     <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
@@ -874,14 +874,14 @@
   <!-- AI DIAGNOSIS PANEL -->
   <hr class="section-divider" id="diagDivider" style="display:none;">
   <div class="diagnosis-panel" id="diagPanel">
-    <div class="diag-eyebrow">✦ AI 空間診斷 — 免費預覽</div>
+    <div class="diag-eyebrow">✦ 空間診斷 — 免費預覽</div>
     <div class="diag-grid">
       <div>
         <div class="diag-item-label">你的空間</div>
         <div class="diag-item-val" id="diagSpace">—</div>
       </div>
       <div>
-        <div class="diag-item-label">AI 判斷最適風格</div>
+        <div class="diag-item-label">最適風格判斷</div>
         <div class="diag-item-val" id="diagStyles">—</div>
       </div>
       <div>
@@ -900,7 +900,7 @@
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <a href="upload.html" class="btn btn-ghost">← 返回上傳</a>
-    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">查看 AI 空間診斷 →</button>
+    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">查看空間診斷 →</button>
   </div>
 </main>
 
@@ -1139,8 +1139,8 @@ function renderRefPreviews() {
 
 // ── DESIGN MODE HINT ──────────────────────────────────────────────────────────
 var designHints = {
-  furnish: 'AI 從 5,000+ 件傢俱中挑選最搭的沙發、桌椅、燈具、窗簾、裝飾品，直接配進你的空間。牆壁、天花板、地板完全不動，費用最省，效果立竿見影。',
-  full:    'AI 同時規劃木工天花板、系統櫃，以及所有傢俱軟裝的搭配。一張渲染圖看到底，最完整的改造方案。'
+  furnish: '系統從 5,000+ 件傢俱中挑選最搭的沙發、桌椅、燈具、窗簾、裝飾品，直接配進你的空間。牆壁、天花板、地板完全不動，費用最省，效果立竿見影。',
+  full:    '系統同時規劃木工天花板、系統櫃，以及所有傢俱軟裝的搭配。一張渲染圖看到底，最完整的改造方案。'
 };
 function updateDesignHint() {
   var sel = document.getElementById('designMode');
@@ -1209,9 +1209,9 @@ var budgetMap = {
 };
 
 var insightMap = {
-  modern:      '你偏好乾淨俐落的線條與機能效率。AI 建議以<em>無主燈設計</em>為基礎，嵌燈搭配局部懸掛燈，讓空間層次豐富而不複雜。選用淺木紋地板搭配深色金屬框架，視覺比例最均衡。',
+  modern:      '你偏好乾淨俐落的線條與機能效率。建議以<em>無主燈設計</em>為基礎，嵌燈搭配局部懸掛燈，讓空間層次豐富而不複雜。選用淺木紋地板搭配深色金屬框架，視覺比例最均衡。',
   nordic:      '北歐風的核心在於<em>溫暖留白</em>。建議保留大面積淺色基底，透過木質傢俱與織物軟裝製造溫度，避免過多裝飾性元素讓空間看起來太「滿」。',
-  japanese:    '侘寂風最難的是「減法」。AI 建議聚焦在<em>材質觸感</em>（石、木、藤），而非形狀的複雜；窗邊刻意留白比堆砌傢俱更能呈現這種靜謐美學。',
+  japanese:    '侘寂風最難的是「減法」。建議聚焦在<em>材質觸感</em>（石、木、藤），而非形狀的複雜；窗邊刻意留白比堆砌傢俱更能呈現這種靜謐美學。',
   industrial:  '工業風需要結構感與溫度的平衡。建議以鐵件骨架搭配裸露管線，再加入皮革或木質軟化比例，避免空間全面偏冷、失去居住感。',
   luxury:      '輕奢現代靠的是<em>材質等級</em>而非數量。建議在單一焦點（主牆或床頭）放置高質感材料，其餘保持克制——比例感比堆料更重要。',
   muji:        'MUJI 風的關鍵是<em>系統性一致</em>。建議統一所有把手、門縫、層板厚度與顏色，細節一致才能讓空間看起來是「設計過的」而非單純的簡單。',
@@ -1265,6 +1265,8 @@ function submitForm() {
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
   // 新版固定 multi（單一全景已移除）
   localStorage.setItem('deco_render_angle', 'multi');
+  // designMode = furnish (只動家具) / full (含裝潢)
+  localStorage.setItem('deco_design_mode', document.getElementById('designMode').value);
   localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
   localStorage.setItem('deco_budget', budgetLabels[document.getElementById('budgetSlider').value]);
 
