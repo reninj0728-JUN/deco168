@@ -30,21 +30,14 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 JOBS_DIR.mkdir(exist_ok=True)
 
 # ─── R2 (Cloudflare) 設定 ─────────────────────────────────────────────────────
-# 改為「每次呼叫即時讀 env」，避免 Railway env var 同步時機問題
-# TODO: Railway env vars 同步 bug 修好後，移除下方 fallback 寫死值
-_R2_FALLBACK = {
-    "R2_ACCESS_KEY_ID":     "b76764a49bc835b699a0c7d4d38efe97",
-    "R2_SECRET_ACCESS_KEY": "c5bfd3d3c117cf8aafd45327c368643ba25d58a895a56c6d45b2c212ff16abb7",
-    "R2_ENDPOINT":          "https://3f9e56a8da931f36227f832a90129fff.r2.cloudflarestorage.com",
-    "R2_BUCKET":            "deco168-uploads",
-}
+# 只讀 Railway env vars，CF_R2_* 優先，R2_* 為舊版備援
 
 def _r2_cfg():
     return (
-        (os.environ.get("R2_ACCESS_KEY_ID") or _R2_FALLBACK["R2_ACCESS_KEY_ID"]).strip(),
-        (os.environ.get("R2_SECRET_ACCESS_KEY") or _R2_FALLBACK["R2_SECRET_ACCESS_KEY"]).strip(),
-        (os.environ.get("R2_ENDPOINT") or _R2_FALLBACK["R2_ENDPOINT"]).strip(),
-        (os.environ.get("R2_BUCKET") or _R2_FALLBACK["R2_BUCKET"]).strip(),
+        (os.environ.get("CF_R2_ACCESS_KEY_ID")     or os.environ.get("R2_ACCESS_KEY_ID")     or "").strip(),
+        (os.environ.get("CF_R2_SECRET_ACCESS_KEY") or os.environ.get("R2_SECRET_ACCESS_KEY") or "").strip(),
+        (os.environ.get("CF_R2_ENDPOINT")          or os.environ.get("R2_ENDPOINT")          or "").strip(),
+        (os.environ.get("CF_R2_BUCKET")            or os.environ.get("R2_BUCKET")            or "deco168-uploads").strip(),
     )
 
 def _r2_client():
@@ -97,14 +90,13 @@ def r2_delete_object(key: str) -> bool:
         print(f"[r2_delete] {key} 失敗: {e}")
         return False
 
-app = FastAPI(title="DECO168 API", version="1.0.1")
+app = FastAPI(title="DECO168 API", version="1.0.2")
 
-# 啟動時印出實際看到的 env vars
-print(f"[startup] R2_ACCESS_KEY_ID set: {bool(os.environ.get('R2_ACCESS_KEY_ID'))}")
-print(f"[startup] R2_SECRET_ACCESS_KEY set: {bool(os.environ.get('R2_SECRET_ACCESS_KEY'))}")
-print(f"[startup] R2_ENDPOINT set: {bool(os.environ.get('R2_ENDPOINT'))}")
-print(f"[startup] R2_BUCKET set: {bool(os.environ.get('R2_BUCKET'))}")
-print(f"[startup] total env count: {len(os.environ)}")
+# 啟動時只 print True/False，不洩漏值
+print(f"[startup] R2 access_key set: {bool(os.environ.get('CF_R2_ACCESS_KEY_ID') or os.environ.get('R2_ACCESS_KEY_ID'))}")
+print(f"[startup] R2 secret set: {bool(os.environ.get('CF_R2_SECRET_ACCESS_KEY') or os.environ.get('R2_SECRET_ACCESS_KEY'))}")
+print(f"[startup] R2 endpoint set: {bool(os.environ.get('CF_R2_ENDPOINT') or os.environ.get('R2_ENDPOINT'))}")
+print(f"[startup] R2 bucket set: {bool(os.environ.get('CF_R2_BUCKET') or os.environ.get('R2_BUCKET'))}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -633,7 +625,6 @@ def get_error(job_id: str):
 
 @app.get("/health")
 def health():
-    keys = [k for k in os.environ if "GEMINI" in k or "GOOGLE" in k or "FAL" in k or "AI" in k or "R2" in k]
     ak, sk, ep, bucket = _r2_cfg()
     return {
         "status": "ok",
@@ -642,8 +633,6 @@ def health():
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
         "r2_access_key": "set" if ak else "MISSING",
         "r2_secret":     "set" if sk else "MISSING",
-        "r2_endpoint":   ep or "MISSING",
-        "r2_bucket":     bucket or "MISSING",
-        "matching_keys": keys,
-        "all_keys": sorted(os.environ.keys()),
+        "r2_endpoint":   "set" if ep else "MISSING",
+        "r2_bucket":     bucket or "MISSING",  # bucket 名稱本來就在 R2 可見，不算 secret
     }
