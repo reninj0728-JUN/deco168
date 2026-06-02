@@ -389,7 +389,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         total = len(expanded)
         write_status(job_id, job_dir, "rendering", 60,
-                     f"AI 生成 {total} 張渲染圖（{len(enriched)} 風格 × {len(flux_bases)} 角度）…")
+                     f"生成 {total} 張風格渲染圖（{len(enriched)} 風格 × {len(flux_bases)} 角度）…")
 
         # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
