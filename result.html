@@ -75,6 +75,18 @@
       text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; }
     .btn-dl-render:hover { opacity: 0.85; }
 
+    /* ANGLE NAVIGATION */
+    .angle-nav { display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px; padding: 6px 0; }
+    .angle-arrow { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line);
+      background: transparent; color: var(--gold); font-size: 22px; line-height: 1; cursor: pointer;
+      transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+    .angle-arrow:hover { background: rgba(201,169,110,0.1); border-color: var(--gold); }
+    .angle-indicator { flex: 1; text-align: center; }
+    .angle-indicator.solo { padding: 6px 0; }
+    .angle-name { display: block; font-size: 13px; color: var(--white); font-weight: 500; letter-spacing: 1px; }
+    .angle-pos { display: block; font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-top: 2px; }
+
     /* FURNITURE */
     .furniture-box h3 { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase;
       margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
@@ -250,76 +262,133 @@
     document.getElementById('metaDate').textContent    = timeStr || '—';
   })();
 
+  // ── 把所有 renders 依 style 分組（同 style 內為角度陣列）──
+  var _groups = [];     // [{style, label, angles: [render, render, ...]}]
+  var _angleIdx = {};   // 每個 style 目前正在看的角度 index
+
   function buildUI(renders) {
-    // TABS
-    var tabsHtml = renders.map(function(r, i) {
-      var label = r.style_label || r.style || ('方案 ' + (i+1));
-      return '<div class="tab' + (i === 0 ? ' active' : '') + '" onclick="switchTab(' + i + ',this)">' +
-             (i+1) + '.  ' + label + '</div>';
+    _groups = [];
+    _angleIdx = {};
+    var byStyle = {};
+    renders.forEach(function(r) {
+      var key = r.style || 'unknown';
+      if (!byStyle[key]) {
+        byStyle[key] = { style: key, label: r.style_label || key, angles: [] };
+        _groups.push(byStyle[key]);
+        _angleIdx[key] = 0;
+      }
+      byStyle[key].angles.push(r);
+    });
+
+    // TABS：每個風格 1 個 tab
+    var tabsHtml = _groups.map(function(g, i) {
+      return '<div class="tab' + (i === 0 ? ' active' : '') + '" onclick="switchStyle(\'' + g.style + '\',this)">' +
+             g.label + '</div>';
     }).join('');
     document.getElementById('tabsContainer').innerHTML = '<div class="tabs">' + tabsHtml + '</div>';
 
-    // PANELS
-    var panelsHtml = renders.map(function(r, i) {
-      var imgUrl = r.render_url || (r.render_filename && JOB_ID
-        ? API_BASE + '/jobs/' + JOB_ID + '/' + r.render_filename : null);
-      var label  = r.style_label || r.style || ('方案 ' + (i+1));
-      var furn   = r.matched_furniture || [];
-      var total  = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
-
-      var imgSection = imgUrl
-        ? '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
-          '<div class="render-label">AI 生成渲染圖 · ' + label + '</div>' +
-          '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + label.replace(/'/g,"\\'") + '\')">↓ &nbsp;下載此渲染圖</button>'
-        : '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
-          '<div style="font-size:11px;color:var(--muted);letter-spacing:2px;">生成中</div></div>' +
-          '<div class="render-label">' + label + '</div>';
-
-      var furnItems = furn.length
-        ? furn.map(function(f, j) {
-            var price   = f.price_twd ? 'NT$' + Number(f.price_twd).toLocaleString() : '—';
-            var rawUrl = f.purchase_url || f.link || '';
-            if (rawUrl.includes('google.com/search')) {
-              var m = rawUrl.match(/q=IKEA\+([^&+]+)/);
-              rawUrl = m ? 'https://www.ikea.com.tw/zh/search/?query=' + m[1] : 'https://www.ikea.com.tw';
-            }
-            var linkBtn = rawUrl
-              ? '<a href="' + rawUrl + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
-              : '';
-            return '<div class="f-item">' +
-              '<div class="f-num">' + (j+1) + '</div>' +
-              '<div class="f-info">' +
-                '<div class="f-name">' + (f.name_zh || f.name || '') + '</div>' +
-                '<div class="f-meta">' + (f.category || '') + (f.color ? ' · ' + f.color : '') + '</div>' +
-                (f.dimensions ? '<div class="f-dims">' + f.dimensions + '</div>' : '') +
-              '</div>' +
-              '<div class="f-right">' +
-                '<div class="f-brand">' + (f.brand || '—') + '</div>' +
-                '<div class="f-price">' + price + '</div>' +
-                linkBtn +
-              '</div></div>';
-          }).join('') +
-          (total > 0
-            ? '<div class="total-bar"><div class="total-label">傢俱小計（' + furn.length + '件）</div>' +
-              '<div class="total-price">NT$' + total.toLocaleString() + '</div></div>'
-            : '')
-        : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">傢俱清單生成中…</p>';
-
-      return '<div class="style-panel' + (i === 0 ? ' active' : '') + '" id="panel-' + i + '">' +
-             '<div class="panel-grid">' +
-             '<div class="render-box">' + imgSection + '</div>' +
-             '<div class="furniture-box"><h3>推薦傢俱清單</h3>' + furnItems + '</div>' +
-             '</div></div>';
+    // PANELS：每個 style 一個 panel，內含 1 張當前角度圖 + 左右切換
+    var panelsHtml = _groups.map(function(g, i) {
+      return '<div class="style-panel' + (i === 0 ? ' active' : '') + '" id="panel-' + g.style + '">' +
+             renderPanelContent(g) +
+             '</div>';
     }).join('');
     document.getElementById('panelsContainer').innerHTML = panelsHtml;
   }
 
-  function switchTab(idx, el) {
+  function renderPanelContent(group) {
+    var idx = _angleIdx[group.style] || 0;
+    var r   = group.angles[idx] || {};
+    var imgUrl = r.render_url || (r.render_filename && JOB_ID
+      ? API_BASE + '/jobs/' + JOB_ID + '/' + r.render_filename : null);
+    var label    = group.label;
+    var angleLbl = r.angle_label || ('角度 ' + (idx+1));
+    var furn     = r.matched_furniture || [];
+    var total    = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
+    var nAngles  = group.angles.length;
+
+    // 左右切換 + 角度指示
+    var navHtml = nAngles > 1
+      ? '<div class="angle-nav">' +
+          '<button class="angle-arrow" onclick="prevAngle(\'' + group.style + '\')">‹</button>' +
+          '<div class="angle-indicator">' +
+            '<span class="angle-name">' + angleLbl + '</span>' +
+            '<span class="angle-pos">' + (idx+1) + ' / ' + nAngles + '</span>' +
+          '</div>' +
+          '<button class="angle-arrow" onclick="nextAngle(\'' + group.style + '\')">›</button>' +
+        '</div>'
+      : '<div class="angle-indicator solo"><span class="angle-name">' + angleLbl + '</span></div>';
+
+    var imgSection = imgUrl
+      ? '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
+        navHtml +
+        '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' +
+        '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載此渲染圖</button>'
+      : '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
+        '<div style="font-size:11px;color:var(--muted);letter-spacing:2px;">生成中</div></div>' +
+        navHtml +
+        '<div class="render-label">' + label + ' · ' + angleLbl + '</div>';
+
+    var furnItems = furn.length
+      ? furn.map(function(f, j) {
+          var price   = f.price_twd ? 'NT$' + Number(f.price_twd).toLocaleString() : '—';
+          var rawUrl = f.purchase_url || f.link || '';
+          if (rawUrl.includes('google.com/search')) {
+            var m = rawUrl.match(/q=IKEA\+([^&+]+)/);
+            rawUrl = m ? 'https://www.ikea.com.tw/zh/search/?query=' + m[1] : 'https://www.ikea.com.tw';
+          }
+          var linkBtn = rawUrl
+            ? '<a href="' + rawUrl + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
+            : '';
+          return '<div class="f-item">' +
+            '<div class="f-num">' + (j+1) + '</div>' +
+            '<div class="f-info">' +
+              '<div class="f-name">' + (f.name_zh || f.name || '') + '</div>' +
+              '<div class="f-meta">' + (f.category || '') + (f.color ? ' · ' + f.color : '') + '</div>' +
+              (f.dimensions ? '<div class="f-dims">' + f.dimensions + '</div>' : '') +
+            '</div>' +
+            '<div class="f-right">' +
+              '<div class="f-brand">' + (f.brand || '—') + '</div>' +
+              '<div class="f-price">' + price + '</div>' +
+              linkBtn +
+            '</div></div>';
+        }).join('') +
+        (total > 0
+          ? '<div class="total-bar"><div class="total-label">傢俱小計（' + furn.length + '件）</div>' +
+            '<div class="total-price">NT$' + total.toLocaleString() + '</div></div>'
+          : '')
+      : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">傢俱清單生成中…</p>';
+
+    return '<div class="panel-grid">' +
+           '<div class="render-box">' + imgSection + '</div>' +
+           '<div class="furniture-box"><h3>推薦傢俱清單</h3>' + furnItems + '</div>' +
+           '</div>';
+  }
+
+  function switchStyle(style, el) {
     document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
     document.querySelectorAll('.style-panel').forEach(function(p) { p.classList.remove('active'); });
     if (el) el.classList.add('active');
-    var panel = document.getElementById('panel-' + idx);
+    var panel = document.getElementById('panel-' + style);
     if (panel) panel.classList.add('active');
+  }
+
+  function prevAngle(style) {
+    var g = _groups.find(function(x) { return x.style === style; });
+    if (!g) return;
+    var i = (_angleIdx[style] || 0) - 1;
+    if (i < 0) i = g.angles.length - 1;
+    _angleIdx[style] = i;
+    var panel = document.getElementById('panel-' + style);
+    if (panel) panel.innerHTML = renderPanelContent(g);
+  }
+  function nextAngle(style) {
+    var g = _groups.find(function(x) { return x.style === style; });
+    if (!g) return;
+    var i = ((_angleIdx[style] || 0) + 1) % g.angles.length;
+    _angleIdx[style] = i;
+    var panel = document.getElementById('panel-' + style);
+    if (panel) panel.innerHTML = renderPanelContent(g);
   }
 
   function dlImg(url, name) {

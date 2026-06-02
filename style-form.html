@@ -648,7 +648,7 @@
             <option value="dining">餐廳</option>
             <option value="bedroom">臥室</option>
             <option value="study">書房</option>
-            <option value="whole">全室</option>
+            <option value="whole">全室多空間</option>
           </select>
         </div>
       </div>
@@ -788,12 +788,9 @@
 
     <div class="select-row col-2" style="margin-bottom:24px;">
       <div class="field-group">
-        <label class="field-label">渲染視角偏好</label>
-        <div class="select-wrapper">
-          <select id="renderAngle">
-            <option>單一全景（1 張主視角）</option>
-            <option selected>多角度（3 張不同視角）</option>
-          </select>
+        <label class="field-label">渲染輸出</label>
+        <div id="renderAngleHint" style="padding:14px 18px;background:rgba(201,169,110,0.07);border:1px solid rgba(201,169,110,0.2);border-radius:8px;font-size:12px;line-height:1.6;color:var(--body);">
+          <!-- 依 spaceType 動態填入 -->
         </div>
       </div>
 
@@ -826,8 +823,8 @@
         <label class="field-label">服務方案</label>
         <div class="select-wrapper">
           <select id="plan">
-            <option value="basic">AI 概念方案 — AI 渲染圖 × 5（NT$1,999）</option>
-            <option value="full">設計師審核方案 — AI 渲染 + 設計師審核 + 配置草圖（NT$9,800）</option>
+            <option value="basic">概念方案 — 渲染圖 6 張（依空間類型 NT$1,199 / 1,799）</option>
+            <option value="full">設計師審核方案 — 渲染圖 8 張 + 設計師審核（NT$9,800）</option>
           </select>
         </div>
       </div>
@@ -1173,18 +1170,36 @@ function updateSummary() {
   if (selectedStyle) document.getElementById('s-style').textContent = selectedStyle.textContent;
   if (selectedPalette) document.getElementById('s-color').textContent = selectedPalette.textContent.replace(' ✦','');
   if (selectedRenders) document.getElementById('s-renders').textContent = `${selectedRenders.textContent} 張`;
+
+  var spaceTypeVal = document.getElementById('spaceType').value;
   if (plan === 'basic') {
-    document.getElementById('s-plan').textContent = 'AI 概念方案';
-    document.getElementById('s-price').textContent = 'NT$ 1,999';
+    document.getElementById('s-plan').textContent = '概念方案';
+    document.getElementById('s-price').textContent = spaceTypeVal === 'whole' ? 'NT$ 1,799' : 'NT$ 1,199';
   } else {
     document.getElementById('s-plan').textContent = '設計師審核方案';
     document.getElementById('s-price').textContent = 'NT$ 9,800';
   }
 }
 
-document.getElementById('spaceType').addEventListener('change', updateSummary);
+// ── 渲染輸出說明依空間類型動態顯示 ──
+function updateRenderAngleHint() {
+  var spaceTypeVal = document.getElementById('spaceType').value;
+  var hint = document.getElementById('renderAngleHint');
+  if (!hint) return;
+  if (spaceTypeVal === 'whole') {
+    hint.innerHTML = '<strong style="color:var(--gold);">全室多空間 · 3 個房間</strong><br>系統識別整戶格局後，挑 3 個主要房間（客廳/餐廳/主臥），各做 2 種風格渲染（共 6 張）。';
+  } else {
+    hint.innerHTML = '<strong style="color:var(--gold);">多角度 · 同空間 3 視角</strong><br>系統理解空間後，從 3 個最美角度各做 2 種風格渲染（共 6 張）。';
+  }
+}
+
+document.getElementById('spaceType').addEventListener('change', function() {
+  updateSummary();
+  updateRenderAngleHint();
+});
 document.getElementById('spaceSize').addEventListener('change', updateSummary);
 document.getElementById('plan').addEventListener('change', updateSummary);
+updateRenderAngleHint();
 
 // ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
 var budgetMap = {
@@ -1248,10 +1263,8 @@ function submitForm() {
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
-  var raSel = document.getElementById('renderAngle');
-  // single = 單一全景；multi = 多角度
-  var raVal = raSel && raSel.selectedIndex === 0 ? 'single' : 'multi';
-  localStorage.setItem('deco_render_angle', raVal);
+  // 新版固定 multi（單一全景已移除）
+  localStorage.setItem('deco_render_angle', 'multi');
   localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
   localStorage.setItem('deco_budget', budgetLabels[document.getElementById('budgetSlider').value]);
 

@@ -291,7 +291,7 @@
   <div class="step-arrow">›</div>
   <div class="step-item active"><div class="step-num">3</div>選擇方案</div>
   <div class="step-arrow">›</div>
-  <div class="step-item"><div class="step-num">4</div>AI 生成</div>
+  <div class="step-item"><div class="step-num">4</div>系統生成</div>
   <div class="step-arrow">›</div>
   <div class="step-item"><div class="step-num">5</div>取得成品</div>
 </div>
@@ -299,7 +299,7 @@
 <main>
   <div class="page-eyebrow">Step 3 — 選擇方案</div>
   <h1 class="page-title">選擇最適合你的<em>設計方案</em></h1>
-  <p class="page-desc">付款完成後，AI 將立即開始分析你的空間。方案 A 約 15 分鐘交付；方案 B 含設計師人工審核，48 小時內完成。</p>
+  <p class="page-desc">付款完成後立即開始分析你的空間。方案 A 約 15 分鐘交付；方案 B 含設計師人工審核，48 小時內完成。</p>
 
   <!-- ORDER SUMMARY -->
   <div class="summary-bar" id="summaryBar">
@@ -326,13 +326,13 @@
 
     <!-- Plan A -->
     <div class="plan-card selected" id="planA" onclick="selectPlan('A')">
-      <div class="plan-badge">方案 A · AI 概念渲染</div>
-      <div class="plan-name">AI 設計方案</div>
-      <div class="plan-price">NT$1,999<span>/ 次</span></div>
+      <div class="plan-badge">方案 A · 概念渲染</div>
+      <div class="plan-name" id="planAName">概念方案</div>
+      <div class="plan-price"><span id="planAPrice">NT$1,199</span><span>/ 次</span></div>
       <div class="plan-divider"></div>
       <ul class="plan-features">
-        <li><span class="ico">✦</span> AI 空間格局分析（影片 + 語音）</li>
-        <li><span class="ico">✦</span> 風格渲染圖 × 3 張（高解析）</li>
+        <li><span class="ico">✦</span> 空間格局分析（影片 + 語音）</li>
+        <li><span class="ico">✦</span> 風格渲染圖 × 6 張（高解析）</li>
         <li><span class="ico">✦</span> 風格定位報告</li>
         <li><span class="ico">✦</span> 材料 / 色調建議 PDF</li>
         <li><span class="ico">✦</span> 約 15 分鐘內交付</li>
@@ -367,8 +367,8 @@
   <div class="pay-section">
     <div class="pay-title">付款資訊</div>
     <div class="pay-total-row">
-      <div class="pay-total-label" id="payLabel">方案 A · AI 設計方案</div>
-      <div class="pay-total-amount"><em>NT$</em><span id="payAmount">1,999</span></div>
+      <div class="pay-total-label" id="payLabel">方案 A · 概念方案</div>
+      <div class="pay-total-amount"><em>NT$</em><span id="payAmount">1,199</span></div>
     </div>
 
     <button class="btn-pay" id="payBtn" onclick="handlePay()">
@@ -377,7 +377,7 @@
     </button>
 
     <p class="pay-note">
-      付款後立即開始 AI 分析 · 結果以 Email 通知 · 可隨時登入查看進度<br>
+      付款後立即開始空間分析 · 結果以 Email 通知 · 可隨時登入查看進度<br>
       如有問題請聯絡客服
     </p>
 
@@ -405,20 +405,32 @@
   })();
 
   var selectedPlan = 'A';
+  var spaceTypeVal = localStorage.getItem('deco_space_type') || 'living';
   var extraStyles  = Math.max(0, parseInt(localStorage.getItem('deco_style_count') || '1') - 2);
   var extraFee     = extraStyles * 399;
 
   function calcTotal(base) { return base + extraFee; }
-
   function fmt(n) { return n.toLocaleString(); }
 
+  function planABasePrice() {
+    return spaceTypeVal === 'whole' ? 1799 : 1199;
+  }
+  function planAName() {
+    return spaceTypeVal === 'whole' ? '全室多空間規劃' : '單房深度設計';
+  }
+
   function updatePriceUI() {
-    var base  = selectedPlan === 'A' ? 1999 : 9800;
+    var base  = selectedPlan === 'A' ? planABasePrice() : 9800;
     var total = calcTotal(base);
-    var label = selectedPlan === 'A' ? '方案 A · AI 設計方案' : '方案 B · 專業審核方案';
+    var label = selectedPlan === 'A' ? ('方案 A · ' + planAName()) : '方案 B · 專業審核方案';
     if (extraFee > 0) label += '  +  額外風格 ×' + extraStyles;
     document.getElementById('payLabel').textContent  = label;
     document.getElementById('payAmount').textContent = fmt(total);
+    // 更新方案 A 卡片
+    var aName  = document.getElementById('planAName');
+    var aPrice = document.getElementById('planAPrice');
+    if (aName)  aName.textContent  = planAName();
+    if (aPrice) aPrice.textContent = 'NT$' + fmt(planABasePrice());
   }
 
   function selectPlan(plan) {
@@ -456,7 +468,7 @@
 
     var styles      = localStorage.getItem('deco_style') || '';
     var spaceType   = localStorage.getItem('deco_space_type') || 'living';
-    var renderAngle = localStorage.getItem('deco_render_angle') || 'single';
+    var renderAngle = localStorage.getItem('deco_render_angle') || 'multi';
 
     try {
       var fd = new FormData();
