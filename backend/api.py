@@ -511,15 +511,18 @@ async def r2_presign(
 
 
 @app.post("/api/upload")
-async def upload_photos(
-    upload_id:  str               = Form(...),
-    photos:     List[UploadFile]  = File(default=[]),
-    video_keys: str               = Form(default="[]"),
+async def upload_register(
+    upload_id:  str = Form(...),
+    photo_keys: str = Form(default="[]"),   # 新版：照片走前端直傳 Supabase Storage
+    video_keys: str = Form(default="[]"),   # 影片走前端直傳 R2
 ):
     """
-    上傳註冊端點：
-    - 影片：前端用 presigned PUT 直接上傳到 R2，這裡只收 R2 物件 key
-    - 照片：本機保留 + Supabase Storage 備份
+    上傳註冊端點（純 metadata，不接收檔案本體）：
+
+    - 影片：前端用 presigned PUT 直傳 R2，這裡只收 R2 object key（r2://<key>）
+    - 照片：前端用 anon key 直傳 Supabase Storage，這裡只收 storage key（supabase://<key>）
+
+    返回 200 立即（無大檔案傳輸，不會 Failed to fetch）。
     """
     upload_dir = UPLOADS_DIR / upload_id
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -527,35 +530,37 @@ async def upload_photos(
     local_paths: list[str] = []
     photo_urls:  list[str] = []
 
-    # 影片：前端已直接傳 R2，把 key 轉成 r2://<obj> 的虛擬路徑
+    # 影片 keys → r2://<key>
     try:
-        keys = json.loads(video_keys or "[]")
-        if not isinstance(keys, list):
-            keys = []
+        vkeys = json.loads(video_keys or "[]")
+        if not isinstance(vkeys, list):
+            vkeys = []
     except Exception:
-        keys = []
-    for k in keys:
+        vkeys = []
+    for k in vkeys:
         if isinstance(k, str) and k.strip():
             local_paths.append(f"r2://{k.strip()}")
 
-    # 照片：本機 + Supabase Storage
-    for i, photo in enumerate(photos):
-        ext  = Path(photo.filename or "photo.jpg").suffix.lower() or ".jpg"
-        dest = upload_dir / f"photo_{i:02d}{ext}"
-        data = await photo.read()
-        with open(dest, "wb") as f:
-            f.write(data)
-        local_paths.append(str(dest))
-        mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
-        url = sb_upload_file(upload_id, dest.name, data, mime)
-        if url:
-            photo_urls.append(url)
+    # 照片 keys → supabase://<key>，pipeline 跑時會從 Supabase 下載
+    try:
+        pkeys = json.loads(photo_keys or "[]")
+        if not isinstance(pkeys, list):
+            pkeys = []
+    except Exception:
+        pkeys = []
+    for k in pkeys:
+        if isinstance(k, str) and k.strip():
+            key_clean = k.strip()
+            local_paths.append(f"supabase://{key_clean}")
+            # 也建一個公開 URL 給 uploads table 紀錄（恢復用）
+            photo_urls.append(f"{SUPABASE_URL}/storage/v1/object/{key_clean}")
 
     with open(upload_dir / "paths.json", "w", encoding="utf-8") as f:
         json.dump(local_paths, f)
-    sb_save_upload(upload_id, photo_urls, "", keys)
+    sb_save_upload(upload_id, photo_urls, "", vkeys)
 
-    return {"upload_id": upload_id, "count": len(local_paths)}
+    return {"upload_id": upload_id, "count": len(local_paths),
+            "photos": len(pkeys), "videos": len(vkeys)}
 
 
 @app.post("/api/job")

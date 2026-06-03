@@ -699,8 +699,44 @@
   // 下一步
   var API_BASE = 'https://deco168-production.up.railway.app';
 
+  // ── Supabase Storage 設定（照片直傳，繞過 Railway 中轉）──
+  var SUPABASE_URL = 'https://cjezgczjjsxfoeifduaj.supabase.co';
+  // anon key 設計上就可以公開（受 RLS 限制；uploads bucket 有 anon INSERT policy）
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4';
+
   function randomUploadId() {
     return Math.random().toString(16).substring(2, 10).toUpperCase();
+  }
+
+  // 把單張照片直接 PUT 到 Supabase Storage（繞過 Railway 中轉）
+  function uploadPhotoToSupabase(file, uploadId, idx, onProgress) {
+    return new Promise(function(resolve, reject) {
+      try {
+        var ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        var safeName = 'photo_' + String(idx).padStart(2, '0') + '_' + Date.now() + '.' + ext;
+        var key = 'uploads/' + uploadId + '/' + safeName;
+        var url = SUPABASE_URL + '/storage/v1/object/' + key;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('PUT', url, true);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_ANON_KEY);
+        xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+        xhr.setRequestHeader('Content-Type', file.type || 'image/jpeg');
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.upload.onprogress = function(e) {
+          if (e.lengthComputable && onProgress) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) resolve(key);
+          else reject(new Error('Supabase PUT failed HTTP ' + xhr.status + ': ' +
+                                  (xhr.responseText || '').substring(0, 200)));
+        };
+        xhr.onerror = function() { reject(new Error('Supabase PUT network error')); };
+        xhr.send(file);
+      } catch (e) { reject(e); }
+    });
   }
 
   // 把單支影片直接 PUT 到 Cloudflare R2（用後端產生的 presigned URL，繞過 Railway timeout）
@@ -764,19 +800,30 @@
       // ── 影片直接 PUT 到 Cloudflare R2（不經 Railway 的 5 分鐘 timeout）──
       var videoKeys = [];
       for (var i = 0; i < videoFiles.length; i++) {
-        var idx = i + 1;
-        btn.textContent = '影片 ' + idx + '/' + videoFiles.length + ' 上傳中 0%';
-        var key = await uploadVideoToR2(videoFiles[i], uploadId, function(pct) {
-          btn.textContent = '影片 ' + idx + '/' + videoFiles.length + ' 上傳中 ' + pct + '%';
+        var vIdx = i + 1;
+        btn.textContent = '影片 ' + vIdx + '/' + videoFiles.length + ' 上傳中 0%';
+        var vKey = await uploadVideoToR2(videoFiles[i], uploadId, function(pct) {
+          btn.textContent = '影片 ' + vIdx + '/' + videoFiles.length + ' 上傳中 ' + pct + '%';
         });
-        videoKeys.push(key);
+        videoKeys.push(vKey);
       }
 
-      // ── 照片走 Railway（小檔案沒問題）+ 註冊 metadata ──
-      btn.textContent = '照片上傳中…';
+      // ── 照片直接 PUT 到 Supabase Storage（繞過 Railway 中轉，舊版那條已淘汰）──
+      var photoKeys = [];
+      for (var j = 0; j < files.length; j++) {
+        var pIdx = j + 1;
+        btn.textContent = '照片 ' + pIdx + '/' + files.length + ' 上傳中 0%';
+        var pKey = await uploadPhotoToSupabase(files[j], uploadId, j, function(pct) {
+          btn.textContent = '照片 ' + pIdx + '/' + files.length + ' 上傳中 ' + pct + '%';
+        });
+        photoKeys.push(pKey);
+      }
+
+      // ── 全部直傳完成，只送 metadata 給 Railway 註冊（不再傳檔案）──
+      btn.textContent = '註冊中…';
       var formData = new FormData();
-      formData.append('upload_id', uploadId);
-      files.forEach(function(f) { formData.append('photos', f); });
+      formData.append('upload_id',  uploadId);
+      formData.append('photo_keys', JSON.stringify(photoKeys));
       formData.append('video_keys', JSON.stringify(videoKeys));
 
       var resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
