@@ -416,42 +416,6 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         with open(job_dir / "result.json", "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
-        # ── 結構保留驗證（純評估、不重跑、不過濾、不影響前端）──
-        write_status(job_id, job_dir, "validating", 85, "驗證渲染結構保留度…")
-        try:
-            from gemini_analyze import validate_render
-            for r in final:
-                bpath = r.get("_base_path") or ""
-                rpath = r.get("render_path") or ""
-                if bpath and rpath and Path(bpath).exists() and Path(rpath).exists():
-                    try:
-                        v = validate_render(bpath, rpath, r.get("_angle_label", ""))
-                    except Exception as ve:
-                        v = {"ok": None, "error": str(ve)[:200]}
-                else:
-                    v = {"ok": None, "error": "missing base or render path"}
-                r["validation"] = v
-        except Exception as outer:
-            print(f"[pipeline] 驗證階段例外: {outer}")
-            for r in final:
-                r.setdefault("validation", {"ok": None, "error": "validation step crashed"})
-
-        # 統計
-        ok_n  = sum(1 for r in final if (r.get("validation") or {}).get("ok") is True)
-        ng_n  = sum(1 for r in final if (r.get("validation") or {}).get("ok") is False)
-        ng_reasons = [
-            (r["validation"] or {}).get("reason") for r in final
-            if (r.get("validation") or {}).get("ok") is False
-            and (r["validation"] or {}).get("reason")
-        ]
-        validation_summary = {
-            "total":      len(final),
-            "ok":         ok_n,
-            "ng":         ng_n,
-            "ng_reasons": ng_reasons,
-        }
-        print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n}")
-
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
         for r in final:
@@ -468,16 +432,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
                 "matched_furniture": r.get("matched_furniture", [])[:3],
-                "validation":        r.get("validation"),
             })
 
         sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
                    "message": "設計方案生成完畢！",
-                   "result_json": {
-                       "analysis":           analysis,
-                       "renders":            slim_renders,
-                       "validation_summary": validation_summary,
-                   }})
+                   "result_json": {"analysis": analysis, "renders": slim_renders}})
 
         # 跑完自動清掉 R2 上的影片（隱私 + 省空間）
         for key in r2_keys_to_delete:
