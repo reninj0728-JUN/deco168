@@ -339,6 +339,74 @@ def analyze_space(
     return result
 
 
+# ─── 渲染結構驗證 ────────────────────────────────────────────────────
+# 比對「該 render 對應的主照片」vs「渲染圖」，純評估、不重跑、不過濾
+def validate_render(
+    original_path: str,
+    render_path: str,
+    region_name: str = "",
+) -> dict:
+    """
+    送 2 張本機圖片給 Gemini，回傳結構保留評估 JSON：
+      {ok, kitchen_added, recessed_space_added, windows_changed,
+       walls_changed, ceiling_changed, floor_changed, reason}
+    """
+    api_key = (os.environ.get("GEMINI_API_KEY") or
+               os.environ.get("GOOGLE_AI_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY / GOOGLE_AI_KEY 未設定")
+    client = genai.Client(api_key=api_key)
+
+    def _read_part(path: str):
+        ext = os.path.splitext(path)[1].lower()
+        mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
+        with open(path, "rb") as f:
+            return types.Part.from_bytes(data=f.read(), mime_type=mime)
+
+    original_part = _read_part(original_path)
+    render_part   = _read_part(render_path)
+
+    region_hint = f"目標房型/角度：【{region_name}】\n" if region_name else ""
+
+    prompt = f"""
+你會看到 2 張圖：
+  image_1 = 原始空間照片
+  image_2 = AI 渲染圖（聲稱是同一空間 + 家具+軟裝風格化）
+
+{region_hint}判斷渲染圖有沒有破壞原始結構。回傳嚴格 JSON：
+{{
+  "ok": true/false,
+  "kitchen_added": bool,
+  "recessed_space_added": bool,
+  "windows_changed": bool,
+  "walls_changed": bool,
+  "ceiling_changed": bool,
+  "floor_changed": bool,
+  "reason": "簡短中文 50 字內描述主要問題（ok=true 時填 '結構保留良好'）"
+}}
+
+【嚴格判定規則】
+- kitchen_added：原圖沒廚房元素，渲染圖出現廚房櫥櫃/水槽/料理台/餐桌/瓦斯爐
+- recessed_space_added：渲染圖出現原圖沒的凹間/額外房間/隔斷/廊道
+- windows_changed：窗戶數量/位置/形狀差異 > 20%
+- walls_changed：牆面明顯新增材質（大理石板/木皮/線板/造型牆）—— 純油漆顏色不同**不算**
+- ceiling_changed：天花板明顯新增結構（嵌燈陣列/木作/降板/間接照明溝槽）—— 吊燈或單一燈具**不算**結構
+- floor_changed：**裸露地板**材質/方向/比例顯著被改。**新增地毯不算 floor_changed**（地毯屬軟裝，本來就允許）
+
+ok = 上述 6 項全為 false。
+reason 必須具體（例「新增廚房櫥櫃」非「結構不一致」）。
+"""
+
+    response = client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=[original_part, render_part, prompt],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+        ),
+    )
+    return json.loads(response.text)
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
