@@ -27,6 +27,15 @@ backend/momo_sample.html
 R2_KEYS.txt
 *.pdf
 
+# 影片素材（測試用，太大；GitHub push >100MB 會被拒）
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.avi
+*.AVI
+*.mkv
+
 # POC 實驗腳本（不進 production）
 backend/poc_*.py
 backend/poc_output/

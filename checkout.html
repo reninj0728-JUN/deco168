@@ -479,6 +479,9 @@
       fd.append('space_type',   spaceType);
       fd.append('render_angle', renderAngle);
       fd.append('design_mode',  designMode);
+      // Z2: 帶上 zoning-confirm 確認的方案；缺則交 backend fallback
+      fd.append('layout_choice', localStorage.getItem('deco_layout_choice') || '');
+      fd.append('zoning_json',   localStorage.getItem('deco_zoning_json')   || '');
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>確認空間分區 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --black: #111111; --dark: #181818; --card: #1e1e1e; --line: #2e2e2e;
+      --gold: #C9A96E; --gold-lt: #e0c99a; --white: #ffffff;
+      --muted: #777777; --body: #aaaaaa;
+    }
+    body { background: var(--black); color: var(--white); font-family: 'Inter', sans-serif; font-weight: 300; min-height: 100vh; }
+
+    nav { position: fixed; top:0; left:0; right:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:0 48px; height:68px; background:rgba(17,17,17,0.92); backdrop-filter: blur(16px); border-bottom:1px solid var(--line); }
+    .nav-logo { display:flex; align-items:center; gap:14px; text-decoration:none; }
+    .nav-logo .brand { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:500; letter-spacing:4px; color:var(--gold); }
+    .nav-logo .sub { font-size:8px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-top:3px; }
+    .nav-logo .text-block { display:flex; flex-direction:column; }
+    .progress { display:flex; gap:6px; font-size:10px; letter-spacing:2px; color:var(--muted); }
+    .progress .active { color: var(--gold); }
+
+    main { padding: 110px 24px 60px; max-width: 980px; margin: 0 auto; }
+    .page-title { font-family:'Cormorant Garamond',serif; font-size:36px; font-weight:300; line-height:1.3; margin-bottom:8px; letter-spacing:1px; }
+    .page-title em { font-style: italic; color: var(--gold); }
+    .lede { color: var(--body); font-size: 14px; line-height: 1.7; margin-bottom: 28px; max-width: 720px; }
+
+    .loading-state { padding: 60px 0; text-align:center; }
+    .loading-state .spinner { display:inline-block; width:36px; height:36px; border:2px solid var(--line); border-top-color: var(--gold); border-radius:50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-state .label { color: var(--body); font-size: 14px; letter-spacing: 2px; }
+
+    .err-box { background: var(--card); border: 1px solid #4a1f1f; padding: 18px 22px; color: #ffb0b0; font-size: 13px; margin-bottom: 24px; }
+
+    .overlay-card { background: var(--card); border: 1px solid var(--line); padding: 18px; margin-bottom: 24px; }
+    .overlay-card .ohead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 12px; }
+    .overlay-card .otitle { font-family:'Cormorant Garamond',serif; font-size: 18px; letter-spacing: 2px; color: var(--gold); }
+    .overlay-card .ohint { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); }
+    .overlay-img { width:100%; max-height:420px; object-fit: contain; background:#000; display:block; border:1px solid #222; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px 18px; margin-top:14px; font-size: 12px; letter-spacing:1px; color: var(--body); }
+    .legend .sw { display:inline-block; width:14px; height:14px; margin-right:6px; vertical-align: middle; opacity: 0.85; border: 1px solid rgba(255,255,255,0.2); }
+
+    .options-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+    @media (max-width: 720px) { .options-grid { grid-template-columns: 1fr; } }
+    .opt { background: var(--card); border: 1px solid var(--line); padding: 20px 22px; cursor: pointer; transition: all .2s; position: relative; }
+    .opt:hover { border-color: var(--gold-lt); }
+    .opt.selected { border-color: var(--gold); background: linear-gradient(180deg, rgba(201,169,110,0.06), rgba(201,169,110,0)); }
+    .opt .badge { position:absolute; top:14px; right:14px; font-size:10px; letter-spacing: 1.5px; padding: 2px 8px; border: 1px solid var(--gold); color: var(--gold); }
+    .opt .opt-label { font-size: 11px; letter-spacing: 3px; color: var(--muted); margin-bottom: 6px; }
+    .opt .opt-name { font-family:'Cormorant Garamond',serif; font-size: 22px; color: var(--white); margin-bottom: 10px; letter-spacing: 1px; }
+    .opt .opt-line { font-size: 13px; color: var(--body); line-height: 1.7; margin-bottom: 4px; }
+    .opt .opt-line .k { color: var(--gold); font-size: 11px; letter-spacing: 2px; margin-right: 8px; }
+    .opt input[type=radio] { display:none; }
+
+    .questions { background: rgba(201,169,110,0.04); border-left: 2px solid var(--gold); padding: 14px 18px; margin-bottom: 28px; }
+    .questions .qtitle { font-size: 11px; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; }
+    .questions ul { list-style: none; padding: 0; }
+    .questions li { font-size: 13px; color: var(--body); line-height: 1.7; padding-left: 14px; position: relative; }
+    .questions li::before { content: '·'; color: var(--gold); position: absolute; left: 0; }
+
+    .actions { display:flex; justify-content:space-between; gap: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .btn { font-family: 'Inter', sans-serif; font-size: 13px; letter-spacing: 2.5px; padding: 14px 28px; border: none; cursor: pointer; transition: all .2s; text-decoration:none; display:inline-block; text-align:center; }
+    .btn-ghost { background: transparent; color: var(--body); border: 1px solid var(--line); }
+    .btn-ghost:hover { color: var(--white); border-color: var(--gold-lt); }
+    .btn-primary { background: var(--gold); color: var(--black); }
+    .btn-primary:hover { background: var(--gold-lt); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">
+    <div class="text-block">
+      <span class="brand">DECO168</span>
+      <span class="sub">interior design</span>
+    </div>
+  </a>
+  <div class="progress">
+    <span>· 上傳</span><span>· 風格</span><span class="active">· 分區</span><span>· 付款</span><span>· 生成</span>
+  </div>
+</nav>
+
+<main>
+  <h1 class="page-title">確認你的<em>空間分區</em></h1>
+  <p class="lede">
+    AI 已根據你的照片初步分析空間用途。空屋格局有時不只一種規劃方式，請確認哪一個比較符合你的需求。<br>
+    這一步不收費，目的是讓我們在開始設計前對齊預期，避免把「餐廳」當成「客廳」。
+  </p>
+
+  <div id="loadingBox" class="loading-state">
+    <div class="spinner"></div>
+    <div class="label">AI 正在分析你的空間動線…</div>
+  </div>
+
+  <div id="errorBox" class="err-box" style="display:none;"></div>
+
+  <div id="contentBox" style="display:none;">
+    <div class="overlay-card">
+      <div class="ohead">
+        <span class="otitle">AI 建議的分區規劃</span>
+        <span class="ohint">綠 LIVING　橘 DINING　紫 WALKWAY　青 ENTRANCE　灰 NO BIG FURN</span>
+      </div>
+      <img id="overlayImg" class="overlay-img" alt="zone overlay">
+      <div class="legend">
+        <span><span class="sw" style="background:#00C800;"></span>客廳區</span>
+        <span><span class="sw" style="background:#FFA500;"></span>餐廳區</span>
+        <span><span class="sw" style="background:#FF00FF;"></span>主動線</span>
+        <span><span class="sw" style="background:#00C8C8;"></span>入口</span>
+        <span><span class="sw" style="background:#505050;"></span>不放大型家具</span>
+      </div>
+    </div>
+
+    <div class="options-grid">
+      <label class="opt selected" id="optA">
+        <input type="radio" name="layout" value="A" checked>
+        <div class="badge">AI 推薦</div>
+        <div class="opt-label">方案 A</div>
+        <div class="opt-name">靠窗做客廳</div>
+        <div class="opt-line"><span class="k">客廳</span><span id="livingA">—</span></div>
+        <div class="opt-line"><span class="k">餐廳</span><span id="diningA">—</span></div>
+      </label>
+
+      <label class="opt" id="optB">
+        <input type="radio" name="layout" value="B">
+        <div class="opt-label">方案 B</div>
+        <div class="opt-name">靠窗做餐廳/書房</div>
+        <div class="opt-line"><span class="k">客廳</span><span id="livingB">—</span></div>
+        <div class="opt-line"><span class="k">餐廳</span><span id="diningB">—</span></div>
+      </label>
+    </div>
+
+    <div id="questionsBox" class="questions" style="display:none;">
+      <div class="qtitle">AI 需要你補答的細節（之後付款後會再問）</div>
+      <ul id="questionsList"></ul>
+    </div>
+
+    <div class="actions">
+      <a href="style-form.html" class="btn btn-ghost">← 改回風格</a>
+      <button class="btn btn-primary" id="nextBtn" onclick="goNext()">確認方案，下一步 →</button>
+    </div>
+  </div>
+</main>
+
+<script>
+  var API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8080'
+    : 'https://atarapa-backend-production.up.railway.app';
+
+  // 1. 先檢查 upload_id
+  var uploadId = localStorage.getItem('deco_upload_id');
+  if (!uploadId) {
+    window.location.href = 'upload.html';
+  }
+
+  var currentZoning = null;
+  var currentChoice = 'A';
+
+  function showError(msg) {
+    document.getElementById('loadingBox').style.display = 'none';
+    var eb = document.getElementById('errorBox');
+    eb.style.display = 'block';
+    eb.textContent = msg + '（你仍可直接「下一步」，AI 會在付款後自動分析。）';
+    // 即使錯誤也要讓使用者能繼續流程（不擋轉換）
+    var content = document.getElementById('contentBox');
+    var optsRow = content.querySelector('.options-grid');
+    var overlay = content.querySelector('.overlay-card');
+    var questions = document.getElementById('questionsBox');
+    if (overlay)  overlay.style.display = 'none';
+    if (questions) questions.style.display = 'none';
+    if (optsRow)  optsRow.style.display = 'none';
+    content.style.display = 'block';
+  }
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text || '—';
+  }
+
+  function renderResult(data) {
+    document.getElementById('loadingBox').style.display = 'none';
+    var content = document.getElementById('contentBox');
+
+    var zoning = data.zoning || {};
+    currentZoning = zoning;
+
+    // overlay 圖
+    var overlayUrl = data.overlay_proposed_url || data.overlay_existing_url;
+    if (overlayUrl) {
+      document.getElementById('overlayImg').src = overlayUrl;
+    } else {
+      document.querySelector('.overlay-card').style.display = 'none';
+    }
+
+    // 方案 A / B 的文字
+    var pz = zoning.proposed_zones || {};
+    var living = pz.living_zone || {};
+    var dining = pz.dining_zone || {};
+    setText('livingA', living.where || 'AI 建議的客廳位置');
+    setText('diningA', dining.where || 'AI 建議的餐廳位置');
+    setText('livingB', dining.where || living.alt_option || '（中段做客廳）');
+    setText('diningB', living.alt_option || dining.alt_option || '（靠窗做餐廳/書房）');
+
+    // needs_user_input
+    var nui = zoning.needs_user_input || [];
+    if (nui.length) {
+      var qb = document.getElementById('questionsBox');
+      var ul = document.getElementById('questionsList');
+      ul.innerHTML = '';
+      nui.forEach(function(q) {
+        var li = document.createElement('li');
+        li.textContent = q;
+        ul.appendChild(li);
+      });
+      qb.style.display = 'block';
+    }
+
+    content.style.display = 'block';
+  }
+
+  // 2. 綁定 A/B 選擇
+  document.getElementById('optA').addEventListener('click', function() {
+    document.getElementById('optA').classList.add('selected');
+    document.getElementById('optB').classList.remove('selected');
+    document.querySelector('input[value=A]').checked = true;
+    currentChoice = 'A';
+  });
+  document.getElementById('optB').addEventListener('click', function() {
+    document.getElementById('optB').classList.add('selected');
+    document.getElementById('optA').classList.remove('selected');
+    document.querySelector('input[value=B]').checked = true;
+    currentChoice = 'B';
+  });
+
+  // 3. 進入 checkout
+  function goNext() {
+    var btn = document.getElementById('nextBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中…';
+    // 寫 localStorage 給 checkout 用
+    localStorage.setItem('deco_layout_choice', currentChoice || 'A');
+    if (currentZoning) {
+      try {
+        localStorage.setItem('deco_zoning_json', JSON.stringify(currentZoning));
+      } catch (e) {
+        console.warn('zoning_json 寫入失敗', e);
+      }
+    } else {
+      localStorage.removeItem('deco_zoning_json');
+    }
+    window.location.href = 'checkout.html';
+  }
+
+  // 4. 呼叫 /api/zoning
+  (async function() {
+    try {
+      var fd = new FormData();
+      fd.append('upload_id', uploadId);
+      var resp = await fetch(API_BASE + '/api/zoning', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        var txt = '';
+        try { txt = (await resp.json()).error || ''; } catch (_) {}
+        throw new Error(txt || ('HTTP ' + resp.status));
+      }
+      var data = await resp.json();
+      renderResult(data);
+    } catch (e) {
+      console.error(e);
+      showError('AI 分析時發生狀況：' + e.message);
+    }
+  })();
+</script>
+
+</body>
+</html>

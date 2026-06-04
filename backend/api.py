@@ -214,6 +214,95 @@ def sb_upload_render(job_id: str, file_path: Path) -> str | None:
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
+    """
+    Z2: 使用者確認過的 v2 zoning（existing_zones / proposed_zones）攤平成 v1 結構，
+    讓既有 prompt_builder._build_layout_section() 不用改。
+    layout_choice='B' 時，把 living/dining 對調（用 alt_option）。
+    """
+    ez = zoning_v2.get("existing_zones") or {}
+    pz = zoning_v2.get("proposed_zones") or {}
+
+    if layout_choice == "B":
+        living = {
+            "where": (pz.get("living_zone") or {}).get("alt_option") or (pz.get("dining_zone") or {}).get("where", ""),
+            "why_here": "使用者選擇方案 B（替代佈局）",
+            "evidence": "user choice",
+        }
+        dining = {
+            "where": (pz.get("dining_zone") or {}).get("alt_option") or (pz.get("living_zone") or {}).get("where", ""),
+        }
+        sofa_wall_hint = (pz.get("living_zone") or {}).get("alt_option") or "the longest solid wall"
+    else:
+        # 'A' 或空字串都當 A 處理（預設）
+        living = {
+            "where": (pz.get("living_zone") or {}).get("where", ""),
+            "why_here": (pz.get("living_zone") or {}).get("rationale", ""),
+            "evidence": "user-confirmed AI recommendation",
+        }
+        dining = {
+            "where": (pz.get("dining_zone") or {}).get("where", ""),
+        }
+        sofa_wall_hint = (pz.get("living_zone") or {}).get("rationale", "") or living["where"] or "the longest solid wall"
+
+    no_go = []
+    if pz.get("no_large_furniture_zone"):
+        where = (pz["no_large_furniture_zone"] or {}).get("where", "")
+        if where:
+            no_go.append(where)
+
+    return {
+        "confidence":        zoning_v2.get("overall_confidence", "medium"),
+        "spatial_synthesis": zoning_v2.get("spatial_synthesis") or {},
+        "zones": {
+            "living_zone":   living,
+            "dining_zone":   dining,
+            "walkway":       ez.get("walkway") or {},
+            "entrance_zone": ez.get("entrance_zone") or {},
+        },
+        "furniture_placement_rules": {
+            "sofa_wall":                sofa_wall_hint,
+            "tv_wall":                  "",
+            "coffee_table_position":    "in front of the sofa, on top of the rug",
+            "rug_anchor":               "anchored under the coffee table in the living zone",
+            "accent_chair_position":    "",
+            "no_large_furniture_zones": no_go,
+        },
+        "_origin": "user_confirmed_v2",
+        "_layout_choice": layout_choice or "A",
+    }
+
+
+def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
+    """
+    Z3: 判斷一張 render 是否需要重試。
+    觸發條件（任一）：
+      - validation.ok is False AND 有結構類 flag (walls/recessed/windows changed)
+      - reason 含「開口被封 / 走廊消失 / 牆面改變 / 填平 / 封閉 / 通道」等關鍵字
+    回傳 (should_retry, reason_text)
+    """
+    if not isinstance(validation, dict):
+        return False, ""
+    if validation.get("ok") is not False:
+        return False, ""
+
+    bad_flags = []
+    for k in ("walls_changed", "recessed_space_added", "windows_changed"):
+        if validation.get(k):
+            bad_flags.append(k)
+
+    reason = (validation.get("reason") or "").strip()
+    bad_kw = ["開口被封", "走廊消失", "牆面改變", "填平", "封閉", "通道", "封住", "被封", "封死"]
+    matched_kw = [kw for kw in bad_kw if kw in reason]
+    if matched_kw:
+        bad_flags.append(f"kw:{','.join(matched_kw)}")
+
+    if not bad_flags:
+        return False, ""
+    suffix = f" | reason: {reason[:120]}" if reason else ""
+    return True, ",".join(bad_flags) + suffix
+
+
 def write_status(job_id: str, job_dir: Path, status: str, progress: int, message: str):
     # 同步更新 Supabase
     sb_upsert({"job_id": job_id, "status": status, "progress": progress, "message": message})
@@ -253,7 +342,9 @@ def extract_frame(video_path: str, out_path: str, position: float = 0.33) -> str
 
 def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  space_type: str = "living", render_angle: str = "single",
-                 design_mode: str = "furnish"):
+                 design_mode: str = "furnish",
+                 user_zoning_v2: dict | None = None,
+                 user_layout_choice: str = ""):
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
 
@@ -374,6 +465,40 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{list(zip(angle_labels, [Path(p).name for p in flux_bases]))}")
 
+        # ── Gemini zoning（給 Nano Banana prompt 用，失敗不阻斷） ──
+        # 規則：best_photo_index 那張一定包含，再補同 upload 其他照片到最多 3 張
+        zoning_photos: list[str] = []
+        if image_paths:
+            zb = analysis.get("best_photo_index")
+            if not isinstance(zb, int) or not (0 <= zb < len(image_paths)):
+                zb = 0
+            zoning_photos.append(image_paths[zb])
+            for i, p in enumerate(image_paths):
+                if i != zb and len(zoning_photos) < 3:
+                    zoning_photos.append(p)
+
+        zoning_result: dict = {"confidence": "none", "error": "not computed"}
+        if user_zoning_v2:
+            # ── Z2: 使用者已在 zoning-confirm 確認 v2 分區，跳過重跑 ──
+            write_status(job_id, job_dir, "zoning", 40, "套用您確認的分區設定…")
+            try:
+                zoning_result = flatten_zoning_v2_to_v1(user_zoning_v2, user_layout_choice or "A")
+                print(f"[pipeline] 使用 user-confirmed zoning v2, layout_choice={user_layout_choice or 'A'}")
+            except Exception as fe:
+                print(f"[pipeline] flatten v2→v1 失敗，fallback compute_zoning: {fe}")
+                user_zoning_v2 = None  # 失敗 → 走原本路徑
+        if not user_zoning_v2:
+            write_status(job_id, job_dir, "zoning", 40, "理解空間動線中…")
+            if zoning_photos:
+                try:
+                    from zoning import compute_zoning
+                    zoning_result = compute_zoning(zoning_photos)
+                except Exception as ze:
+                    print(f"[pipeline] zoning 例外（不阻斷）: {ze}")
+                    zoning_result = {"error": str(ze)[:300], "confidence": "none"}
+        print(f"[pipeline] zoning confidence={zoning_result.get('confidence')} "
+              f"error={zoning_result.get('error', '(none)')[:80]}")
+
         write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
 
@@ -396,7 +521,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         for idx, entry in enumerate(expanded):
             single_result = generate_renders(entry["_base_path"], [entry],
                                              output_dir=str(job_dir),
-                                             analysis=analysis, design_mode=design_mode)
+                                             analysis=analysis, design_mode=design_mode,
+                                             zoning=zoning_result)
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -436,6 +562,70 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             for r in final:
                 r.setdefault("validation", {"ok": None, "error": "validation step crashed"})
 
+        # ── Z3: 結構失敗自動重試 1 次（僅 Nano Banana）──
+        use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
+        retry_n = 0
+        if use_nano:
+            for idx in range(len(final)):
+                r = final[idx]
+                if r.get("retry_count"):  # 已重試過不再重試
+                    continue
+                v = r.get("validation") or {}
+                should_retry, retry_reason = z3_needs_retry(v)
+                if not should_retry:
+                    continue
+                if idx >= len(expanded):
+                    continue
+                entry = expanded[idx]
+                print(f"[pipeline] Z3 retry render[{idx}] style={r.get('style')} — {retry_reason}")
+                write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
+                try:
+                    retry_results = generate_renders(
+                        entry["_base_path"], [entry],
+                        output_dir=str(job_dir),
+                        analysis=analysis, design_mode=design_mode,
+                        zoning=zoning_result,
+                    )
+                except Exception as re_e:
+                    print(f"[pipeline] Z3 retry 例外: {re_e}")
+                    r["retry_count"] = 1
+                    r["retry_reason"] = f"retry exception: {str(re_e)[:200]}"
+                    continue
+                if not retry_results:
+                    r["retry_count"] = 1
+                    r["retry_reason"] = f"{retry_reason} | retry returned empty"
+                    continue
+                new_r = retry_results[0]
+                # 改名加 _retry
+                if new_r.get("render_path"):
+                    src_p = Path(new_r["render_path"])
+                    new_name = f"render_{entry.get('style','x')}_{idx:02d}_retry{src_p.suffix}"
+                    new_p = src_p.parent / new_name
+                    try:
+                        src_p.rename(new_p)
+                        new_r["render_path"] = str(new_p)
+                    except Exception:
+                        pass
+                # 重新 validate
+                try:
+                    from gemini_analyze import validate_render
+                    bpath = entry["_base_path"]
+                    rpath = new_r.get("render_path") or ""
+                    if rpath and Path(bpath).exists() and Path(rpath).exists():
+                        new_v = validate_render(bpath, rpath, entry["_angle_label"])
+                    else:
+                        new_v = {"ok": None, "error": "missing base or render path after retry"}
+                except Exception as ve:
+                    new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:200]}"}
+                new_r["validation"]   = new_v
+                new_r["angle_label"]  = entry["_angle_label"]
+                new_r["retry_count"]  = 1
+                new_r["retry_reason"] = retry_reason
+                final[idx] = new_r
+                retry_n += 1
+        if retry_n:
+            print(f"[pipeline] Z3 重試 {retry_n} 張")
+
         # 統計
         ok_n  = sum(1 for r in final if (r.get("validation") or {}).get("ok") is True)
         ng_n  = sum(1 for r in final if (r.get("validation") or {}).get("ok") is False)
@@ -449,8 +639,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "ok":         ok_n,
             "ng":         ng_n,
             "ng_reasons": ng_reasons,
+            "retry_count": retry_n,
         }
-        print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n}")
+        print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n} retried={retry_n}")
 
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
@@ -469,12 +660,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_error":      r.get("error"),
                 "matched_furniture": r.get("matched_furniture", [])[:3],
                 "validation":        r.get("validation"),
+                # ── T4 新增：Nano Banana 路徑會帶；Flux 路徑用預設值 ──
+                "pipeline_version":      r.get("pipeline_version", "flux-v1"),
+                "reference_map":         r.get("reference_map", []),
+                "notes":                 r.get("notes", ""),
+                "unmatched_visual_items": r.get("unmatched_visual_items", []),
+                # ── Z3 新增 ──
+                "retry_count":   r.get("retry_count", 0),
+                "retry_reason":  r.get("retry_reason"),
             })
 
         sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
                    "message": "設計方案生成完畢！",
                    "result_json": {
                        "analysis":           analysis,
+                       "zoning":             zoning_result,
+                       "zoning_v2":          user_zoning_v2,         # Z2: 保留原始 v2（未轉換）
+                       "layout_choice":      user_layout_choice or None,
                        "renders":            slim_renders,
                        "validation_summary": validation_summary,
                    }})
@@ -572,6 +774,8 @@ async def create_job(
     space_type: str   = Form(default="living"),    # living/dining/bedroom/study/whole
     render_angle: str = Form(default="single"),    # single/multi
     design_mode: str  = Form(default="furnish"),   # furnish (只動家具) / full (含裝潢)
+    layout_choice: str = Form(default=""),         # Z2: 'A'/'B'/'' (空字串=未確認)
+    zoning_json: str   = Form(default=""),         # Z2: v2 zoning JSON 字串（前端從 localStorage 帶回）
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -637,9 +841,20 @@ async def create_job(
                "photo_count": len(new_paths), "status": "queued",
                "progress": 5, "message": "已排入隊列，即將開始分析…"})
 
+    # Z2: parse 使用者已確認的 v2 zoning（可選）
+    user_zoning_v2 = None
+    if zoning_json:
+        try:
+            parsed = json.loads(zoning_json)
+            if isinstance(parsed, dict):
+                user_zoning_v2 = parsed
+        except Exception as je:
+            print(f"[/api/job] zoning_json parse 失敗, 忽略: {je}")
+
     write_status(job_id, job_dir, "queued", 5, "已排入隊列，即將開始分析…")
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
-                              space_type, render_angle, design_mode)
+                              space_type, render_angle, design_mode,
+                              user_zoning_v2, layout_choice)
 
     return {"job_id": job_id}
 
@@ -691,6 +906,109 @@ def get_error(job_id: str):
     if not error_file.exists():
         return {"error": "no error log"}
     return {"log": error_file.read_text(encoding="utf-8", errors="replace")}
+
+
+# ── Z2.1: 付款前分區確認用 ────────────────────────────────────────────────
+@app.post("/api/zoning")
+async def api_zoning(upload_id: str = Form(...)):
+    """
+    付款前分區確認：讀 upload 紀錄的照片 → Gemini zoning v2 → 產 overlay PNG
+    回 v2 zoning JSON + 兩張 overlay public URL，給 zoning-confirm.html 用。
+    """
+    # 1. 拿 upload 紀錄
+    upload = sb_get_upload(upload_id)
+    if not upload:
+        return JSONResponse(status_code=404, content={"error": "upload_id not found"})
+
+    photo_urls = upload.get("photo_urls") or []
+    if not photo_urls:
+        return JSONResponse(status_code=400, content={"error": "no photos in this upload"})
+
+    # 2. 下載到本機 temp
+    tmp_dir = UPLOADS_DIR / upload_id / "zoning_tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    local_photos: list[Path] = []
+    for i, url in enumerate(photo_urls[:3]):
+        fname = (url.rsplit("/", 1)[-1] or f"photo_{i}.jpg")
+        dest = tmp_dir / fname
+        if not dest.exists() or dest.stat().st_size < 1024:
+            try:
+                r = _req.get(
+                    url,
+                    headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
+                    timeout=30,
+                )
+                if r.ok:
+                    dest.write_bytes(r.content)
+                else:
+                    print(f"[/api/zoning] 下載 {url} 失敗 HTTP {r.status_code}")
+                    continue
+            except Exception as e:
+                print(f"[/api/zoning] 下載例外 {url}: {e}")
+                continue
+        if dest.exists() and dest.stat().st_size > 1024:
+            local_photos.append(dest)
+
+    if not local_photos:
+        return JSONResponse(status_code=500, content={"error": "failed to download any photo from supabase"})
+
+    # 3. Gemini zoning v2（Phase 1 不傳影片）
+    try:
+        from zoning_v2 import compute_zoning_v2, draw_overlay
+    except ImportError as e:
+        return JSONResponse(status_code=500, content={"error": f"zoning module missing: {e}"})
+
+    zoning = compute_zoning_v2(local_photos, video_keyframes=None)
+    if zoning.get("error"):
+        return JSONResponse(status_code=500, content={"error": f"gemini zoning failed: {zoning['error']}"})
+
+    # 4. 畫 overlay
+    best_idx = zoning.get("best_photo_index", 0)
+    best_photo = local_photos[best_idx] if 0 <= best_idx < len(local_photos) else local_photos[0]
+    existing_path = tmp_dir / "z_overlay_existing.png"
+    proposed_path = tmp_dir / "z_overlay_proposed.png"
+    try:
+        draw_overlay(best_photo, zoning.get("existing_zones", {}),
+                     "EXISTING ZONES (AI inferred original use)", existing_path)
+        draw_overlay(best_photo, zoning.get("proposed_zones", {}),
+                     "PROPOSED ZONES (AI suggested layout)", proposed_path)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"overlay generation failed: {e}"})
+
+    # 5. 上傳 overlay 到 Supabase Storage（uploads bucket，回 public URL）
+    def _upload_overlay(local: Path, name: str) -> str | None:
+        try:
+            data = local.read_bytes()
+            storage_path = f"{upload_id}/{name}"
+            r = _req.post(
+                f"{SUPABASE_URL}/storage/v1/object/uploads/{storage_path}",
+                data=data,
+                headers={
+                    "apikey":        SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}",
+                    "Content-Type":  "image/png",
+                    "x-upsert":      "true",
+                },
+                timeout=30,
+            )
+            if r.status_code in (200, 201):
+                return f"{SUPABASE_URL}/storage/v1/object/public/uploads/{storage_path}"
+            print(f"[/api/zoning] overlay 上傳 {name} 失敗 HTTP {r.status_code}: {r.text[:200]}")
+            return None
+        except Exception as e:
+            print(f"[/api/zoning] overlay 上傳 {name} 例外: {e}")
+            return None
+
+    overlay_existing_url = _upload_overlay(existing_path, "zoning_overlay_existing.png")
+    overlay_proposed_url = _upload_overlay(proposed_path, "zoning_overlay_proposed.png")
+
+    return {
+        "upload_id":            upload_id,
+        "zoning":               zoning,
+        "overlay_existing_url": overlay_existing_url,
+        "overlay_proposed_url": overlay_proposed_url,
+    }
 
 
 @app.get("/health")

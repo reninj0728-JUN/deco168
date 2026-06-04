@@ -36,6 +36,7 @@ def _get_system_prompt():
 
 from google.genai import types
 from furniture_match import enrich_renders
+from prompt_builder import build_nano_banana_inputs
 import fal_client
 import requests
 
@@ -221,13 +222,20 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
 
 
 def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output",
-                     analysis: dict | None = None, design_mode: str = "furnish"):
+                     analysis: dict | None = None, design_mode: str = "furnish",
+                     zoning: dict | None = None):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
+    zoning:      zoning.compute_zoning() 結果，僅 USE_NANO_BANANA=1 時使用
     """
+    use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
+
     print(f"\n{'='*56}")
-    print("[Step 3] Flux Kontext Pro 生成渲染圖")
+    if use_nano:
+        print("[Step 3] Nano Banana Pro 生成渲染圖（USE_NANO_BANANA=1）")
+    else:
+        print("[Step 3] Flux Kontext Pro 生成渲染圖")
     print(f"{'='*56}")
 
     os.makedirs(output_dir, exist_ok=True)
@@ -275,6 +283,57 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         print(f"  Prompt 結尾: ...{full_prompt[-80:]}")
 
         t0 = time.time()
+
+        # ── USE_NANO_BANANA=1：multi-image edit 分支 ──
+        if use_nano:
+            inputs = build_nano_banana_inputs(render, zoning, base_image_url)
+            print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
+                  f"(prompt {len(inputs['prompt'])} chars)")
+            try:
+                result = fal_client.subscribe(
+                    "fal-ai/nano-banana-pro/edit",
+                    arguments={
+                        "image_urls": inputs["image_urls"],
+                        "prompt": inputs["prompt"],
+                        "system_prompt": inputs["system_prompt"],
+                        "resolution": "1K",
+                        "output_format": "png",
+                    },
+                    with_logs=False,
+                )
+                elapsed = time.time() - t0
+                img_url = (result.get("images") or [{}])[0].get("url")
+                if not img_url:
+                    raise ValueError(f"nano-banana-pro/edit 未回傳 URL，result keys: {list(result.keys())}")
+                resp = requests.get(img_url, timeout=120)
+                resp.raise_for_status()
+                out_path = os.path.join(output_dir, f"render_{style}.png")
+                with open(out_path, "wb") as f:
+                    f.write(resp.content)
+
+                print(f"  ✓ 完成 ({elapsed:.1f}s) → {out_path}")
+                results.append({
+                    **render,
+                    "render_path": out_path,
+                    "reference_map": inputs["reference_map"],
+                    "notes": inputs["notes"],
+                    "unmatched_visual_items": inputs["unmatched_visual_items"],
+                    "pipeline_version": "nano-banana-v1",
+                })
+            except Exception as e:
+                # 失敗：不自動 fallback Flux，直接標記 failed
+                print(f"  ✗ Nano Banana 失敗: {e}")
+                results.append({
+                    **render,
+                    "render_path": None,
+                    "error": str(e),
+                    "reference_map": inputs.get("reference_map", []),
+                    "notes": inputs.get("notes", ""),
+                    "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
+                    "pipeline_version": "nano-banana-v1",
+                })
+            continue   # 跳過底下的 Flux 分支
+
         try:
             # ── 正式 endpoint（鎖定 kontext，POC 結論 2026-06-03）──
             # kontext/max、ControlNet Canny/Depth/Depth+Canny 經 POC 比較後
@@ -304,11 +363,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 f.write(resp.content)
 
             print(f"  ✓ 完成 ({elapsed:.1f}s) → {out_path}")
-            results.append({**render, "render_path": out_path})
+            results.append({**render, "render_path": out_path, "pipeline_version": "flux-v1"})
 
         except Exception as e:
             print(f"  ✗ 失敗: {e}")
-            results.append({**render, "render_path": None, "error": str(e)})
+            results.append({**render, "render_path": None, "error": str(e), "pipeline_version": "flux-v1"})
 
     return results
 

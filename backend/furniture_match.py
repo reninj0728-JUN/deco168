@@ -14,12 +14,15 @@ CATALOG_REAL_PATH = Path(__file__).parent / "furniture_catalog_real.json"
 CATALOG_FALLBACK_PATH = Path(__file__).parent / "furniture_catalog.json"
 
 # 中文類別 → 英文類別對照（配合 CATEGORY_KEYWORDS）
+# 茶几獨立成 coffee_table（不再跟餐桌混在 table）
+# 桌子保守處理為 table（不細分餐桌/邊几，避免影響其他空間邏輯）
+# 椅子細分由 refine_subcategory() 按 name_zh 處理，bucket 仍是 chair
 CATEGORY_ZH_TO_EN = {
     '沙發': 'sofa',
+    '茶几': 'coffee_table',
     '桌子': 'table',
     '椅子': 'chair',
     '床架': 'bed',
-    '茶几': 'table',
     '收納': 'storage',
     '燈具': 'lighting',
     '地毯': 'rug',
@@ -29,6 +32,55 @@ CATEGORY_ZH_TO_EN = {
     '寢具': 'bedding',
     '傢俱': 'other',
 }
+
+# ── 客廳模式品類規則 ──
+# 必撈（fallback 只能在同 category 內換相近風格，不准跨 category 替代）
+LIVING_MUST_HAVE = ['sofa', 'coffee_table', 'rug']
+
+# 加分（補滿 top_n 用，同類各取 1）
+LIVING_NICE_TO_HAVE = [
+    'accent_chair', 'lighting', 'curtain',
+    'side_table', 'plant', 'mirror', 'chair',
+]
+
+# 客廳模式排除（不准進主家具清單）
+LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding']
+
+# 椅子細分關鍵字（name_zh 命中即覆蓋 chair 為子類）
+CHAIR_SUBCAT_RULES = [
+    ('bar_stool', ['吧台', '吧檯', '吧椅', '高腳椅', 'bar stool', 'STIG', 'barstool']),
+    ('dining_chair', ['餐椅', 'dining chair']),
+    ('accent_chair', ['單人沙發', '單椅', '搖椅', '躺椅', '休閒椅', 'lounge', 'accent chair', '皮革椅', '扶手椅', 'armchair']),
+]
+
+# 桌子細分（保守：只在 LIVING_EXCLUDED 過濾與 NICE_TO_HAVE 配對時才用）
+TABLE_SUBCAT_RULES = [
+    ('dining_table', ['餐桌', 'dining table']),
+    ('side_table', ['邊几', '邊桌', '床頭櫃', 'side table', '小茶桌', '角几']),
+]
+
+
+def refine_subcategory(en_cat: str, name_zh: str) -> str:
+    """按品名細分 chair / table，其他類別維持原樣"""
+    name_lower = (name_zh or '').lower()
+    if en_cat == 'chair':
+        for sub, kws in CHAIR_SUBCAT_RULES:
+            if any(kw.lower() in name_lower for kw in kws):
+                return sub
+        return 'chair'
+    if en_cat == 'table':
+        for sub, kws in TABLE_SUBCAT_RULES:
+            if any(kw.lower() in name_lower for kw in kws):
+                return sub
+        return 'table'
+    return en_cat
+
+
+def resolve_category(item: dict) -> str:
+    """取得家具最終解析後的英文類別（含細分）"""
+    raw = item.get('category', '')
+    en_cat = CATEGORY_ZH_TO_EN.get(raw, raw.lower() if isinstance(raw, str) else 'other')
+    return refine_subcategory(en_cat, item.get('name_zh', ''))
 
 # 家具類別關鍵字 → category
 CATEGORY_KEYWORDS = {
@@ -70,67 +122,158 @@ def extract_categories_from_prompt(flux_prompt: str) -> list[str]:
     return found or ["sofa", "table", "lighting"]  # 默認推薦三大類
 
 
-def match_furniture(style: str, flux_prompt: str, catalog: list[dict], top_n: int = 5) -> list[dict]:
+def score_item(item: dict, style: str, prompt_keywords: list[str], match_style: bool = True) -> float:
     """
-    根據風格 + flux_prompt 從目錄配對最適合的家具
+    評分一件家具（不含類別加分，類別由外層篩選控制）
 
-    評分邏輯：
-    - 風格 tag 命中 +3 分
-    - flux_prompt 關鍵字命中 +1 分（每個）
-    - 有圖片 +1 分
-    - 有購買連結 +0.5 分
+    - 風格 tag 命中 +3，相近風格 +1（match_style=False 時跳過，用於 fallback）
+    - flux_prompt 關鍵字命中（descriptor 或 keywords 或 name）+1/個
+    - 顏色命中 +0.5/個
+    - 有圖片 +1，有購買連結 +0.5
     """
-    needed_cats = extract_categories_from_prompt(flux_prompt)
-    prompt_keywords = [kw.strip().lower() for kw in flux_prompt.split(",")]
+    score = 0.0
 
-    scored = []
-    for item in catalog:
-        score = 0.0
-
-        # 風格 tag 命中
+    if match_style:
         item_styles = item.get("style_tags", [])
         if style in item_styles:
             score += 3
         elif any(s in item_styles for s in _get_related_styles(style)):
             score += 1
 
-        # 類別命中（prompt 需要的類別）—— 支援中英文類別
-        item_cat_raw = item.get("category", "")
-        item_cat = CATEGORY_ZH_TO_EN.get(item_cat_raw, item_cat_raw.lower())
-        if item_cat in needed_cats:
-            score += 2
-
-        # flux_prompt 關鍵字命中
-        # flux_descriptor 可能為空（momo 未跑 Gemini），改以 name_zh 補充
-        item_keywords = [kw.lower() for kw in item.get("keywords", [])]
-        item_descriptor = item.get("flux_descriptor", "").lower()
-        item_name = item.get("name_zh", "").lower()
-        search_text = item_descriptor or item_name  # 優先用 descriptor，沒有就用名稱
-        for pkw in prompt_keywords:
-            if any(pkw in ikw for ikw in item_keywords) or pkw in search_text:
-                score += 1
-
-        # 顏色符合
-        item_colors = [c.lower() for c in item.get("colors", [])]
-        for pkw in prompt_keywords:
-            if any(pkw in color for color in item_colors):
-                score += 0.5
-
-        # 有圖片 bonus
-        if item.get("image_url"):
+    item_keywords = [kw.lower() for kw in item.get("keywords", [])]
+    item_descriptor = (item.get("flux_descriptor") or "").lower()
+    item_name = (item.get("name_zh") or "").lower()
+    search_text = item_descriptor or item_name
+    for pkw in prompt_keywords:
+        if pkw and (any(pkw in ikw for ikw in item_keywords) or pkw in search_text):
             score += 1
-        if item.get("purchase_url"):
+
+    item_colors = [c.lower() for c in item.get("colors", [])]
+    for pkw in prompt_keywords:
+        if pkw and any(pkw in color for color in item_colors):
             score += 0.5
 
-        if score > 0:
-            scored.append((score, item))
+    if item.get("image_url"):
+        score += 1
+    if item.get("purchase_url"):
+        score += 0.5
 
-    # 依分數排序，每個類別最多取 1 件（避免同一風格出現 2 個沙發）
+    return score
+
+
+def _pick_best_in_category(
+    target_cat: str,
+    style: str,
+    prompt_keywords: list[str],
+    catalog: list[dict],
+) -> dict | None:
+    """
+    在指定 category 中，先撈同風格 → 再 fallback 相近風格 → 否則 None。
+    Fallback 只放寬風格，category 鎖死（不准用 chair 替代 sofa）。
+    """
+    # Stage A: 嚴格同風格
+    primary = [
+        it for it in catalog
+        if resolve_category(it) == target_cat
+        and style in it.get("style_tags", [])
+    ]
+    if primary:
+        scored = [(score_item(it, style, prompt_keywords), it) for it in primary]
+        scored.sort(key=lambda x: -x[0])
+        return scored[0][1]
+
+    # Stage B: fallback 到相近風格（同 category）
+    related = _get_related_styles(style)
+    if related:
+        fallback = [
+            it for it in catalog
+            if resolve_category(it) == target_cat
+            and any(s in it.get("style_tags", []) for s in related)
+        ]
+        if fallback:
+            scored = [(score_item(it, style, prompt_keywords, match_style=False), it) for it in fallback]
+            scored.sort(key=lambda x: -x[0])
+            return scored[0][1]
+
+    return None
+
+
+def match_furniture(
+    style: str,
+    flux_prompt: str,
+    catalog: list[dict],
+    top_n: int = 5,
+    mode: str = 'living',
+) -> list[dict]:
+    """
+    兩階段配對（mode='living' 預設）：
+      Stage 1: LIVING_MUST_HAVE 每類保證撈 1 件（同風格 → fallback 風格）
+      Stage 2: LIVING_NICE_TO_HAVE 補滿 top_n（依分數）
+      全程排除 LIVING_EXCLUDED
+
+    其他 mode 暫沿用「全分類混評分 + 每類 1 件」舊邏輯（未來再擴）
+    """
+    prompt_keywords = [kw.strip().lower() for kw in flux_prompt.split(",")]
+
+    if mode != 'living':
+        return _legacy_match(style, prompt_keywords, catalog, top_n)
+
+    must = LIVING_MUST_HAVE
+    nice = LIVING_NICE_TO_HAVE
+    excluded = set(LIVING_EXCLUDED)
+
+    # 先剔除 EXCLUDED 品類
+    pool = [it for it in catalog if resolve_category(it) not in excluded]
+
+    selected_by_cat: dict[str, dict] = {}
+
+    # Stage 1: MUST_HAVE
+    for cat in must:
+        best = _pick_best_in_category(cat, style, prompt_keywords, pool)
+        if best is not None:
+            selected_by_cat[cat] = best
+
+    # Stage 2: NICE_TO_HAVE
+    remaining = top_n - len(selected_by_cat)
+    if remaining > 0:
+        nice_pool = [
+            it for it in pool
+            if resolve_category(it) in nice
+            and resolve_category(it) not in selected_by_cat
+        ]
+        scored = [(score_item(it, style, prompt_keywords), it) for it in nice_pool]
+        scored.sort(key=lambda x: -x[0])
+        for _, it in scored:
+            cat = resolve_category(it)
+            if cat in selected_by_cat:
+                continue
+            selected_by_cat[cat] = it
+            if len(selected_by_cat) >= top_n:
+                break
+
+    # 以 must 順序優先，nice 依後續加入順序
+    ordered: list[dict] = []
+    for cat in must:
+        if cat in selected_by_cat:
+            ordered.append(selected_by_cat[cat])
+    for cat, it in selected_by_cat.items():
+        if cat not in must:
+            ordered.append(it)
+
+    return ordered
+
+
+def _legacy_match(style: str, prompt_keywords: list[str], catalog: list[dict], top_n: int) -> list[dict]:
+    """舊邏輯（非 living 模式 fallback 用）：混評分 + 每類 1 件"""
+    scored = []
+    for item in catalog:
+        sc = score_item(item, style, prompt_keywords)
+        if sc > 0:
+            scored.append((sc, item))
     scored.sort(key=lambda x: -x[0])
     selected = []
     cat_seen: set[str] = set()
-
-    for score, item in scored:
+    for _, item in scored:
         cat = item.get("category", "other")
         if cat in cat_seen:
             continue
@@ -138,7 +281,6 @@ def match_furniture(style: str, flux_prompt: str, catalog: list[dict], top_n: in
         selected.append(item)
         if len(selected) >= top_n:
             break
-
     return selected
 
 
@@ -229,8 +371,9 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
     for render in renders:
         style = render.get("style", "")
         flux_prompt = render.get("flux_prompt", "")
-        matched = match_furniture(style, flux_prompt, catalog, top_n=8)  # 多撈幾件供過濾
-        matched = filter_by_dimensions(matched, max_w)[:5]  # 過濾大件後取前 5
+        # 多撈一些供尺寸過濾，再切到 5。但客廳 must_have 已在 stage1 鎖住，不會被擠掉。
+        matched = match_furniture(style, flux_prompt, catalog, top_n=8, mode='living')
+        matched = filter_by_dimensions(matched, max_w)[:5]
 
         render_copy = dict(render)
         render_copy["matched_furniture"] = [
@@ -238,11 +381,12 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
                 "id": item.get("id", ""),
                 "name_zh": item.get("name_zh", ""),
                 "brand": item.get("brand", ""),
+                # 原始中文類別保留，另加 category_en 反映細分結果
                 "category": item.get("category", ""),
+                "category_en": resolve_category(item),
                 "price_twd": item.get("price_twd", 0),
                 "image_url": item.get("image_url", ""),
                 "purchase_url": item.get("purchase_url", ""),
-                # flux_descriptor 空時退回 name_zh，確保 Flux 有可用描述
                 "flux_descriptor": item.get("flux_descriptor", "") or item.get("name_zh", ""),
                 "dimensions": item.get("dimensions", ""),
                 "colors": item.get("colors", []),
