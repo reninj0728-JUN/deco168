@@ -724,7 +724,7 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">設計方向</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇 <strong style="color:var(--gold)">2 個</strong>風格方向（風格 + 色系），系統為每個風格生成 3 張不同角度／空間的渲染圖，共 <strong style="color:var(--gold)">2 × 3 = 6 張</strong>。</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇 <strong style="color:var(--gold)">2 個</strong>風格方向（風格 + 色系），系統從你上傳的照片中精選最佳角度，為每個風格各生成 1 張設計提案圖，共 <strong style="color:var(--gold)">2 × 1 = 2 張</strong>。</p>
 
     <!-- 已選方向 chips -->
     <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
@@ -823,8 +823,8 @@
         <label class="field-label">服務方案</label>
         <div class="select-wrapper">
           <select id="plan">
-            <option value="basic">概念方案 — 渲染圖 6 張（依空間類型 NT$1,199 / 1,799）</option>
-            <option value="full">設計師審核方案 — 渲染圖 8 張 + 設計師審核（NT$9,800）</option>
+            <option value="basic">概念方案 — 指定空間 2 風格 設計提案 2 張（NT$999 起）</option>
+            <option value="full">設計師審核方案 — 含設計師審核（NT$9,800）</option>
           </select>
         </div>
       </div>
@@ -1187,9 +1187,9 @@ function updateRenderAngleHint() {
   var hint = document.getElementById('renderAngleHint');
   if (!hint) return;
   if (spaceTypeVal === 'whole') {
-    hint.innerHTML = '<strong style="color:var(--gold);">全室多空間 · 3 個房間</strong><br>系統識別整戶格局後，挑 3 個主要房間（客廳/餐廳/主臥），各做 2 種風格渲染（共 6 張）。';
+    hint.innerHTML = '<strong style="color:var(--gold);">指定空間 · 精選主視角</strong><br>系統理解整戶格局後，挑出最具設計呈現價值的角度，各做 2 種風格設計提案（共 2 張）。';
   } else {
-    hint.innerHTML = '<strong style="color:var(--gold);">多角度 · 同空間 3 視角</strong><br>系統理解空間後，從 3 個最美角度各做 2 種風格渲染（共 6 張）。';
+    hint.innerHTML = '<strong style="color:var(--gold);">指定空間 · 精選主視角</strong><br>系統理解空間後，從你上傳的照片中挑最有設計價值的角度，各做 2 種風格設計提案（共 2 張）。';
   }
 }
 
