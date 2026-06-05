@@ -406,6 +406,8 @@
 
   var selectedPlan = 'A';
   var spaceTypeVal = localStorage.getItem('deco_space_type') || 'living';
+  // 入門方案層級：single (NT$1,199) / multi (NT$1,799) — 來自 style-form 服務方案下拉
+  var planTier     = localStorage.getItem('deco_plan_tier') || 'single';
   var extraStyles  = Math.max(0, parseInt(localStorage.getItem('deco_style_count') || '1') - 2);
   var extraFee     = extraStyles * 399;
 
@@ -413,11 +415,45 @@
   function fmt(n) { return n.toLocaleString(); }
 
   function planABasePrice() {
-    return spaceTypeVal === 'whole' ? 1799 : 1199;
+    // 全室不論單/多角度都從 1799 起；指定空間 single = 1199, multi = 1799
+    if (spaceTypeVal === 'whole') return 1799;
+    return planTier === 'multi' ? 1799 : 1199;
   }
   function planAName() {
-    return spaceTypeVal === 'whole' ? '整戶風格規劃' : '1 個空間 × 2 風格 設計提案';
+    if (spaceTypeVal === 'whole') return '整戶風格規劃';
+    return planTier === 'multi'
+      ? '1 個空間 × 3 視角 × 2 風格 設計提案'
+      : '1 個空間 × 2 風格 設計提案';
   }
+
+  // 依方案層級重寫 Plan A 卡的 features 與圖數描述
+  (function applyPlanTierToCard() {
+    var nameEl  = document.getElementById('planAName');
+    var priceEl = document.getElementById('planAPrice');
+    if (nameEl)  nameEl.textContent  = planAName();
+    if (priceEl) priceEl.textContent = 'NT$' + fmt(planABasePrice());
+    var featEl = document.querySelector('#planA .plan-features');
+    if (!featEl) return;
+    var rowSplit = '<li><span class="ico grey">—</span><span style="color:var(--muted)">設計師人工審核</span></li>'
+                 + '<li><span class="ico grey">—</span><span style="color:var(--muted)">法規可行性確認</span></li>';
+    if (planTier === 'multi') {
+      featEl.innerHTML =
+        '<li><span class="ico">✦</span> 空間格局分析（讀取照片與影片）</li>'
+      + '<li><span class="ico">✦</span> 風格設計圖 × 6 張（3 視角 × 2 風格 · 高解析）</li>'
+      + '<li><span class="ico">✦</span> 可購買家具清單（附購買連結）</li>'
+      + '<li><span class="ico">✦</span> 風格定位與材料建議</li>'
+      + '<li><span class="ico">✦</span> 約 30 分鐘內交付</li>'
+      + rowSplit;
+    } else {
+      featEl.innerHTML =
+        '<li><span class="ico">✦</span> 空間格局分析（讀取照片與影片）</li>'
+      + '<li><span class="ico">✦</span> 風格設計圖 × 2 張（高解析）</li>'
+      + '<li><span class="ico">✦</span> 可購買家具清單（附購買連結）</li>'
+      + '<li><span class="ico">✦</span> 風格定位與材料建議</li>'
+      + '<li><span class="ico">✦</span> 約 15 分鐘內交付</li>'
+      + rowSplit;
+    }
+  })();
 
   function updatePriceUI() {
     var base  = selectedPlan === 'A' ? planABasePrice() : 9800;

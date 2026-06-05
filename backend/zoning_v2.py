@@ -220,8 +220,8 @@ def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path):
     H, W = img.shape[:2]
 
     overlay = img.copy()
-    labels: list = []
 
+    # 純色塊 overlay（文字 label 由前端 HTML 圖例顯示，不在圖上打英文字）
     for zone_name, zone_data in (zones or {}).items():
         if not isinstance(zone_data, dict):
             continue
@@ -239,21 +239,11 @@ def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path):
                 continue
             cv2.rectangle(overlay, (x0, y0), (x1, y1), color, -1)
             cv2.rectangle(img,     (x0, y0), (x1, y1), color, 3)
-            label_text = ZONE_LABEL_EN.get(zone_name, zone_name.upper())
-            labels.append((label_text, (x0 + 8, max(y0 + 28, 30)), color))
         except Exception as e:
             print(f"  bbox 解析失敗 {zone_name}: {e}")
 
     blended = cv2.addWeighted(overlay, 0.35, img, 0.65, 0)
-
-    for text, pos, color in labels:
-        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-        cv2.rectangle(blended, (pos[0] - 2, pos[1] - th - 4), (pos[0] + tw + 4, pos[1] + 4), (240, 240, 240), -1)
-        cv2.putText(blended, text, pos, cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
-
-    title_bar = np.full((50, blended.shape[1], 3), 30, dtype=np.uint8)
-    cv2.putText(title_bar, title, (12, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 215, 215), 2, cv2.LINE_AA)
-    final = np.vstack([title_bar, blended])
+    final = blended  # 不再加標題列（前端有頁面標題）
 
     ok, buf = cv2.imencode(".png", final)
     out_path.write_bytes(buf.tobytes())

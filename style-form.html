@@ -823,8 +823,9 @@
         <label class="field-label">服務方案</label>
         <div class="select-wrapper">
           <select id="plan">
-            <option value="basic">概念方案 — 指定空間 2 風格 設計提案 2 張（NT$999 起）</option>
-            <option value="full">設計師審核方案 — 含設計師審核（NT$9,800）</option>
+            <option value="single">概念方案 — 指定空間 2 風格 設計提案 2 張（NT$1,199）</option>
+            <option value="multi">多角度方案 — 同空間 3 視角 2 風格 設計提案 6 張（NT$1,799）</option>
+            <option value="full">設計師審核方案 — 含設計師人工審核（NT$9,800）</option>
           </select>
         </div>
       </div>
@@ -1263,9 +1264,10 @@ function submitForm() {
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
-  // 入門方案（999/1199）= single（指定空間，系統精選 1 個角度）
-  // 1799 多角度方案上線後，再依方案選擇切換到 'multi'
-  localStorage.setItem('deco_render_angle', 'single');
+  // 依服務方案決定 render_angle：multi 方案 → 3 角度 6 張；single/full → 精選 1 角度 2 張
+  var planTierVal = (document.getElementById('plan') || {}).value || 'single';
+  localStorage.setItem('deco_plan_tier', planTierVal);
+  localStorage.setItem('deco_render_angle', planTierVal === 'multi' ? 'multi' : 'single');
   // designMode = furnish (只動家具) / full (含裝潢)
   localStorage.setItem('deco_design_mode', document.getElementById('designMode').value);
   localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);

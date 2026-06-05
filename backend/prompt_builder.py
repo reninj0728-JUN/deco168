@@ -48,7 +48,16 @@ SYSTEM_PROMPT = (
     "Keep at least 80cm of clear walking width along any main walkway. "
     "If the room has a corridor opening leading to other rooms (bedroom/bathroom/kitchen door), "
     "leave that opening and at least 60cm in front of it completely empty — a person must be able "
-    "to walk through without stepping over or around any furniture."
+    "to walk through without stepping over or around any furniture. "
+    "8) SOFA FACING DIRECTION: "
+    "The sofa's FRONT side (where people sit and look) MUST face either (a) the TV wall / focal "
+    "wall (typically the opposite long wall in the living zone), (b) the window for a view, "
+    "or (c) the long axis of the room toward the window end. "
+    "The sofa MUST NOT face directly toward a corridor opening, side doorway "
+    "(bedroom/bathroom door), or the walkway. Sitting on the sofa should never feel like "
+    "staring at someone walking by from another room. If the TV wall is on the same wall as "
+    "a corridor opening, the TV must be placed on the SOLID portion of that wall (not on the "
+    "opening), and the sofa faces the TV portion — not the opening portion."
 )
 
 

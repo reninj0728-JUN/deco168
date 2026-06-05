@@ -305,10 +305,18 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         "動線不順", "動線受阻", "走道被擋", "通道被擋",
         "走廊開口被擋", "開口被擋",
         "浮在中間", "擋在中間", "沙發浮", "繞行",
+        # 沙發朝向錯誤（新）
+        "沙發朝向走道", "沙發朝向通道", "沙發朝向走廊", "沙發朝向房門", "沙發朝向開口",
+        "沙發面對走道", "沙發面對通道", "沙發面對走廊", "沙發面對房門", "沙發面對開口",
+        "朝向走道", "朝向通道", "朝向走廊", "朝向房門",
+        "面對走道", "面對通道", "面對走廊", "面對房門",
         # 英文 fallback（Gemini 偶爾回英文）
         "walkway blocked", "corridor blocked",
         "blocks the walkway", "blocking the walkway",
         "blocks the corridor", "blocking the corridor",
+        "sofa faces the corridor", "sofa faces the walkway",
+        "sofa facing the corridor", "sofa facing the walkway",
+        "sofa faces the doorway", "sofa facing the doorway",
     ]
     matched_kw = [kw for kw in bad_kw if kw in reason]
     if matched_kw:
@@ -419,7 +427,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 key = p[len("r2://"):]
                 fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
                 dest = job_dir / fname
-                write_status(job_id, job_dir, "downloading", 8, "從雲端下載影片…")
+                write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
                 local = r2_download_object(key, dest)
                 if local:
                     resolved_paths.append(local)
@@ -431,7 +439,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 key = p[len("supabase://"):]
                 fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
                 dest = job_dir / fname
-                write_status(job_id, job_dir, "downloading", 8, "從雲端下載影片…")
+                write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
                 local = sb_download_object(key, dest)
                 if local:
                     resolved_paths.append(local)
@@ -470,17 +478,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         elif gemini_uris or video_paths:
             from gemini_analyze import analyze_space
             if gemini_uris:
-                write_status(job_id, job_dir, "analyzing", 15, "分析影片+照片（理解整體格局）…")
+                write_status(job_id, job_dir, "analyzing", 15, "解析影片與照片，理解整體格局…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None,
                                          is_uri=True, extra_photos=image_paths or None,
                                          space_type=space_type)
             else:
-                write_status(job_id, job_dir, "analyzing", 10, "影片上傳分析中（大檔案需要幾分鐘）…")
+                write_status(job_id, job_dir, "analyzing", 10, "正在解析你的空間影片（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None,
                                          extra_photos=image_paths or None,
                                          space_type=space_type)
         else:
-            write_status(job_id, job_dir, "analyzing", 15, "分析空間照片中…")
+            write_status(job_id, job_dir, "analyzing", 15, "理解空間格局中…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra,
                                      space_type=space_type, render_angle=render_angle)
@@ -587,7 +595,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 print(f"[pipeline] flatten v2→v1 失敗，fallback compute_zoning: {fe}")
                 user_zoning_v2 = None  # 失敗 → 走原本路徑
         if not user_zoning_v2:
-            write_status(job_id, job_dir, "zoning", 40, "理解空間動線中…")
+            write_status(job_id, job_dir, "zoning", 40, "判讀空間動線中…")
             if zoning_photos:
                 try:
                     from zoning import compute_zoning
@@ -598,7 +606,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         print(f"[pipeline] zoning confidence={zoning_result.get('confidence')} "
               f"error={zoning_result.get('error', '(none)')[:80]}")
 
-        write_status(job_id, job_dir, "matching", 45, "配對風格家具中…")
+        write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
 
         # ── 2 風格 × N 角度 = 多張渲染 ──
@@ -613,7 +621,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         total = len(expanded)
         write_status(job_id, job_dir, "rendering", 60,
-                     f"生成 {total} 張風格渲染圖（{len(enriched)} 風格 × {len(flux_bases)} 角度）…")
+                     f"生成 {total} 張設計提案中（{len(enriched)} 風格 × {len(flux_bases)} 視角）…")
 
         # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
@@ -642,7 +650,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             json.dump(result, f, ensure_ascii=False, indent=2)
 
         # ── 結構保留驗證（純評估、不重跑、不過濾、不影響前端）──
-        write_status(job_id, job_dir, "validating", 85, "驗證渲染結構保留度…")
+        write_status(job_id, job_dir, "validating", 85, "確認設計品質中…")
         try:
             from gemini_analyze import validate_render
             for r in final:
@@ -938,7 +946,7 @@ async def create_job(
 
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
                "photo_count": len(new_paths), "status": "queued",
-               "progress": 5, "message": "已排入隊列，即將開始分析…"})
+               "progress": 5, "message": "訂單已成立，即將開始解析空間…"})
 
     # Z2: parse 使用者已確認的 v2 zoning（可選）
     user_zoning_v2 = None
@@ -950,7 +958,7 @@ async def create_job(
         except Exception as je:
             print(f"[/api/job] zoning_json parse 失敗, 忽略: {je}")
 
-    write_status(job_id, job_dir, "queued", 5, "已排入隊列，即將開始分析…")
+    write_status(job_id, job_dir, "queued", 5, "訂單已成立，即將開始解析空間…")
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
                               space_type, render_angle, design_mode,
                               user_zoning_v2, layout_choice)
@@ -1075,13 +1083,14 @@ async def api_zoning(upload_id: str = Form(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"overlay generation failed: {e}"})
 
-    # 5. 上傳 overlay 到 Supabase Storage（uploads bucket，回 public URL）
+    # 5. 上傳 overlay 到 Supabase Storage（renders bucket — 已是 public，回 public URL）
+    #    （uploads bucket 不允許 anon SELECT，所以前端 <img> 會 400；改用 renders bucket 就 OK）
     def _upload_overlay(local: Path, name: str) -> str | None:
         try:
             data = local.read_bytes()
-            storage_path = f"{upload_id}/{name}"
+            storage_path = f"zoning/{upload_id}/{name}"
             r = _req.post(
-                f"{SUPABASE_URL}/storage/v1/object/uploads/{storage_path}",
+                f"{SUPABASE_URL}/storage/v1/object/renders/{storage_path}",
                 data=data,
                 headers={
                     "apikey":        SUPABASE_KEY,
@@ -1092,7 +1101,7 @@ async def api_zoning(upload_id: str = Form(...)):
                 timeout=30,
             )
             if r.status_code in (200, 201):
-                return f"{SUPABASE_URL}/storage/v1/object/public/uploads/{storage_path}"
+                return f"{SUPABASE_URL}/storage/v1/object/public/renders/{storage_path}"
             print(f"[/api/zoning] overlay 上傳 {name} 失敗 HTTP {r.status_code}: {r.text[:200]}")
             return None
         except Exception as e:
