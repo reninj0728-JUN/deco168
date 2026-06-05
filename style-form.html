@@ -1159,26 +1159,37 @@ budgetSlider.addEventListener('input', () => {
 });
 
 // ── SUMMARY ───────────────────────────────────────────────────────────────────
+// 空間英文 → 中文
+const SPACE_LABEL_ZH = {
+  living: '客廳', dining: '餐廳', bedroom: '臥室', kitchen: '廚房',
+  study: '書房', bathroom: '浴室', balcony: '陽台', whole: '全室',
+};
+
 function updateSummary() {
-  const spaceType = document.getElementById('spaceType').value;
-  const spaceSize = document.getElementById('spaceSize').value;
-  const selectedStyle = document.querySelector('.style-card.selected .style-name');
+  const spaceTypeVal = document.getElementById('spaceType').value;
+  const spaceSize    = document.getElementById('spaceSize').value;
+  const spaceLabel   = SPACE_LABEL_ZH[spaceTypeVal] || spaceTypeVal;
+  const selectedStyle   = document.querySelector('.style-card.selected .style-name');
   const selectedPalette = document.querySelector('.palette-card.selected .palette-label');
-  const selectedRenders = document.querySelector('.render-card.selected .render-count');
   const plan = document.getElementById('plan').value;
 
-  document.getElementById('s-space').textContent = `${spaceType} · ${spaceSize}`;
-  if (selectedStyle) document.getElementById('s-style').textContent = selectedStyle.textContent;
-  if (selectedPalette) document.getElementById('s-color').textContent = selectedPalette.textContent.replace(' ✦','');
-  if (selectedRenders) document.getElementById('s-renders').textContent = `${selectedRenders.textContent} 張`;
+  document.getElementById('s-space').textContent = `${spaceLabel} · ${spaceSize}`;
+  if (selectedStyle)   document.getElementById('s-style').textContent  = selectedStyle.textContent;
+  if (selectedPalette) document.getElementById('s-color').textContent  = selectedPalette.textContent.replace(' ✦','');
 
-  var spaceTypeVal = document.getElementById('spaceType').value;
-  if (plan === 'basic') {
-    document.getElementById('s-plan').textContent = '概念方案';
-    document.getElementById('s-price').textContent = spaceTypeVal === 'whole' ? 'NT$ 1,799' : 'NT$ 1,199';
-  } else {
-    document.getElementById('s-plan').textContent = '設計師審核方案';
-    document.getElementById('s-price').textContent = 'NT$ 9,800';
+  // 方案層級 → 渲染圖數 + 價格
+  if (plan === 'multi') {
+    document.getElementById('s-renders').textContent = '6 張（3 視角 × 2 風格）';
+    document.getElementById('s-plan').textContent    = '多角度方案';
+    document.getElementById('s-price').textContent   = 'NT$ 1,799';
+  } else if (plan === 'full') {
+    document.getElementById('s-renders').textContent = '2 張 + 設計師審核';
+    document.getElementById('s-plan').textContent    = '設計師審核方案';
+    document.getElementById('s-price').textContent   = 'NT$ 9,800';
+  } else { // single
+    document.getElementById('s-renders').textContent = '2 張（2 風格）';
+    document.getElementById('s-plan').textContent    = '概念方案';
+    document.getElementById('s-price').textContent   = spaceTypeVal === 'whole' ? 'NT$ 1,799' : 'NT$ 1,199';
   }
 }
 
@@ -1250,7 +1261,7 @@ function buildDiagnosis() {
   var styleName = styleLabels[styleId] || '現代簡約';
   var palName   = getSelectedPaletteName();
 
-  document.getElementById('diagSpace').textContent  = spaceType + '・' + spaceSize;
+  document.getElementById('diagSpace').textContent  = (SPACE_LABEL_ZH[spaceType] || spaceType) + '・' + spaceSize;
   document.getElementById('diagStyles').textContent = styleName;
   document.getElementById('diagColor').textContent  = palName;
   document.getElementById('diagBudget').textContent = budget + '（依建材等級調整）';

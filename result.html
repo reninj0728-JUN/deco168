@@ -462,8 +462,14 @@
       var el = document.getElementById(id);
       if (el) el.textContent = val || '—';
     };
+    // 空間英文 → 中文
+    var SPACE_ZH = { living:'客廳', dining:'餐廳', bedroom:'臥室', kitchen:'廚房',
+                     study:'書房', bathroom:'浴室', balcony:'陽台', whole:'全室' };
+    var spaceTypeRaw = (a.space_type || '').toString().toLowerCase().trim();
+    var spaceTypeDisplay = SPACE_ZH[spaceTypeRaw] || a.space_type || '—';
+
     setText('spaceSummary', a.design_analysis || '');
-    setText('spaceTypeText', a.space_type || '');
+    setText('spaceTypeText', spaceTypeDisplay);
     setText('spaceSize', a.estimated_size || '');
     if (d && (d.length_m || d.width_m || d.height_m)) {
       var parts = [];
