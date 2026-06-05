@@ -169,7 +169,12 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) ->
         text = (resp.text or "").strip()
         if not text:
             return {"error": "empty response", "overall_confidence": "none"}
-        return json.loads(text)
+        # Gemini 偶爾在合法 JSON 後追加 garbage → 用 raw_decode 只取第一個 valid JSON
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            result, _ = json.JSONDecoder().raw_decode(text)
+            return result
     except json.JSONDecodeError as e:
         return {"error": f"json decode: {str(e)[:200]}", "overall_confidence": "none"}
     except Exception as e:
