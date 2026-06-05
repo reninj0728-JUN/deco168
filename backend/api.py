@@ -303,7 +303,12 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         "擋住走道", "擋住動線", "擋住通道", "擋住開口", "擋住走廊",
         "阻擋通道", "阻擋走道", "阻擋動線", "阻擋走廊",
         "動線不順", "動線受阻", "走道被擋", "通道被擋",
+        "走廊開口被擋", "開口被擋",
         "浮在中間", "擋在中間", "沙發浮", "繞行",
+        # 英文 fallback（Gemini 偶爾回英文）
+        "walkway blocked", "corridor blocked",
+        "blocks the walkway", "blocking the walkway",
+        "blocks the corridor", "blocking the corridor",
     ]
     matched_kw = [kw for kw in bad_kw if kw in reason]
     if matched_kw:
