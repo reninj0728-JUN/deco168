@@ -327,14 +327,15 @@
     <!-- Plan A -->
     <div class="plan-card selected" id="planA" onclick="selectPlan('A')">
       <div class="plan-badge">方案 A · 概念渲染</div>
-      <div class="plan-name" id="planAName">概念方案</div>
+      <div class="plan-name" id="planAName">指定空間設計提案</div>
+      <div class="plan-sub" id="planASub" style="font-size:11px;letter-spacing:2px;color:var(--muted);margin-top:6px;margin-bottom:14px;">1 個空間 × 2 種風格</div>
       <div class="plan-price"><span id="planAPrice">NT$1,199</span><span>/ 次</span></div>
       <div class="plan-divider"></div>
       <ul class="plan-features">
-        <li><span class="ico">✦</span> 空間格局分析（影片 + 語音）</li>
-        <li><span class="ico">✦</span> 風格渲染圖 × 6 張（高解析）</li>
-        <li><span class="ico">✦</span> 風格定位報告</li>
-        <li><span class="ico">✦</span> 材料 / 色調建議 PDF</li>
+        <li><span class="ico">✦</span> 空間格局分析（讀照片 + 影片）</li>
+        <li><span class="ico">✦</span> 風格設計圖 × 2 張（高解析）</li>
+        <li><span class="ico">✦</span> 可購買家具清單（附購買連結）</li>
+        <li><span class="ico">✦</span> 風格定位與材料建議</li>
         <li><span class="ico">✦</span> 約 15 分鐘內交付</li>
         <li><span class="ico grey">—</span><span style="color:var(--muted)">設計師人工審核</span></li>
         <li><span class="ico grey">—</span><span style="color:var(--muted)">法規可行性確認</span></li>
@@ -416,7 +417,7 @@
     return spaceTypeVal === 'whole' ? 1799 : 1199;
   }
   function planAName() {
-    return spaceTypeVal === 'whole' ? '全室多空間規劃' : '單房深度設計';
+    return spaceTypeVal === 'whole' ? '全室多空間規劃' : '指定空間設計提案';
   }
 
   function updatePriceUI() {

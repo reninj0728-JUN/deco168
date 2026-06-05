@@ -347,9 +347,10 @@ def validate_render(
     region_name: str = "",
 ) -> dict:
     """
-    送 2 張本機圖片給 Gemini，回傳結構保留評估 JSON：
+    送 2 張本機圖片給 Gemini，回傳結構保留 + 家具動線評估 JSON：
       {ok, kitchen_added, recessed_space_added, windows_changed,
-       walls_changed, ceiling_changed, floor_changed, reason}
+       walls_changed, ceiling_changed, floor_changed,
+       furniture_blocks_walkway, reason}
     """
     api_key = (os.environ.get("GEMINI_API_KEY") or
                os.environ.get("GOOGLE_AI_KEY") or "").strip()
@@ -373,7 +374,7 @@ def validate_render(
   image_1 = 原始空間照片
   image_2 = AI 渲染圖（聲稱是同一空間 + 家具+軟裝風格化）
 
-{region_hint}判斷渲染圖有沒有破壞原始結構。回傳嚴格 JSON：
+{region_hint}判斷渲染圖有沒有破壞原始結構，且家具擺位是否合理可行走。回傳嚴格 JSON：
 {{
   "ok": true/false,
   "kitchen_added": bool,
@@ -382,19 +383,29 @@ def validate_render(
   "walls_changed": bool,
   "ceiling_changed": bool,
   "floor_changed": bool,
-  "reason": "簡短中文 50 字內描述主要問題（ok=true 時填 '結構保留良好'）"
+  "furniture_blocks_walkway": bool,
+  "reason": "簡短中文 60 字內描述主要問題（ok=true 時填 '結構與動線皆合理'）"
 }}
 
-【嚴格判定規則】
+【結構保留判定】
 - kitchen_added：原圖沒廚房元素，渲染圖出現廚房櫥櫃/水槽/料理台/餐桌/瓦斯爐
 - recessed_space_added：渲染圖出現原圖沒的凹間/額外房間/隔斷/廊道
 - windows_changed：窗戶數量/位置/形狀差異 > 20%
 - walls_changed：牆面明顯新增材質（大理石板/木皮/線板/造型牆）—— 純油漆顏色不同**不算**
 - ceiling_changed：天花板明顯新增結構（嵌燈陣列/木作/降板/間接照明溝槽）—— 吊燈或單一燈具**不算**結構
-- floor_changed：**裸露地板**材質/方向/比例顯著被改。**新增地毯不算 floor_changed**（地毯屬軟裝，本來就允許）
+- floor_changed：**裸露地板**材質/方向/比例顯著被改。**新增地毯不算 floor_changed**
 
-ok = 上述 6 項全為 false。
-reason 必須具體（例「新增廚房櫥櫃」非「結構不一致」）。
+【家具動線判定（重要）】
+- furniture_blocks_walkway = true 當以下任一成立：
+  * 沙發、茶几、地毯或大型家具明顯擋住「左/右側走廊開口」或「主動線」，人需繞行/跨越才能通過
+  * 沙發「浮」在房間中間（不靠牆），又位於走道中央位置
+  * 茶几或地毯的一部分延伸到走道區，導致通道寬度看起來 < 60cm
+  * 從入口走到窗邊或從入口走到房門開口，路徑被家具吃掉
+  * L 型沙發的轉角或側邊伸入走廊開口前的淨空區
+- furniture_blocks_walkway = false 當沙發背靠實牆、茶几/地毯都在沙發前的客廳區、走廊開口前淨空
+
+ok = 上述 7 項全為 false。
+reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」非「動線不合理」）。
 """
 
     response = client.models.generate_content(

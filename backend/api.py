@@ -277,8 +277,9 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
     觸發條件（任一）：
-      - validation.ok is False AND 有結構類 flag (walls/recessed/windows changed)
-      - reason 含「開口被封 / 走廊消失 / 牆面改變 / 填平 / 封閉 / 通道」等關鍵字
+      - validation.ok is False AND 有結構類 flag
+        (walls/recessed/windows_changed, furniture_blocks_walkway)
+      - reason 含結構/動線/家具擋路關鍵字
     回傳 (should_retry, reason_text)
     """
     if not isinstance(validation, dict):
@@ -287,12 +288,23 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         return False, ""
 
     bad_flags = []
-    for k in ("walls_changed", "recessed_space_added", "windows_changed"):
+    for k in ("walls_changed", "recessed_space_added", "windows_changed",
+              "furniture_blocks_walkway"):
         if validation.get(k):
             bad_flags.append(k)
 
     reason = (validation.get("reason") or "").strip()
-    bad_kw = ["開口被封", "走廊消失", "牆面改變", "填平", "封閉", "通道", "封住", "被封", "封死"]
+    bad_kw = [
+        # 結構幻想（既有）
+        "開口被封", "走廊消失", "牆面改變", "填平", "封閉", "通道",
+        "封住", "被封", "封死",
+        # 家具擋動線（新）
+        "家具擋", "沙發擋", "茶几擋", "地毯擋",
+        "擋住走道", "擋住動線", "擋住通道", "擋住開口", "擋住走廊",
+        "阻擋通道", "阻擋走道", "阻擋動線", "阻擋走廊",
+        "動線不順", "動線受阻", "走道被擋", "通道被擋",
+        "浮在中間", "擋在中間", "沙發浮", "繞行",
+    ]
     matched_kw = [kw for kw in bad_kw if kw in reason]
     if matched_kw:
         bad_flags.append(f"kw:{','.join(matched_kw)}")

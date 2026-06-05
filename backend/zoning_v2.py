@@ -31,6 +31,11 @@ PROMPT = """\
 這 {photo_count} 張是同一個空屋的不同角度照片{video_note}。
 請以「同一空間」的角度合成理解，並輸出嚴格 JSON 描述功能分區。
 
+【語言鐵則】
+**所有 JSON 文字欄位（where / evidence / rationale / alt_option / why_here /
+ uncertainty_notes / message / needs_user_input 等等）必須使用繁體中文（zh-TW）。
+ 嚴禁使用英文、簡體中文。連 needs_user_input 裡的問題也必須是繁體中文。**
+
 【任務分兩層】
 這個任務跟一般 zoning 不同：你必須區分
 

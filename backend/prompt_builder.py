@@ -39,7 +39,16 @@ SYSTEM_PROMPT = (
     "Every existing wall opening MUST remain visible and unobstructed in the final image. "
     "5) USE PRODUCT REFERENCE IMAGES for furniture appearance — match each referenced product's "
     "color, material, form, and silhouette as closely as possible. "
-    "6) ONLY add movable furniture, soft furnishings, decor, plants, and artwork — no structural changes."
+    "6) ONLY add movable furniture, soft furnishings, decor, plants, and artwork — no structural changes. "
+    "7) FURNITURE PLACEMENT — REAL-WORLD WALKABILITY: "
+    "Place the sofa against a SOLID wall edge (no opening behind it). The sofa MUST NOT float "
+    "in the middle of the room blocking the walking path. "
+    "Sofa, coffee table, rug, TV cabinet, and any large furniture MUST NOT overlap with the "
+    "walkway, corridor opening, or no_large_furniture_zone area. "
+    "Keep at least 80cm of clear walking width along any main walkway. "
+    "If the room has a corridor opening leading to other rooms (bedroom/bathroom/kitchen door), "
+    "leave that opening and at least 60cm in front of it completely empty — a person must be able "
+    "to walk through without stepping over or around any furniture."
 )
 
 
@@ -194,7 +203,14 @@ CRITICAL_RULES = (
     "in color, material, and silhouette — do not substitute a different-looking product. "
     "(d) Every visible corridor opening, passage opening, doorway, or wall opening in the ROOM "
     "reference MUST appear in the final image as an open, unobstructed opening. Filling these "
-    "openings with a solid wall, plastering them over, or blocking them with furniture is forbidden."
+    "openings with a solid wall, plastering them over, or blocking them with furniture is forbidden. "
+    "(e) WALKWAY MUST BE PHYSICALLY USABLE. A person should be able to walk from the entrance "
+    "to the window, and from the entrance to any side-corridor opening (bedroom door etc.) "
+    "WITHOUT stepping over, around, or pushing aside any sofa, coffee table, rug, or other "
+    "large furniture. If a sofa is placed across or partly inside a walkway, the room becomes "
+    "unlivable — this is forbidden. Sofa must be against a solid wall edge, not floating in the "
+    "center of the room. Coffee table and rug must sit fully within the living conversation zone, "
+    "never extending into the walkway or no_large_furniture_zone."
 )
 
 
