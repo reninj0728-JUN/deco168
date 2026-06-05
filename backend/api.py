@@ -316,6 +316,46 @@ def write_status(job_id: str, job_dir: Path, status: str, progress: int, message
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
 
+def extract_video_keyframes(video_path: str, out_dir: Path, count: int = 6) -> list[str]:
+    """
+    Phase 1.D: 影片均勻抽 N 個 keyframes，給 analyze_image 補理解用。
+    位置 = (i+1)/(count+1) 避免黑頭黑尾。縮到 max 1280 寬。
+    回傳成功抽出的檔案路徑 list（可能 < count，若影片有問題會略過壞幀）。
+    """
+    try:
+        import cv2
+    except ImportError:
+        return []
+    try:
+        cap = cv2.VideoCapture(video_path)
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total <= 0:
+            cap.release()
+            return []
+        out_dir.mkdir(parents=True, exist_ok=True)
+        paths: list[str] = []
+        for i in range(count):
+            pos = (i + 1) / (count + 1)
+            fidx = max(0, min(total - 1, int(total * pos)))
+            cap.set(cv2.CAP_PROP_POS_FRAMES, fidx)
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            h, w = frame.shape[:2]
+            if w > 1280:
+                s = 1280 / w
+                frame = cv2.resize(frame, (1280, int(h * s)), interpolation=cv2.INTER_AREA)
+            out_p = out_dir / f"keyframe_{i:02d}.jpg"
+            cv2.imwrite(str(out_p), frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if out_p.exists() and out_p.stat().st_size > 1024:
+                paths.append(str(out_p))
+        cap.release()
+        return paths
+    except Exception as e:
+        print(f"[extract_video_keyframes] 例外: {e}")
+        return []
+
+
 def extract_frame(video_path: str, out_path: str, position: float = 0.33) -> str:
     """從影片指定位置（0.0~1.0）抽一幀，回傳儲存路徑"""
     try:
@@ -388,7 +428,29 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         video_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() in VIDEO_EXTS]
         image_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() not in VIDEO_EXTS]
 
-        if gemini_uris or video_paths:
+        # Phase B (DEV)：USE_VIDEO_KEYFRAMES=1 時，影片用 cv2 抽 keyframes 併入 analyze_image
+        # 預設關（=0），生產環境走原本 analyze_space 老路徑
+        use_video_kf = os.environ.get("USE_VIDEO_KEYFRAMES", "0").strip() == "1"
+
+        if (video_paths and use_video_kf and image_paths):
+            # NEW path：影片本身上傳 Gemini Files API（理解材料）
+            #          + 抽 keyframes 當 render 候選 base
+            write_status(job_id, job_dir, "analyzing", 12, "抽影片關鍵幀…")
+            kf_dir = job_dir / "video_keyframes"
+            keyframes = extract_video_keyframes(video_paths[0], kf_dir, count=6)
+            print(f"[pipeline] USE_VIDEO_KEYFRAMES=1 → 影片 + {len(keyframes)} keyframes 一起送 Gemini")
+            augmented_paths = list(image_paths) + keyframes
+            sources = (["photo"] * len(image_paths)) + (["video_keyframe"] * len(keyframes))
+            write_status(job_id, job_dir, "analyzing", 15,
+                         f"分析影片 + {len(image_paths)} 照 + {len(keyframes)} keyframes…")
+            extra = augmented_paths[1:] if len(augmented_paths) > 1 else None
+            analysis = analyze_image(augmented_paths[0], styles or None, extra_photos=extra,
+                                     space_type=space_type, render_angle=render_angle,
+                                     photo_sources=sources,
+                                     video_path=video_paths[0])
+            # 把 augmented_paths 寫回 image_paths 給後續 _resolve_region_base / zoning_photos 使用
+            image_paths = augmented_paths
+        elif gemini_uris or video_paths:
             from gemini_analyze import analyze_space
             if gemini_uris:
                 write_status(job_id, job_dir, "analyzing", 15, "分析影片+照片（理解整體格局）…")
@@ -403,7 +465,27 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         else:
             write_status(job_id, job_dir, "analyzing", 15, "分析空間照片中…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
-            analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra)
+            analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra,
+                                     space_type=space_type, render_angle=render_angle)
+
+        # Phase 1: 照片不足以滿足 (space_type, render_angle) 需求 → 早期失敗，不 render
+        insufficient = analysis.get("insufficient_photos") if isinstance(analysis, dict) else None
+        if insufficient and isinstance(insufficient, dict):
+            req = insufficient.get("required")
+            found = insufficient.get("found", 0)
+            rt = insufficient.get("room_type", space_type)
+            msg = insufficient.get("message") or f"本方案需 {req} 張 {rt} 空間照片，目前只有 {found} 張，請補上傳。"
+            print(f"[pipeline] 早期失敗：insufficient_photos required={req} found={found} room_type={rt}")
+            write_status(job_id, job_dir, "failed", 100, msg)
+            sb_upsert({
+                "job_id": job_id, "status": "failed", "message": msg,
+                "result_json": {
+                    "analysis": analysis,
+                    "insufficient_photos": insufficient,
+                    "error_code": "INSUFFICIENT_PHOTOS",
+                },
+            })
+            return
 
         # ── 決定 Flux 輸入角度 ──
         # multi：用 Gemini regions[]（全室=不同房間 / 單房=同房不同角度）

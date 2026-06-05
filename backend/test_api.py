@@ -1,6 +1,12 @@
-import os, json
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAX2N4IIbpg4Z2CjNUrktKb3KrthOU094Y'
-os.environ['FAL_KEY'] = 'f7a5e217-b7ca-4c8a-b852-f53b25610f11:5b6396d8af1370127eb244c4460f6109'
+"""Smoke test：本機跑前需 export GEMINI_API_KEY + FAL_KEY 環境變數。"""
+import os, sys, json
+
+if not os.environ.get('GEMINI_API_KEY'):
+    print("ERROR: 請先設 GEMINI_API_KEY 環境變數再執行此測試")
+    sys.exit(1)
+if not os.environ.get('FAL_KEY'):
+    print("ERROR: 請先設 FAL_KEY 環境變數再執行此測試")
+    sys.exit(1)
 
 # Test 1: Gemini JSON mode
 from google import genai
