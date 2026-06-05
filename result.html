@@ -117,6 +117,24 @@
     .loading-msg { padding: 60px 48px; text-align: center; font-size: 13px; color: var(--muted); letter-spacing: 1px; }
 
     /* DOWNLOADS */
+    /* SPACE ANALYSIS CARD */
+    .space-analysis { background: var(--dark); border-bottom: 1px solid var(--line);
+      padding: 24px 48px; }
+    .space-analysis .sa-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+    .space-analysis .sa-title { font-family: 'Cormorant Garamond', serif; font-size: 22px;
+      letter-spacing: 2px; color: var(--gold); }
+    .space-analysis .sa-sub { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+    .space-analysis .sa-summary { color: var(--body); font-size: 13px; line-height: 1.8;
+      margin-bottom: 16px; }
+    .space-analysis .sa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px 28px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .space-analysis .sa-row { display: flex; flex-direction: column; gap: 4px; }
+    .space-analysis .sa-key { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+    .space-analysis .sa-val { font-size: 13px; color: var(--white); }
+    @media (max-width: 720px) {
+      .space-analysis { padding: 20px; }
+    }
+
     .downloads-section { padding: 40px 48px; border-top: 1px solid var(--line); }
     .section-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 24px;
       display: flex; align-items: center; gap: 16px; }
@@ -203,6 +221,21 @@
   <div class="meta-item">
     <span class="meta-label">付款日期</span>
     <span class="meta-value" id="metaDate">—</span>
+  </div>
+</div>
+
+<div id="spaceAnalysisCard" class="space-analysis" style="display:none;">
+  <div class="sa-head">
+    <span class="sa-title">空間分析</span>
+    <span class="sa-sub">Space Analysis</span>
+  </div>
+  <div id="spaceSummary" class="sa-summary"></div>
+  <div class="sa-grid">
+    <div class="sa-row"><span class="sa-key">空間類型</span><span class="sa-val" id="spaceTypeText">—</span></div>
+    <div class="sa-row"><span class="sa-key">坪數</span><span class="sa-val" id="spaceSize">—</span></div>
+    <div class="sa-row"><span class="sa-key">尺寸</span><span class="sa-val" id="spaceDims">—</span></div>
+    <div class="sa-row"><span class="sa-key">採光</span><span class="sa-val" id="spaceLighting">—</span></div>
+    <div class="sa-row" id="spaceLayoutRow" style="display:none;"><span class="sa-key">格局註記</span><span class="sa-val" id="spaceLayout">—</span></div>
   </div>
 </div>
 
@@ -415,6 +448,39 @@
     { style: 'luxury',   style_label: '輕奢過渡', render_url: null, matched_furniture: [] },
   ];
 
+  function fillAnalysis(a) {
+    if (!a || typeof a !== 'object') return;
+    var d = a.room_dimensions || {};
+    var hasAnything = a.estimated_size || a.lighting || a.design_analysis || a.space_type
+                      || (d && (d.length_m || d.width_m));
+    if (!hasAnything) return;
+
+    var card = document.getElementById('spaceAnalysisCard');
+    if (card) card.style.display = 'block';
+
+    var setText = function(id, val) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = val || '—';
+    };
+    setText('spaceSummary', a.design_analysis || '');
+    setText('spaceTypeText', a.space_type || '');
+    setText('spaceSize', a.estimated_size || '');
+    if (d && (d.length_m || d.width_m || d.height_m)) {
+      var parts = [];
+      if (d.length_m) parts.push(d.length_m + 'm');
+      if (d.width_m)  parts.push(d.width_m + 'm');
+      if (d.height_m) parts.push('H' + d.height_m + 'm');
+      setText('spaceDims', parts.join(' × '));
+    }
+    setText('spaceLighting', a.lighting || '');
+
+    if (a.layout_notes) {
+      var row = document.getElementById('spaceLayoutRow');
+      if (row) row.style.display = '';
+      setText('spaceLayout', a.layout_notes);
+    }
+  }
+
   function loadResult() {
     if (!JOB_ID) { buildUI(_demoRenders); return; }
     fetch(API_BASE + '/api/job/' + JOB_ID + '/result')
@@ -424,6 +490,9 @@
         return r.json();
       })
       .then(function(data) {
+        // 顯示空間分析（讀現有 result_json.analysis，不打新 API）
+        try { fillAnalysis(data.analysis || {}); } catch (e) { console.warn('analysis 顯示失敗', e); }
+
         var renders = data.renders || [];
         if (renders.length) { buildUI(renders); }
         else { document.getElementById('tabsContainer').innerHTML = '<div class="loading-msg">尚無渲染圖</div>'; }

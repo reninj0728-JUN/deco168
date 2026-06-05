@@ -116,25 +116,25 @@
     .stage-title em { color: var(--gold); font-style: italic; }
     .stage-desc { font-size: 13px; color: var(--body); line-height: 1.8; max-width: 440px; margin-bottom: 48px; }
 
-    /* AI STEPS */
-    .ai-steps {
+    /* PROCESSING STEPS */
+    .proc-steps {
       display: flex; flex-direction: column;
       width: 100%; max-width: 440px; margin-bottom: 32px; text-align: left;
     }
-    .ai-step {
+    .proc-step {
       display: flex; align-items: center; gap: 14px;
       padding: 14px 0; border-bottom: 1px solid var(--line);
       font-size: 12px; color: var(--muted); transition: color 0.4s;
     }
-    .ai-step:last-child { border-bottom: none; }
-    .ai-step.done  { color: var(--body); }
-    .ai-step.active { color: var(--white); }
-    .ai-step-dot {
+    .proc-step:last-child { border-bottom: none; }
+    .proc-step.done  { color: var(--body); }
+    .proc-step.active { color: var(--white); }
+    .proc-step-dot {
       width: 8px; height: 8px; border-radius: 50%;
       background: var(--line); flex-shrink: 0; transition: background 0.4s;
     }
-    .ai-step.done  .ai-step-dot { background: var(--gold); }
-    .ai-step.active .ai-step-dot {
+    .proc-step.done  .proc-step-dot { background: var(--gold); }
+    .proc-step.active .proc-step-dot {
       background: var(--gold);
       box-shadow: 0 0 0 4px rgba(201,169,110,0.2);
       animation: dotPulse 1.5s ease-in-out infinite;
@@ -143,9 +143,9 @@
       0%, 100% { box-shadow: 0 0 0 4px rgba(201,169,110,0.2); }
       50%       { box-shadow: 0 0 0 8px rgba(201,169,110,0.08); }
     }
-    .ai-step-text { flex: 1; }
-    .ai-step-check { color: var(--gold); font-size: 11px; opacity: 0; transition: opacity 0.4s; }
-    .ai-step.done .ai-step-check { opacity: 1; }
+    .proc-step-text { flex: 1; }
+    .proc-step-check { color: var(--gold); font-size: 11px; opacity: 0; transition: opacity 0.4s; }
+    .proc-step.done .proc-step-check { opacity: 1; }
 
     .timer-row {
       display: flex; align-items: center; gap: 8px;
@@ -226,31 +226,31 @@
   <h1 class="stage-title">分析你的<em>空間</em>，<br>設計正在生成</h1>
   <p class="stage-desc">正在讀取你的空間影片、理解你說的需求，並生成專屬設計方案。請稍候，不需要停留在此頁面。</p>
 
-  <div class="ai-steps" id="aiSteps">
-    <div class="ai-step done" id="step1">
-      <div class="ai-step-dot"></div>
-      <div class="ai-step-text">付款確認完成</div>
-      <div class="ai-step-check">✓</div>
+  <div class="proc-steps" id="procSteps">
+    <div class="proc-step done" id="step1">
+      <div class="proc-step-dot"></div>
+      <div class="proc-step-text">付款確認完成</div>
+      <div class="proc-step-check">✓</div>
     </div>
-    <div class="ai-step active" id="step2">
-      <div class="ai-step-dot"></div>
-      <div class="ai-step-text">空間影片與照片分析</div>
-      <div class="ai-step-check">✓</div>
+    <div class="proc-step active" id="step2">
+      <div class="proc-step-dot"></div>
+      <div class="proc-step-text">空間影片與照片分析</div>
+      <div class="proc-step-check">✓</div>
     </div>
-    <div class="ai-step" id="step3">
-      <div class="ai-step-dot"></div>
-      <div class="ai-step-text">生成風格定位 + 設計邏輯</div>
-      <div class="ai-step-check">✓</div>
+    <div class="proc-step" id="step3">
+      <div class="proc-step-dot"></div>
+      <div class="proc-step-text">生成風格定位 + 設計邏輯</div>
+      <div class="proc-step-check">✓</div>
     </div>
-    <div class="ai-step" id="step4">
-      <div class="ai-step-dot"></div>
-      <div class="ai-step-text">渲染風格圖</div>
-      <div class="ai-step-check">✓</div>
+    <div class="proc-step" id="step4">
+      <div class="proc-step-dot"></div>
+      <div class="proc-step-text">渲染風格圖</div>
+      <div class="proc-step-check">✓</div>
     </div>
-    <div class="ai-step" id="step5">
-      <div class="ai-step-dot"></div>
-      <div class="ai-step-text">產出材料建議報告</div>
-      <div class="ai-step-check">✓</div>
+    <div class="proc-step" id="step5">
+      <div class="proc-step-dot"></div>
+      <div class="proc-step-text">產出材料建議報告</div>
+      <div class="proc-step-check">✓</div>
     </div>
   </div>
 
@@ -318,9 +318,9 @@
     for (var i = 1; i <= 5; i++) {
       var el = document.getElementById('step' + i);
       if (!el) continue;
-      if (i < cur)      el.className = 'ai-step done';
-      else if (i === cur) el.className = 'ai-step active';
-      else               el.className = 'ai-step';
+      if (i < cur)      el.className = 'proc-step done';
+      else if (i === cur) el.className = 'proc-step active';
+      else               el.className = 'proc-step';
     }
   }
 
@@ -338,7 +338,7 @@
         if (data.status === 'completed') {
           clearInterval(pollTimer);
           updateSteps(5);
-          document.getElementById('step5').className = 'ai-step done';
+          document.getElementById('step5').className = 'proc-step done';
           document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
           setTimeout(function() { window.location.href = 'result.html?job=' + JOB_ID; }, 1500);
         } else if (data.status === 'failed') {
@@ -359,12 +359,12 @@
     var delays = [2500, 5500, 9000, 13000];
     steps.forEach(function(id, i) {
       setTimeout(function() {
-        if (i > 0) document.getElementById(steps[i-1]).className = 'ai-step done';
-        document.getElementById(id).className = 'ai-step active';
+        if (i > 0) document.getElementById(steps[i-1]).className = 'proc-step done';
+        document.getElementById(id).className = 'proc-step active';
       }, delays[i]);
     });
     setTimeout(function() {
-      document.getElementById('step5').className = 'ai-step done';
+      document.getElementById('step5').className = 'proc-step done';
       document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
       setTimeout(function() { window.location.href = 'result.html?job=' + (JOB_ID || 'DEMO'); }, 1200);
     }, 15000);

@@ -123,8 +123,8 @@
       max-width: 540px;
     }
 
-    /* AI INSIGHT BANNER */
-    .ai-banner {
+    /* INSIGHT BANNER */
+    .insight-banner {
       background: rgba(201,169,110,0.06);
       border: 1px solid rgba(201,169,110,0.25);
       border-left: 3px solid var(--gold);
@@ -134,11 +134,11 @@
       align-items: flex-start;
       gap: 16px;
     }
-    .ai-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-    .ai-text-block { flex: 1; }
-    .ai-label { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
-    .ai-text { font-size: 12px; color: var(--body); line-height: 1.7; }
-    .ai-text strong { color: var(--white); font-weight: 400; }
+    .insight-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .insight-text-block { flex: 1; }
+    .insight-label { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+    .insight-text { font-size: 12px; color: var(--body); line-height: 1.7; }
+    .insight-text strong { color: var(--white); font-weight: 400; }
 
     /* SECTION */
     .form-section {
@@ -216,8 +216,8 @@
       pointer-events: none;
     }
 
-    /* AI BADGE on select */
-    .ai-preset-badge {
+    /* PRESET BADGE on select */
+    .preset-badge {
       font-size: 8px;
       letter-spacing: 1.5px;
       text-transform: uppercase;
@@ -247,7 +247,7 @@
     }
     .style-card:hover { border-color: rgba(201,169,110,0.4); }
     .style-card.selected { border-color: var(--gold); background: rgba(201,169,110,0.05); }
-    .style-card.ai-pick { border-color: rgba(201,169,110,0.3); }
+    .style-card.recommend-pick { border-color: rgba(201,169,110,0.3); }
 
     .style-card input[type=radio], .style-card input[type=checkbox] {
       display: none;
@@ -269,7 +269,7 @@
       line-height: 1.5;
     }
 
-    .style-card .ai-dot {
+    .style-card .recommend-dot {
       position: absolute;
       top: 10px; right: 10px;
       width: 6px; height: 6px;
@@ -519,7 +519,7 @@
       .diag-grid { grid-template-columns: 1fr; }
     }
 
-    /* AI DIAGNOSIS PANEL */
+    /* DIAGNOSIS PANEL */
     .diagnosis-panel {
       display: none;
       border: 1px solid rgba(201,169,110,0.4);
@@ -625,12 +625,12 @@
   <h1 class="page-title">確認您的<br><em>設計偏好</em></h1>
   <p class="page-desc">系統已根據您上傳的影片與描述，預先填入建議選項。您可以直接確認，或依照個人喜好調整各項設定。</p>
 
-  <!-- AI BANNER -->
-  <div class="ai-banner">
-    <div class="ai-icon">✦</div>
-    <div class="ai-text-block">
-      <div class="ai-label">空間分析結果</div>
-      <p class="ai-text">偵測到空間約 <strong>25–30 坪</strong>，光線充足，現有風格傾向<strong>現代簡約</strong>。系統建議主色調選用<strong>暖白 + 淺木色</strong>，並在下方以 <span style="color:var(--gold);">✦</span> 標記推薦選項。您可自由修改任何欄位。</p>
+  <!-- INSIGHT BANNER -->
+  <div class="insight-banner">
+    <div class="insight-icon">✦</div>
+    <div class="insight-text-block">
+      <div class="insight-label">空間分析結果</div>
+      <p class="insight-text">偵測到空間約 <strong>25–30 坪</strong>，光線充足，現有風格傾向<strong>現代簡約</strong>。系統建議主色調選用<strong>暖白 + 淺木色</strong>，並在下方以 <span style="color:var(--gold);">✦</span> 標記推薦選項。您可自由修改任何欄位。</p>
     </div>
   </div>
 
@@ -654,7 +654,7 @@
       </div>
 
       <div class="field-group">
-        <label class="field-label">你想要規劃什麼？<span class="ai-preset-badge">系統推薦</span></label>
+        <label class="field-label">你想要規劃什麼？<span class="preset-badge">系統推薦</span></label>
         <div class="select-wrapper">
           <select id="designMode" onchange="updateDesignHint()">
             <option value="furnish">傢俱＋軟裝（不動牆壁）</option>
@@ -871,7 +871,7 @@
     </div>
   </div>
 
-  <!-- AI DIAGNOSIS PANEL -->
+  <!-- DIAGNOSIS PANEL -->
   <hr class="section-divider" id="diagDivider" style="display:none;">
   <div class="diagnosis-panel" id="diagPanel">
     <div class="diag-eyebrow">✦ 空間診斷 — 免費預覽</div>
@@ -970,10 +970,10 @@ function buildStyleGrid() {
   const grid = document.getElementById('styleGrid');
   styles.forEach(s => {
     const card = document.createElement('div');
-    card.className = 'style-card' + (s.ai ? ' ai-pick' : '');
+    card.className = 'style-card' + (s.ai ? ' recommend-pick' : '');
     card.dataset.id = s.id;
     card.innerHTML = `
-      ${s.ai ? '<div class="ai-dot"></div>' : ''}
+      ${s.ai ? '<div class="recommend-dot"></div>' : ''}
       <div class="style-emoji">${s.emoji}</div>
       <div class="style-name">${s.name}</div>
       <div class="style-hint">${s.hint}</div>
@@ -1263,8 +1263,9 @@ function submitForm() {
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
   localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
-  // 新版固定 multi（單一全景已移除）
-  localStorage.setItem('deco_render_angle', 'multi');
+  // 入門方案（999/1199）= single（指定空間，系統精選 1 個角度）
+  // 1799 多角度方案上線後，再依方案選擇切換到 'multi'
+  localStorage.setItem('deco_render_angle', 'single');
   // designMode = furnish (只動家具) / full (含裝潢)
   localStorage.setItem('deco_design_mode', document.getElementById('designMode').value);
   localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
@@ -1286,7 +1287,7 @@ function submitForm() {
 }
 
 function goCheckout() {
-  // Z2: 先進分區確認（在付款前讓使用者確認 AI 對客廳/餐廳的分區）
+  // Z2: 先進分區確認（在付款前讓使用者確認系統對客廳/餐廳的分區判斷）
   window.location.href = 'zoning-confirm.html';
 }
 

@@ -86,13 +86,13 @@
 <main>
   <h1 class="page-title">確認你的<em>空間分區</em></h1>
   <p class="lede">
-    AI 已根據你的照片初步分析空間用途。空屋格局有時不只一種規劃方式，請確認哪一個比較符合你的需求。<br>
+    系統已根據你的照片初步分析空間用途。空屋格局有時不只一種規劃方式，請確認哪一個比較符合你的需求。<br>
     這一步不收費，目的是讓我們在開始設計前對齊預期，避免把「餐廳」當成「客廳」。
   </p>
 
   <div id="loadingBox" class="loading-state">
     <div class="spinner"></div>
-    <div class="label">AI 正在分析你的空間動線…</div>
+    <div class="label">正在分析你的空間動線…</div>
   </div>
 
   <div id="errorBox" class="err-box" style="display:none;"></div>
@@ -100,7 +100,7 @@
   <div id="contentBox" style="display:none;">
     <div class="overlay-card">
       <div class="ohead">
-        <span class="otitle">AI 建議的分區規劃</span>
+        <span class="otitle">建議的分區規劃</span>
         <span class="ohint">綠 LIVING　橘 DINING　紫 WALKWAY　青 ENTRANCE　灰 NO BIG FURN</span>
       </div>
       <img id="overlayImg" class="overlay-img" alt="zone overlay">
@@ -116,7 +116,7 @@
     <div class="options-grid">
       <label class="opt selected" id="optA">
         <input type="radio" name="layout" value="A" checked>
-        <div class="badge">AI 推薦</div>
+        <div class="badge">推薦方案</div>
         <div class="opt-label">方案 A</div>
         <div class="opt-name">靠窗做客廳</div>
         <div class="opt-line"><span class="k">客廳</span><span id="livingA">—</span></div>
@@ -133,7 +133,7 @@
     </div>
 
     <div id="questionsBox" class="questions" style="display:none;">
-      <div class="qtitle">AI 需要你補答的細節（之後付款後會再問）</div>
+      <div class="qtitle">需要你補答的細節（之後付款後會再問）</div>
       <ul id="questionsList"></ul>
     </div>
 
@@ -160,7 +160,7 @@
     document.getElementById('loadingBox').style.display = 'none';
     var eb = document.getElementById('errorBox');
     eb.style.display = 'block';
-    eb.textContent = msg + '（你仍可直接「下一步」，AI 會在付款後自動分析。）';
+    eb.textContent = msg + '（你仍可直接「下一步」，系統會在付款後進行空間分析。）';
     // 即使錯誤也要讓使用者能繼續流程（不擋轉換）
     var content = document.getElementById('contentBox');
     var optsRow = content.querySelector('.options-grid');
@@ -196,8 +196,8 @@
     var pz = zoning.proposed_zones || {};
     var living = pz.living_zone || {};
     var dining = pz.dining_zone || {};
-    setText('livingA', living.where || 'AI 建議的客廳位置');
-    setText('diningA', dining.where || 'AI 建議的餐廳位置');
+    setText('livingA', living.where || '建議的客廳位置');
+    setText('diningA', dining.where || '建議的餐廳位置');
     setText('livingB', dining.where || living.alt_option || '（中段做客廳）');
     setText('diningB', living.alt_option || dining.alt_option || '（靠窗做餐廳/書房）');
 
@@ -266,7 +266,7 @@
       renderResult(data);
     } catch (e) {
       console.error(e);
-      showError('AI 分析時發生狀況：' + e.message);
+      showError('空間分析暫時發生狀況：' + e.message);
     }
   })();
 </script>
