@@ -236,6 +236,9 @@
     <div class="sa-row"><span class="sa-key">尺寸</span><span class="sa-val" id="spaceDims">—</span></div>
     <div class="sa-row"><span class="sa-key">採光</span><span class="sa-val" id="spaceLighting">—</span></div>
     <div class="sa-row" id="spaceLayoutRow" style="display:none;"><span class="sa-key">格局註記</span><span class="sa-val" id="spaceLayout">—</span></div>
+    <div class="sa-row" id="saBudgetRow" style="display:none;"><span class="sa-key">預算範圍</span><span class="sa-val" id="saBudget">—</span></div>
+    <div class="sa-row" id="saNotesRow" style="display:none;"><span class="sa-key">你的需求</span><span class="sa-val" id="saNotes">—</span></div>
+    <div class="sa-row" id="saStoreRow" style="display:none;"><span class="sa-key">賣場偏好</span><span class="sa-val" id="saStore">—</span></div>
   </div>
 </div>
 
@@ -493,6 +496,25 @@
     }
   }
 
+  // ── Phase A：customer_inputs（預算 / 需求 / 賣場） ─────────────────────
+  function fillCustomerInputs(ci) {
+    if (!ci || typeof ci !== 'object') return;
+    // 確保空間分析卡片顯示（就算 analysis 是空的，customer_inputs 也要露出來）
+    var card = document.getElementById('spaceAnalysisCard');
+    if (card && card.style.display === 'none') card.style.display = 'block';
+
+    var setRow = function(rowId, valId, value) {
+      if (!value) return;
+      var row = document.getElementById(rowId);
+      var val = document.getElementById(valId);
+      if (row) row.style.display = '';
+      if (val) val.textContent = value;
+    };
+    setRow('saBudgetRow', 'saBudget', ci.budget_label_zh || '');
+    setRow('saNotesRow',  'saNotes',  ci.customer_notes || '');
+    setRow('saStoreRow',  'saStore',  ci.preferred_store_label_zh || '');
+  }
+
   function loadResult() {
     if (!JOB_ID) { buildUI(_demoRenders); return; }
     fetch(API_BASE + '/api/job/' + JOB_ID + '/result')
@@ -504,6 +526,8 @@
       .then(function(data) {
         // 顯示空間分析（讀現有 result_json.analysis，不打新 API）
         try { fillAnalysis(data.analysis || {}); } catch (e) { console.warn('analysis 顯示失敗', e); }
+        // Phase A：顯示客戶輸入（預算 / 需求 / 賣場）
+        try { fillCustomerInputs(data.customer_inputs || {}); } catch (e) { console.warn('customer_inputs 顯示失敗', e); }
 
         var renders = data.renders || [];
         if (renders.length) { buildUI(renders); }

@@ -136,9 +136,111 @@ LONG_ROOM_BAD_SHAPE_KW = [
     "沙發床", "sofa bed", "sofabed", "sleeper sofa",
     # 貴妃沙發 / chaise（非對稱單側延伸，本質與 L 沙發同類問題）
     "貴妃", "貴妃椅", "貴妃座", "chaise", "chaise lounge", "chaise longue",
+    # 附腳凳一體沙發：模型在長條房可能畫成 chaise 延伸式（1D5F4BA5 觀察補入）
+    "附腳凳", "腳凳", "footstool", "ottoman attached",
     # 過深沙發（次要，加分排除）
     "加深", "超深",
 ]
+
+
+# ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
+#
+# budget_tier: 'tier1' / 'tier2' / 'tier3'  (前端三段下拉)
+#   tier1 = 10 萬內｜家具＋軟裝輕改造
+#   tier2 = 10–20 萬｜完整家具搭配＋燈飾窗簾
+#   tier3 = 20 萬以上｜全室風格整合＋局部硬裝建議
+#
+# 設計：對 sofa / coffee_table / rug 給單件上限（其餘 nice-to-have 用 default）
+# fallback：嚴格 → 1.5× → 完全放寬，保證 must_have 永不空
+
+BUDGET_LABEL_ZH = {
+    'tier1': '10 萬內｜家具＋軟裝輕改造',
+    'tier2': '10–20 萬｜完整家具搭配＋燈飾窗簾',
+    'tier3': '20 萬以上｜全室風格整合＋局部硬裝建議',
+}
+
+# 各 tier 的單件上限（單位 TWD）。tier3 不設上限 = 不過濾。
+# default：未列出品類在 tier1/tier2 用較寬鬆值（避免燈具/窗簾被誤砍）
+BUDGET_CAT_CAP = {
+    'tier1': {
+        'sofa':         25000,
+        'coffee_table': 8000,
+        'rug':          6000,
+        'lighting':     6000,
+        'curtain':      8000,
+        'accent_chair': 12000,
+        'side_table':   5000,
+        'default':      10000,
+    },
+    'tier2': {
+        'sofa':         60000,
+        'coffee_table': 20000,
+        'rug':          15000,
+        'lighting':     15000,
+        'curtain':      18000,
+        'accent_chair': 30000,
+        'side_table':   12000,
+        'default':      20000,
+    },
+    'tier3': {},  # 空 dict = 不設上限
+}
+
+# fallback 寬鬆倍率（嚴格 → 1.5× → 不設限）
+BUDGET_RELAX_MULTIPLIER = 1.5
+
+
+def _budget_cap_for(budget_tier: str, cat_en: str) -> int | None:
+    """回該 tier + 品類的單件上限（TWD）。tier3 或缺值回 None = 不過濾。"""
+    if budget_tier not in BUDGET_CAT_CAP:
+        return None
+    caps = BUDGET_CAT_CAP[budget_tier]
+    if not caps:
+        return None
+    return caps.get(cat_en) or caps.get('default')
+
+
+def _under_budget(item: dict, cap: int | None) -> bool:
+    """item 價格是否在 cap 內。cap=None 永遠 True。"""
+    if cap is None:
+        return True
+    try:
+        price = int(item.get('price_twd') or 0)
+    except (TypeError, ValueError):
+        return True  # 價格資料壞掉就不過濾，由評分決定
+    if price <= 0:
+        return True
+    return price <= cap
+
+
+# preferred_store: 'none' / 'momo' / 'ikea' / 'hola' / 'trplus'
+# 加分制（不硬篩）：風格命中 +3 > 賣場偏好 +2 > 顏色加分 +0.5
+PREFERRED_STORE_BONUS = 2.0
+PREFERRED_STORE_ALIAS = {
+    'momo':   ['momo', 'momoshop', 'momo購物'],
+    'ikea':   ['ikea', '宜家'],
+    'hola':   ['hola', '和樂家居'],
+    'trplus': ['trplus', '特力屋', 'test rite', 'testrite'],
+}
+STORE_LABEL_ZH = {
+    'none':   '不指定',
+    'momo':   'momo 優先',
+    'ikea':   'IKEA 優先',
+    'hola':   'HOLA 優先',
+    'trplus': '特力屋優先',
+}
+
+
+def _store_bonus(item: dict, preferred_store: str) -> float:
+    """賣場符合偏好時 +2 分。'none' / 缺值不加。"""
+    if not preferred_store or preferred_store == 'none':
+        return 0.0
+    aliases = PREFERRED_STORE_ALIAS.get(preferred_store, [])
+    if not aliases:
+        return 0.0
+    brand = (item.get('brand') or '').lower()
+    if any(a in brand for a in aliases):
+        return PREFERRED_STORE_BONUS
+    return 0.0
 
 
 def compute_room_aspect_ratio(room_dims: dict | None) -> float:
@@ -176,7 +278,8 @@ def _long_room_sofa_penalty(item: dict, is_long_room: bool) -> float:
 
 
 def score_item(item: dict, style: str, prompt_keywords: list[str],
-               match_style: bool = True, is_long_room: bool = False) -> float:
+               match_style: bool = True, is_long_room: bool = False,
+               preferred_store: str = "none") -> float:
     """
     評分一件家具（不含類別加分，類別由外層篩選控制）
 
@@ -185,6 +288,7 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     - 顏色命中 +0.5/個
     - 有圖片 +1，有購買連結 +0.5
     - 長條型客廳 + L/U/沙發床 → -5（避免 Nano Banana 跟著 ref 圖做 L 形擋走道）
+    - preferred_store 符合 → +2（風格 3 > 賣場 2 > 顏色 0.5；非硬篩）
     """
     score = 0.0
 
@@ -216,6 +320,9 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     # 長條型客廳沙發形狀降權
     score += _long_room_sofa_penalty(item, is_long_room)
 
+    # 賣場偏好加分
+    score += _store_bonus(item, preferred_store)
+
     return score
 
 
@@ -225,12 +332,42 @@ def _pick_best_in_category(
     prompt_keywords: list[str],
     catalog: list[dict],
     is_long_room: bool = False,
+    budget_tier: str = "tier3",
+    preferred_store: str = "none",
 ) -> dict | None:
     """
     在指定 category 中，先撈同風格 → 再 fallback 相近風格 → 否則 None。
     Fallback 只放寬風格，category 鎖死（不准用 chair 替代 sofa）。
     is_long_room=True 時，sofa 撈取會對 L/U/沙發床降權（降權不硬排除，保命撈直線）。
+
+    Phase A 預算 fallback 三段（在「同風格」與「相近風格」各自內部都跑）：
+      strict   : 嚴格符合 BUDGET_CAT_CAP
+      relax1.5 : 上限 × 1.5
+      open     : 完全放寬（不過濾預算）— 保證 must_have 永不空
     """
+    cap = _budget_cap_for(budget_tier, target_cat)
+
+    def _scored_in_pool(pool: list[dict], match_style: bool) -> dict | None:
+        if not pool:
+            return None
+        scored = [
+            (
+                score_item(it, style, prompt_keywords,
+                           match_style=match_style,
+                           is_long_room=is_long_room,
+                           preferred_store=preferred_store),
+                it,
+            )
+            for it in pool
+        ]
+        scored.sort(key=lambda x: -x[0])
+        return scored[0][1]
+
+    def _filter(items: list[dict], cap_to_use: int | None) -> list[dict]:
+        if cap_to_use is None:
+            return items
+        return [it for it in items if _under_budget(it, cap_to_use)]
+
     # Stage A: 嚴格同風格
     primary = [
         it for it in catalog
@@ -238,9 +375,23 @@ def _pick_best_in_category(
         and style in it.get("style_tags", [])
     ]
     if primary:
-        scored = [(score_item(it, style, prompt_keywords, is_long_room=is_long_room), it) for it in primary]
-        scored.sort(key=lambda x: -x[0])
-        return scored[0][1]
+        # 1. 嚴格預算
+        chosen = _scored_in_pool(_filter(primary, cap), match_style=True)
+        if chosen is not None:
+            return chosen
+        # 2. 放寬 1.5×
+        if cap is not None:
+            relaxed_cap = int(cap * BUDGET_RELAX_MULTIPLIER)
+            chosen = _scored_in_pool(_filter(primary, relaxed_cap), match_style=True)
+            if chosen is not None:
+                print(f"[furniture_match] {budget_tier} {target_cat} 嚴格無解，放寬至 NT${relaxed_cap}")
+                return chosen
+        # 3. 完全放寬（同風格內任何價位）
+        chosen = _scored_in_pool(primary, match_style=True)
+        if chosen is not None:
+            if cap is not None:
+                print(f"[furniture_match] {budget_tier} {target_cat} 同風格內預算內無料，回全價域")
+            return chosen
 
     # Stage B: fallback 到相近風格（同 category）
     related = _get_related_styles(style)
@@ -251,9 +402,23 @@ def _pick_best_in_category(
             and any(s in it.get("style_tags", []) for s in related)
         ]
         if fallback:
-            scored = [(score_item(it, style, prompt_keywords, match_style=False, is_long_room=is_long_room), it) for it in fallback]
-            scored.sort(key=lambda x: -x[0])
-            return scored[0][1]
+            # 1. 嚴格預算
+            chosen = _scored_in_pool(_filter(fallback, cap), match_style=False)
+            if chosen is not None:
+                return chosen
+            # 2. 放寬 1.5×
+            if cap is not None:
+                relaxed_cap = int(cap * BUDGET_RELAX_MULTIPLIER)
+                chosen = _scored_in_pool(_filter(fallback, relaxed_cap), match_style=False)
+                if chosen is not None:
+                    print(f"[furniture_match] {budget_tier} {target_cat} 相近風格放寬 1.5×")
+                    return chosen
+            # 3. 完全放寬
+            chosen = _scored_in_pool(fallback, match_style=False)
+            if chosen is not None:
+                if cap is not None:
+                    print(f"[furniture_match] {budget_tier} {target_cat} 相近風格放寬全價域")
+                return chosen
 
     return None
 
@@ -265,6 +430,8 @@ def match_furniture(
     top_n: int = 5,
     mode: str = 'living',
     is_long_room: bool = False,
+    budget_tier: str = "tier3",
+    preferred_store: str = "none",
 ) -> list[dict]:
     """
     兩階段配對（mode='living' 預設）：
@@ -273,6 +440,7 @@ def match_furniture(
       全程排除 LIVING_EXCLUDED
 
     is_long_room=True 時，sofa 撈取會避開 L/U/沙發床（跨所有風格）
+    budget_tier / preferred_store：Phase A 加入，影響評分與品類預算上限
 
     其他 mode 暫沿用「全分類混評分 + 每類 1 件」舊邏輯（未來再擴）
     """
@@ -292,11 +460,15 @@ def match_furniture(
 
     # Stage 1: MUST_HAVE
     for cat in must:
-        best = _pick_best_in_category(cat, style, prompt_keywords, pool, is_long_room=is_long_room)
+        best = _pick_best_in_category(cat, style, prompt_keywords, pool,
+                                      is_long_room=is_long_room,
+                                      budget_tier=budget_tier,
+                                      preferred_store=preferred_store)
         if best is not None:
             selected_by_cat[cat] = best
 
     # Stage 2: NICE_TO_HAVE
+    # 對 nice 仍套上 budget cap（保留 fallback：嚴格→1.5×→放寬）
     remaining = top_n - len(selected_by_cat)
     if remaining > 0:
         nice_pool = [
@@ -304,7 +476,28 @@ def match_furniture(
             if resolve_category(it) in nice
             and resolve_category(it) not in selected_by_cat
         ]
-        scored = [(score_item(it, style, prompt_keywords, is_long_room=is_long_room), it) for it in nice_pool]
+
+        def _under_cat_cap(it):
+            cap = _budget_cap_for(budget_tier, resolve_category(it))
+            return _under_budget(it, cap)
+
+        def _under_relaxed_cap(it):
+            cap = _budget_cap_for(budget_tier, resolve_category(it))
+            if cap is None:
+                return True
+            return _under_budget(it, int(cap * BUDGET_RELAX_MULTIPLIER))
+
+        strict_pool  = [it for it in nice_pool if _under_cat_cap(it)]
+        relaxed_pool = [it for it in nice_pool if _under_relaxed_cap(it)] if budget_tier != 'tier3' else nice_pool
+
+        chosen_pool = strict_pool or relaxed_pool or nice_pool
+
+        scored = [
+            (score_item(it, style, prompt_keywords,
+                        is_long_room=is_long_room,
+                        preferred_store=preferred_store), it)
+            for it in chosen_pool
+        ]
         scored.sort(key=lambda x: -x[0])
         for _, it in scored:
             cat = resolve_category(it)
@@ -408,7 +601,9 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
     return result
 
 
-def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[dict]:
+def enrich_renders(renders: list[dict], analysis: dict | None = None,
+                   budget_tier: str = "tier3",
+                   preferred_store: str = "none") -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -416,6 +611,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
     [{"style": "modern", "style_label": "現代簡約", "flux_prompt": "..."}]
 
     analysis: Gemini 分析結果（含 estimated_size 和 room_dimensions）
+    budget_tier: 'tier1' / 'tier2' / 'tier3'（影響品類預算上限與 fallback）
+    preferred_store: 'none'/'momo'/'ikea'/'hola'/'trplus'（評分加分，不硬篩）
 
     輸出：每個 render 加上 "matched_furniture" 欄位
     """
@@ -437,13 +634,17 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
         print(f"[furniture_match] 客廳長寬比={aspect:.2f}  is_long_room={is_long_room}"
               + (f"  → L/U/沙發床 降權 {LONG_ROOM_SHAPE_PENALTY}" if is_long_room else ""))
 
+    print(f"[furniture_match] budget_tier={budget_tier} preferred_store={preferred_store}")
+
     enriched = []
     for render in renders:
         style = render.get("style", "")
         flux_prompt = render.get("flux_prompt", "")
         # 多撈一些供尺寸過濾，再切到 5。但客廳 must_have 已在 stage1 鎖住，不會被擠掉。
         matched = match_furniture(style, flux_prompt, catalog, top_n=8, mode='living',
-                                  is_long_room=is_long_room)
+                                  is_long_room=is_long_room,
+                                  budget_tier=budget_tier,
+                                  preferred_store=preferred_store)
         matched = filter_by_dimensions(matched, max_w)[:5]
 
         render_copy = dict(render)

@@ -465,6 +465,30 @@
       margin: 48px 0;
     }
 
+    /* BUDGET TIER (Phase A) */
+    .budget-tier-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .budget-tier-card {
+      border: 1px solid var(--line);
+      padding: 18px 16px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .budget-tier-card:hover { border-color: rgba(201,169,110,0.45); }
+    .budget-tier-card.selected { border-color: var(--gold); background: rgba(201,169,110,0.05); }
+    .budget-tier-card input[type=radio] { display: none; }
+    .budget-tier-amount { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--gold); line-height: 1; }
+    .budget-tier-name   { font-size: 12px; color: var(--white); letter-spacing: 0.3px; }
+    .budget-tier-hint   { font-size: 10px; color: var(--muted); line-height: 1.5; }
+    .budget-tier-card.selected .budget-tier-hint { color: var(--body); }
+
     /* RENDER COUNT */
     .render-options {
       display: grid;
@@ -517,6 +541,7 @@
       .render-options { grid-template-columns: 1fr; }
       .ref-preview-grid { grid-template-columns: repeat(3, 1fr); }
       .diag-grid { grid-template-columns: 1fr; }
+      .budget-tier-grid { grid-template-columns: 1fr; }
     }
 
     /* DIAGNOSIS PANEL */
@@ -765,10 +790,33 @@
     <div class="section-eyebrow">Layer 03</div>
     <div class="section-title">細節設計偏好</div>
 
-    <!-- 備註 -->
-    <div class="field-group">
-      <label class="field-label">補充備註（選填）</label>
-      <textarea id="notes" placeholder="例如：希望保留原本的木地板、廚房需要中島、不喜歡全黑系…"></textarea>
+    <!-- 客戶需求（Phase A）-->
+    <div class="field-group" style="margin-bottom:24px;">
+      <label class="field-label">你希望這個空間怎麼改？（選填）</label>
+      <textarea id="customerNotes" maxlength="300"
+        placeholder="例如：想保留原本的電視櫃、不喜歡太刺眼的顏色、希望有大量綠意植栽、想讓空間看起來更明亮。"></textarea>
+      <div style="text-align:right;font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:1px;">
+        <span id="notesCount">0</span> / 300
+      </div>
+    </div>
+
+    <!-- 賣場偏好（Phase A）-->
+    <div class="select-row col-2">
+      <div class="field-group">
+        <label class="field-label">賣場偏好</label>
+        <div class="select-wrapper">
+          <select id="preferredStore">
+            <option value="none">不指定</option>
+            <option value="momo">momo 優先</option>
+            <option value="ikea">IKEA 優先</option>
+            <option value="hola">HOLA 優先</option>
+            <option value="trplus">特力屋優先</option>
+          </select>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:0.5px;line-height:1.5;">
+          系統會優先從你選的賣場搭配家具，若該品類缺貨，仍會推薦其他賣場以保持完整提案。
+        </div>
+      </div>
     </div>
   </div>
 
@@ -805,16 +853,14 @@
       </div>
     </div>
 
-    <!-- Budget slider -->
+    <!-- Budget tier (Phase A) — 3 選項 -->
     <div class="field-group" style="margin-bottom:28px;">
-      <label class="field-label" style="margin-bottom:14px;">裝修預算範圍</label>
-      <div class="slider-row">
-        <span style="font-size:11px;color:var(--muted);">NT$ 20 萬</span>
-        <input type="range" id="budgetSlider" min="0" max="5" step="1" value="2">
-        <span style="font-size:11px;color:var(--muted);">1,000 萬+</span>
+      <label class="field-label" style="margin-bottom:14px;">家具軟裝預算範圍</label>
+      <div class="budget-tier-grid" id="budgetTierGrid">
+        <!-- injected by JS -->
       </div>
-      <div style="text-align:center;margin-top:10px;">
-        <span class="slider-val" id="budgetVal">NT$ 100–200 萬</span>
+      <div style="font-size:10px;color:var(--muted);margin-top:10px;letter-spacing:0.5px;line-height:1.6;">
+        系統會在預算內優先挑選可購買的家具與軟裝；若風格契合的品項超出預算太多，會自動放寬避免清單空缺。
       </div>
     </div>
 
@@ -965,9 +1011,14 @@ const specials = [
   '開放廚房','中島吧台','家庭影院','書牆設計','藝術品展示牆','浴缸獨立設計','大面積窗景',
 ];
 
-const budgetLabels = [
-  'NT$ 100 萬以下','NT$ 100–200 萬','NT$ 200–400 萬','NT$ 400–600 萬','NT$ 600–900 萬','NT$ 1,000 萬以上'
+// Phase A：預算 tier（取代舊 slider）
+const BUDGET_TIERS = [
+  { id:'tier1', amount:'10 萬內',     name:'家具＋軟裝輕改造',     hint:'不動硬裝，預算內挑選沙發、茶几、地毯、燈具、植栽。' },
+  { id:'tier2', amount:'10–20 萬',    name:'完整家具搭配＋燈飾窗簾', hint:'兼顧主家具與軟裝品質，整體成套呈現。', default:true },
+  { id:'tier3', amount:'20 萬以上',   name:'全室風格整合＋局部硬裝建議', hint:'重點家具與軟裝皆可進階品項；勾選後系統會提出局部硬裝建議。' },
 ];
+
+var selectedBudgetTier = 'tier2';
 
 const renderCounts = [
   { count: 3, label:'基礎張數' },
@@ -1171,12 +1222,37 @@ function updateDesignHint() {
 }
 updateDesignHint();
 
-// ── BUDGET SLIDER ─────────────────────────────────────────────────────────────
-const budgetSlider = document.getElementById('budgetSlider');
-const budgetVal = document.getElementById('budgetVal');
-budgetSlider.addEventListener('input', () => {
-  budgetVal.textContent = budgetLabels[budgetSlider.value];
-});
+// ── BUDGET TIER (Phase A) ─────────────────────────────────────────────────────
+function buildBudgetTiers() {
+  var grid = document.getElementById('budgetTierGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  BUDGET_TIERS.forEach(function(t) {
+    var card = document.createElement('label');
+    card.className = 'budget-tier-card' + (t.default ? ' selected' : '');
+    card.dataset.id = t.id;
+    card.innerHTML =
+      '<input type="radio" name="budgetTier" value="' + t.id + '"' + (t.default ? ' checked' : '') + '>' +
+      '<div class="budget-tier-amount">' + t.amount + '</div>' +
+      '<div class="budget-tier-name">' + t.name + '</div>' +
+      '<div class="budget-tier-hint">' + t.hint + '</div>';
+    card.addEventListener('click', function() {
+      selectedBudgetTier = t.id;
+      document.querySelectorAll('.budget-tier-card').forEach(function(c) { c.classList.remove('selected'); });
+      card.classList.add('selected');
+      updateSummary();
+    });
+    grid.appendChild(card);
+  });
+}
+
+// ── CUSTOMER NOTES counter (Phase A) ──────────────────────────────────────────
+(function bindNotesCounter() {
+  var ta = document.getElementById('customerNotes');
+  var c  = document.getElementById('notesCount');
+  if (!ta || !c) return;
+  ta.addEventListener('input', function() { c.textContent = String(ta.value.length); });
+})();
 
 // ── SUMMARY ───────────────────────────────────────────────────────────────────
 // 空間英文 → 中文
@@ -1276,15 +1352,16 @@ function buildDiagnosis() {
   var spaceType = document.getElementById('spaceType').value;
   var spaceSize = document.getElementById('spaceSize').value;
   var styleId   = getSelectedStyleId();
-  var budget    = budgetMap[spaceSize] || 'NT$50~90 萬';
   var insight   = insightMap[styleId]  || insightMap['modern'];
   var styleName = styleLabels[styleId] || '現代簡約';
   var palName   = getSelectedPaletteName();
+  // Phase A：以用戶選擇的 budget tier 顯示，避免跟主表預算欄位不一致
+  var tierObj   = BUDGET_TIERS.find(function(t) { return t.id === selectedBudgetTier; }) || BUDGET_TIERS[1];
 
   document.getElementById('diagSpace').textContent  = (SPACE_LABEL_ZH[spaceType] || spaceType) + '・' + spaceSize;
   document.getElementById('diagStyles').textContent = styleName;
   document.getElementById('diagColor').textContent  = palName;
-  document.getElementById('diagBudget').textContent = budget + '（依建材等級調整）';
+  document.getElementById('diagBudget').textContent = tierObj.amount + '｜' + tierObj.name;
   document.getElementById('diagInsight').innerHTML  = insight;
 }
 
@@ -1302,7 +1379,16 @@ function submitForm() {
   // designMode = furnish (只動家具) / full (含裝潢)
   localStorage.setItem('deco_design_mode', document.getElementById('designMode').value);
   localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
-  localStorage.setItem('deco_budget', budgetLabels[document.getElementById('budgetSlider').value]);
+
+  // ── Phase A：預算 / 客戶需求 / 賣場偏好 ──
+  localStorage.setItem('deco_budget_tier',     selectedBudgetTier);
+  // 顯示用 label（result.html 沒讀到 customer_inputs 時的 fallback）
+  var tierObj = BUDGET_TIERS.find(function(t) { return t.id === selectedBudgetTier; }) || BUDGET_TIERS[1];
+  localStorage.setItem('deco_budget',          tierObj.amount + '｜' + tierObj.name);
+  var notesEl = document.getElementById('customerNotes');
+  localStorage.setItem('deco_customer_notes',  notesEl ? (notesEl.value || '').slice(0, 300) : '');
+  var storeEl = document.getElementById('preferredStore');
+  localStorage.setItem('deco_preferred_store', storeEl ? storeEl.value : 'none');
 
   buildDiagnosis();
 
@@ -1326,11 +1412,12 @@ function goCheckout() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 buildStyleGrid();
-buildExtraStyles();
+if (typeof buildExtraStyles === 'function') buildExtraStyles();
 buildPalettes();
 buildMaterials();
 buildSpecials();
 buildRenderOptions();
+buildBudgetTiers();
 updateSummary();
 </script>
 

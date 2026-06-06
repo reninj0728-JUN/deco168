@@ -525,6 +525,10 @@
       // Z2: 帶上 zoning-confirm 確認的方案；缺則交 backend fallback
       fd.append('layout_choice', localStorage.getItem('deco_layout_choice') || '');
       fd.append('zoning_json',   localStorage.getItem('deco_zoning_json')   || '');
+      // Phase A：預算 tier / 客戶需求 / 賣場偏好
+      fd.append('budget_tier',     localStorage.getItem('deco_budget_tier')     || 'tier2');
+      fd.append('customer_notes',  (localStorage.getItem('deco_customer_notes') || '').slice(0, 300));
+      fd.append('preferred_store', localStorage.getItem('deco_preferred_store') || 'none');
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);

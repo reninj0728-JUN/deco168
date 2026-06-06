@@ -409,7 +409,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  space_type: str = "living", render_angle: str = "single",
                  design_mode: str = "furnish",
                  user_zoning_v2: dict | None = None,
-                 user_layout_choice: str = ""):
+                 user_layout_choice: str = "",
+                 budget_tier: str = "tier3",
+                 customer_notes: str = "",
+                 preferred_store: str = "none"):
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
 
@@ -607,7 +610,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
               f"error={zoning_result.get('error', '(none)')[:80]}")
 
         write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
-        enriched = enrich_renders(analysis.get("renders", []), analysis=analysis)
+        enriched = enrich_renders(analysis.get("renders", []), analysis=analysis,
+                                  budget_tier=budget_tier,
+                                  preferred_store=preferred_store)
 
         # ── 2 風格 × N 角度 = 多張渲染 ──
         # 為每個風格、每個角度產生一個 render entry
@@ -629,7 +634,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             single_result = generate_renders(entry["_base_path"], [entry],
                                              output_dir=str(job_dir),
                                              analysis=analysis, design_mode=design_mode,
-                                             zoning=zoning_result)
+                                             zoning=zoning_result,
+                                             customer_notes=customer_notes,
+                                             budget_tier=budget_tier)
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -692,6 +699,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         output_dir=str(job_dir),
                         analysis=analysis, design_mode=design_mode,
                         zoning=zoning_result,
+                        customer_notes=customer_notes,
+                        budget_tier=budget_tier,
                     )
                 except Exception as re_e:
                     print(f"[pipeline] Z3 retry 例外: {re_e}")
@@ -777,6 +786,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "retry_reason":  r.get("retry_reason"),
             })
 
+        # Phase A：把客戶輸入寫入 result_json 給 result.html 顯示
+        from furniture_match import BUDGET_LABEL_ZH, STORE_LABEL_ZH
+        customer_inputs = {
+            "budget_tier":              budget_tier,
+            "budget_label_zh":          BUDGET_LABEL_ZH.get(budget_tier, ""),
+            "customer_notes":           (customer_notes or "")[:300],
+            "preferred_store":          preferred_store,
+            "preferred_store_label_zh": STORE_LABEL_ZH.get(preferred_store, ""),
+        }
+
         sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
                    "message": "設計方案生成完畢！",
                    "result_json": {
@@ -786,6 +805,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                        "layout_choice":      user_layout_choice or None,
                        "renders":            slim_renders,
                        "validation_summary": validation_summary,
+                       "customer_inputs":    customer_inputs,        # Phase A
                    }})
 
         # 跑完自動清掉 R2 上的影片（隱私 + 省空間）
@@ -883,6 +903,9 @@ async def create_job(
     design_mode: str  = Form(default="furnish"),   # furnish (只動家具) / full (含裝潢)
     layout_choice: str = Form(default=""),         # Z2: 'A'/'B'/'' (空字串=未確認)
     zoning_json: str   = Form(default=""),         # Z2: v2 zoning JSON 字串（前端從 localStorage 帶回）
+    budget_tier: str       = Form(default="tier3"),  # Phase A: tier1/tier2/tier3
+    customer_notes: str    = Form(default=""),       # Phase A: 客戶補充需求（後端硬截 300）
+    preferred_store: str   = Form(default="none"),   # Phase A: none/momo/ikea/hola/trplus
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -938,10 +961,21 @@ async def create_job(
             new_paths.append(str(dst))
 
     styles_list = [s.strip() for s in styles.split(",") if s.strip()]
+
+    # Phase A：欄位 normalize + 後端保險
+    if budget_tier not in ("tier1", "tier2", "tier3"):
+        budget_tier = "tier3"
+    if preferred_store not in ("none", "momo", "ikea", "hola", "trplus"):
+        preferred_store = "none"
+    customer_notes = (customer_notes or "")[:300]
+
     with open(job_dir / "meta.json", "w", encoding="utf-8") as f:
         json.dump({"job_id": job_id, "plan": plan, "styles": styles_list,
                    "space_type": space_type, "render_angle": render_angle,
                    "design_mode": design_mode,
+                   "budget_tier": budget_tier,
+                   "preferred_store": preferred_store,
+                   "customer_notes": customer_notes,
                    "photo_count": len(new_paths)}, f, ensure_ascii=False)
 
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
@@ -961,7 +995,8 @@ async def create_job(
     write_status(job_id, job_dir, "queued", 5, "訂單已成立，即將開始解析空間…")
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
                               space_type, render_angle, design_mode,
-                              user_zoning_v2, layout_choice)
+                              user_zoning_v2, layout_choice,
+                              budget_tier, customer_notes, preferred_store)
 
     return {"job_id": job_id}
 
