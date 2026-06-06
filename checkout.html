@@ -312,10 +312,6 @@
       <div class="summary-val" id="summaryStyle">—</div>
     </div>
     <div>
-      <div class="summary-label">空間坪數</div>
-      <div class="summary-val" id="summarySize">—</div>
-    </div>
-    <div>
       <div class="summary-label">預算範圍</div>
       <div class="summary-val" id="summaryBudget">—</div>
     </div>
@@ -396,11 +392,9 @@
     try {
       var files   = localStorage.getItem('deco_files_count');
       var style   = localStorage.getItem('deco_style');
-      var size    = localStorage.getItem('deco_size');
       var budget  = localStorage.getItem('deco_budget');
       if (files)  document.getElementById('summaryFiles').textContent  = files + ' 個檔案';
       if (style)  document.getElementById('summaryStyle').textContent  = style;
-      if (size)   document.getElementById('summarySize').textContent   = size;
       if (budget) document.getElementById('summaryBudget').textContent = budget;
     } catch(e) {}
   })();

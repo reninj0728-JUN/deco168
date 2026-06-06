@@ -664,7 +664,7 @@
     <div class="section-eyebrow">Layer 01</div>
     <div class="section-title">空間基本資訊</div>
 
-    <div class="select-row col-3">
+    <div class="select-row col-2">
       <div class="field-group">
         <label class="field-label">空間類型</label>
         <div class="select-wrapper">
@@ -687,58 +687,6 @@
           </select>
         </div>
         <div id="designHint" style="margin-top:8px; font-size:11px; color:#666; letter-spacing:0.3px; line-height:1.6; padding-left:2px;"></div>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">空間坪數</label>
-        <div class="select-wrapper">
-          <select id="spaceSize">
-            <option>5 坪以下</option>
-            <option>5–10 坪</option>
-            <option>10–20 坪</option>
-            <option selected>20–30 坪</option>
-            <option>30–45 坪</option>
-            <option>45 坪以上</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="select-row col-3">
-      <div class="field-group">
-        <label class="field-label">居住人數</label>
-        <div class="select-wrapper">
-          <select id="residents">
-            <option>獨居</option>
-            <option selected>2 人</option>
-            <option>3–4 人（家庭）</option>
-            <option>5 人以上</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">有無孩童 / 寵物</label>
-        <div class="select-wrapper">
-          <select id="kidsPets">
-            <option>無</option>
-            <option>有孩童</option>
-            <option>有寵物</option>
-            <option>孩童 + 寵物</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">預計入住時間</label>
-        <div class="select-wrapper">
-          <select id="moveIn">
-            <option>1 個月內</option>
-            <option>1–3 個月</option>
-            <option>3–6 個月</option>
-            <option>半年以上，不急</option>
-          </select>
-        </div>
       </div>
     </div>
   </div>
@@ -1263,13 +1211,13 @@ const SPACE_LABEL_ZH = {
 
 function updateSummary() {
   const spaceTypeVal = document.getElementById('spaceType').value;
-  const spaceSize    = document.getElementById('spaceSize').value;
   const spaceLabel   = SPACE_LABEL_ZH[spaceTypeVal] || spaceTypeVal;
   const selectedStyle   = document.querySelector('.style-card.selected .style-name');
   const selectedPalette = document.querySelector('.palette-card.selected .palette-label');
   const plan = document.getElementById('plan').value;
 
-  document.getElementById('s-space').textContent = `${spaceLabel} · ${spaceSize}`;
+  // 坪數由 Gemini 從照片分析（前端不再蒐集，避免跟模型結果衝突）
+  document.getElementById('s-space').textContent = spaceLabel;
   if (selectedStyle)   document.getElementById('s-style').textContent  = selectedStyle.textContent;
   if (selectedPalette) document.getElementById('s-color').textContent  = selectedPalette.textContent.replace(' ✦','');
 
@@ -1305,17 +1253,10 @@ document.getElementById('spaceType').addEventListener('change', function() {
   updateSummary();
   updateRenderAngleHint();
 });
-document.getElementById('spaceSize').addEventListener('change', updateSummary);
 document.getElementById('plan').addEventListener('change', updateSummary);
 updateRenderAngleHint();
 
 // ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
-var budgetMap = {
-  '10 坪以下': 'NT$20~40 萬', '10–20 坪': 'NT$30~60 萬',
-  '20–30 坪':  'NT$50~90 萬', '30–45 坪': 'NT$80~150 萬',
-  '45–60 坪':  'NT$120~200 萬', '60 坪以上': 'NT$180 萬以上',
-};
-
 var insightMap = {
   modern:      '你偏好乾淨俐落的線條與機能效率。建議以<em>無主燈設計</em>為基礎，嵌燈搭配局部懸掛燈，讓空間層次豐富而不複雜。選用淺木紋地板搭配深色金屬框架，視覺比例最均衡。',
   nordic:      '北歐風的核心在於<em>溫暖留白</em>。建議保留大面積淺色基底，透過木質傢俱與織物軟裝製造溫度，避免過多裝飾性元素讓空間看起來太「滿」。',
@@ -1350,7 +1291,6 @@ function getSelectedPaletteName() {
 
 function buildDiagnosis() {
   var spaceType = document.getElementById('spaceType').value;
-  var spaceSize = document.getElementById('spaceSize').value;
   var styleId   = getSelectedStyleId();
   var insight   = insightMap[styleId]  || insightMap['modern'];
   var styleName = styleLabels[styleId] || '現代簡約';
@@ -1358,7 +1298,7 @@ function buildDiagnosis() {
   // Phase A：以用戶選擇的 budget tier 顯示，避免跟主表預算欄位不一致
   var tierObj   = BUDGET_TIERS.find(function(t) { return t.id === selectedBudgetTier; }) || BUDGET_TIERS[1];
 
-  document.getElementById('diagSpace').textContent  = (SPACE_LABEL_ZH[spaceType] || spaceType) + '・' + spaceSize;
+  document.getElementById('diagSpace').textContent  = (SPACE_LABEL_ZH[spaceType] || spaceType);
   document.getElementById('diagStyles').textContent = styleName;
   document.getElementById('diagColor').textContent  = palName;
   document.getElementById('diagBudget').textContent = tierObj.amount + '｜' + tierObj.name;
@@ -1371,14 +1311,12 @@ function submitForm() {
   localStorage.setItem('deco_style_count', String(selectedDirections.length));
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
   localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
-  localStorage.setItem('deco_space_size', document.getElementById('spaceSize').value);
   // 依服務方案決定 render_angle：multi 方案 → 3 角度 6 張；single/full → 精選 1 角度 2 張
   var planTierVal = (document.getElementById('plan') || {}).value || 'single';
   localStorage.setItem('deco_plan_tier', planTierVal);
   localStorage.setItem('deco_render_angle', planTierVal === 'multi' ? 'multi' : 'single');
   // designMode = furnish (只動家具) / full (含裝潢)
   localStorage.setItem('deco_design_mode', document.getElementById('designMode').value);
-  localStorage.setItem('deco_size',   document.getElementById('spaceSize').value);
 
   // ── Phase A：預算 / 客戶需求 / 賣場偏好 ──
   localStorage.setItem('deco_budget_tier',     selectedBudgetTier);
@@ -1411,11 +1349,10 @@ function goCheckout() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+// 註：buildPalettes / buildMaterials / buildSpecials / buildExtraStyles 對應的
+// DOM 元素已不存在（paletteGrid / materialGrid / specialGrid / extraStyleGrid），
+// 早先呼叫會 throw TypeError 中斷整個 INIT 鏈。已移除 dead call。
 buildStyleGrid();
-if (typeof buildExtraStyles === 'function') buildExtraStyles();
-buildPalettes();
-buildMaterials();
-buildSpecials();
 buildRenderOptions();
 buildBudgetTiers();
 updateSummary();
