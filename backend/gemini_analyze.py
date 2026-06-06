@@ -350,7 +350,11 @@ def validate_render(
     送 2 張本機圖片給 Gemini，回傳結構保留 + 家具動線評估 JSON：
       {ok, kitchen_added, recessed_space_added, windows_changed,
        walls_changed, ceiling_changed, floor_changed,
-       furniture_blocks_walkway, reason}
+       furniture_blocks_walkway, sofa_faces_walkway, reason}
+
+    家具動線拆成兩個獨立判斷：
+      furniture_blocks_walkway = 家具「物理擋住」主動線（人需繞行）
+      sofa_faces_walkway = 沙發「正面朝向」走廊/門口/通道開口（人坐下對著動線）
     """
     api_key = (os.environ.get("GEMINI_API_KEY") or
                os.environ.get("GOOGLE_AI_KEY") or "").strip()
@@ -384,6 +388,7 @@ def validate_render(
   "ceiling_changed": bool,
   "floor_changed": bool,
   "furniture_blocks_walkway": bool,
+  "sofa_faces_walkway": bool,
   "reason": "簡短中文 60 字內描述主要問題（ok=true 時填 '結構與動線皆合理'）"
 }}
 
@@ -395,17 +400,35 @@ def validate_render(
 - ceiling_changed：天花板明顯新增結構（嵌燈陣列/木作/降板/間接照明溝槽）—— 吊燈或單一燈具**不算**結構
 - floor_changed：**裸露地板**材質/方向/比例顯著被改。**新增地毯不算 floor_changed**
 
-【家具動線判定（重要）】
-- furniture_blocks_walkway = true 當以下任一成立：
+【家具動線判定 — 拆成兩個獨立問題，分開判斷】
+
+Q1: furniture_blocks_walkway（家具「物理擋住」主動線）
+- furniture_blocks_walkway = true 當任一成立：
   * 沙發、茶几、地毯或大型家具明顯擋住「左/右側走廊開口」或「主動線」，人需繞行/跨越才能通過
-  * 沙發「浮」在房間中間（不靠牆），又位於走道中央位置
+  * 沙發「浮」在房間中間（不靠牆），且本體位於走道路徑上
   * 茶几或地毯的一部分延伸到走道區，導致通道寬度看起來 < 60cm
   * 從入口走到窗邊或從入口走到房門開口，路徑被家具吃掉
   * L 型沙發的轉角或側邊伸入走廊開口前的淨空區
-  * **沙發朝向錯誤**：沙發的「正面（坐下時看的方向）」直接對著走廊開口、房門、或走道
-    （坐下會感覺對面隨時有人走過）。這也算動線不合理，要標 true，並在 reason 寫
-    「沙發朝向走道」「沙發面對走廊開口」「沙發朝向房門」等具體描述
-- furniture_blocks_walkway = false 當沙發背靠實牆、面對 TV 牆/窗景、茶几/地毯都在沙發前的客廳區、走廊開口前淨空
+- furniture_blocks_walkway = false 當動線實際可行（沒有家具擋路）
+
+Q2: sofa_faces_walkway（沙發「正面朝向」走道 — 即使沒擋）
+- sofa_faces_walkway = true 當以下成立（**獨立於 Q1 判斷**）：
+  * 沙發的「正面」（坐下時眼睛看的方向）直接對著走廊開口、側牆房門、或主走道
+    （坐下時眼前就是有人走來走去的動線，心理不適）
+  * 沙發「背」靠的方向也對 — 看「正面朝向」哪個 vector：
+    - 沙發正面朝 TV 牆/窗/室內焦點 → false
+    - 沙發正面朝 走廊開口/房門/主走道 → true
+  * 注意：沙發**沒擋路**但「面對走道」依然 true（這是兩個獨立檢查）
+- sofa_faces_walkway = false 當沙發正面朝向：
+  * 對面 TV 牆（純實牆，沒開口）
+  * 窗景方向
+  * 室內主視覺焦點（壁畫/景觀/裝飾牆）
+
+【reason 寫法】
+- 若 furniture_blocks_walkway=true → reason 寫「家具擋走道」「沙發擋走廊開口」等
+- 若 sofa_faces_walkway=true → reason 必須**明確寫**「沙發朝向走廊」「沙發正面對著房門」「沙發面對走道」
+  （不要用「結構與動線皆合理」這種模糊語句）
+- 兩個都 false 且結構保留 → reason = 「結構與動線皆合理」
 
 ok = 上述 7 項全為 false。
 reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」非「動線不合理」）。

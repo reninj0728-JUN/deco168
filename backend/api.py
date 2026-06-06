@@ -289,7 +289,7 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
 
     bad_flags = []
     for k in ("walls_changed", "recessed_space_added", "windows_changed",
-              "furniture_blocks_walkway"):
+              "furniture_blocks_walkway", "sofa_faces_walkway"):
         if validation.get(k):
             bad_flags.append(k)
 
