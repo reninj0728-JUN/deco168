@@ -936,6 +936,25 @@ const palettes = [
   { id:'bw-minimal', name:'黑白極簡',     colors:['#f8f8f8','#888888','#222222'], ai:false },
 ];
 
+// 每個風格只露 3 個最契合的色系（避免選擇疲勞）
+// styleId → 允許的 palette id list
+const STYLE_PALETTE_MAP = {
+  'modern':         ['warm-white', 'grey-stone', 'dark-luxury'],
+  'nordic':         ['warm-white', 'dusty-pink', 'grey-stone'],
+  'cream':          ['cream-terracotta', 'warm-white', 'dusty-pink'],
+  'japanese':       ['warm-white', 'dark-luxury', 'grey-stone'],
+  'wood':           ['warm-white', 'cream-terracotta', 'sage-green'],
+  'luxury':         ['dark-luxury', 'grey-stone', 'bw-minimal'],
+  'french':         ['dusty-pink', 'warm-white', 'cream-terracotta'],
+  'muji':           ['warm-white', 'grey-stone', 'bw-minimal'],
+  'chinese-modern': ['dark-luxury', 'warm-white', 'navy-oak'],
+};
+function palettesForStyle(styleId) {
+  const allowed = STYLE_PALETTE_MAP[styleId];
+  if (!allowed) return palettes.slice(0, 3);
+  return allowed.map(id => palettes.find(p => p.id === id)).filter(Boolean);
+}
+
 const materials = [
   '木質紋理','大理石','水泥 / 清水模','金屬鐵件','玻璃','藤編 / 竹材',
   '布藝 / 絲絨','皮革','磚牆','磁磚 / 花磚','塑合板（防潮）','石皮板',
@@ -995,7 +1014,8 @@ function showColorPicker(s) {
     '你選了「' + s.name + '」，現在選一個色系：';
   const grid = document.getElementById('inlinePaletteGrid');
   grid.innerHTML = '';
-  palettes.forEach(p => {
+  // 只露當前風格契合的 3 個色系
+  palettesForStyle(s.id).forEach(p => {
     const card = document.createElement('div');
     card.className = 'palette-card';
     const swatchHtml = p.colors.map(c => `<span style="background:${c}"></span>`).join('');

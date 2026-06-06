@@ -88,12 +88,37 @@ def _build_layout_section(zoning: dict) -> str:
     """
     從 zoning 原文組裝 layout 描述（不 parse 牆名）。
     sofa_wall / tv_wall / living_zone.where / walkway / no_large_furniture_zones 全文塞進去。
+    若 zoning 帶有 _layout_choice（user-confirmed），加 HARD BINDING rule 在最前面。
     """
     syn = zoning.get("spatial_synthesis", {}) or {}
     zones = zoning.get("zones", {}) or {}
     rules = zoning.get("furniture_placement_rules", {}) or {}
 
-    parts = ["ROOM LAYOUT (from spatial analysis of the room):"]
+    parts = []
+
+    # ── USER-CONFIRMED LAYOUT BINDING（最優先，不可被風格描述覆蓋）──
+    living_where = (zones.get("living_zone") or {}).get("where", "")
+    layout_choice = zoning.get("_layout_choice")
+    if living_where and zoning.get("_origin") == "user_confirmed_v2":
+        choice_label = layout_choice or "A"
+        parts.append(
+            "USER-CONFIRMED LAYOUT (MANDATORY — this is the customer's explicit decision, "
+            f"NOT a suggestion you may override). Chosen plan: {choice_label}. "
+            f"Living zone (binding): '{living_where}'. "
+            "PLACEMENT RULES: "
+            "(1) The sofa MUST be placed inside this confirmed living zone. "
+            "(2) The coffee table and area rug should be centered around the sofa and remain "
+            "MOSTLY within the living zone — small overlap with adjacent area is acceptable, "
+            "but their visual center MUST be in the living zone. "
+            "(3) The sofa, coffee table, and rug MUST NOT be placed in the dining zone, "
+            "the walkway, the entrance zone, or any other functional area. "
+            "(4) The TV cabinet or focal wall should face the sofa from within or adjacent to "
+            "the living zone. "
+            "(5) The visual living focus of the entire room must follow this user-confirmed "
+            "layout — do not stage the living area in any other location."
+        )
+
+    parts.append("ROOM LAYOUT (from spatial analysis of the room):")
 
     if syn.get("room_shape"):
         parts.append(f"Room shape: {syn['room_shape']}.")
@@ -219,7 +244,19 @@ CRITICAL_RULES = (
     "large furniture. If a sofa is placed across or partly inside a walkway, the room becomes "
     "unlivable — this is forbidden. Sofa must be against a solid wall edge, not floating in the "
     "center of the room. Coffee table and rug must sit fully within the living conversation zone, "
-    "never extending into the walkway or no_large_furniture_zone."
+    "never extending into the walkway or no_large_furniture_zone. "
+    "(f) FURNITURE/DECOR PROVENANCE (purchasability — important commercial rule): "
+    "All major, visually prominent furniture and decor (sofa, coffee table, rug, accent / side "
+    "chair, large floor lamp, table lamp, large wall art or painting, large vase, large potted "
+    "plant, side table, ottoman, curtain) should preferably correspond to items in the provided "
+    "product reference list. You MAY include small background lived-in details — a book on the "
+    "coffee table, a tray, a small candle, soft cushions on the sofa, a small mug — these need "
+    "not match a product reference. But do NOT make a non-referenced item the visual focus or "
+    "a clear identifiable selling point of the scene. Specifically: do not invent a striking "
+    "accent armchair, a distinctive floor lamp, a large patterned wall painting, a tall "
+    "decorative vase, or a stylized side table that the customer cannot find in the product "
+    "list. When in doubt, leave a wall area lightly accented or empty rather than fabricating "
+    "items that look buyable but are not."
 )
 
 
