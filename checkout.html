@@ -323,16 +323,15 @@
     <!-- Plan A -->
     <div class="plan-card selected" id="planA" onclick="selectPlan('A')">
       <div class="plan-badge">方案 A · 概念渲染</div>
-      <div class="plan-name" id="planAName">1 個空間 × 2 風格 設計提案</div>
+      <div class="plan-name" id="planAName">2 種風格的設計提案</div>
       <div class="plan-tagline" id="planATagline" style="font-size:11px;color:var(--muted);letter-spacing:1.5px;margin-top:6px;margin-bottom:14px;line-height:1.6;">兩種風格、兩張提案，先幫你看見家的方向。</div>
       <div class="plan-price"><span id="planAPrice">NT$1,199</span><span>/ 次</span></div>
       <div class="plan-divider"></div>
       <ul class="plan-features">
         <li><span class="ico">✦</span> 空間格局分析（讀取照片與影片）</li>
-        <li><span class="ico">✦</span> 風格設計圖 × 2 張（高解析）</li>
+        <li><span class="ico">✦</span> 2 種風格的設計提案</li>
         <li><span class="ico">✦</span> 可購買家具清單（附購買連結）</li>
         <li><span class="ico">✦</span> 風格定位與材料建議</li>
-        <li><span class="ico">✦</span> 約 15 分鐘內交付</li>
         <li><span class="ico grey">—</span><span style="color:var(--muted)">設計師人工審核</span></li>
         <li><span class="ico grey">—</span><span style="color:var(--muted)">法規可行性確認</span></li>
       </ul>
@@ -417,8 +416,8 @@
   function planAName() {
     if (spaceTypeVal === 'whole') return '整戶風格規劃';
     return planTier === 'multi'
-      ? '1 個空間 × 3 視角 × 2 風格 設計提案'
-      : '1 個空間 × 2 風格 設計提案';
+      ? '2 種風格 × 多視角的設計提案'
+      : '2 種風格的設計提案';
   }
 
   // 依方案層級重寫 Plan A 卡的 features 與圖數描述
@@ -440,18 +439,16 @@
     if (planTier === 'multi') {
       featEl.innerHTML =
         '<li><span class="ico">✦</span> 空間格局分析（讀取照片與影片）</li>'
-      + '<li><span class="ico">✦</span> 風格設計圖 × 6 張（3 視角 × 2 風格 · 高解析）</li>'
+      + '<li><span class="ico">✦</span> 2 種風格 × 多視角的設計提案</li>'
       + '<li><span class="ico">✦</span> 可購買家具清單（附購買連結）</li>'
       + '<li><span class="ico">✦</span> 風格定位與材料建議</li>'
-      + '<li><span class="ico">✦</span> 約 30 分鐘內交付</li>'
       + rowSplit;
     } else {
       featEl.innerHTML =
         '<li><span class="ico">✦</span> 空間格局分析（讀取照片與影片）</li>'
-      + '<li><span class="ico">✦</span> 風格設計圖 × 2 張（高解析）</li>'
+      + '<li><span class="ico">✦</span> 2 種風格的設計提案</li>'
       + '<li><span class="ico">✦</span> 可購買家具清單（附購買連結）</li>'
       + '<li><span class="ico">✦</span> 風格定位與材料建議</li>'
-      + '<li><span class="ico">✦</span> 約 15 分鐘內交付</li>'
       + rowSplit;
     }
   })();

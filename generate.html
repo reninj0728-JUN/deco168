@@ -222,9 +222,9 @@
     </div>
   </div>
 
-  <div class="stage-eyebrow">系統正在處理</div>
-  <h1 class="stage-title">分析你的<em>空間</em>，<br>設計正在生成</h1>
-  <p class="stage-desc">我們正在解讀你上傳的空間，理解你想要的風格，為你打造專屬設計方案。<br>這個過程約 1–3 分鐘，你可以離開此頁面，完成後可在「查詢下載」找到結果。</p>
+  <div class="stage-eyebrow">設計師正在整理你的提案</div>
+  <h1 class="stage-title">為你打造<em>專屬</em><br>風格提案</h1>
+  <p class="stage-desc">我們正在解讀你上傳的空間，理解你想要的風格，整理一份你能直接落地、買得到的家具與軟裝搭配。你可以離開此頁面，完成後可在「查詢下載」找到結果。</p>
 
   <div class="proc-steps" id="procSteps">
     <div class="proc-step done" id="step1">
@@ -256,7 +256,7 @@
 
   <div class="timer-row">
     <div class="timer-dot"></div>
-    <span id="timerText">預計剩餘 15 分鐘</span>
+    <span id="timerText">正在整理你的空間條件與格局方向</span>
   </div>
 
   <div class="email-note">
@@ -326,6 +326,31 @@
 
   var pollTimer;
 
+  // ── 服務感輪播文案（純前端，每 6 秒輪一句；backend 回 completed/failed 時停）──
+  var ROTATE_MESSAGES = [
+    '正在整理你的空間條件與格局方向',
+    '正在比對採光、動線與風格搭配',
+    '正在篩選符合預算的家具與軟裝',
+    '正在生成你的專屬風格提案，請稍候'
+  ];
+  var rotateIdx = 0;
+  var rotateTimer = null;
+  var rotateActive = true;
+  function tickRotate() {
+    if (!rotateActive) return;
+    var el = document.getElementById('timerText');
+    if (el) el.textContent = ROTATE_MESSAGES[rotateIdx];
+    rotateIdx = (rotateIdx + 1) % ROTATE_MESSAGES.length;
+  }
+  function startRotate() {
+    tickRotate();
+    rotateTimer = setInterval(tickRotate, 6000);
+  }
+  function stopRotate() {
+    rotateActive = false;
+    if (rotateTimer) clearInterval(rotateTimer);
+  }
+
   function poll() {
     fetch(API_BASE + '/api/job/' + JOB_ID)
       .then(function(r) { return r.ok ? r.json() : null; })
@@ -333,28 +358,31 @@
         if (!data) return;
         var step = STATUS_STEP[data.status] || 2;
         updateSteps(step);
-        document.getElementById('timerText').textContent = data.message || data.status;
-
+        // status 進入 completed / failed 才覆蓋輪播；其餘狀態維持服務感文案
         if (data.status === 'completed') {
+          stopRotate();
           clearInterval(pollTimer);
           updateSteps(5);
           document.getElementById('step5').className = 'proc-step done';
-          document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
+          document.getElementById('timerText').textContent = '提案完成，正在為你打開設計頁…';
           setTimeout(function() { window.location.href = 'result.html?job=' + JOB_ID; }, 1500);
         } else if (data.status === 'failed') {
+          stopRotate();
           clearInterval(pollTimer);
-          document.getElementById('timerText').textContent = data.message || '處理失敗，請聯絡客服';
+          document.getElementById('timerText').textContent = '處理遇到問題，請聯絡客服';
         }
       })
       .catch(function() {});  // silently retry
   }
 
   if (JOB_ID) {
-    // Real mode: poll API every 3 s
+    // Real mode: 啟動輪播 + 每 3 秒 polling
+    startRotate();
     poll();
     pollTimer = setInterval(poll, 3000);
   } else {
-    // Demo mode (no job_id): fake animation
+    // Demo mode (no job_id): 輪播 + 假動畫
+    startRotate();
     var steps  = ['step2','step3','step4','step5'];
     var delays = [2500, 5500, 9000, 13000];
     steps.forEach(function(id, i) {
@@ -364,8 +392,9 @@
       }, delays[i]);
     });
     setTimeout(function() {
+      stopRotate();
       document.getElementById('step5').className = 'proc-step done';
-      document.getElementById('timerText').textContent = '生成完成！正在跳轉…';
+      document.getElementById('timerText').textContent = '提案完成，正在為你打開設計頁…';
       setTimeout(function() { window.location.href = 'result.html?job=' + (JOB_ID || 'DEMO'); }, 1200);
     }, 15000);
   }

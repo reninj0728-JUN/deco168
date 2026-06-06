@@ -146,7 +146,7 @@
     }
 
     .section-eyebrow {
-      font-size: 8px;
+      font-size: 10px;
       letter-spacing: 4px;
       text-transform: uppercase;
       color: var(--gold);
@@ -179,10 +179,10 @@
     }
 
     label.field-label {
-      font-size: 9px;
+      font-size: 11px;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: var(--muted);
+      color: #999;
     }
 
     select, input[type=text], input[type=number], textarea {
@@ -190,9 +190,9 @@
       border: 1px solid var(--line);
       color: var(--white);
       font-family: 'Inter', sans-serif;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 300;
-      padding: 12px 16px;
+      padding: 16px 18px;
       width: 100%;
       appearance: none;
       -webkit-appearance: none;
@@ -264,9 +264,9 @@
     }
 
     .style-hint {
-      font-size: 10px;
-      color: var(--muted);
-      line-height: 1.5;
+      font-size: 11px;
+      color: var(--body);
+      line-height: 1.6;
     }
 
     .style-card .recommend-dot {
@@ -416,8 +416,8 @@
     /* NOTES TEXTAREA */
     textarea {
       resize: vertical;
-      min-height: 80px;
-      line-height: 1.7;
+      min-height: 110px;
+      line-height: 1.9;
     }
 
     /* BOTTOM NAV */
@@ -465,29 +465,46 @@
       margin: 48px 0;
     }
 
-    /* BUDGET TIER (Phase A) */
-    .budget-tier-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-    .budget-tier-card {
-      border: 1px solid var(--line);
-      padding: 18px 16px;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      user-select: none;
+    /* BUDGET PILLS (Phase A → B) */
+    .budget-pills {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      gap: 12px;
+      flex-wrap: nowrap;
     }
-    .budget-tier-card:hover { border-color: rgba(201,169,110,0.45); }
-    .budget-tier-card.selected { border-color: var(--gold); background: rgba(201,169,110,0.05); }
-    .budget-tier-card input[type=radio] { display: none; }
-    .budget-tier-amount { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--gold); line-height: 1; }
-    .budget-tier-name   { font-size: 12px; color: var(--white); letter-spacing: 0.3px; }
-    .budget-tier-hint   { font-size: 10px; color: var(--muted); line-height: 1.5; }
-    .budget-tier-card.selected .budget-tier-hint { color: var(--body); }
+    .budget-pill {
+      flex: 1;
+      min-height: 60px;
+      padding: 16px 20px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--body);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 20px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color .2s, background .2s, color .2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .budget-pill:hover { border-color: rgba(201,169,110,0.6); color: var(--gold-lt); }
+    .budget-pill.selected {
+      border: 1.5px solid var(--gold);
+      background: rgba(201,169,110,0.08);
+      color: var(--gold);
+    }
+    .budget-pill-desc {
+      margin-top: 14px;
+      padding: 14px 20px;
+      background: rgba(201,169,110,0.05);
+      border-left: 2px solid var(--gold);
+      font-size: 13px;
+      color: var(--body);
+      line-height: 1.7;
+      letter-spacing: 0.5px;
+      min-height: 50px;
+    }
 
     /* RENDER COUNT */
     .render-options {
@@ -541,7 +558,8 @@
       .render-options { grid-template-columns: 1fr; }
       .ref-preview-grid { grid-template-columns: repeat(3, 1fr); }
       .diag-grid { grid-template-columns: 1fr; }
-      .budget-tier-grid { grid-template-columns: 1fr; }
+      .budget-pills { flex-direction: column; }
+      .budget-pill { font-size: 18px; min-height: 56px; }
     }
 
     /* DIAGNOSIS PANEL */
@@ -697,7 +715,7 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">設計方向</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">選擇 <strong style="color:var(--gold)">2 個</strong>風格方向（風格 + 色系），系統從你上傳的照片中精選最佳角度，為每個風格各生成 1 張設計提案圖，共 <strong style="color:var(--gold)">2 × 1 = 2 張</strong>。</p>
+    <p style="font-size:13px;color:#999;margin-bottom:16px;line-height:1.7;">選擇 <strong style="color:var(--gold)">2 種</strong>風格方向，我們會為每種風格各做一張設計提案。</p>
 
     <!-- 已選方向 chips -->
     <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
@@ -770,44 +788,19 @@
 
   <hr class="section-divider">
 
-  <!-- LAYER 4：輸出設定 -->
+  <!-- LAYER 4：服務方案 -->
   <div class="form-section">
     <div class="section-eyebrow">Layer 04</div>
-    <div class="section-title">渲染圖輸出設定</div>
+    <div class="section-title">服務方案</div>
 
-    <div style="margin-bottom:28px;">
-      <label class="field-label" style="display:block;margin-bottom:14px;">渲染圖數量</label>
-      <div class="render-options" id="renderOptions">
+    <!-- 家具軟裝預算範圍（橫向 Pills）-->
+    <div class="field-group" style="margin-bottom:32px;">
+      <label class="field-label" style="margin-bottom:14px;font-size:11px;color:#999;">家具軟裝預算範圍</label>
+      <div class="budget-pills" id="budgetPills">
         <!-- injected by JS -->
       </div>
-    </div>
-
-    <div class="select-row col-2" style="margin-bottom:24px;">
-      <div class="field-group">
-        <label class="field-label">渲染輸出</label>
-        <div id="renderAngleHint" style="padding:14px 18px;background:rgba(201,169,110,0.07);border:1px solid rgba(201,169,110,0.2);border-radius:8px;font-size:12px;line-height:1.6;color:var(--body);">
-          <!-- 依 spaceType 動態填入 -->
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">是否包含人物</label>
-        <div class="select-wrapper">
-          <select id="includePeople">
-            <option selected>不含人物（純空間）</option>
-            <option>含生活場景（模糊人影）</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <!-- Budget tier (Phase A) — 3 選項 -->
-    <div class="field-group" style="margin-bottom:28px;">
-      <label class="field-label" style="margin-bottom:14px;">家具軟裝預算範圍</label>
-      <div class="budget-tier-grid" id="budgetTierGrid">
-        <!-- injected by JS -->
-      </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:10px;letter-spacing:0.5px;line-height:1.6;">
+      <div class="budget-pill-desc" id="budgetPillDesc">完整家具搭配＋燈飾窗簾</div>
+      <div style="font-size:11px;color:#888;margin-top:10px;letter-spacing:0.5px;line-height:1.6;">
         系統會在預算內優先挑選可購買的家具與軟裝；若風格契合的品項超出預算太多，會自動放寬避免清單空缺。
       </div>
     </div>
@@ -817,8 +810,8 @@
         <label class="field-label">服務方案</label>
         <div class="select-wrapper">
           <select id="plan">
-            <option value="single">概念方案 — 指定空間 2 風格 設計提案 2 張（NT$1,199）</option>
-            <option value="multi">多角度方案 — 同空間 3 視角 2 風格 設計提案 6 張（NT$1,799）</option>
+            <option value="single">概念方案 — 2 種風格設計提案（NT$1,199）</option>
+            <option value="multi">多角度方案 — 2 種風格 × 多視角提案（NT$1,799）</option>
             <option value="full">設計師審核方案 — 含設計師人工審核（NT$9,800）</option>
           </select>
         </div>
@@ -832,6 +825,14 @@
           </select>
         </div>
       </div>
+    </div>
+
+    <!-- 你將收到的內容（純文字提示，不可選）-->
+    <div style="margin-top:24px;padding:18px 22px;background:rgba(201,169,110,0.04);border:1px solid rgba(201,169,110,0.18);">
+      <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">你將收到的內容</div>
+      <ul id="deliverList" style="list-style:none;padding:0;margin:0;font-size:13px;color:var(--body);line-height:2;">
+        <!-- injected by JS, 跟 plan 連動 -->
+      </ul>
     </div>
   </div>
 
@@ -851,10 +852,6 @@
     <div class="summary-row">
       <span class="summary-key">主色調</span>
       <span class="summary-val" id="s-color">暖白 + 淺木色</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-key">渲染圖數</span>
-      <span class="summary-val" id="s-renders">5 張</span>
     </div>
     <div class="summary-row">
       <span class="summary-key">服務方案</span>
@@ -968,12 +965,6 @@ const BUDGET_TIERS = [
 
 var selectedBudgetTier = 'tier2';
 
-const renderCounts = [
-  { count: 3, label:'基礎張數' },
-  { count: 5, label:'標準張數', default:true },
-  { count: 8, label:'完整套組' },
-];
-
 // ── RENDER UI ─────────────────────────────────────────────────────────────────
 
 // ── 風格 + 色系 配對邏輯 ──────────────────────────────────────────────────────
@@ -1055,7 +1046,7 @@ function updateDirectionChips() {
   container.innerHTML = '';
   selectedDirections.forEach((d, i) => {
     const chip = document.createElement('div');
-    chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--gold);font-size:11px;color:var(--white);letter-spacing:1px;';
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border:1px solid var(--gold);background:rgba(201,169,110,0.06);font-size:13px;color:var(--white);letter-spacing:1px;';
     chip.innerHTML = `<span style="color:var(--gold);">${i+1}</span> ${d.styleName} × ${d.colorName}
       <button onclick="removeDirection(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 0 0 4px;">✕</button>`;
     container.appendChild(chip);
@@ -1113,25 +1104,6 @@ function buildSpecials() {
   });
 }
 
-function buildRenderOptions() {
-  const container = document.getElementById('renderOptions');
-  renderCounts.forEach(r => {
-    const label = document.createElement('label');
-    label.className = 'render-card' + (r.default ? ' selected' : '');
-    label.innerHTML = `
-      <input type="radio" name="renders" value="${r.count}" ${r.default?'checked':''}>
-      <div class="render-count">${r.count}</div>
-      <div class="render-label">張&ensp;${r.label}</div>
-    `;
-    label.addEventListener('click', () => {
-      document.querySelectorAll('.render-card').forEach(c => c.classList.remove('selected'));
-      label.classList.add('selected');
-      updateSummary();
-    });
-    container.appendChild(label);
-  });
-}
-
 // ── REFERENCE PHOTOS ──────────────────────────────────────────────────────────
 let refFiles = [];
 document.getElementById('refInput').addEventListener('change', function(e) {
@@ -1159,8 +1131,8 @@ function renderRefPreviews() {
 
 // ── DESIGN MODE HINT ──────────────────────────────────────────────────────────
 var designHints = {
-  furnish: '系統從 5,000+ 件傢俱中挑選最搭的沙發、桌椅、燈具、窗簾、裝飾品，直接配進你的空間。牆壁、天花板、地板完全不動，費用最省，效果立竿見影。',
-  full:    '系統同時規劃木工天花板、系統櫃，以及所有傢俱軟裝的搭配。一張渲染圖看到底，最完整的改造方案。'
+  furnish: '從可購買的家具與軟裝中挑選最搭的沙發、茶几、地毯、燈具、窗簾、植栽，直接配進你的空間。牆壁、天花板、地板完全不動，費用最省，效果立竿見影。',
+  full:    '同時規劃木工天花板、系統櫃，以及所有家具軟裝的搭配。一張提案圖看到底，最完整的改造方案。'
 };
 function updateDesignHint() {
   var sel = document.getElementById('designMode');
@@ -1170,28 +1142,30 @@ function updateDesignHint() {
 }
 updateDesignHint();
 
-// ── BUDGET TIER (Phase A) ─────────────────────────────────────────────────────
-function buildBudgetTiers() {
-  var grid = document.getElementById('budgetTierGrid');
+// ── BUDGET PILLS (Phase A → B) ────────────────────────────────────────────────
+function buildBudgetPills() {
+  var grid = document.getElementById('budgetPills');
+  var desc = document.getElementById('budgetPillDesc');
   if (!grid) return;
   grid.innerHTML = '';
   BUDGET_TIERS.forEach(function(t) {
-    var card = document.createElement('label');
-    card.className = 'budget-tier-card' + (t.default ? ' selected' : '');
-    card.dataset.id = t.id;
-    card.innerHTML =
-      '<input type="radio" name="budgetTier" value="' + t.id + '"' + (t.default ? ' checked' : '') + '>' +
-      '<div class="budget-tier-amount">' + t.amount + '</div>' +
-      '<div class="budget-tier-name">' + t.name + '</div>' +
-      '<div class="budget-tier-hint">' + t.hint + '</div>';
-    card.addEventListener('click', function() {
+    var pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'budget-pill' + (t.default ? ' selected' : '');
+    pill.dataset.id = t.id;
+    pill.textContent = t.amount;
+    pill.addEventListener('click', function() {
       selectedBudgetTier = t.id;
-      document.querySelectorAll('.budget-tier-card').forEach(function(c) { c.classList.remove('selected'); });
-      card.classList.add('selected');
+      document.querySelectorAll('.budget-pill').forEach(function(c) { c.classList.remove('selected'); });
+      pill.classList.add('selected');
+      if (desc) desc.textContent = t.name;
       updateSummary();
     });
-    grid.appendChild(card);
+    grid.appendChild(pill);
   });
+  // 初始描述
+  var defaultTier = BUDGET_TIERS.find(function(t) { return t.default; }) || BUDGET_TIERS[0];
+  if (desc && defaultTier) desc.textContent = defaultTier.name;
 }
 
 // ── CUSTOMER NOTES counter (Phase A) ──────────────────────────────────────────
@@ -1209,6 +1183,37 @@ const SPACE_LABEL_ZH = {
   study: '書房', bathroom: '浴室', balcony: '陽台', whole: '全室',
 };
 
+// 「你將收到的內容」依方案連動（純前端文案，不影響後端）
+const DELIVERABLES = {
+  single: [
+    '2 種風格的設計提案',
+    '為你搭配好的家具清單（可購買連結）',
+    '空間格局與採光分析',
+    '風格與色調建議',
+  ],
+  multi: [
+    '2 種風格 × 多視角的設計提案',
+    '為你搭配好的家具清單（可購買連結）',
+    '空間格局與採光分析',
+    '風格與色調建議',
+  ],
+  full: [
+    '2 種風格的設計提案',
+    '台灣設計師人工審核與補充建議',
+    '為你搭配好的家具清單（可購買連結）',
+    '空間格局、採光與材料建議',
+  ],
+};
+
+function updateDeliverables(plan) {
+  var ul = document.getElementById('deliverList');
+  if (!ul) return;
+  var list = DELIVERABLES[plan] || DELIVERABLES['single'];
+  ul.innerHTML = list.map(function(item) {
+    return '<li style="display:flex;align-items:flex-start;gap:10px;"><span style="color:var(--gold);flex-shrink:0;">✦</span><span>' + item + '</span></li>';
+  }).join('');
+}
+
 function updateSummary() {
   const spaceTypeVal = document.getElementById('spaceType').value;
   const spaceLabel   = SPACE_LABEL_ZH[spaceTypeVal] || spaceTypeVal;
@@ -1221,40 +1226,23 @@ function updateSummary() {
   if (selectedStyle)   document.getElementById('s-style').textContent  = selectedStyle.textContent;
   if (selectedPalette) document.getElementById('s-color').textContent  = selectedPalette.textContent.replace(' ✦','');
 
-  // 方案層級 → 渲染圖數 + 價格
+  // 方案 → 顯示名 + 價格（張數不再露出）
   if (plan === 'multi') {
-    document.getElementById('s-renders').textContent = '6 張（3 視角 × 2 風格）';
     document.getElementById('s-plan').textContent    = '多角度方案';
     document.getElementById('s-price').textContent   = 'NT$ 1,799';
   } else if (plan === 'full') {
-    document.getElementById('s-renders').textContent = '2 張 + 設計師審核';
     document.getElementById('s-plan').textContent    = '設計師審核方案';
     document.getElementById('s-price').textContent   = 'NT$ 9,800';
   } else { // single
-    document.getElementById('s-renders').textContent = '2 張（2 風格）';
     document.getElementById('s-plan').textContent    = '概念方案';
     document.getElementById('s-price').textContent   = spaceTypeVal === 'whole' ? 'NT$ 1,799' : 'NT$ 1,199';
   }
+
+  updateDeliverables(plan);
 }
 
-// ── 渲染輸出說明依空間類型動態顯示 ──
-function updateRenderAngleHint() {
-  var spaceTypeVal = document.getElementById('spaceType').value;
-  var hint = document.getElementById('renderAngleHint');
-  if (!hint) return;
-  if (spaceTypeVal === 'whole') {
-    hint.innerHTML = '<strong style="color:var(--gold);">指定空間 · 精選主視角</strong><br>系統理解整戶格局後，挑出最具設計呈現價值的角度，各做 2 種風格設計提案（共 2 張）。';
-  } else {
-    hint.innerHTML = '<strong style="color:var(--gold);">指定空間 · 精選主視角</strong><br>系統理解空間後，從你上傳的照片中挑最有設計價值的角度，各做 2 種風格設計提案（共 2 張）。';
-  }
-}
-
-document.getElementById('spaceType').addEventListener('change', function() {
-  updateSummary();
-  updateRenderAngleHint();
-});
+document.getElementById('spaceType').addEventListener('change', updateSummary);
 document.getElementById('plan').addEventListener('change', updateSummary);
-updateRenderAngleHint();
 
 // ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
 var insightMap = {
@@ -1349,12 +1337,8 @@ function goCheckout() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-// 註：buildPalettes / buildMaterials / buildSpecials / buildExtraStyles 對應的
-// DOM 元素已不存在（paletteGrid / materialGrid / specialGrid / extraStyleGrid），
-// 早先呼叫會 throw TypeError 中斷整個 INIT 鏈。已移除 dead call。
 buildStyleGrid();
-buildRenderOptions();
-buildBudgetTiers();
+buildBudgetPills();
 updateSummary();
 </script>
 
