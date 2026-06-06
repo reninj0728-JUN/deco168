@@ -289,7 +289,8 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
 
     bad_flags = []
     for k in ("walls_changed", "recessed_space_added", "windows_changed",
-              "furniture_blocks_walkway", "sofa_faces_walkway"):
+              "furniture_blocks_walkway", "sofa_faces_walkway",
+              "sofa_outside_living_zone"):
         if validation.get(k):
             bad_flags.append(k)
 
@@ -298,18 +299,22 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         # 結構幻想（既有）
         "開口被封", "走廊消失", "牆面改變", "填平", "封閉", "通道",
         "封住", "被封", "封死",
-        # 家具擋動線（新）
+        # 家具擋動線
         "家具擋", "沙發擋", "茶几擋", "地毯擋",
         "擋住走道", "擋住動線", "擋住通道", "擋住開口", "擋住走廊",
         "阻擋通道", "阻擋走道", "阻擋動線", "阻擋走廊",
         "動線不順", "動線受阻", "走道被擋", "通道被擋",
         "走廊開口被擋", "開口被擋",
         "浮在中間", "擋在中間", "沙發浮", "繞行",
-        # 沙發朝向錯誤（新）
+        # 沙發朝向錯誤
         "沙發朝向走道", "沙發朝向通道", "沙發朝向走廊", "沙發朝向房門", "沙發朝向開口",
         "沙發面對走道", "沙發面對通道", "沙發面對走廊", "沙發面對房門", "沙發面對開口",
         "朝向走道", "朝向通道", "朝向走廊", "朝向房門",
         "面對走道", "面對通道", "面對走廊", "面對房門",
+        # 沙發未在確認 living zone（Commit A 新）
+        "未在確認", "違反確認分區", "違反 living zone", "違反客戶確認",
+        "未在客戶確認", "未在 living zone", "未在客廳區",
+        "沙發跑到", "沙發放錯區", "沙發位置不對",
         # 英文 fallback（Gemini 偶爾回英文）
         "walkway blocked", "corridor blocked",
         "blocks the walkway", "blocking the walkway",
@@ -317,6 +322,11 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         "sofa faces the corridor", "sofa faces the walkway",
         "sofa facing the corridor", "sofa facing the walkway",
         "sofa faces the doorway", "sofa facing the doorway",
+        "sofa outside the confirmed",
+        "outside the confirmed living zone",
+        "violates the confirmed zone",
+        "violates the confirmed layout",
+        "not in the confirmed living zone",
     ]
     matched_kw = [kw for kw in bad_kw if kw in reason]
     if matched_kw:
@@ -658,6 +668,29 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         # ── 結構保留驗證（純評估、不重跑、不過濾、不影響前端）──
         write_status(job_id, job_dir, "validating", 85, "確認設計品質中…")
+
+        # Commit A：把 user_confirmed_v2 的 layout 資訊送給 validate_render
+        # 讓 Gemini 多回一個 sofa_outside_living_zone flag
+        def _build_layout_ctx(zr: dict | None) -> dict | None:
+            if not isinstance(zr, dict):
+                return None
+            if zr.get("_origin") != "user_confirmed_v2":
+                return None
+            zones = zr.get("zones") or {}
+            living = (zones.get("living_zone") or {}).get("where", "")
+            if not living:
+                return None
+            walkway = (zones.get("walkway") or {}).get("where", "")
+            rules = zr.get("furniture_placement_rules") or {}
+            return {
+                "layout_choice":  zr.get("_layout_choice") or "A",
+                "living_where":   living,
+                "sofa_wall_rule": rules.get("sofa_wall", ""),
+                "walkway":        walkway,
+            }
+
+        layout_ctx = _build_layout_ctx(zoning_result)
+
         try:
             from gemini_analyze import validate_render
             for r in final:
@@ -665,7 +698,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 rpath = r.get("render_path") or ""
                 if bpath and rpath and Path(bpath).exists() and Path(rpath).exists():
                     try:
-                        v = validate_render(bpath, rpath, r.get("_angle_label", ""))
+                        v = validate_render(bpath, rpath, r.get("_angle_label", ""),
+                                            layout_context=layout_ctx)
                     except Exception as ve:
                         v = {"ok": None, "error": str(ve)[:200]}
                 else:
@@ -722,13 +756,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         new_r["render_path"] = str(new_p)
                     except Exception:
                         pass
-                # 重新 validate
+                # 重新 validate（沿用同一個 layout_ctx）
                 try:
                     from gemini_analyze import validate_render
                     bpath = entry["_base_path"]
                     rpath = new_r.get("render_path") or ""
                     if rpath and Path(bpath).exists() and Path(rpath).exists():
-                        new_v = validate_render(bpath, rpath, entry["_angle_label"])
+                        new_v = validate_render(bpath, rpath, entry["_angle_label"],
+                                                layout_context=layout_ctx)
                     else:
                         new_v = {"ok": None, "error": "missing base or render path after retry"}
                 except Exception as ve:
