@@ -122,7 +122,59 @@ def extract_categories_from_prompt(flux_prompt: str) -> list[str]:
     return found or ["sofa", "table", "lighting"]  # 默認推薦三大類
 
 
-def score_item(item: dict, style: str, prompt_keywords: list[str], match_style: bool = True) -> float:
+# ── 長條型客廳：擺位敏感沙發降權規則（root-cause fix for L-sofa-in-narrow-room）──
+# aspect_ratio = max(L,W) / min(L,W)
+# 跨所有風格，不只 nordic
+LONG_ROOM_ASPECT_THRESHOLD = 2.0      # >= 2.0 才觸發
+LONG_ROOM_SHAPE_PENALTY    = -5.0     # 大降權但不硬排除（catalog 無直線替代時仍可保命）
+LONG_ROOM_BAD_SHAPE_KW = [
+    # L 型
+    "l型", "l形", "l 型", "l 形", "l-shape", "l shape", "l shaped",
+    # U 型
+    "u型", "u形", "u 型", "u 形", "u-shape", "u shape", "u shaped",
+    # 沙發床
+    "沙發床", "sofa bed", "sofabed", "sleeper sofa",
+    # 過深沙發（次要，加分排除）
+    "加深", "超深",
+]
+
+
+def compute_room_aspect_ratio(room_dims: dict | None) -> float:
+    """從 analysis.room_dimensions 算長寬比 = max(L,W)/min(L,W)。沒資料回 0。"""
+    if not isinstance(room_dims, dict):
+        return 0.0
+    try:
+        L = float(room_dims.get("length_m") or 0)
+        W = float(room_dims.get("width_m") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if L <= 0 or W <= 0:
+        return 0.0
+    return max(L, W) / min(L, W)
+
+
+def _long_room_sofa_penalty(item: dict, is_long_room: bool) -> float:
+    """
+    長條型客廳對「擺位敏感沙發」降權：
+      L 型 / U 型 / 沙發床 → -5 分
+    不影響其他家具（茶几/地毯/燈等）。
+    回 0 或 LONG_ROOM_SHAPE_PENALTY。
+    """
+    if not is_long_room:
+        return 0.0
+    if resolve_category(item) != "sofa":
+        return 0.0
+    name = (item.get("name_zh") or "").lower()
+    descriptor = (item.get("flux_descriptor") or "").lower()
+    blob = name + " " + descriptor
+    for kw in LONG_ROOM_BAD_SHAPE_KW:
+        if kw in blob:
+            return LONG_ROOM_SHAPE_PENALTY
+    return 0.0
+
+
+def score_item(item: dict, style: str, prompt_keywords: list[str],
+               match_style: bool = True, is_long_room: bool = False) -> float:
     """
     評分一件家具（不含類別加分，類別由外層篩選控制）
 
@@ -130,6 +182,7 @@ def score_item(item: dict, style: str, prompt_keywords: list[str], match_style: 
     - flux_prompt 關鍵字命中（descriptor 或 keywords 或 name）+1/個
     - 顏色命中 +0.5/個
     - 有圖片 +1，有購買連結 +0.5
+    - 長條型客廳 + L/U/沙發床 → -5（避免 Nano Banana 跟著 ref 圖做 L 形擋走道）
     """
     score = 0.0
 
@@ -158,6 +211,9 @@ def score_item(item: dict, style: str, prompt_keywords: list[str], match_style: 
     if item.get("purchase_url"):
         score += 0.5
 
+    # 長條型客廳沙發形狀降權
+    score += _long_room_sofa_penalty(item, is_long_room)
+
     return score
 
 
@@ -166,10 +222,12 @@ def _pick_best_in_category(
     style: str,
     prompt_keywords: list[str],
     catalog: list[dict],
+    is_long_room: bool = False,
 ) -> dict | None:
     """
     在指定 category 中，先撈同風格 → 再 fallback 相近風格 → 否則 None。
     Fallback 只放寬風格，category 鎖死（不准用 chair 替代 sofa）。
+    is_long_room=True 時，sofa 撈取會對 L/U/沙發床降權（降權不硬排除，保命撈直線）。
     """
     # Stage A: 嚴格同風格
     primary = [
@@ -178,7 +236,7 @@ def _pick_best_in_category(
         and style in it.get("style_tags", [])
     ]
     if primary:
-        scored = [(score_item(it, style, prompt_keywords), it) for it in primary]
+        scored = [(score_item(it, style, prompt_keywords, is_long_room=is_long_room), it) for it in primary]
         scored.sort(key=lambda x: -x[0])
         return scored[0][1]
 
@@ -191,7 +249,7 @@ def _pick_best_in_category(
             and any(s in it.get("style_tags", []) for s in related)
         ]
         if fallback:
-            scored = [(score_item(it, style, prompt_keywords, match_style=False), it) for it in fallback]
+            scored = [(score_item(it, style, prompt_keywords, match_style=False, is_long_room=is_long_room), it) for it in fallback]
             scored.sort(key=lambda x: -x[0])
             return scored[0][1]
 
@@ -204,12 +262,15 @@ def match_furniture(
     catalog: list[dict],
     top_n: int = 5,
     mode: str = 'living',
+    is_long_room: bool = False,
 ) -> list[dict]:
     """
     兩階段配對（mode='living' 預設）：
       Stage 1: LIVING_MUST_HAVE 每類保證撈 1 件（同風格 → fallback 風格）
       Stage 2: LIVING_NICE_TO_HAVE 補滿 top_n（依分數）
       全程排除 LIVING_EXCLUDED
+
+    is_long_room=True 時，sofa 撈取會避開 L/U/沙發床（跨所有風格）
 
     其他 mode 暫沿用「全分類混評分 + 每類 1 件」舊邏輯（未來再擴）
     """
@@ -229,7 +290,7 @@ def match_furniture(
 
     # Stage 1: MUST_HAVE
     for cat in must:
-        best = _pick_best_in_category(cat, style, prompt_keywords, pool)
+        best = _pick_best_in_category(cat, style, prompt_keywords, pool, is_long_room=is_long_room)
         if best is not None:
             selected_by_cat[cat] = best
 
@@ -241,7 +302,7 @@ def match_furniture(
             if resolve_category(it) in nice
             and resolve_category(it) not in selected_by_cat
         ]
-        scored = [(score_item(it, style, prompt_keywords), it) for it in nice_pool]
+        scored = [(score_item(it, style, prompt_keywords, is_long_room=is_long_room), it) for it in nice_pool]
         scored.sort(key=lambda x: -x[0])
         for _, it in scored:
             cat = resolve_category(it)
@@ -367,12 +428,20 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None) -> list[di
     max_w = parse_max_width_cm(estimated_size, room_dims)
     print(f"[furniture_match] 空間: {estimated_size} → 傢俱寬度上限: {max_w}cm")
 
+    # 長條型客廳判定（root cause fix for L sofa-in-narrow-room）
+    aspect = compute_room_aspect_ratio(room_dims)
+    is_long_room = aspect >= LONG_ROOM_ASPECT_THRESHOLD
+    if aspect > 0:
+        print(f"[furniture_match] 客廳長寬比={aspect:.2f}  is_long_room={is_long_room}"
+              + (f"  → L/U/沙發床 降權 {LONG_ROOM_SHAPE_PENALTY}" if is_long_room else ""))
+
     enriched = []
     for render in renders:
         style = render.get("style", "")
         flux_prompt = render.get("flux_prompt", "")
         # 多撈一些供尺寸過濾，再切到 5。但客廳 must_have 已在 stage1 鎖住，不會被擠掉。
-        matched = match_furniture(style, flux_prompt, catalog, top_n=8, mode='living')
+        matched = match_furniture(style, flux_prompt, catalog, top_n=8, mode='living',
+                                  is_long_room=is_long_room)
         matched = filter_by_dimensions(matched, max_w)[:5]
 
         render_copy = dict(render)
