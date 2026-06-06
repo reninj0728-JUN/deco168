@@ -184,125 +184,6 @@
 
     .upload-full { grid-column: 1 / -1; }
 
-    /* VOICE INPUT */
-    .voice-section {
-      border: 1px solid var(--line);
-      padding: 40px;
-      margin-bottom: 20px;
-      position: relative;
-    }
-
-    .voice-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 24px;
-    }
-
-    .voice-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--white);
-      letter-spacing: 0.5px;
-    }
-
-    .voice-subtitle {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 4px;
-    }
-
-    .voice-btn {
-      width: 56px; height: 56px;
-      border-radius: 50%;
-      border: 1px solid var(--gold);
-      background: transparent;
-      color: var(--gold);
-      font-size: 22px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background .25s;
-      flex-shrink: 0;
-    }
-    .voice-btn:hover { background: rgba(201,169,110,0.1); }
-    .voice-btn.recording { background: rgba(201,169,110,0.15); animation: pulse 1.5s infinite; }
-
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(201,169,110,0.4); }
-      50% { box-shadow: 0 0 0 12px rgba(201,169,110,0); }
-    }
-
-    .voice-wave {
-      height: 40px;
-      background: var(--dark);
-      border: 1px solid var(--line);
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      padding: 0 16px;
-    }
-
-    .wave-bar {
-      width: 2px;
-      background: var(--gold);
-      border-radius: 1px;
-      opacity: 0.3;
-      animation: none;
-    }
-
-    .voice-btn.recording ~ * .wave-bar,
-    .wave-bar.active {
-      animation: wave 0.8s ease-in-out infinite alternate;
-      opacity: 0.8;
-    }
-
-    @keyframes wave {
-      from { height: 4px; }
-      to { height: 28px; }
-    }
-
-    .voice-transcript {
-      font-size: 13px;
-      color: var(--body);
-      line-height: 1.8;
-      min-height: 48px;
-      font-style: italic;
-    }
-
-    .voice-or {
-      text-align: center;
-      font-size: 10px;
-      letter-spacing: 2px;
-      color: var(--muted);
-      margin: 20px 0;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .voice-or::before, .voice-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-
-    .voice-textarea {
-      width: 100%;
-      background: var(--dark);
-      border: 1px solid var(--line);
-      color: var(--white);
-      font-family: 'Inter', sans-serif;
-      font-size: 13px;
-      font-weight: 300;
-      padding: 16px 20px;
-      resize: none;
-      height: 80px;
-      outline: none;
-      transition: border-color .25s;
-      line-height: 1.7;
-    }
-    .voice-textarea::placeholder { color: var(--muted); }
-    .voice-textarea:focus { border-color: var(--gold); }
-
     /* FILE LIST */
     .file-list {
       margin-top: 16px;
@@ -541,47 +422,6 @@
 
   <div class="section-divider"></div>
 
-  <!-- 語音輸入 -->
-  <div class="section-label">描述你想要的風格</div>
-  <div class="voice-section">
-    <div class="voice-header">
-      <div>
-        <div class="voice-title">語音輸入</div>
-        <div class="voice-subtitle">說說你想要什麼風格、特殊需求、預算範圍</div>
-      </div>
-      <button class="voice-btn" id="voice-btn" onclick="toggleRecording()">🎙️</button>
-    </div>
-
-    <div class="voice-wave" id="voice-wave">
-      <div class="wave-bar" style="height:6px; animation-delay:0s"></div>
-      <div class="wave-bar" style="height:10px; animation-delay:0.1s"></div>
-      <div class="wave-bar" style="height:4px; animation-delay:0.2s"></div>
-      <div class="wave-bar" style="height:14px; animation-delay:0.3s"></div>
-      <div class="wave-bar" style="height:8px; animation-delay:0.15s"></div>
-      <div class="wave-bar" style="height:18px; animation-delay:0.25s"></div>
-      <div class="wave-bar" style="height:6px; animation-delay:0.05s"></div>
-      <div class="wave-bar" style="height:12px; animation-delay:0.35s"></div>
-      <div class="wave-bar" style="height:20px; animation-delay:0.1s"></div>
-      <div class="wave-bar" style="height:8px; animation-delay:0.2s"></div>
-      <div class="wave-bar" style="height:16px; animation-delay:0.3s"></div>
-      <div class="wave-bar" style="height:10px; animation-delay:0.05s"></div>
-      <div class="wave-bar" style="height:6px; animation-delay:0.15s"></div>
-      <div class="wave-bar" style="height:14px; animation-delay:0.25s"></div>
-      <div class="wave-bar" style="height:4px; animation-delay:0s"></div>
-    </div>
-
-    <div class="voice-transcript" id="transcript">點擊麥克風開始說話...</div>
-
-    <div class="voice-or">或直接文字輸入</div>
-
-    <textarea class="voice-textarea" id="style-text" placeholder="例如：我想要北歐風格，喜歡木質感，預算約 80 萬，客廳希望開放式，需要大量收納..."></textarea>
-
-    <div style="margin-top:12px; display:flex; align-items:center; gap:8px; font-size:11px; color:#555; letter-spacing:0.5px; line-height:1.6;">
-      <span style="color:#C9A96E; font-size:13px; flex-shrink:0;">✦</span>
-      <span>可以不填——下一步會由你自選 2 種設計風格，系統會根據空間分析提供推薦標記。</span>
-    </div>
-  </div>
-
   <!-- 拍攝提示 -->
   <div class="tips-box">
     <div class="tips-title">✦ 拍攝小提示，讓系統理解更準確</div>
@@ -648,52 +488,6 @@
       `;
       list.appendChild(item);
     });
-  }
-
-  // 語音錄製
-  let isRecording = false;
-  let recognition = null;
-
-  function toggleRecording() {
-    const btn = document.getElementById('voice-btn');
-    const transcript = document.getElementById('transcript');
-    const bars = document.querySelectorAll('.wave-bar');
-
-    if (!isRecording) {
-      isRecording = true;
-      btn.classList.add('recording');
-      btn.textContent = '⏹️';
-      bars.forEach((b, i) => {
-        b.style.animation = `wave ${0.4 + Math.random()*0.6}s ease-in-out ${i*0.05}s infinite alternate`;
-        b.style.opacity = '0.8';
-      });
-      transcript.textContent = '正在錄音中...';
-
-      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'zh-TW';
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.onresult = (e) => {
-          let text = '';
-          for (let i = 0; i < e.results.length; i++) {
-            text += e.results[i][0].transcript;
-          }
-          transcript.textContent = text;
-          document.getElementById('style-text').value = text;
-        };
-        recognition.start();
-      }
-    } else {
-      isRecording = false;
-      btn.classList.remove('recording');
-      btn.textContent = '🎙️';
-      bars.forEach(b => {
-        b.style.animation = 'none';
-        b.style.opacity = '0.3';
-      });
-      if (recognition) recognition.stop();
-    }
   }
 
   // 下一步
@@ -832,9 +626,6 @@
 
       localStorage.setItem('deco_upload_id', data.upload_id);
       localStorage.setItem('deco_files_count', String(data.count));
-
-      var styleText = document.getElementById('style-text').value.trim();
-      if (styleText) localStorage.setItem('deco_style_text', styleText);
 
       window.location.href = 'style-form.html';
     } catch (e) {
