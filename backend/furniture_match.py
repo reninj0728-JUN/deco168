@@ -134,6 +134,8 @@ LONG_ROOM_BAD_SHAPE_KW = [
     "u型", "u形", "u 型", "u 形", "u-shape", "u shape", "u shaped",
     # 沙發床
     "沙發床", "sofa bed", "sofabed", "sleeper sofa",
+    # 貴妃沙發 / chaise（非對稱單側延伸，本質與 L 沙發同類問題）
+    "貴妃", "貴妃椅", "貴妃座", "chaise", "chaise lounge", "chaise longue",
     # 過深沙發（次要，加分排除）
     "加深", "超深",
 ]

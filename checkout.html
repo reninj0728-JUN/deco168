@@ -328,6 +328,7 @@
     <div class="plan-card selected" id="planA" onclick="selectPlan('A')">
       <div class="plan-badge">方案 A · 概念渲染</div>
       <div class="plan-name" id="planAName">1 個空間 × 2 風格 設計提案</div>
+      <div class="plan-tagline" id="planATagline" style="font-size:11px;color:var(--muted);letter-spacing:1.5px;margin-top:6px;margin-bottom:14px;line-height:1.6;">兩種風格、兩張提案，先幫你看見家的方向。</div>
       <div class="plan-price"><span id="planAPrice">NT$1,199</span><span>/ 次</span></div>
       <div class="plan-divider"></div>
       <ul class="plan-features">
@@ -430,8 +431,14 @@
   (function applyPlanTierToCard() {
     var nameEl  = document.getElementById('planAName');
     var priceEl = document.getElementById('planAPrice');
+    var tagEl   = document.getElementById('planATagline');
     if (nameEl)  nameEl.textContent  = planAName();
     if (priceEl) priceEl.textContent = 'NT$' + fmt(planABasePrice());
+    if (tagEl) {
+      tagEl.textContent = planTier === 'multi'
+        ? '三個視角、兩種風格，從不同角度看見家。'
+        : '兩種風格、兩張提案，先幫你看見家的方向。';
+    }
     var featEl = document.querySelector('#planA .plan-features');
     if (!featEl) return;
     var rowSplit = '<li><span class="ico grey">—</span><span style="color:var(--muted)">設計師人工審核</span></li>'

@@ -335,7 +335,9 @@
     var imgUrl = r.render_url || (r.render_filename && JOB_ID
       ? API_BASE + '/jobs/' + JOB_ID + '/' + r.render_filename : null);
     var label    = group.label;
+    // 單空間 single 模式：把「主視角」改成更口語的「客廳主視角」（已知空間是 living）
     var angleLbl = r.angle_label || ('角度 ' + (idx+1));
+    if (angleLbl === '主視角') angleLbl = '客廳主視角';
     var furn     = r.matched_furniture || [];
     var total    = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
     var nAngles  = group.angles.length;
@@ -350,7 +352,7 @@
           '</div>' +
           '<button class="angle-arrow" onclick="nextAngle(\'' + group.style + '\')">›</button>' +
         '</div>'
-      : '<div class="angle-indicator solo"><span class="angle-name">' + angleLbl + '</span></div>';
+      : '';   // 單角度時不重複顯示，下方 render-label 已有「風格 · 視角」
 
     var imgSection = imgUrl
       ? '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
@@ -387,14 +389,18 @@
             '</div></div>';
         }).join('') +
         (total > 0
-          ? '<div class="total-bar"><div class="total-label">傢俱小計（' + furn.length + '件）</div>' +
-            '<div class="total-price">NT$' + total.toLocaleString() + '</div></div>'
+          ? '<div class="total-bar">' +
+              '<div class="total-label">選用商品總計（' + furn.length + ' 件）' +
+                '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:4px;">若採用此搭配，預估花費</div>' +
+              '</div>' +
+              '<div class="total-price">NT$' + total.toLocaleString() + '</div>' +
+            '</div>'
           : '')
-      : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">傢俱清單生成中…</p>';
+      : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">商品清單生成中…</p>';
 
     return '<div class="panel-grid">' +
            '<div class="render-box">' + imgSection + '</div>' +
-           '<div class="furniture-box"><h3>推薦傢俱清單</h3>' + furnItems + '</div>' +
+           '<div class="furniture-box"><h3>為你搭配的家具</h3>' + furnItems + '</div>' +
            '</div>';
   }
 

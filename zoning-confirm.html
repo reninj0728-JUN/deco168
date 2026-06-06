@@ -51,6 +51,9 @@
     .opt .opt-label { font-size: 11px; letter-spacing: 3px; color: var(--muted); margin-bottom: 6px; }
     .opt .opt-name { font-family:'Cormorant Garamond',serif; font-size: 22px; color: var(--white); margin-bottom: 10px; letter-spacing: 1px; }
     .opt .opt-line { font-size: 13px; color: var(--body); line-height: 1.7; margin-bottom: 4px; }
+    .opt .opt-reasons { list-style: none; padding: 14px 0 0; margin: 12px 0 0; border-top: 1px solid var(--line); }
+    .opt .opt-reasons li { font-size: 11px; color: var(--muted); line-height: 1.7; padding-left: 12px; position: relative; }
+    .opt .opt-reasons li::before { content: '·'; color: var(--gold); position: absolute; left: 0; }
     .opt .opt-line .k { color: var(--gold); font-size: 11px; letter-spacing: 2px; margin-right: 8px; }
     .opt input[type=radio] { display:none; }
 
@@ -121,6 +124,11 @@
         <div class="opt-name">靠窗做客廳</div>
         <div class="opt-line"><span class="k">客廳</span><span id="livingA">—</span></div>
         <div class="opt-line"><span class="k">餐廳</span><span id="diningA">—</span></div>
+        <ul class="opt-reasons">
+          <li>採光最好，客廳坐起來最舒服</li>
+          <li>走道保留在側邊，動線比較順</li>
+          <li>長型空間視覺往窗邊延伸，更顯開闊</li>
+        </ul>
       </label>
 
       <label class="opt" id="optB">
@@ -129,6 +137,11 @@
         <div class="opt-name">靠窗做餐廳/書房</div>
         <div class="opt-line"><span class="k">客廳</span><span id="livingB">—</span></div>
         <div class="opt-line"><span class="k">餐廳</span><span id="diningB">—</span></div>
+        <ul class="opt-reasons">
+          <li>適合想在窗邊做餐桌、書桌或閱讀區</li>
+          <li>客廳改放前段，沙發尺寸要更克制</li>
+          <li>適合不需要大沙發、偏多功能使用的人</li>
+        </ul>
       </label>
     </div>
 
