@@ -1478,12 +1478,6 @@
     btn.textContent = '下一步：確認風格 →';
   }
 
-  // 渲染後一律重算 summary + next 狀態
-  var _origRenderRooms = renderRooms;
-  renderRooms = function() {
-    _origRenderRooms();
-  };
-
   // ── nextStep ─────────────────────────────────────────────────────────────
   async function nextStep() {
     // 沒主空間 / 主空間沒 uploaded → 阻擋
@@ -1550,10 +1544,42 @@
           btn.disabled = false;
           return;
         }
+        // 示範模式：清掉舊 rooms 殘留，下一頁照舊
+        try { localStorage.removeItem('deco_rooms'); } catch (e) {}
+        window.location.href = 'style-form.html';
+        return;
       }
 
-      // 注意：C2-front-2 才會寫 localStorage.deco_rooms 與 rooms_json
-      // 本版（C2-front-1）只重構 UI，行為仍走 flat photo_keys（與 DAF4D135 那種訂單等效）
+      // ── P2-MVP-0 / C2-front-2: 寫 rooms[] 到 localStorage 給 checkout 用 ──
+      // 過濾規則：
+      //   - 至少 1 張 uploaded 照片，或
+      //   - 有 room_notes 內容
+      //   - other_a 必須已選類型才視為有效
+      //   - custom_room 必須已命名才視為有效
+      // primary 一定要有 uploaded 照片（前面 nextStep 開頭已驗）
+      var validRooms = roomsState.filter(function(r) {
+        if (r.is_other_a && !r.room_type) return false;
+        if (r.is_custom && !(r.room_label || '').trim()) return false;
+        var anyUploaded = r.photos.some(function(p) { return p.status === 'uploaded' && p.key; });
+        var hasNotes = (r.room_notes || '').trim().length > 0;
+        return anyUploaded || hasNotes;
+      }).map(function(r) {
+        return {
+          room_id:    r.room_id,
+          room_type:  r.room_type,
+          room_label: r.room_label,
+          is_primary: !!r.is_primary,
+          room_notes: (r.room_notes || '').slice(0, ROOM_NOTES_MAX),
+          photo_keys: r.photos.filter(function(p) { return p.status === 'uploaded' && p.key; })
+                              .map(function(p) { return p.key; })
+        };
+      });
+
+      try {
+        localStorage.setItem('deco_rooms', JSON.stringify(validRooms));
+      } catch (e) {
+        console.warn('[upload] failed to write deco_rooms', e);
+      }
 
       window.location.href = 'style-form.html';
     } catch (e) {

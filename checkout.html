@@ -505,6 +505,60 @@
     var renderAngle = localStorage.getItem('deco_render_angle') || 'multi';
     var designMode  = localStorage.getItem('deco_design_mode') || 'furnish';
 
+    // ── P2-MVP-0 / C2-front-2: rooms_json 嚴格驗證 ─────────────────────────
+    // 規則：
+    //   localStorage 完全沒 deco_rooms (舊前端訂單)       → 送空字串，C2-back legacy
+    //   有 deco_rooms 但解析失敗 / 結構錯 / primary 沒照片 → 阻止建單，要求返回上傳頁
+    //   有 deco_rooms 且結構正確                          → 送 stringify
+    // 不可在新介面已建立 rooms 的情況下偷偷退回 flat flow 把多空間混在一起。
+    var roomsRaw = localStorage.getItem('deco_rooms');
+    var roomsJsonForSend = '';
+    var roomsValidationError = '';
+
+    if (roomsRaw === null || roomsRaw === undefined) {
+      // 真．舊前端：localStorage 從來沒有 deco_rooms → 走 legacy
+      roomsJsonForSend = '';
+    } else {
+      // 新介面曾建立 deco_rooms → 必須嚴格驗證
+      try {
+        var parsedRooms = JSON.parse(roomsRaw);
+        if (!Array.isArray(parsedRooms)) {
+          roomsValidationError = 'rooms 不是陣列';
+        } else if (parsedRooms.length === 0) {
+          roomsValidationError = 'rooms 為空陣列';
+        } else {
+          var primaries = parsedRooms.filter(function(r) {
+            return r && typeof r === 'object' && r.is_primary === true;
+          });
+          if (primaries.length !== 1) {
+            roomsValidationError = 'rooms 必須有且只有一個主空間，目前 ' + primaries.length + ' 個';
+          } else {
+            var primary = primaries[0];
+            var keys = Array.isArray(primary.photo_keys) ? primary.photo_keys : [];
+            var validKeys = keys.filter(function(k) { return typeof k === 'string' && k.length > 0; });
+            if (validKeys.length === 0) {
+              roomsValidationError = '主空間沒有有效照片';
+            } else {
+              // 結構 OK
+              roomsJsonForSend = JSON.stringify(parsedRooms);
+            }
+          }
+        }
+      } catch (e) {
+        roomsValidationError = 'rooms JSON 解析失敗';
+      }
+    }
+
+    if (roomsValidationError) {
+      btn.innerHTML = '<div class="line-icon">L</div>以 LINE Pay 付款';
+      btn.disabled = false;
+      var msg = '空間照片資料不完整，請返回上傳頁重新確認。\n\n（' + roomsValidationError + '）';
+      if (confirm(msg + '\n\n按「確定」返回上傳頁，「取消」留在本頁。')) {
+        window.location.href = 'upload.html';
+      }
+      return;
+    }
+
     try {
       var fd = new FormData();
       fd.append('upload_id',    uploadId);
@@ -520,9 +574,19 @@
       fd.append('budget_tier',     localStorage.getItem('deco_budget_tier')     || 'tier2');
       fd.append('customer_notes',  (localStorage.getItem('deco_customer_notes') || '').slice(0, 300));
       fd.append('preferred_store', localStorage.getItem('deco_preferred_store') || 'none');
+      // P2-MVP-0：rooms_json（嚴格驗證後）
+      fd.append('rooms_json',      roomsJsonForSend);
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.ok) {
+        // C2-back 對無效 rooms_json 會回 400 + error message — 直接顯示給用戶
+        var errMsg = 'HTTP ' + resp.status;
+        try {
+          var errBody = await resp.json();
+          if (errBody && errBody.error) errMsg = errBody.error;
+        } catch (e) {}
+        throw new Error(errMsg);
+      }
       var data = await resp.json();
 
       localStorage.setItem('deco_job_id',      data.job_id);
