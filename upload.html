@@ -91,12 +91,12 @@
     /* MAIN */
     main {
       padding: 148px 48px 80px;
-      max-width: 900px;
+      max-width: 920px;
       margin: 0 auto;
     }
 
     .page-eyebrow {
-      font-size: 9px;
+      font-size: 10px;
       letter-spacing: 4px;
       text-transform: uppercase;
       color: var(--gold);
@@ -118,21 +118,33 @@
     .page-title em { font-style: italic; color: var(--gold); }
 
     .page-desc {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--body);
       line-height: 1.8;
       margin-bottom: 56px;
-      max-width: 540px;
+      max-width: 560px;
     }
 
-    /* UPLOAD SECTIONS */
-    .upload-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+    /* SECTION LABEL */
+    .section-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--gold);
       margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-label::before { content: ''; width: 20px; height: 1px; background: var(--gold); }
+
+    .section-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 48px 0;
     }
 
+    /* GENERIC UPLOAD BOX (影片 / 建物測量圖) */
     .upload-box {
       border: 1px dashed var(--line);
       padding: 40px 32px;
@@ -144,69 +156,267 @@
     }
     .upload-box:hover { border-color: var(--gold); background: rgba(201,169,110,0.03); }
     .upload-box.active { border-color: var(--gold); background: rgba(201,169,110,0.05); border-style: solid; }
-
     .upload-box input[type=file] {
       position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
     }
+    .upload-icon { font-size: 30px; margin-bottom: 14px; }
+    .upload-title { font-size: 14px; font-weight: 500; color: var(--white); margin-bottom: 8px; letter-spacing: 0.5px; }
+    .upload-hint { font-size: 12px; color: var(--body); line-height: 1.7; }
+    .upload-formats { margin-top: 14px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .format-tag { font-size: 10px; letter-spacing: 1px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; text-transform: uppercase; }
 
-    .upload-icon { font-size: 32px; margin-bottom: 16px; }
+    /* FLAT FILE LIST (影片 / 建物測量圖) */
+    .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .file-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--dark); border: 1px solid var(--line);
+      padding: 12px 16px; font-size: 12px; color: var(--body);
+    }
+    .file-item-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .file-item-left span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item-icon { color: var(--gold); font-size: 14px; flex-shrink: 0; }
+    .file-remove { color: var(--muted); cursor: pointer; font-size: 14px; transition: color .2s; border: none; background: none; padding: 8px; }
+    .file-remove:hover { color: #e74c3c; }
 
-    .upload-title {
+    /* PHOTO INTRO */
+    .photo-intro {
+      border-left: 2px solid var(--gold);
+      padding: 14px 20px;
+      background: rgba(201,169,110,0.04);
       font-size: 13px;
-      font-weight: 500;
-      color: var(--white);
-      margin-bottom: 8px;
+      color: var(--body);
+      line-height: 1.8;
+      margin-bottom: 28px;
+    }
+    .photo-intro strong { color: var(--white); font-weight: 400; }
+
+    /* ROOMS ACCORDION */
+    .rooms-container { display: flex; flex-direction: column; gap: 14px; }
+
+    .room-card {
+      border: 1px solid var(--line);
+      background: var(--dark);
+      transition: border-color .2s;
+    }
+    .room-card.expanded { border-color: rgba(201,169,110,0.4); }
+    .room-card.primary { border-color: var(--gold); }
+    .room-card.disabled { opacity: 0.55; }
+
+    .room-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 22px; cursor: pointer;
+      min-height: 60px;
+      user-select: none;
+    }
+    .room-head:hover { background: rgba(201,169,110,0.03); }
+
+    .room-head-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+    .room-name {
+      font-size: 15px; font-weight: 500; color: var(--white);
       letter-spacing: 0.5px;
     }
-
-    .upload-hint {
-      font-size: 11px;
-      color: var(--muted);
-      line-height: 1.7;
+    .room-badge {
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      padding: 4px 10px; border: 1px solid var(--gold); color: var(--gold);
+      flex-shrink: 0;
     }
-
-    .upload-formats {
-      margin-top: 12px;
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      flex-wrap: wrap;
+    .room-meta {
+      font-size: 12px; color: var(--muted); margin-left: 8px;
+      display: flex; gap: 14px; flex-wrap: wrap;
     }
+    .room-meta .ok { color: var(--gold-lt); }
 
-    .format-tag {
-      font-size: 9px;
-      letter-spacing: 1px;
-      color: var(--muted);
-      border: 1px solid var(--line);
-      padding: 3px 8px;
-      text-transform: uppercase;
+    .room-chevron {
+      font-size: 16px; color: var(--muted); transition: transform .25s;
+      flex-shrink: 0; padding: 4px 8px;
     }
+    .room-card.expanded .room-chevron { transform: rotate(180deg); color: var(--gold); }
 
-    .upload-full { grid-column: 1 / -1; }
-
-    /* FILE LIST */
-    .file-list {
-      margin-top: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+    .room-body {
+      display: none;
+      padding: 6px 22px 22px;
+      border-top: 1px solid var(--line);
     }
+    .room-card.expanded .room-body { display: block; }
 
-    .file-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    /* OTHER A: dropdown only when not selected */
+    .other-a-select {
+      width: 100%;
       background: var(--dark);
       border: 1px solid var(--line);
-      padding: 10px 16px;
-      font-size: 11px;
-      color: var(--body);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 16px 18px;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    .other-a-select:focus { border-color: var(--gold); outline: none; }
+
+    /* CUSTOM ROOM: name input only when not named */
+    .custom-name-input {
+      width: 100%;
+      background: var(--dark);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 16px 18px;
+      margin-top: 6px;
+    }
+    .custom-name-input:focus { border-color: var(--gold); outline: none; }
+
+    /* SET PRIMARY ROW */
+    .primary-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0; margin-top: 14px;
+      font-size: 13px; color: var(--body);
+    }
+    .btn-set-primary {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+      background: transparent; border: 1px solid var(--gold); color: var(--gold);
+      padding: 10px 18px; cursor: pointer; min-height: 40px;
+      transition: background .2s, color .2s;
+    }
+    .btn-set-primary:hover:not([disabled]) { background: var(--gold); color: var(--black); }
+    .btn-set-primary[disabled] {
+      border-color: var(--line); color: var(--muted); cursor: not-allowed;
+    }
+    .primary-label-active {
+      font-size: 12px; color: var(--gold);
+      letter-spacing: 2px; text-transform: uppercase;
     }
 
-    .file-item-left { display: flex; align-items: center; gap: 10px; }
-    .file-item-icon { color: var(--gold); font-size: 14px; }
-    .file-remove { color: var(--muted); cursor: pointer; font-size: 14px; transition: color .2s; border: none; background: none; }
-    .file-remove:hover { color: #e74c3c; }
+    /* PHOTO DROPZONE per room */
+    .photo-drop {
+      border: 1px dashed var(--line);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      margin-top: 16px;
+      min-height: 56px;
+    }
+    .photo-drop:hover { border-color: var(--gold); background: rgba(201,169,110,0.03); }
+    .photo-drop.active { border-color: var(--gold); background: rgba(201,169,110,0.05); border-style: solid; }
+    .photo-drop input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .photo-drop-text {
+      font-size: 13px; color: var(--body); line-height: 1.7;
+    }
+    .photo-drop-text strong { color: var(--white); font-weight: 400; }
+    .photo-drop-sub {
+      font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 0.5px;
+    }
+
+    /* PHOTO GRID */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .photo-tile {
+      position: relative;
+      aspect-ratio: 1;
+      background: var(--card);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .photo-tile img {
+      width: 100%; height: 100%; object-fit: cover;
+      display: block;
+    }
+    .photo-tile-empty {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 18px;
+    }
+    .photo-tile-remove {
+      position: absolute; top: 6px; right: 6px;
+      width: 26px; height: 26px;
+      background: rgba(0,0,0,0.65);
+      border: none;
+      color: var(--white);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+    }
+    .photo-tile-remove:hover { background: rgba(192,57,43,0.85); }
+    .photo-tile-status {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 6px 8px;
+      font-size: 10px; letter-spacing: 0.5px;
+      background: rgba(0,0,0,0.7);
+      color: var(--gold);
+    }
+    .photo-tile-status.uploading { color: var(--gold-lt); }
+    .photo-tile-status.failed { color: #e74c3c; }
+    .photo-tile-status.uploaded { display: none; }
+    .photo-tile-bar {
+      position: absolute; bottom: 0; left: 0; height: 2px;
+      background: var(--gold); transition: width .25s;
+    }
+    .photo-tile.failed { border-color: rgba(192,57,43,0.6); }
+    .photo-tile-retry {
+      position: absolute; top: 6px; left: 6px;
+      background: rgba(0,0,0,0.65); border: 1px solid var(--gold);
+      color: var(--gold);
+      font-size: 9px; letter-spacing: 1px;
+      padding: 4px 8px; cursor: pointer;
+    }
+
+    /* ROOM NOTES */
+    .room-notes-wrap { margin-top: 22px; }
+    .room-notes-label {
+      font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+      color: #999; margin-bottom: 8px;
+    }
+    textarea.room-notes {
+      width: 100%;
+      background: var(--black);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 300;
+      padding: 14px 16px;
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.8;
+    }
+    textarea.room-notes:focus { border-color: var(--gold); outline: none; }
+    .room-notes-count {
+      text-align: right; font-size: 10px; color: var(--muted);
+      margin-top: 4px; letter-spacing: 1px;
+    }
+
+    /* ROOMS SUMMARY (in-page progress hint) */
+    .rooms-summary {
+      margin-top: 28px;
+      padding: 16px 22px;
+      background: rgba(201,169,110,0.04);
+      border: 1px solid rgba(201,169,110,0.18);
+      font-size: 13px; color: var(--body); line-height: 1.7;
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    }
+    .rooms-summary strong { color: var(--gold); font-weight: 400; }
+
+    .rooms-warning {
+      margin-top: 14px;
+      padding: 12px 18px;
+      background: rgba(192,57,43,0.08);
+      border-left: 2px solid #e74c3c;
+      font-size: 12px; color: #ecaf9b; line-height: 1.7;
+      display: none;
+    }
+    .rooms-warning.show { display: block; }
 
     /* TIPS */
     .tips-box {
@@ -215,30 +425,14 @@
       margin-bottom: 40px;
       background: rgba(201,169,110,0.02);
     }
-
-    .tips-title {
-      font-size: 10px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 16px;
-    }
-
+    .tips-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; }
     .tips-list {
       list-style: none;
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px 32px;
     }
-
-    .tips-list li {
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      line-height: 1.6;
-    }
+    .tips-list li { font-size: 12px; color: var(--body); display: flex; align-items: flex-start; gap: 8px; line-height: 1.7; }
     .tips-list li::before { content: '—'; color: var(--gold); flex-shrink: 0; }
 
     /* ACTIONS */
@@ -249,67 +443,41 @@
       padding-top: 32px;
       border-top: 1px solid var(--line);
     }
-
     .btn-back {
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--muted);
-      background: transparent;
-      border: 1px solid var(--line);
-      padding: 14px 32px;
-      cursor: pointer;
-      font-family: 'Inter', sans-serif;
+      font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--muted); background: transparent;
+      border: 1px solid var(--line); padding: 16px 32px;
+      cursor: pointer; font-family: 'Inter', sans-serif;
       text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 48px;
     }
     .btn-back:hover { color: var(--white); border-color: var(--white); }
 
     .btn-next {
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--black);
-      background: var(--gold);
-      border: none;
-      padding: 14px 40px;
-      cursor: pointer;
-      font-family: 'Inter', sans-serif;
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      transition: background .25s;
+      font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--black); background: var(--gold);
+      border: none; padding: 16px 40px;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      display: inline-flex; align-items: center; gap: 10px;
+      transition: background .25s, opacity .25s;
+      min-height: 48px;
     }
-    .btn-next:hover { background: var(--gold-lt); }
-
-    .section-divider {
-      height: 1px;
-      background: var(--line);
-      margin: 32px 0;
-    }
-
-    .section-label {
-      font-size: 10px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .section-label::before { content: ''; width: 20px; height: 1px; background: var(--gold); }
+    .btn-next:hover:not(:disabled) { background: var(--gold-lt); }
+    .btn-next:disabled { opacity: 0.45; cursor: not-allowed; }
 
     @media (max-width: 768px) {
       nav { padding: 0 20px; }
       .progress-bar { padding: 0 20px; overflow-x: auto; }
-      main { padding: 148px 20px 60px; }
-      .upload-grid { grid-template-columns: 1fr; }
+      main { padding: 148px 18px 60px; }
+      .page-title { font-size: 32px; }
       .tips-list { grid-template-columns: 1fr; }
       .actions { flex-direction: column; gap: 16px; }
       .btn-back, .btn-next { width: 100%; justify-content: center; }
+      .room-head { padding: 16px 18px; }
+      .room-body { padding: 6px 18px 20px; }
+      .room-meta { gap: 8px; font-size: 11px; }
+      .photo-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
     }
 
     /* FAB — 查詢下載 */
@@ -346,78 +514,79 @@
 
 <!-- PROGRESS -->
 <div class="progress-bar">
-  <div class="step-item active">
-    <div class="step-num">1</div>上傳空間
-  </div>
+  <div class="step-item active"><div class="step-num">1</div>上傳空間</div>
   <span class="step-arrow">›</span>
-  <div class="step-item">
-    <div class="step-num">2</div>風格確認
-  </div>
+  <div class="step-item"><div class="step-num">2</div>風格確認</div>
   <span class="step-arrow">›</span>
-  <div class="step-item">
-    <div class="step-num">3</div>確認付款
-  </div>
+  <div class="step-item"><div class="step-num">3</div>確認付款</div>
   <span class="step-arrow">›</span>
-  <div class="step-item">
-    <div class="step-num">4</div>收取設計稿
-  </div>
+  <div class="step-item"><div class="step-num">4</div>收取設計稿</div>
 </div>
 
 <!-- MAIN -->
 <main>
   <p class="page-eyebrow">步驟 1 / 4</p>
   <h1 class="page-title">上傳你的<em>空間資料</em></h1>
-  <p class="page-desc">請上傳空間影片與照片，以及建物測量圖。資料越完整，系統對你的空間理解越精準，設計稿品質越好。</p>
+  <p class="page-desc">請依空間分別上傳照片並補充用途與想法。客廳為預設主空間，本次設計提案會優先針對主空間製作；其他空間的照片與需求會保留在本次資料中。</p>
 
-  <!-- 影片上傳 -->
-  <div class="section-label">空間影片</div>
-  <div class="upload-grid">
-    <div class="upload-box upload-full" id="video-box" ondragover="handleDrag(event, 'video-box')" ondragleave="handleLeave('video-box')" ondrop="handleDrop(event, 'video-input', 'video-list')">
-      <input type="file" id="video-input" accept="video/*" multiple onchange="handleFiles(this, 'video-list')">
-      <div class="upload-icon">🎬</div>
-      <div class="upload-title">拍攝每個房間，拖曳或點擊上傳</div>
-      <div class="upload-hint">
-        走一圈錄製，對準梁柱、門窗、天花板<br>
-        每個空間至少 30 秒，畫質清楚即可
-      </div>
-      <div class="upload-formats">
-        <span class="format-tag">MP4</span>
-        <span class="format-tag">MOV</span>
-        <span class="format-tag">最大 500MB</span>
-      </div>
+  <!-- 空間影片 -->
+  <div class="section-label">空間影片（選填）</div>
+  <div class="upload-box" id="video-box"
+       ondragover="handleDrag(event,'video-box')"
+       ondragleave="handleLeave('video-box')"
+       ondrop="handleDropVideo(event)">
+    <input type="file" id="video-input" accept="video/*" multiple onchange="handleVideoFiles(this)">
+    <div class="upload-icon">🎬</div>
+    <div class="upload-title">拍攝每個房間，拖曳或點擊上傳</div>
+    <div class="upload-hint">
+      走一圈錄製，對準梁柱、門窗、天花板<br>
+      每個空間至少 30 秒，畫質清楚即可
+    </div>
+    <div class="upload-formats">
+      <span class="format-tag">MP4</span>
+      <span class="format-tag">MOV</span>
+      <span class="format-tag">最大 500MB</span>
     </div>
   </div>
   <div class="file-list" id="video-list"></div>
 
   <div class="section-divider"></div>
 
-  <!-- 照片上傳 -->
+  <!-- 空間照片（7 空間 Accordion）-->
   <div class="section-label">空間照片</div>
-  <div class="upload-grid">
-    <div class="upload-box" id="photo-box" ondragover="handleDrag(event,'photo-box')" ondragleave="handleLeave('photo-box')" ondrop="handleDrop(event,'photo-input','photo-list')">
-      <input type="file" id="photo-input" accept="image/*" multiple onchange="handleFiles(this,'photo-list')">
-      <div class="upload-icon">📷</div>
-      <div class="upload-title">空間照片</div>
-      <div class="upload-hint">每個角落各一張<br>建議 8～16 張</div>
-      <div class="upload-formats">
-        <span class="format-tag">JPG</span>
-        <span class="format-tag">PNG</span>
-        <span class="format-tag">HEIC</span>
-      </div>
-    </div>
-    <div class="upload-box" id="plan-box" ondragover="handleDrag(event,'plan-box')" ondragleave="handleLeave('plan-box')" ondrop="handleDrop(event,'plan-input','plan-list')">
-      <input type="file" id="plan-input" accept=".pdf,image/*" multiple onchange="handleFiles(this,'plan-list')">
-      <div class="upload-icon">📐</div>
-      <div class="upload-title">建物測量圖</div>
-      <div class="upload-hint">地政事務所調閱<br>或建商提供的平面圖</div>
-      <div class="upload-formats">
-        <span class="format-tag">PDF</span>
-        <span class="format-tag">JPG</span>
-        <span class="format-tag">PNG</span>
-      </div>
+
+  <div class="photo-intro">
+    <strong>客廳預設為主空間。</strong>本方案會先為主空間製作提案；其他空間的照片與需求會保留在本次資料中。<br>
+    廣角全景照可直接上傳到「客廳」欄位，系統會自動辨識客廳、餐廳、廚房與主要動線，<strong>不需要重複上傳到餐廳</strong>。
+  </div>
+
+  <div class="rooms-container" id="rooms-container"></div>
+
+  <div class="rooms-summary" id="rooms-summary">
+    <span>已上傳 <strong id="totalCount">0</strong> 張照片</span>
+    <span>主空間：<strong id="primaryLabel">客廳</strong></span>
+  </div>
+
+  <div class="rooms-warning" id="roomsWarning"></div>
+
+  <div class="section-divider"></div>
+
+  <!-- 建物測量圖（整戶共用，不歸屬個別 room）-->
+  <div class="section-label">建物測量圖（選填）</div>
+  <div class="upload-box" id="plan-box"
+       ondragover="handleDrag(event,'plan-box')"
+       ondragleave="handleLeave('plan-box')"
+       ondrop="handleDropPlan(event)">
+    <input type="file" id="plan-input" accept=".pdf,image/*" multiple onchange="handlePlanFiles(this)">
+    <div class="upload-icon">📐</div>
+    <div class="upload-title">建物測量圖</div>
+    <div class="upload-hint">地政事務所調閱<br>或建商提供的平面圖</div>
+    <div class="upload-formats">
+      <span class="format-tag">PDF</span>
+      <span class="format-tag">JPG</span>
+      <span class="format-tag">PNG</span>
     </div>
   </div>
-  <div class="file-list" id="photo-list"></div>
   <div class="file-list" id="plan-list"></div>
 
   <div class="section-divider"></div>
@@ -430,7 +599,7 @@
       <li>對準梁柱特別停留 2 秒</li>
       <li>門窗全部入鏡</li>
       <li>天花板高度要拍到</li>
-      <li>衛浴、廚房不要跳過</li>
+      <li>建議至少包含一張能清楚看見主要牆面、門窗與走道的照片</li>
       <li>光線充足比畫質重要</li>
       <li>建物測量圖請拍清楚全圖</li>
       <li>有現有格局圖也一起上傳</li>
@@ -440,74 +609,201 @@
   <!-- 操作按鈕 -->
   <div class="actions">
     <a class="btn-back" href="index.html">← 返回首頁</a>
-    <button class="btn-next" onclick="nextStep()">下一步：確認風格 →</button>
+    <button class="btn-next" id="btnNext" onclick="nextStep()">下一步：確認風格 →</button>
   </div>
 </main>
 
 <script>
-  // 拖曳處理
-  function handleDrag(e, boxId) {
-    e.preventDefault();
-    document.getElementById(boxId).classList.add('active');
-  }
-  function handleLeave(boxId) {
-    document.getElementById(boxId).classList.remove('active');
-  }
-  var _photoFiles = [];
-  var _videoFiles = [];
-
-  function handleDrop(e, inputId, listId) {
-    e.preventDefault();
-    const box = e.currentTarget;
-    box.classList.remove('active');
-    const files = e.dataTransfer.files;
-    if (inputId === 'photo-input') Array.from(files).forEach(f => _photoFiles.push(f));
-    if (inputId === 'video-input') Array.from(files).forEach(f => _videoFiles.push(f));
-    renderFiles(files, listId);
-  }
-
-  // 檔案選取
-  function handleFiles(input, listId) {
-    if (input.id === 'photo-input') Array.from(input.files).forEach(f => _photoFiles.push(f));
-    if (input.id === 'video-input') Array.from(input.files).forEach(f => _videoFiles.push(f));
-    renderFiles(input.files, listId);
-  }
-
-  function renderFiles(files, listId) {
-    const list = document.getElementById(listId);
-    Array.from(files).forEach(file => {
-      const item = document.createElement('div');
-      item.className = 'file-item';
-      item.innerHTML = `
-        <div class="file-item-left">
-          <span class="file-item-icon">${file.type.includes('video') ? '🎬' : file.type.includes('pdf') ? '📄' : '🖼️'}</span>
-          <span>${file.name}</span>
-          <span style="color:var(--muted);font-size:10px;">${(file.size/1024/1024).toFixed(1)} MB</span>
-        </div>
-        <button class="file-remove" onclick="this.parentElement.remove()">✕</button>
-      `;
-      list.appendChild(item);
-    });
-  }
-
-  // 下一步
+  // ── 常數 ──────────────────────────────────────────────────────────────────
   var API_BASE = 'https://deco168-production.up.railway.app';
-
-  // ── Supabase Storage 設定（照片直傳，繞過 Railway 中轉）──
   var SUPABASE_URL = 'https://cjezgczjjsxfoeifduaj.supabase.co';
   // anon key 設計上就可以公開（受 RLS 限制；uploads bucket 有 anon INSERT policy）
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4';
 
+  var TOTAL_PHOTO_LIMIT = 30;
+  var ROOM_PHOTO_LIMIT  = 8;
+  var ROOM_NOTES_MAX    = 100;
+
+  // ── 7 個固定空間定義（順序也是 primary 自動轉移的順序）─────────────────
+  var ROOM_DEFS = [
+    { room_id: 'living_room',    room_type: 'living_room',    room_label: '客廳',           is_primary: true,  is_pinned: true },
+    { room_id: 'dining_room',    room_type: 'dining_room',    room_label: '餐廳',           is_primary: false, is_pinned: true },
+    { room_id: 'master_bedroom', room_type: 'master_bedroom', room_label: '房間 1（主臥）', is_primary: false, is_pinned: true },
+    { room_id: 'bedroom_2',      room_type: 'bedroom_2',      room_label: '房間 2',         is_primary: false, is_pinned: true },
+    { room_id: 'bedroom_3',      room_type: 'bedroom_3',      room_label: '房間 3',         is_primary: false, is_pinned: true },
+    { room_id: 'other_a',        room_type: '',               room_label: '其他空間 A',     is_primary: false, is_pinned: false, is_other_a: true },
+    { room_id: 'custom_room',    room_type: 'custom_room',    room_label: '',               is_primary: false, is_pinned: false, is_custom: true }
+  ];
+
+  var OTHER_A_OPTIONS = [
+    { value: '',                  label: '請選擇空間' },
+    { value: 'study',             label: '書房' },
+    { value: 'workspace',         label: '工作室' },
+    { value: 'kids_room',         label: '小孩房' },
+    { value: 'elder_room',        label: '孝親房' },
+    { value: 'dressing_room',     label: '更衣室' },
+    { value: 'multipurpose_room', label: '多功能室' }
+  ];
+
+  // ── State ────────────────────────────────────────────────────────────────
+  // 同一頁固定一個 upload_id（避免 race，所有 room 的照片共享）
+  var UPLOAD_ID = randomUploadId();
+
+  // roomsState：每 room 一個 entry，photos[] 是當 room 的照片
+  var roomsState = ROOM_DEFS.map(function(def) {
+    return {
+      room_id:    def.room_id,
+      room_type:  def.room_type,
+      room_label: def.room_label,
+      is_primary: !!def.is_primary,
+      is_pinned:  !!def.is_pinned,
+      is_other_a: !!def.is_other_a,
+      is_custom:  !!def.is_custom,
+      is_expanded: !!def.is_primary,  // 預設只展開客廳
+      photos:     [],   // [{id, status, progress, key, thumb, file, error}]
+      room_notes: '',
+      _photo_seq: 0     // 用來給每張照片唯一 NN
+    };
+  });
+
+  // 影片 / 建物測量圖維持 flat
+  var videoFiles = [];
+  var planFiles  = [];
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
   function randomUploadId() {
     return Math.random().toString(16).substring(2, 10).toUpperCase();
   }
 
-  // 把單張照片直接 PUT 到 Supabase Storage（繞過 Railway 中轉）
-  function uploadPhotoToSupabase(file, uploadId, idx, onProgress) {
+  function findRoom(roomId) {
+    for (var i = 0; i < roomsState.length; i++) {
+      if (roomsState[i].room_id === roomId) return roomsState[i];
+    }
+    return null;
+  }
+
+  function totalPhotoCount() {
+    return roomsState.reduce(function(s, r) { return s + r.photos.length; }, 0);
+  }
+
+  function uploadedPhotoCount() {
+    return roomsState.reduce(function(s, r) {
+      return s + r.photos.filter(function(p) { return p.status === 'uploaded'; }).length;
+    }, 0);
+  }
+
+  function hasUploadingPhotos() {
+    return roomsState.some(function(r) {
+      return r.photos.some(function(p) { return p.status === 'uploading' || p.status === 'pending'; });
+    });
+  }
+
+  function getCurrentPrimary() {
+    return roomsState.filter(function(r) { return r.is_primary; })[0] || null;
+  }
+
+  function isRoomActive(r) {
+    // 「啟用中」= 有照片 / 有備註 / 是 primary / 是已選類型的 other_a 或已命名的 custom
+    if (r.photos.length > 0) return true;
+    if ((r.room_notes || '').trim().length > 0) return true;
+    if (r.is_primary) return true;
+    if (r.is_other_a && r.room_type) return true;
+    if (r.is_custom && (r.room_label || '').trim()) return true;
+    return false;
+  }
+
+  function isRoomReadyForPrimary(r) {
+    // primary 必須要有有效身份 + 至少 1 張 uploaded 照片
+    if (r.is_other_a && !r.room_type) return false;
+    if (r.is_custom && !(r.room_label || '').trim()) return false;
+    return r.photos.some(function(p) { return p.status === 'uploaded'; });
+  }
+
+  // ── Drag helpers ─────────────────────────────────────────────────────────
+  function handleDrag(e, boxId) {
+    e.preventDefault();
+    var el = document.getElementById(boxId);
+    if (el) el.classList.add('active');
+  }
+  function handleLeave(boxId) {
+    var el = document.getElementById(boxId);
+    if (el) el.classList.remove('active');
+  }
+
+  function handleDropVideo(e) {
+    e.preventDefault();
+    document.getElementById('video-box').classList.remove('active');
+    Array.from(e.dataTransfer.files).forEach(function(f) { videoFiles.push(f); });
+    renderVideoList();
+  }
+  function handleDropPlan(e) {
+    e.preventDefault();
+    document.getElementById('plan-box').classList.remove('active');
+    Array.from(e.dataTransfer.files).forEach(function(f) { planFiles.push(f); });
+    renderPlanList();
+  }
+
+  function handleVideoFiles(input) {
+    Array.from(input.files || []).forEach(function(f) { videoFiles.push(f); });
+    renderVideoList();
+  }
+  function handlePlanFiles(input) {
+    Array.from(input.files || []).forEach(function(f) { planFiles.push(f); });
+    renderPlanList();
+  }
+
+  function renderFlatItem(file, onRemove) {
+    var div = document.createElement('div');
+    div.className = 'file-item';
+    var name = file.name;
+    var sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    var icon = file.type && file.type.indexOf('video') >= 0 ? '🎬'
+             : file.type && file.type.indexOf('pdf')   >= 0 ? '📄' : '🖼️';
+    div.innerHTML =
+      '<div class="file-item-left">' +
+        '<span class="file-item-icon">' + icon + '</span>' +
+        '<span title="' + name + '">' + name + '</span>' +
+        '<span style="color:var(--muted);font-size:10px;flex-shrink:0;">' + sizeMB + ' MB</span>' +
+      '</div>' +
+      '<button class="file-remove" type="button">✕</button>';
+    div.querySelector('.file-remove').addEventListener('click', onRemove);
+    return div;
+  }
+
+  function renderVideoList() {
+    var list = document.getElementById('video-list');
+    list.innerHTML = '';
+    videoFiles.forEach(function(f, i) {
+      var node = renderFlatItem(f, function() {
+        videoFiles.splice(i, 1);
+        renderVideoList();
+      });
+      list.appendChild(node);
+    });
+  }
+
+  function renderPlanList() {
+    var list = document.getElementById('plan-list');
+    list.innerHTML = '';
+    planFiles.forEach(function(f, i) {
+      var node = renderFlatItem(f, function() {
+        planFiles.splice(i, 1);
+        renderPlanList();
+      });
+      list.appendChild(node);
+    });
+  }
+
+  // ── Supabase / R2 直傳 ──────────────────────────────────────────────────
+  // 照片 key 命名：<upload_id>/<room_type>_photo_<NN>_<ts>.<ext>
+  // 注意：<room_type> 是動態（other_a 可以是 study/workspace/...）。
+  function uploadPhotoToSupabase(file, uploadId, roomType, seq, onProgress) {
     return new Promise(function(resolve, reject) {
       try {
         var ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-        var safeName = 'photo_' + String(idx).padStart(2, '0') + '_' + Date.now() + '.' + ext;
+        var safeRoomType = String(roomType || 'unknown').replace(/[^a-z0-9_]/gi, '_');
+        var nn = String(seq).padStart(2, '0');
+        var safeName = safeRoomType + '_photo_' + nn + '_' + Date.now() + '.' + ext;
         var key = 'uploads/' + uploadId + '/' + safeName;
         var url = SUPABASE_URL + '/storage/v1/object/' + key;
 
@@ -518,9 +814,7 @@
         xhr.setRequestHeader('Content-Type', file.type || 'image/jpeg');
         xhr.setRequestHeader('x-upsert', 'true');
         xhr.upload.onprogress = function(e) {
-          if (e.lengthComputable && onProgress) {
-            onProgress(Math.round((e.loaded / e.total) * 100));
-          }
+          if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
         };
         xhr.onload = function() {
           if (xhr.status >= 200 && xhr.status < 300) resolve(key);
@@ -533,14 +827,11 @@
     });
   }
 
-  // 把單支影片直接 PUT 到 Cloudflare R2（用後端產生的 presigned URL，繞過 Railway timeout）
   function uploadVideoToR2(file, uploadId, onProgress) {
     return new Promise(async function(resolve, reject) {
       try {
         var ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
         var safeName = 'video_' + Date.now() + '.' + ext;
-
-        // 跟後端要 presigned PUT URL
         var fd = new FormData();
         fd.append('upload_id',    uploadId);
         fd.append('filename',     safeName);
@@ -549,18 +840,15 @@
         if (!presignResp.ok) throw new Error('presign failed HTTP ' + presignResp.status);
         var presign = await presignResp.json();
 
-        // 用 XHR PUT 才能拿到上傳進度
         var xhr = new XMLHttpRequest();
         xhr.open('PUT', presign.url, true);
         xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
         xhr.upload.onprogress = function(e) {
-          if (e.lengthComputable && onProgress) {
-            onProgress(Math.round((e.loaded / e.total) * 100));
-          }
+          if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
         };
         xhr.onload = function() {
           if (xhr.status >= 200 && xhr.status < 300) resolve(presign.key);
-          else reject(new Error('R2 PUT failed HTTP ' + xhr.status + ': ' + xhr.responseText.substring(0,200)));
+          else reject(new Error('R2 PUT failed HTTP ' + xhr.status));
         };
         xhr.onerror = function() { reject(new Error('R2 PUT network error')); };
         xhr.send(file);
@@ -570,28 +858,658 @@
     });
   }
 
-  async function nextStep() {
-    var photoInput = document.getElementById('photo-input');
-    var files = _photoFiles.length > 0 ? _photoFiles : Array.from(photoInput.files || []);
+  // ── Render rooms accordion ───────────────────────────────────────────────
+  function renderRooms() {
+    var container = document.getElementById('rooms-container');
+    container.innerHTML = '';
+    roomsState.forEach(function(r) {
+      container.appendChild(renderRoomCard(r));
+    });
+    updateRoomsSummary();
+    updateNextButton();
+  }
 
-    var videoInput = document.getElementById('video-input');
-    var videoFiles = _videoFiles && _videoFiles.length > 0 ? _videoFiles : Array.from(videoInput.files || []);
+  function renderRoomCard(r) {
+    var card = document.createElement('div');
+    card.className = 'room-card' + (r.is_expanded ? ' expanded' : '') + (r.is_primary ? ' primary' : '');
+    card.dataset.roomId = r.room_id;
 
-    if (files.length === 0 && videoFiles.length === 0) {
-      if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) return;
-      window.location.href = 'style-form.html';
-      return;
+    // ── HEAD ──
+    var head = document.createElement('div');
+    head.className = 'room-head';
+    head.addEventListener('click', function(e) {
+      // 點擊 head 任何空白處 → toggle，但避免點到內部 input/button 也觸發
+      if (e.target.closest('.room-chevron') || e.target === head || e.target.classList.contains('room-name')) {
+        toggleRoom(r.room_id);
+      } else {
+        toggleRoom(r.room_id);
+      }
+    });
+
+    var headLeft = document.createElement('div');
+    headLeft.className = 'room-head-left';
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'room-name';
+    var displayLabel = r.room_label || (r.is_other_a ? '其他空間 A' : (r.is_custom ? '其他空間 B' : '空間'));
+    nameEl.textContent = displayLabel;
+    headLeft.appendChild(nameEl);
+
+    if (r.is_primary) {
+      var badge = document.createElement('span');
+      badge.className = 'room-badge';
+      badge.textContent = '主空間';
+      headLeft.appendChild(badge);
     }
 
-    var btn = document.querySelector('.btn-next');
+    // collapsed 時的 meta 摘要
+    if (!r.is_expanded) {
+      var meta = document.createElement('div');
+      meta.className = 'room-meta';
+      var photoText = r.photos.length > 0
+        ? '<span class="ok">已上傳 ' + r.photos.length + ' 張</span>'
+        : '<span>尚未上傳</span>';
+      var notesText = (r.room_notes || '').trim().length > 0
+        ? '<span class="ok">已填備註</span>'
+        : '';
+      meta.innerHTML = photoText + (notesText ? ' · ' + notesText : '');
+      headLeft.appendChild(meta);
+    }
+
+    head.appendChild(headLeft);
+
+    var chevron = document.createElement('div');
+    chevron.className = 'room-chevron';
+    chevron.textContent = '⌄';
+    head.appendChild(chevron);
+
+    card.appendChild(head);
+
+    // ── BODY ──
+    var body = document.createElement('div');
+    body.className = 'room-body';
+
+    // other_a: 未選擇前只顯示下拉
+    if (r.is_other_a && !r.room_type) {
+      body.appendChild(renderOtherADropdown(r));
+      card.appendChild(body);
+      return card;
+    }
+
+    // custom_room: 未命名前只顯示名稱輸入
+    if (r.is_custom && !(r.room_label || '').trim()) {
+      body.appendChild(renderCustomNameInput(r));
+      card.appendChild(body);
+      return card;
+    }
+
+    // 1. 設為主空間 row
+    body.appendChild(renderPrimaryRow(r));
+
+    // 2. 照片 dropzone
+    body.appendChild(renderPhotoDrop(r));
+
+    // 3. 照片 grid
+    body.appendChild(renderPhotoGrid(r));
+
+    // 4. 備註
+    body.appendChild(renderRoomNotes(r));
+
+    // 5. other_a 切換按鈕 / custom 改名按鈕
+    if (r.is_other_a && r.room_type) {
+      body.appendChild(renderOtherASwitchBtn(r));
+    }
+    if (r.is_custom && r.room_label) {
+      body.appendChild(renderCustomRenameBtn(r));
+    }
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function renderOtherADropdown(r) {
+    var wrap = document.createElement('div');
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12px;color:var(--body);line-height:1.7;margin-bottom:6px;';
+    hint.textContent = '請先選擇此空間的類型，再進行上傳。';
+    wrap.appendChild(hint);
+
+    var sel = document.createElement('select');
+    sel.className = 'other-a-select';
+    OTHER_A_OPTIONS.forEach(function(opt) {
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    });
+    sel.value = r.room_type || '';
+    sel.addEventListener('change', function() {
+      handleOtherAChange(r.room_id, sel.value);
+    });
+    wrap.appendChild(sel);
+    return wrap;
+  }
+
+  function renderOtherASwitchBtn(r) {
+    var sel = document.createElement('select');
+    sel.className = 'other-a-select';
+    sel.style.marginTop = '14px';
+    OTHER_A_OPTIONS.forEach(function(opt) {
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    });
+    sel.value = r.room_type || '';
+    sel.addEventListener('change', function(e) {
+      var newType = sel.value;
+      if (!newType) {
+        // 改回未選擇
+        if (r.photos.length > 0 || (r.room_notes || '').trim()) {
+          if (!confirm('更換空間名稱不會刪除已上傳照片，是否繼續？')) {
+            sel.value = r.room_type;
+            return;
+          }
+        }
+        handleOtherAChange(r.room_id, '');
+      } else if (newType !== r.room_type) {
+        if (r.photos.length > 0 || (r.room_notes || '').trim()) {
+          if (!confirm('更換空間名稱不會刪除已上傳照片，是否繼續？')) {
+            sel.value = r.room_type;
+            return;
+          }
+        }
+        handleOtherAChange(r.room_id, newType);
+      }
+    });
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#999;margin-top:18px;margin-bottom:6px;';
+    lbl.textContent = '更換此空間類型';
+    var box = document.createElement('div');
+    box.appendChild(lbl);
+    box.appendChild(sel);
+    return box;
+  }
+
+  function renderCustomNameInput(r) {
+    var wrap = document.createElement('div');
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12px;color:var(--body);line-height:1.7;margin-bottom:6px;';
+    hint.textContent = '請先為此空間命名，再進行上傳。';
+    wrap.appendChild(hint);
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'custom-name-input';
+    input.maxLength = 20;
+    input.placeholder = '例如：電競房、健身房、儲藏室';
+    input.value = r.room_label || '';
+    input.addEventListener('blur', function() {
+      var name = input.value.trim();
+      if (name) handleCustomRename(r.room_id, name);
+    });
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function renderCustomRenameBtn(r) {
+    var box = document.createElement('div');
+    box.style.marginTop = '18px';
+
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#999;margin-bottom:6px;';
+    lbl.textContent = '此空間名稱';
+    box.appendChild(lbl);
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'custom-name-input';
+    input.maxLength = 20;
+    input.value = r.room_label || '';
+    input.addEventListener('blur', function() {
+      var name = input.value.trim();
+      if (name && name !== r.room_label) {
+        handleCustomRename(r.room_id, name);
+      } else if (!name) {
+        input.value = r.room_label;
+      }
+    });
+    box.appendChild(input);
+    return box;
+  }
+
+  function renderPrimaryRow(r) {
+    var row = document.createElement('div');
+    row.className = 'primary-row';
+
+    if (r.is_primary) {
+      var lbl = document.createElement('div');
+      lbl.className = 'primary-label-active';
+      lbl.textContent = '✦ 本次主空間';
+      row.appendChild(lbl);
+    } else {
+      var canSetPrimary = isRoomReadyForPrimary(r);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-set-primary';
+      btn.textContent = '設為本次主空間';
+      btn.disabled = !canSetPrimary;
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!canSetPrimary) return;
+        setPrimary(r.room_id);
+      });
+      row.appendChild(btn);
+
+      if (!canSetPrimary) {
+        var hint = document.createElement('span');
+        hint.style.cssText = 'font-size:11px;color:var(--muted);letter-spacing:0.5px;';
+        hint.textContent = '上傳第一張照片後才能設為主空間';
+        row.appendChild(hint);
+      }
+    }
+    return row;
+  }
+
+  function renderPhotoDrop(r) {
+    var box = document.createElement('div');
+    box.className = 'photo-drop';
+    box.dataset.roomId = r.room_id;
+    box.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      box.classList.add('active');
+    });
+    box.addEventListener('dragleave', function() {
+      box.classList.remove('active');
+    });
+    box.addEventListener('drop', function(e) {
+      e.preventDefault();
+      box.classList.remove('active');
+      addPhotosToRoom(r.room_id, e.dataTransfer.files);
+    });
+
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    // 手機可喚相機/相簿
+    input.addEventListener('change', function() {
+      addPhotosToRoom(r.room_id, input.files);
+      input.value = '';
+    });
+    box.appendChild(input);
+
+    var text = document.createElement('div');
+    text.className = 'photo-drop-text';
+    if (r.room_id === 'living_room') {
+      text.innerHTML = '<strong>點擊或拖曳上傳照片</strong>';
+      var sub = document.createElement('div');
+      sub.className = 'photo-drop-sub';
+      sub.textContent = '廣角全景照可直接上傳，系統會辨識客廳、餐廳、廚房與主要動線，不需要重複上傳。';
+      box.appendChild(text);
+      box.appendChild(sub);
+    } else {
+      text.innerHTML = '<strong>點擊或拖曳上傳照片</strong>';
+      var sub2 = document.createElement('div');
+      sub2.className = 'photo-drop-sub';
+      sub2.textContent = '建議上傳 2–8 張，包含廣角、主要牆面與不同方向。';
+      box.appendChild(text);
+      box.appendChild(sub2);
+    }
+    return box;
+  }
+
+  function renderPhotoGrid(r) {
+    var grid = document.createElement('div');
+    grid.className = 'photo-grid';
+    if (r.photos.length === 0) {
+      grid.style.display = 'none';
+      return grid;
+    }
+    r.photos.forEach(function(p) {
+      var tile = document.createElement('div');
+      tile.className = 'photo-tile' + (p.status === 'failed' ? ' failed' : '');
+
+      if (p.thumb) {
+        var img = document.createElement('img');
+        img.src = p.thumb;
+        img.alt = '';
+        tile.appendChild(img);
+      } else {
+        // 重整 / 沒 thumb 時的空態
+        var empty = document.createElement('div');
+        empty.className = 'photo-tile-empty';
+        empty.textContent = '✓';
+        tile.appendChild(empty);
+      }
+
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'photo-tile-remove';
+      rm.textContent = '✕';
+      rm.addEventListener('click', function() {
+        removePhotoFromRoom(r.room_id, p.id);
+      });
+      tile.appendChild(rm);
+
+      if (p.status === 'uploading') {
+        var st = document.createElement('div');
+        st.className = 'photo-tile-status uploading';
+        st.textContent = '上傳中 ' + (p.progress || 0) + '%';
+        tile.appendChild(st);
+
+        var bar = document.createElement('div');
+        bar.className = 'photo-tile-bar';
+        bar.style.width = (p.progress || 0) + '%';
+        tile.appendChild(bar);
+      } else if (p.status === 'pending') {
+        var st2 = document.createElement('div');
+        st2.className = 'photo-tile-status uploading';
+        st2.textContent = '準備中…';
+        tile.appendChild(st2);
+      } else if (p.status === 'failed') {
+        var st3 = document.createElement('div');
+        st3.className = 'photo-tile-status failed';
+        st3.textContent = '上傳失敗';
+        tile.appendChild(st3);
+
+        var retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'photo-tile-retry';
+        retry.textContent = '重試';
+        retry.addEventListener('click', function(e) {
+          e.stopPropagation();
+          retryPhotoUpload(r.room_id, p.id);
+        });
+        tile.appendChild(retry);
+      }
+
+      grid.appendChild(tile);
+    });
+    return grid;
+  }
+
+  function renderRoomNotes(r) {
+    var wrap = document.createElement('div');
+    wrap.className = 'room-notes-wrap';
+
+    var lbl = document.createElement('div');
+    lbl.className = 'room-notes-label';
+    lbl.textContent = '補充這個空間的用途或想法（選填）';
+    wrap.appendChild(lbl);
+
+    var ta = document.createElement('textarea');
+    ta.className = 'room-notes';
+    ta.maxLength = ROOM_NOTES_MAX;
+    ta.placeholder = '例如：想做電腦室與書房，希望有雙人書桌、收納櫃，並保留右側走道。';
+    ta.value = r.room_notes || '';
+    var cnt = document.createElement('div');
+    cnt.className = 'room-notes-count';
+    cnt.textContent = (r.room_notes || '').length + ' / ' + ROOM_NOTES_MAX;
+    ta.addEventListener('input', function() {
+      r.room_notes = ta.value.slice(0, ROOM_NOTES_MAX);
+      cnt.textContent = r.room_notes.length + ' / ' + ROOM_NOTES_MAX;
+    });
+    wrap.appendChild(ta);
+    wrap.appendChild(cnt);
+    return wrap;
+  }
+
+  // ── Behavior ─────────────────────────────────────────────────────────────
+  function toggleRoom(roomId) {
+    var r = findRoom(roomId);
+    if (!r) return;
+    r.is_expanded = !r.is_expanded;
+    renderRooms();
+  }
+
+  function setPrimary(roomId) {
+    var target = findRoom(roomId);
+    if (!target) return;
+    if (!isRoomReadyForPrimary(target)) {
+      showWarning('該空間至少需要一張已上傳完成的照片才能設為主空間。');
+      return;
+    }
+    roomsState.forEach(function(r) { r.is_primary = (r.room_id === roomId); });
+    clearWarning();
+    renderRooms();
+  }
+
+  // primary 失效時，依固定順序找下一個有照片的空間
+  function autoTransferPrimary() {
+    for (var i = 0; i < roomsState.length; i++) {
+      var r = roomsState[i];
+      if (isRoomReadyForPrimary(r)) {
+        roomsState.forEach(function(x) { x.is_primary = (x.room_id === r.room_id); });
+        return r.room_id;
+      }
+    }
+    // 全部都沒照片 → 沒有 primary
+    roomsState.forEach(function(x) { x.is_primary = false; });
+    return null;
+  }
+
+  function handleOtherAChange(roomId, newType) {
+    var r = findRoom(roomId);
+    if (!r) return;
+    r.room_type = newType;
+    var opt = OTHER_A_OPTIONS.filter(function(o) { return o.value === newType; })[0];
+    r.room_label = opt ? opt.label : '其他空間 A';
+    if (!newType) {
+      // 改回未選擇 → 強制收合並失去 primary 資格
+      r.is_expanded = false;
+      if (r.is_primary) {
+        autoTransferPrimary();
+      }
+    } else {
+      r.is_expanded = true;
+    }
+    renderRooms();
+  }
+
+  function handleCustomRename(roomId, name) {
+    var r = findRoom(roomId);
+    if (!r) return;
+    r.room_label = name;
+    r.is_expanded = true;
+    renderRooms();
+  }
+
+  function showWarning(msg) {
+    var el = document.getElementById('roomsWarning');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function clearWarning() {
+    var el = document.getElementById('roomsWarning');
+    el.textContent = '';
+    el.classList.remove('show');
+  }
+
+  function addPhotosToRoom(roomId, fileList) {
+    var r = findRoom(roomId);
+    if (!r) return;
+    var files = Array.from(fileList || []).filter(function(f) { return f && f.type && f.type.indexOf('image') === 0; });
+    if (files.length === 0) return;
+
+    // 全案 30 張 + 單空間 8 張限制
+    var roomAvail   = ROOM_PHOTO_LIMIT  - r.photos.length;
+    var totalAvail  = TOTAL_PHOTO_LIMIT - totalPhotoCount();
+    var canAccept   = Math.min(files.length, roomAvail, totalAvail);
+
+    if (canAccept < files.length) {
+      if (roomAvail < files.length) {
+        showWarning('每個空間最多可上傳 ' + ROOM_PHOTO_LIMIT + ' 張照片。');
+      }
+      if (totalAvail < files.length) {
+        showWarning('本次最多可上傳 ' + TOTAL_PHOTO_LIMIT + ' 張空間照片，請刪除部分照片後再繼續。');
+      }
+    } else {
+      clearWarning();
+    }
+
+    var accepted = files.slice(0, Math.max(0, canAccept));
+    accepted.forEach(function(f) {
+      r._photo_seq = (r._photo_seq || 0) + 1;
+      var seq = r._photo_seq;
+      var pid = 'p-' + r.room_id + '-' + seq + '-' + Date.now();
+      var thumb = '';
+      try { thumb = URL.createObjectURL(f); } catch (e) {}
+      var photo = {
+        id:       pid,
+        file:     f,
+        status:   'uploading',
+        progress: 0,
+        key:      '',
+        thumb:    thumb,
+        error:    '',
+        seq:      seq
+      };
+      r.photos.push(photo);
+      // 啟動上傳
+      doUpload(r, photo);
+    });
+
+    renderRooms();
+  }
+
+  function doUpload(room, photo) {
+    photo.status = 'uploading';
+    photo.progress = 0;
+    photo.error = '';
+    uploadPhotoToSupabase(photo.file, UPLOAD_ID, room.room_type || 'unknown', photo.seq, function(pct) {
+      photo.progress = pct;
+      // 輕量更新：只刷一次 grid 比較費，用 requestAnimationFrame 節流
+      if (!doUpload._raf) {
+        doUpload._raf = requestAnimationFrame(function() {
+          doUpload._raf = 0;
+          renderRooms();
+        });
+      }
+    }).then(function(key) {
+      photo.key = key;
+      photo.status = 'uploaded';
+      photo.progress = 100;
+      renderRooms();
+    }).catch(function(err) {
+      photo.status = 'failed';
+      photo.error = (err && err.message) || 'upload failed';
+      console.warn('[upload] failed', photo.id, err);
+      renderRooms();
+    });
+  }
+
+  function retryPhotoUpload(roomId, photoId) {
+    var r = findRoom(roomId);
+    if (!r) return;
+    var p = r.photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p || !p.file) {
+      // 沒檔案物件（重整後）→ 無法重試，引導刪除
+      showWarning('無法重試此照片，請刪除後重新上傳。');
+      return;
+    }
+    clearWarning();
+    doUpload(r, p);
+  }
+
+  function removePhotoFromRoom(roomId, photoId) {
+    var r = findRoom(roomId);
+    if (!r) return;
+    var idx = -1;
+    for (var i = 0; i < r.photos.length; i++) {
+      if (r.photos[i].id === photoId) { idx = i; break; }
+    }
+    if (idx < 0) return;
+    var p = r.photos[idx];
+    try { if (p.thumb) URL.revokeObjectURL(p.thumb); } catch (e) {}
+    r.photos.splice(idx, 1);
+
+    // primary 失去最後一張 → 自動轉移
+    if (r.is_primary && r.photos.filter(function(x) { return x.status === 'uploaded'; }).length === 0) {
+      var nextPid = autoTransferPrimary();
+      if (!nextPid) {
+        showWarning('請先為其中一個空間上傳照片，再設定本次主空間。');
+      } else {
+        clearWarning();
+      }
+    }
+    renderRooms();
+  }
+
+  // ── Summary + next button gate ──────────────────────────────────────────
+  function updateRoomsSummary() {
+    document.getElementById('totalCount').textContent = String(totalPhotoCount());
+    var primary = getCurrentPrimary();
+    document.getElementById('primaryLabel').textContent = primary ? (primary.room_label || primary.room_type || '—') : '—';
+  }
+
+  function updateNextButton() {
+    var btn = document.getElementById('btnNext');
+    if (!btn) return;
+    // 規則：若有上傳中 / 沒主空間 / 主空間沒任一已 uploaded → 禁用
+    var anyUploading = hasUploadingPhotos();
+    var primary = getCurrentPrimary();
+    var primaryReady = primary && primary.photos.some(function(p) { return p.status === 'uploaded'; });
+    var noPhotoAtAll = totalPhotoCount() === 0;
+
+    // 沒任何照片 → 允許示範模式（同舊行為），按鈕仍可點
+    if (noPhotoAtAll) {
+      btn.disabled = false;
+      btn.textContent = '下一步：確認風格 →';
+      return;
+    }
+    if (anyUploading) {
+      btn.disabled = true;
+      btn.textContent = '照片仍在上傳中…';
+      return;
+    }
+    if (!primaryReady) {
+      btn.disabled = true;
+      btn.textContent = '請選擇有照片的主空間';
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = '下一步：確認風格 →';
+  }
+
+  // 渲染後一律重算 summary + next 狀態
+  var _origRenderRooms = renderRooms;
+  renderRooms = function() {
+    _origRenderRooms();
+  };
+
+  // ── nextStep ─────────────────────────────────────────────────────────────
+  async function nextStep() {
+    // 沒主空間 / 主空間沒 uploaded → 阻擋
+    var primary = getCurrentPrimary();
+    var noPhotoAtAll = totalPhotoCount() === 0;
+
+    if (!noPhotoAtAll) {
+      if (hasUploadingPhotos()) {
+        showWarning('照片仍在上傳中，請稍候完成。');
+        return;
+      }
+      if (!primary || !primary.photos.some(function(p) { return p.status === 'uploaded'; })) {
+        showWarning('主空間至少需要一張已上傳完成的照片。');
+        return;
+      }
+    }
+
+    var btn = document.getElementById('btnNext');
     var orig = btn.textContent;
     btn.textContent = '準備中…';
     btn.disabled = true;
 
     try {
-      var uploadId = randomUploadId();
+      var uploadId = UPLOAD_ID;
 
-      // ── 影片直接 PUT 到 Cloudflare R2（不經 Railway 的 5 分鐘 timeout）──
+      // 影片 → R2
       var videoKeys = [];
       for (var i = 0; i < videoFiles.length; i++) {
         var vIdx = i + 1;
@@ -602,22 +1520,20 @@
         videoKeys.push(vKey);
       }
 
-      // ── 照片直接 PUT 到 Supabase Storage（繞過 Railway 中轉，舊版那條已淘汰）──
-      var photoKeys = [];
-      for (var j = 0; j < files.length; j++) {
-        var pIdx = j + 1;
-        btn.textContent = '照片 ' + pIdx + '/' + files.length + ' 上傳中 0%';
-        var pKey = await uploadPhotoToSupabase(files[j], uploadId, j, function(pct) {
-          btn.textContent = '照片 ' + pIdx + '/' + files.length + ' 上傳中 ' + pct + '%';
+      // 照片：已經在 addPhotosToRoom 時上傳完了，這裡只收集已 uploaded 的 key
+      // 全 flat 列表給 /api/upload，per-room 歸屬在 C2-front-2 才送 rooms_json
+      var allPhotoKeys = [];
+      roomsState.forEach(function(r) {
+        r.photos.forEach(function(p) {
+          if (p.status === 'uploaded' && p.key) allPhotoKeys.push(p.key);
         });
-        photoKeys.push(pKey);
-      }
+      });
 
-      // ── 全部直傳完成，只送 metadata 給 Railway 註冊（不再傳檔案）──
+      // ── 全部上傳完成，送 metadata 給 Railway 註冊 ──
       btn.textContent = '註冊中…';
       var formData = new FormData();
       formData.append('upload_id',  uploadId);
-      formData.append('photo_keys', JSON.stringify(photoKeys));
+      formData.append('photo_keys', JSON.stringify(allPhotoKeys));
       formData.append('video_keys', JSON.stringify(videoKeys));
 
       var resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
@@ -627,13 +1543,34 @@
       localStorage.setItem('deco_upload_id', data.upload_id);
       localStorage.setItem('deco_files_count', String(data.count));
 
+      // 沒照片 → 示範模式，跟舊行為一致直接跳
+      if (noPhotoAtAll && videoKeys.length === 0) {
+        if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) {
+          btn.textContent = orig;
+          btn.disabled = false;
+          return;
+        }
+      }
+
+      // 注意：C2-front-2 才會寫 localStorage.deco_rooms 與 rooms_json
+      // 本版（C2-front-1）只重構 UI，行為仍走 flat photo_keys（與 DAF4D135 那種訂單等效）
+
       window.location.href = 'style-form.html';
     } catch (e) {
       alert('上傳失敗：' + (e && e.message ? e.message : e));
-      btn.textContent = orig;
-      btn.disabled = false;
+      document.getElementById('btnNext').textContent = '下一步：確認風格 →';
+      document.getElementById('btnNext').disabled = false;
     }
   }
+
+  // ── INIT ─────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    renderRooms();
+    setInterval(function() {
+      // 兜底刷新 next button（uploading 期間 progress 變動會 trigger，但保險）
+      updateNextButton();
+    }, 1500);
+  });
 </script>
 
 <a href="download.html" class="fab-dl" title="查詢 / 下載訂單">
