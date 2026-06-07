@@ -831,17 +831,41 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "preferred_store_label_zh": STORE_LABEL_ZH.get(preferred_store, ""),
         }
 
+        # ── P2-MVP-0: 把 /api/job 傳過來的 rooms_meta.json 補進 result_json ──
+        # 沒檔案 = 沒 rooms = 等同 Phase A 原行為，不寫 rooms 欄位
+        rooms_for_json: list = []
+        primary_room_notes_for_json: str = ""
+        rooms_meta_file = job_dir / "rooms_meta.json"
+        if rooms_meta_file.exists():
+            try:
+                with open(rooms_meta_file, encoding="utf-8") as f:
+                    rm = json.load(f)
+                if isinstance(rm, dict):
+                    if isinstance(rm.get("rooms"), list):
+                        rooms_for_json = rm["rooms"]
+                    if isinstance(rm.get("primary_room_notes"), str):
+                        primary_room_notes_for_json = rm["primary_room_notes"]
+            except Exception as me:
+                print(f"[pipeline] rooms_meta 讀取失敗，忽略: {me}")
+
+        if primary_room_notes_for_json:
+            customer_inputs["primary_room_notes"] = primary_room_notes_for_json
+
+        result_json_payload = {
+            "analysis":           analysis,
+            "zoning":             zoning_result,
+            "zoning_v2":          user_zoning_v2,             # Z2: 保留原始 v2（未轉換）
+            "layout_choice":      user_layout_choice or None,
+            "renders":            slim_renders,
+            "validation_summary": validation_summary,
+            "customer_inputs":    customer_inputs,            # Phase A
+        }
+        if rooms_for_json:
+            result_json_payload["rooms"] = rooms_for_json     # P2-MVP-0
+
         sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
                    "message": "設計方案生成完畢！",
-                   "result_json": {
-                       "analysis":           analysis,
-                       "zoning":             zoning_result,
-                       "zoning_v2":          user_zoning_v2,         # Z2: 保留原始 v2（未轉換）
-                       "layout_choice":      user_layout_choice or None,
-                       "renders":            slim_renders,
-                       "validation_summary": validation_summary,
-                       "customer_inputs":    customer_inputs,        # Phase A
-                   }})
+                   "result_json": result_json_payload})
 
         # 跑完自動清掉 R2 上的影片（隱私 + 省空間）
         for key in r2_keys_to_delete:
@@ -941,6 +965,7 @@ async def create_job(
     budget_tier: str       = Form(default="tier3"),  # Phase A: tier1/tier2/tier3
     customer_notes: str    = Form(default=""),       # Phase A: 客戶補充需求（後端硬截 300）
     preferred_store: str   = Form(default="none"),   # Phase A: none/momo/ikea/hola/trplus
+    rooms_json: str        = Form(default=""),       # P2-MVP-0: 多空間 metadata（前端 localStorage 帶回）
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -1004,6 +1029,48 @@ async def create_job(
         preferred_store = "none"
     customer_notes = (customer_notes or "")[:300]
 
+    # ── P2-MVP-0: defensive 解析 rooms_json，沒給/壞掉 = 100% 走舊流程 ──
+    rooms_data: list = []
+    primary_room_notes: str = ""
+    if rooms_json:
+        try:
+            parsed = json.loads(rooms_json)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                cleaned: list = []
+                for r in parsed:
+                    if not isinstance(r, dict):
+                        continue
+                    rt = (r.get("room_type") or "").strip()
+                    if not rt:
+                        continue
+                    cleaned.append({
+                        "room_id":    str(r.get("room_id") or "")[:32],
+                        "room_type":  rt[:32],
+                        "room_label": str(r.get("room_label") or "")[:32],
+                        "is_primary": bool(r.get("is_primary")),
+                        "room_notes": str(r.get("room_notes") or "")[:100],
+                        "photo_keys": [str(k)[:200] for k in (r.get("photo_keys") or []) if isinstance(k, str)],
+                        "video_keys": [str(k)[:200] for k in (r.get("video_keys") or []) if isinstance(k, str)],
+                    })
+                if cleaned:
+                    rooms_data = cleaned
+                    primary = next((r for r in cleaned if r["is_primary"]), cleaned[0])
+                    primary_room_notes = primary["room_notes"]
+                    print(f"[/api/job] rooms_json OK, {len(cleaned)} rooms, "
+                          f"primary={primary['room_type']}({primary['room_label']}), "
+                          f"primary_notes={len(primary_room_notes)} chars")
+        except Exception as je:
+            print(f"[/api/job] rooms_json parse 失敗，忽略走舊流程: {je}")
+
+    # 把 primary_room_notes 拼進 customer_notes（仍走既有 _NOTES_WRAPPER）
+    # 沒 primary_room_notes 時 = customer_notes 不變 = 舊行為
+    if primary_room_notes:
+        if customer_notes:
+            customer_notes = (customer_notes + "\n房間用途備註：" + primary_room_notes)
+        else:
+            customer_notes = "房間用途備註：" + primary_room_notes
+        customer_notes = customer_notes[:300]  # 沿用既有上限
+
     with open(job_dir / "meta.json", "w", encoding="utf-8") as f:
         json.dump({"job_id": job_id, "plan": plan, "styles": styles_list,
                    "space_type": space_type, "render_angle": render_angle,
@@ -1012,6 +1079,13 @@ async def create_job(
                    "preferred_store": preferred_store,
                    "customer_notes": customer_notes,
                    "photo_count": len(new_paths)}, f, ensure_ascii=False)
+
+    # ── P2-MVP-0: 把 rooms[] + primary_room_notes 寫進 side file 給 run_pipeline ──
+    # 不改 run_pipeline 簽名；run_pipeline 自己在 sb_upsert 前讀回
+    if rooms_data:
+        with open(job_dir / "rooms_meta.json", "w", encoding="utf-8") as f:
+            json.dump({"rooms": rooms_data,
+                       "primary_room_notes": primary_room_notes}, f, ensure_ascii=False)
 
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
                "photo_count": len(new_paths), "status": "queued",
