@@ -273,6 +273,46 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
     }
 
 
+def canonical_photo_key(s: str | None) -> str:
+    """
+    把 photo key 字串 canonical 化，用於 primary photo_keys vs paths.json 精確比對。
+
+    處理：
+      - None / 非字串 / 全空白 → ""
+      - 去 scheme (supabase:// / r2:// / gemini://)
+      - 去 query string (? 之後)
+      - URL decode（前端有時送 %20 等）
+      - 反斜線 → 正斜線
+      - 去開頭斜線
+      - 去 "uploads/" 前綴
+
+    回傳格式典型為：<upload_id>/<filename>
+    """
+    if not isinstance(s, str):
+        return ""
+    s = s.strip()
+    if not s:
+        return ""
+    for prefix in ("supabase://", "r2://", "gemini://"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
+    qmark = s.find("?")
+    if qmark >= 0:
+        s = s[:qmark]
+    try:
+        from urllib.parse import unquote
+        s = unquote(s)
+    except Exception:
+        pass
+    s = s.replace("\\", "/")
+    while s.startswith("/"):
+        s = s[1:]
+    if s.startswith("uploads/"):
+        s = s[len("uploads/"):]
+    return s
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -1005,6 +1045,99 @@ async def create_job(
     if not photo_paths:
         return JSONResponse(status_code=400, content={"error": "no photos found"})
 
+    # ── P2-MVP-0 (C1+C2-back): rooms_json 嚴格解析 + 照片白名單過濾 ────────────
+    # 規則：
+    #   rooms_json 完全未送 / 空字串       → 舊 flat flow（向下相容 DAF4D135 那種訂單）
+    #   rooms_json 非空但 JSON 壞掉        → fail closed（HTTP 400）
+    #   rooms_json 不是 list / 空 list     → fail closed
+    #   rooms_json 沒有有效 room           → fail closed
+    #   primary 沒 photo_keys              → fail closed
+    #   primary keys 完全對不上 paths.json → fail closed
+    #   至少對上一張                       → 只把對上的傳給 pipeline，其他保存在 rooms[]
+    # 核心鐵則：legacy 沒送 rooms_json 才用 flat。一旦明示多空間，絕不退回混合。
+    rooms_data: list = []
+    primary_room_notes: str = ""
+    primary_obj: dict | None = None
+
+    rooms_json_str = (rooms_json or "").strip()
+    if rooms_json_str:
+        fail_reason: str = ""
+        try:
+            parsed = json.loads(rooms_json_str)
+        except Exception as je:
+            fail_reason = f"rooms_json 格式錯誤：{str(je)[:80]}"
+        else:
+            if not isinstance(parsed, list):
+                fail_reason = "rooms_json 必須是陣列"
+            elif len(parsed) == 0:
+                fail_reason = "rooms_json 為空陣列，至少需要主空間"
+            else:
+                cleaned: list = []
+                for r in parsed:
+                    if not isinstance(r, dict):
+                        continue
+                    rt = (r.get("room_type") or "").strip()
+                    if not rt:
+                        continue
+                    cleaned.append({
+                        "room_id":    str(r.get("room_id") or "")[:32],
+                        "room_type":  rt[:32],
+                        "room_label": str(r.get("room_label") or "")[:32],
+                        "is_primary": bool(r.get("is_primary")),
+                        "room_notes": str(r.get("room_notes") or "")[:100],
+                        "photo_keys": [str(k)[:200] for k in (r.get("photo_keys") or []) if isinstance(k, str)],
+                        "video_keys": [str(k)[:200] for k in (r.get("video_keys") or []) if isinstance(k, str)],
+                    })
+                if not cleaned:
+                    fail_reason = "rooms_json 沒有有效的空間資料"
+                else:
+                    primary = next((r for r in cleaned if r["is_primary"]), cleaned[0])
+                    if not primary["photo_keys"]:
+                        fail_reason = (f"主空間「{primary['room_label'] or primary['room_type']}」"
+                                       f"必須至少上傳一張照片")
+                    else:
+                        rooms_data = cleaned
+                        primary_room_notes = primary["room_notes"]
+                        primary_obj = primary
+        if fail_reason:
+            print(f"[/api/job] FAIL_CLOSED (rooms_json): {fail_reason}")
+            return JSONResponse(status_code=400, content={"error": fail_reason})
+
+    # 照片白名單過濾（只在 primary_obj 設好時做）
+    if primary_obj is not None:
+        primary_canon = {canonical_photo_key(k) for k in primary_obj["photo_keys"]}
+        primary_canon.discard("")
+
+        matched: list[str] = []
+        excluded_photos: list[str] = []
+        excluded_videos: list[str] = []
+        for p in photo_paths:
+            if not isinstance(p, str):
+                continue
+            if p.startswith("r2://"):
+                # 影片這輪不混進 primary
+                # （USE_VIDEO_KEYFRAMES=0；未來 per-room video 才開啟）
+                excluded_videos.append(p)
+                continue
+            if canonical_photo_key(p) in primary_canon:
+                matched.append(p)
+            else:
+                excluded_photos.append(p)
+
+        if not matched:
+            msg = "主空間照片資料配對失敗，請重新上傳"
+            print(f"[/api/job] FAIL_CLOSED (no match): {msg}  "
+                  f"primary_canon_sample={list(primary_canon)[:3]}  "
+                  f"paths_canon_sample={[canonical_photo_key(p) for p in photo_paths[:3]]}")
+            return JSONResponse(status_code=400, content={"error": msg})
+
+        print(f"[/api/job] rooms_json 分流成功: "
+              f"primary={primary_obj['room_label']}({primary_obj['room_type']})  "
+              f"primary_keys={len(primary_obj['photo_keys'])}  "
+              f"matched={len(matched)}  excluded_photos={len(excluded_photos)}  "
+              f"excluded_videos={len(excluded_videos)}")
+        photo_paths = matched
+
     job_id  = uuid.uuid4().hex[:8].upper()
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir(parents=True)
@@ -1029,40 +1162,8 @@ async def create_job(
         preferred_store = "none"
     customer_notes = (customer_notes or "")[:300]
 
-    # ── P2-MVP-0: defensive 解析 rooms_json，沒給/壞掉 = 100% 走舊流程 ──
-    rooms_data: list = []
-    primary_room_notes: str = ""
-    if rooms_json:
-        try:
-            parsed = json.loads(rooms_json)
-            if isinstance(parsed, list) and len(parsed) > 0:
-                cleaned: list = []
-                for r in parsed:
-                    if not isinstance(r, dict):
-                        continue
-                    rt = (r.get("room_type") or "").strip()
-                    if not rt:
-                        continue
-                    cleaned.append({
-                        "room_id":    str(r.get("room_id") or "")[:32],
-                        "room_type":  rt[:32],
-                        "room_label": str(r.get("room_label") or "")[:32],
-                        "is_primary": bool(r.get("is_primary")),
-                        "room_notes": str(r.get("room_notes") or "")[:100],
-                        "photo_keys": [str(k)[:200] for k in (r.get("photo_keys") or []) if isinstance(k, str)],
-                        "video_keys": [str(k)[:200] for k in (r.get("video_keys") or []) if isinstance(k, str)],
-                    })
-                if cleaned:
-                    rooms_data = cleaned
-                    primary = next((r for r in cleaned if r["is_primary"]), cleaned[0])
-                    primary_room_notes = primary["room_notes"]
-                    print(f"[/api/job] rooms_json OK, {len(cleaned)} rooms, "
-                          f"primary={primary['room_type']}({primary['room_label']}), "
-                          f"primary_notes={len(primary_room_notes)} chars")
-        except Exception as je:
-            print(f"[/api/job] rooms_json parse 失敗，忽略走舊流程: {je}")
-
     # 把 primary_room_notes 拼進 customer_notes（仍走既有 _NOTES_WRAPPER）
+    # primary_room_notes 由本函式上面的「rooms_json 嚴格解析 + 照片白名單過濾」block 設定
     # 沒 primary_room_notes 時 = customer_notes 不變 = 舊行為
     if primary_room_notes:
         if customer_notes:
