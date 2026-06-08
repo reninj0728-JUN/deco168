@@ -330,7 +330,8 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     bad_flags = []
     for k in ("walls_changed", "recessed_space_added", "windows_changed",
               "furniture_blocks_walkway", "sofa_faces_walkway",
-              "sofa_outside_living_zone"):
+              "sofa_outside_living_zone",
+              "focal_anchor_misaligned_with_sofa"):
         if validation.get(k):
             bad_flags.append(k)
 
@@ -392,6 +393,44 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         "violates the window-side",
         "sofa is in the front", "sofa in the front",
         "sofa is too far from the window",
+        # focal_anchor / TV 櫃對位錯誤（C2.2 新）
+        "主牆家具未對齊沙發", "主牆家具未對齊", "主牆家具不對齊",
+        "電視櫃未對齊沙發", "電視櫃未對齊", "電視櫃不對齊",
+        "媒體櫃未對齊", "矮櫃未對齊", "邊櫃未對齊",
+        "電視櫃位於前段", "電視櫃位於中段", "電視櫃位於前中段",
+        "電視櫃在前段", "電視櫃在中段", "電視櫃在入口側",
+        "媒體櫃位於前段", "媒體櫃位於中段", "媒體櫃在入口側",
+        "焦點家具位於前段", "焦點家具位於中段", "焦點家具位於入口",
+        "主牆家具位於餐廳", "主牆家具位於入口", "主牆家具位於走道",
+        "電視櫃位於餐廳", "電視櫃位於入口側", "電視櫃位於主動線",
+        "媒體櫃位於餐廳", "媒體櫃位於入口", "媒體櫃位於主動線",
+        "焦點家具不存在", "焦點家具缺席", "沒有焦點家具",
+        "只有壁畫沒有實體家具", "只有壁畫", "主牆只有壁畫",
+        "客廳組合被拉散", "客廳被拉散", "客廳組合分散",
+        "沙發與電視櫃距離過遠", "沙發與媒體櫃距離過遠",
+        "沙發與主牆家具距離過遠",
+        # focal_anchor 英文
+        "focal anchor misaligned with sofa",
+        "focal anchor is misaligned with the sofa",
+        "main wall furniture is misaligned",
+        "TV cabinet is too far from the sofa",
+        "TV cabinet too far from the sofa",
+        "media console is in the front zone",
+        "media console in the front zone",
+        "focal anchor is in the dining zone",
+        "focal anchor in the dining zone",
+        "focal anchor is in the entrance zone",
+        "focal anchor in the entrance zone",
+        "focal anchor not present",
+        "no focal anchor present",
+        "only wall art without furniture",
+        "wall art only, no real furniture",
+        "living group is stretched apart",
+        "living group is stretched",
+        "TV cabinet in the front zone",
+        "TV cabinet in the dining zone",
+        "TV cabinet in the entrance",
+        "TV cabinet is in front",
     ]
     matched_kw = [kw for kw in bad_kw if kw in reason]
     if matched_kw:
