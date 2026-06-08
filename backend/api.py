@@ -817,67 +817,106 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── Z3: 結構失敗自動重試 1 次（僅 Nano Banana）──
         use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
         retry_n = 0
+        # C2.3：高嚴重度 layout flag → 允許第 2 次 retry。一般 fail 維持 1 次。
+        # 每張 render 最多 retry 2 次（總共 3 次生成）
+        HIGH_SEVERITY_FLAGS = (
+            "sofa_outside_living_zone",
+            "focal_anchor_misaligned_with_sofa",
+            "furniture_blocks_walkway",
+            "sofa_faces_walkway",
+        )
+        def _has_high_severity(v: dict) -> bool:
+            return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)
+
+        def _build_retry_ctx_from_validation(v: dict) -> dict | None:
+            """從前一次 validation 抽出 sofa_pct / anchor_pct 給 retry prompt。"""
+            if not isinstance(v, dict):
+                return None
+            ctx = {}
+            sp = v.get("sofa_depth_percent_estimate")
+            ap = v.get("focal_anchor_depth_percent_estimate")
+            if isinstance(sp, (int, float)):
+                ctx["sofa_pct"] = sp
+            if isinstance(ap, (int, float)) and ap >= 0:
+                ctx["anchor_pct"] = ap
+            return ctx or None
+
         if use_nano:
+            MAX_RETRY = 2
             for idx in range(len(final)):
-                r = final[idx]
-                if r.get("retry_count"):  # 已重試過不再重試
-                    continue
-                v = r.get("validation") or {}
-                should_retry, retry_reason = z3_needs_retry(v)
-                if not should_retry:
-                    continue
-                if idx >= len(expanded):
-                    continue
-                entry = expanded[idx]
-                print(f"[pipeline] Z3 retry render[{idx}] style={r.get('style')} — {retry_reason}")
-                write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
-                try:
-                    retry_results = generate_renders(
-                        entry["_base_path"], [entry],
-                        output_dir=str(job_dir),
-                        analysis=analysis, design_mode=design_mode,
-                        zoning=zoning_result,
-                        customer_notes=customer_notes,
-                        budget_tier=budget_tier,
-                    )
-                except Exception as re_e:
-                    print(f"[pipeline] Z3 retry 例外: {re_e}")
-                    r["retry_count"] = 1
-                    r["retry_reason"] = f"retry exception: {str(re_e)[:200]}"
-                    continue
-                if not retry_results:
-                    r["retry_count"] = 1
-                    r["retry_reason"] = f"{retry_reason} | retry returned empty"
-                    continue
-                new_r = retry_results[0]
-                # 改名加 _retry
-                if new_r.get("render_path"):
-                    src_p = Path(new_r["render_path"])
-                    new_name = f"render_{entry.get('style','x')}_{idx:02d}_retry{src_p.suffix}"
-                    new_p = src_p.parent / new_name
+                # 每張 render 自己跑 retry loop（最多 MAX_RETRY 次）
+                while True:
+                    r = final[idx]
+                    current_rc = int(r.get("retry_count") or 0)
+                    if current_rc >= MAX_RETRY:
+                        break  # 硬上限
+                    v = r.get("validation") or {}
+                    should_retry, retry_reason = z3_needs_retry(v)
+                    if not should_retry:
+                        break  # 已通過
+                    # 第 2 次 retry 只允許高嚴重度 flag
+                    if current_rc >= 1 and not _has_high_severity(v):
+                        print(f"[pipeline] Z3 skip 2nd retry render[{idx}] — 非高嚴重度 flag")
+                        break
+                    if idx >= len(expanded):
+                        break
+                    entry = expanded[idx]
+                    attempt_label = f"#{current_rc + 1}"
+                    print(f"[pipeline] Z3 retry {attempt_label} render[{idx}] "
+                          f"style={r.get('style')} — {retry_reason}")
+                    write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
+                    # 第 2 次 retry：帶入前次失敗的 depth_percent 給 retry prompt
+                    retry_ctx = _build_retry_ctx_from_validation(v) if current_rc >= 1 else None
                     try:
-                        src_p.rename(new_p)
-                        new_r["render_path"] = str(new_p)
-                    except Exception:
-                        pass
-                # 重新 validate（沿用同一個 layout_ctx）
-                try:
-                    from gemini_analyze import validate_render
-                    bpath = entry["_base_path"]
-                    rpath = new_r.get("render_path") or ""
-                    if rpath and Path(bpath).exists() and Path(rpath).exists():
-                        new_v = validate_render(bpath, rpath, entry["_angle_label"],
-                                                layout_context=layout_ctx)
-                    else:
-                        new_v = {"ok": None, "error": "missing base or render path after retry"}
-                except Exception as ve:
-                    new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:200]}"}
-                new_r["validation"]   = new_v
-                new_r["angle_label"]  = entry["_angle_label"]
-                new_r["retry_count"]  = 1
-                new_r["retry_reason"] = retry_reason
-                final[idx] = new_r
-                retry_n += 1
+                        retry_results = generate_renders(
+                            entry["_base_path"], [entry],
+                            output_dir=str(job_dir),
+                            analysis=analysis, design_mode=design_mode,
+                            zoning=zoning_result,
+                            customer_notes=customer_notes,
+                            budget_tier=budget_tier,
+                            retry_context=retry_ctx,
+                        )
+                    except Exception as re_e:
+                        print(f"[pipeline] Z3 retry 例外: {re_e}")
+                        r["retry_count"] = current_rc + 1
+                        r["retry_reason"] = f"retry exception: {str(re_e)[:200]}"
+                        break
+                    if not retry_results:
+                        r["retry_count"] = current_rc + 1
+                        r["retry_reason"] = f"{retry_reason} | retry returned empty"
+                        break
+                    new_r = retry_results[0]
+                    # 改名加 _retry / _retry2
+                    if new_r.get("render_path"):
+                        src_p = Path(new_r["render_path"])
+                        suffix_tag = "_retry" if current_rc == 0 else f"_retry{current_rc + 1}"
+                        new_name = f"render_{entry.get('style','x')}_{idx:02d}{suffix_tag}{src_p.suffix}"
+                        new_p = src_p.parent / new_name
+                        try:
+                            src_p.rename(new_p)
+                            new_r["render_path"] = str(new_p)
+                        except Exception:
+                            pass
+                    # 重新 validate（沿用同一個 layout_ctx）
+                    try:
+                        from gemini_analyze import validate_render
+                        bpath = entry["_base_path"]
+                        rpath = new_r.get("render_path") or ""
+                        if rpath and Path(bpath).exists() and Path(rpath).exists():
+                            new_v = validate_render(bpath, rpath, entry["_angle_label"],
+                                                    layout_context=layout_ctx)
+                        else:
+                            new_v = {"ok": None, "error": "missing base or render path after retry"}
+                    except Exception as ve:
+                        new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:200]}"}
+                    new_r["validation"]   = new_v
+                    new_r["angle_label"]  = entry["_angle_label"]
+                    new_r["retry_count"]  = current_rc + 1
+                    new_r["retry_reason"] = retry_reason
+                    final[idx] = new_r
+                    retry_n += 1
+                    # while loop 會再判一次：若新 v 仍 fail 且 current_rc+1 < MAX_RETRY 且高嚴重度 → 再 retry
         if retry_n:
             print(f"[pipeline] Z3 重試 {retry_n} 張")
 

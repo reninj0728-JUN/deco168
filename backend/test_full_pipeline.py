@@ -475,12 +475,14 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      analysis: dict | None = None, design_mode: str = "furnish",
                      zoning: dict | None = None,
                      customer_notes: str = "",
-                     budget_tier: str = "tier3"):
+                     budget_tier: str = "tier3",
+                     retry_context: dict | None = None):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
     zoning:      zoning.compute_zoning() 結果，僅 USE_NANO_BANANA=1 時使用
     customer_notes / budget_tier: Phase A 帶入 Nano Banana prompt（仍只 USE_NANO_BANANA=1 時生效）
+    retry_context: C2.3 第二次 retry 用，含前次 sofa_pct / anchor_pct，附加進 prompt
     """
     use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
 
@@ -541,7 +543,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         if use_nano:
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
-                                              budget_tier=budget_tier)
+                                              budget_tier=budget_tier,
+                                              retry_context=retry_context)
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             try:

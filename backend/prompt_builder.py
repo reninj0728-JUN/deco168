@@ -171,6 +171,26 @@ def _build_layout_section(zoning: dict) -> str:
             "not to second-guess it."
         )
 
+        # C2.4：depth-percent 硬尺。只在 window-side 時 append，量化「back」這個語意
+        if is_window_side:
+            parts.append(
+                "DEPTH PERCENTAGE TARGETS (hard rule, applies because the confirmed "
+                "living zone is on the window-side / back / deep end): "
+                "Treat the rendered image's depth axis as 0% (closest to camera, front "
+                "of room) to 100% (furthest visible, typically the window). "
+                "- The sofa's visual center MUST be at depth >= 65% (the back 35% of "
+                "the room). Sofa at 40-60% is a FAILURE even if the composition looks "
+                "balanced. Do NOT center the sofa around 50%. "
+                "- The focal anchor (TV cabinet / media console / sideboard / etc.) MUST "
+                "be at depth >= 50% (the back half). Focal anchor at <50% breaks the "
+                "living group. "
+                "- Coffee table and rug may sit between sofa and focal anchor but must "
+                "remain within one sofa-length of the sofa — they cannot stretch the "
+                "living group across the room. "
+                "- Push the sofa group deeper toward the window end. Empty front half "
+                "is acceptable; sofa in the middle is not."
+            )
+
     parts.append("ROOM LAYOUT (from spatial analysis of the room):")
 
     if syn.get("room_shape"):
@@ -383,12 +403,43 @@ CRITICAL_RULES = (
 )
 
 
+def _build_retry_context_section(retry_context: dict | None) -> str:
+    """C2.3 第二次 retry 用：短、硬、明確帶入上次失敗數據，不要太長。"""
+    if not isinstance(retry_context, dict):
+        return ""
+    sofa_pct = retry_context.get("sofa_pct")
+    anchor_pct = retry_context.get("anchor_pct")
+    has_sofa  = isinstance(sofa_pct, (int, float))
+    has_anchor = isinstance(anchor_pct, (int, float))
+    if not (has_sofa or has_anchor):
+        return ""
+
+    lines = ["PREVIOUS ATTEMPT FAILED LAYOUT VALIDATION:"]
+    if has_sofa:
+        lines.append(
+            f"- Sofa depth was estimated at {int(sofa_pct)}%. "
+            "Required target is around 65% or deeper."
+        )
+    if has_anchor:
+        lines.append(
+            f"- Focal anchor depth was estimated at {int(anchor_pct)}%. "
+            "It must align with the sofa and stay in the same living zone."
+        )
+    lines.extend([
+        "- Move the sofa group deeper toward the window-side end.",
+        "- Keep sofa, rug, coffee table, and focal anchor compact as one living room group.",
+        "- Do not place TV cabinet / media console in the middle, entrance, dining, or walkway zone.",
+    ])
+    return " ".join(lines)
+
+
 def build_nano_banana_inputs(
     entry: dict,
     zoning: dict | None,
     room_image_url: str,
     customer_notes: str = "",
     budget_tier: str = "tier3",
+    retry_context: dict | None = None,
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -457,14 +508,18 @@ def build_nano_banana_inputs(
     style_sec = _build_style_section(entry)
     budget_sec = _build_budget_section(budget_tier)
     customer_sec = _build_customer_notes_section(customer_notes)
+    retry_sec = _build_retry_context_section(retry_context)
 
     # 順序：硬規則（layout/product）在前，預算/客戶偏好在後，最後 CRITICAL_RULES + QUALITY_TAIL
     # CRITICAL_RULES 必須在 customer_sec 之後，再次強調 layout/structural 不可被偏好覆蓋
+    # retry_sec 緊接在 CRITICAL_RULES 之前 — 讓模型最後看到「上次哪裡錯」+ CRITICAL_RULES 鐵則
     sections = [inputs_sec, layout_sec, product_sec, style_sec]
     if budget_sec:
         sections.append(budget_sec)
     if customer_sec:
         sections.append(customer_sec)
+    if retry_sec:
+        sections.append(retry_sec)
     sections.extend([CRITICAL_RULES, QUALITY_TAIL])
 
     prompt = "\n\n".join(sections)
