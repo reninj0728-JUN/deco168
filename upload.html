@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>上傳空間資料 — DECO168</title>
+  <title>上傳你的空間照片 — DECO168</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -16,9 +16,8 @@
       --gold:    #C9A96E;
       --gold-lt: #e0c99a;
       --white:   #ffffff;
-      --muted:   #777777;
-      --body:    #aaaaaa;
-      --success: #4a9e6b;
+      --muted:   #888888;
+      --body:    #b0b0b0;
       --error:   #c0392b;
     }
 
@@ -32,14 +31,9 @@
 
     /* NAV */
     nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 48px;
-      height: 68px;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 68px;
       background: rgba(17,17,17,0.92);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--line);
@@ -52,99 +46,254 @@
 
     /* PROGRESS BAR */
     .progress-bar {
-      position: fixed;
-      top: 68px; left: 0; right: 0;
-      z-index: 99;
+      position: fixed; top: 68px; left: 0; right: 0; z-index: 99;
       background: var(--dark);
       border-bottom: 1px solid var(--line);
       padding: 0 48px;
-      display: flex;
-      align-items: center;
-      height: 52px;
-      gap: 0;
+      display: flex; align-items: center; height: 52px; gap: 0;
     }
     .step-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 10px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--muted);
-      padding: 0 24px;
-      position: relative;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--muted); padding: 0 24px;
     }
     .step-item.active { color: var(--gold); }
-    .step-item.done { color: var(--muted); }
     .step-num {
       width: 22px; height: 22px;
       border: 1px solid var(--line);
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 9px;
-      flex-shrink: 0;
+      font-size: 9px; flex-shrink: 0;
     }
     .step-item.active .step-num { border-color: var(--gold); color: var(--gold); }
-    .step-item.done .step-num { background: var(--gold); border-color: var(--gold); color: var(--black); }
     .step-arrow { color: var(--line); font-size: 12px; }
 
     /* MAIN */
     main {
       padding: 148px 48px 80px;
-      max-width: 920px;
+      max-width: 880px;
       margin: 0 auto;
     }
 
     .page-eyebrow {
-      font-size: 10px;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 12px;
     }
     .page-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--gold); }
 
     .page-title {
       font-family: 'Cormorant Garamond', serif;
-      font-size: 40px;
-      font-weight: 300;
-      color: var(--white);
-      margin-bottom: 10px;
-      line-height: 1.1;
+      font-size: 42px; font-weight: 300; color: var(--white);
+      margin-bottom: 12px; line-height: 1.1;
     }
     .page-title em { font-style: italic; color: var(--gold); }
 
     .page-desc {
-      font-size: 14px;
-      color: var(--body);
-      line-height: 1.8;
-      margin-bottom: 56px;
-      max-width: 560px;
+      font-size: 14px; color: var(--body); line-height: 1.85;
+      margin-bottom: 56px; max-width: 600px;
     }
 
     /* SECTION LABEL */
     .section-label {
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 20px;
+      display: flex; align-items: center; gap: 12px;
     }
     .section-label::before { content: ''; width: 20px; height: 1px; background: var(--gold); }
 
     .section-divider {
-      height: 1px;
-      background: var(--line);
-      margin: 48px 0;
+      height: 1px; background: var(--line); margin: 56px 0;
     }
 
-    /* GENERIC UPLOAD BOX (影片 / 建物測量圖) */
+    /* ── 主要照片 Dropzone ──────────────────────────────────────────── */
+    .main-dropzone {
+      border: 1px dashed var(--line);
+      padding: 64px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s;
+      position: relative;
+      overflow: hidden;
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .main-dropzone:hover { border-color: var(--gold); background: rgba(201,169,110,0.03); }
+    .main-dropzone.active { border-color: var(--gold); background: rgba(201,169,110,0.06); border-style: solid; }
+    .main-dropzone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .main-dropzone-icon { font-size: 38px; margin-bottom: 18px; color: var(--gold); }
+    .main-dropzone-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 22px; font-weight: 400; color: var(--white);
+      letter-spacing: 1px; margin-bottom: 10px;
+    }
+    .main-dropzone-sub {
+      font-size: 13px; color: var(--body); line-height: 1.7;
+      max-width: 480px; margin-bottom: 18px;
+    }
+    .main-dropzone-formats {
+      display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+    }
+    .format-tag {
+      font-size: 10px; letter-spacing: 1px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 5px 12px; text-transform: uppercase;
+    }
+
+    /* ── 已上傳照片 grid ──────────────────────────────────────────── */
+    .photos-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 28px; margin-bottom: 14px;
+      font-size: 12px; color: var(--body); letter-spacing: 0.5px;
+    }
+    .photos-meta strong { color: var(--gold); font-weight: 400; }
+
+    .photos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .photo-card {
+      background: var(--dark);
+      border: 1px solid var(--line);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+    .photo-card.failed { border-color: rgba(192,57,43,0.55); }
+    .photo-card.uploading { border-color: rgba(201,169,110,0.35); }
+
+    .photo-thumb-wrap {
+      position: relative;
+      aspect-ratio: 4 / 3;
+      background: var(--card);
+    }
+    .photo-thumb-wrap img {
+      width: 100%; height: 100%; object-fit: cover;
+      display: block;
+    }
+    .photo-thumb-empty {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 18px;
+    }
+    .photo-remove {
+      position: absolute; top: 8px; right: 8px;
+      width: 30px; height: 30px;
+      background: rgba(0,0,0,0.65);
+      border: none; color: var(--white);
+      font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+    }
+    .photo-remove:hover { background: rgba(192,57,43,0.85); }
+
+    .photo-status {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 8px 12px;
+      font-size: 11px; letter-spacing: 0.5px;
+      background: rgba(0,0,0,0.72);
+      color: var(--gold-lt);
+    }
+    .photo-status.failed { color: #e57b6c; }
+    .photo-bar {
+      position: absolute; bottom: 0; left: 0; height: 2px;
+      background: var(--gold); transition: width .25s;
+    }
+    .photo-retry {
+      position: absolute; top: 8px; left: 8px;
+      background: rgba(0,0,0,0.7); border: 1px solid var(--gold);
+      color: var(--gold);
+      font-size: 10px; letter-spacing: 1px;
+      padding: 5px 10px; cursor: pointer;
+    }
+
+    /* per-photo label select */
+    .photo-label-row {
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .photo-label-hint {
+      font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .photo-label-select {
+      flex: 1; min-width: 0;
+      background: var(--black);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 8px 10px;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+    }
+    .photo-label-select:focus { border-color: var(--gold); outline: none; }
+
+    /* ── 全案備註 ──────────────────────────────────────────────── */
+    .notes-block {
+      margin-top: 40px;
+      padding: 26px 28px;
+      background: rgba(201,169,110,0.03);
+      border: 1px solid rgba(201,169,110,0.2);
+    }
+    .notes-label {
+      font-size: 12px; letter-spacing: 1.5px; color: var(--white);
+      margin-bottom: 12px;
+    }
+    .notes-textarea {
+      width: 100%;
+      background: var(--black);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 300;
+      padding: 16px 18px;
+      resize: vertical;
+      min-height: 100px;
+      line-height: 1.85;
+      letter-spacing: 0.3px;
+    }
+    .notes-textarea::placeholder { color: var(--muted); }
+    .notes-textarea:focus { border-color: var(--gold); outline: none; }
+    .notes-meta {
+      display: flex; justify-content: flex-end;
+      margin-top: 8px;
+    }
+    .notes-counter {
+      background: var(--black);
+      color: var(--gold);
+      font-family: 'Inter', monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      padding: 5px 14px;
+      border: 1px solid var(--line);
+    }
+
+    /* WARNING */
+    .photos-warning {
+      margin-top: 18px;
+      padding: 12px 18px;
+      background: rgba(192,57,43,0.08);
+      border-left: 2px solid #e74c3c;
+      font-size: 12px; color: #ecaf9b; line-height: 1.7;
+      display: none;
+    }
+    .photos-warning.show { display: block; }
+
+    /* ── 影片 + 建物測量圖（沿用） ────────────────────────────── */
     .upload-box {
       border: 1px dashed var(--line);
       padding: 40px 32px;
@@ -163,7 +312,6 @@
     .upload-title { font-size: 14px; font-weight: 500; color: var(--white); margin-bottom: 8px; letter-spacing: 0.5px; }
     .upload-hint { font-size: 12px; color: var(--body); line-height: 1.7; }
     .upload-formats { margin-top: 14px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-    .format-tag { font-size: 10px; letter-spacing: 1px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; text-transform: uppercase; }
 
     /* FLAT FILE LIST (影片 / 建物測量圖) */
     .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -178,246 +326,6 @@
     .file-remove { color: var(--muted); cursor: pointer; font-size: 14px; transition: color .2s; border: none; background: none; padding: 8px; }
     .file-remove:hover { color: #e74c3c; }
 
-    /* PHOTO INTRO */
-    .photo-intro {
-      border-left: 2px solid var(--gold);
-      padding: 14px 20px;
-      background: rgba(201,169,110,0.04);
-      font-size: 13px;
-      color: var(--body);
-      line-height: 1.8;
-      margin-bottom: 28px;
-    }
-    .photo-intro strong { color: var(--white); font-weight: 400; }
-
-    /* ROOMS ACCORDION */
-    .rooms-container { display: flex; flex-direction: column; gap: 14px; }
-
-    .room-card {
-      border: 1px solid var(--line);
-      background: var(--dark);
-      transition: border-color .2s;
-    }
-    .room-card.expanded { border-color: rgba(201,169,110,0.4); }
-    .room-card.primary { border-color: var(--gold); }
-    .room-card.disabled { opacity: 0.55; }
-
-    .room-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 22px; cursor: pointer;
-      min-height: 60px;
-      user-select: none;
-    }
-    .room-head:hover { background: rgba(201,169,110,0.03); }
-
-    .room-head-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
-    .room-name {
-      font-size: 15px; font-weight: 500; color: var(--white);
-      letter-spacing: 0.5px;
-    }
-    .room-badge {
-      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
-      padding: 4px 10px; border: 1px solid var(--gold); color: var(--gold);
-      flex-shrink: 0;
-    }
-    .room-meta {
-      font-size: 12px; color: var(--muted); margin-left: 8px;
-      display: flex; gap: 14px; flex-wrap: wrap;
-    }
-    .room-meta .ok { color: var(--gold-lt); }
-
-    .room-chevron {
-      font-size: 16px; color: var(--muted); transition: transform .25s;
-      flex-shrink: 0; padding: 4px 8px;
-    }
-    .room-card.expanded .room-chevron { transform: rotate(180deg); color: var(--gold); }
-
-    .room-body {
-      display: none;
-      padding: 6px 22px 22px;
-      border-top: 1px solid var(--line);
-    }
-    .room-card.expanded .room-body { display: block; }
-
-    /* OTHER A: dropdown only when not selected */
-    .other-a-select {
-      width: 100%;
-      background: var(--dark);
-      border: 1px solid var(--line);
-      color: var(--white);
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      padding: 16px 18px;
-      appearance: none;
-      -webkit-appearance: none;
-      cursor: pointer;
-      margin-top: 6px;
-    }
-    .other-a-select:focus { border-color: var(--gold); outline: none; }
-
-    /* CUSTOM ROOM: name input only when not named */
-    .custom-name-input {
-      width: 100%;
-      background: var(--dark);
-      border: 1px solid var(--line);
-      color: var(--white);
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      padding: 16px 18px;
-      margin-top: 6px;
-    }
-    .custom-name-input:focus { border-color: var(--gold); outline: none; }
-
-    /* SET PRIMARY ROW */
-    .primary-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 12px 0; margin-top: 14px;
-      font-size: 13px; color: var(--body);
-    }
-    .btn-set-primary {
-      font-family: 'Inter', sans-serif;
-      font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
-      background: transparent; border: 1px solid var(--gold); color: var(--gold);
-      padding: 10px 18px; cursor: pointer; min-height: 40px;
-      transition: background .2s, color .2s;
-    }
-    .btn-set-primary:hover:not([disabled]) { background: var(--gold); color: var(--black); }
-    .btn-set-primary[disabled] {
-      border-color: var(--line); color: var(--muted); cursor: not-allowed;
-    }
-    .primary-label-active {
-      font-size: 12px; color: var(--gold);
-      letter-spacing: 2px; text-transform: uppercase;
-    }
-
-    /* PHOTO DROPZONE per room */
-    .photo-drop {
-      border: 1px dashed var(--line);
-      padding: 28px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      position: relative;
-      margin-top: 16px;
-      min-height: 56px;
-    }
-    .photo-drop:hover { border-color: var(--gold); background: rgba(201,169,110,0.03); }
-    .photo-drop.active { border-color: var(--gold); background: rgba(201,169,110,0.05); border-style: solid; }
-    .photo-drop input[type=file] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-    }
-    .photo-drop-text {
-      font-size: 13px; color: var(--body); line-height: 1.7;
-    }
-    .photo-drop-text strong { color: var(--white); font-weight: 400; }
-    .photo-drop-sub {
-      font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 0.5px;
-    }
-
-    /* PHOTO GRID */
-    .photo-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .photo-tile {
-      position: relative;
-      aspect-ratio: 1;
-      background: var(--card);
-      border: 1px solid var(--line);
-      overflow: hidden;
-    }
-    .photo-tile img {
-      width: 100%; height: 100%; object-fit: cover;
-      display: block;
-    }
-    .photo-tile-empty {
-      width: 100%; height: 100%;
-      display: flex; align-items: center; justify-content: center;
-      color: var(--muted); font-size: 18px;
-    }
-    .photo-tile-remove {
-      position: absolute; top: 6px; right: 6px;
-      width: 26px; height: 26px;
-      background: rgba(0,0,0,0.65);
-      border: none;
-      color: var(--white);
-      font-size: 13px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .2s;
-    }
-    .photo-tile-remove:hover { background: rgba(192,57,43,0.85); }
-    .photo-tile-status {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 6px 8px;
-      font-size: 10px; letter-spacing: 0.5px;
-      background: rgba(0,0,0,0.7);
-      color: var(--gold);
-    }
-    .photo-tile-status.uploading { color: var(--gold-lt); }
-    .photo-tile-status.failed { color: #e74c3c; }
-    .photo-tile-status.uploaded { display: none; }
-    .photo-tile-bar {
-      position: absolute; bottom: 0; left: 0; height: 2px;
-      background: var(--gold); transition: width .25s;
-    }
-    .photo-tile.failed { border-color: rgba(192,57,43,0.6); }
-    .photo-tile-retry {
-      position: absolute; top: 6px; left: 6px;
-      background: rgba(0,0,0,0.65); border: 1px solid var(--gold);
-      color: var(--gold);
-      font-size: 9px; letter-spacing: 1px;
-      padding: 4px 8px; cursor: pointer;
-    }
-
-    /* ROOM NOTES */
-    .room-notes-wrap { margin-top: 22px; }
-    .room-notes-label {
-      font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-      color: #999; margin-bottom: 8px;
-    }
-    textarea.room-notes {
-      width: 100%;
-      background: var(--black);
-      border: 1px solid var(--line);
-      color: var(--white);
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      font-weight: 300;
-      padding: 14px 16px;
-      resize: vertical;
-      min-height: 80px;
-      line-height: 1.8;
-    }
-    textarea.room-notes:focus { border-color: var(--gold); outline: none; }
-    .room-notes-count {
-      text-align: right; font-size: 10px; color: var(--muted);
-      margin-top: 4px; letter-spacing: 1px;
-    }
-
-    /* ROOMS SUMMARY (in-page progress hint) */
-    .rooms-summary {
-      margin-top: 28px;
-      padding: 16px 22px;
-      background: rgba(201,169,110,0.04);
-      border: 1px solid rgba(201,169,110,0.18);
-      font-size: 13px; color: var(--body); line-height: 1.7;
-      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-    }
-    .rooms-summary strong { color: var(--gold); font-weight: 400; }
-
-    .rooms-warning {
-      margin-top: 14px;
-      padding: 12px 18px;
-      background: rgba(192,57,43,0.08);
-      border-left: 2px solid #e74c3c;
-      font-size: 12px; color: #ecaf9b; line-height: 1.7;
-      display: none;
-    }
-    .rooms-warning.show { display: block; }
-
     /* TIPS */
     .tips-box {
       border: 1px solid var(--line);
@@ -428,8 +336,7 @@
     .tips-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; }
     .tips-list {
       list-style: none;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: grid; grid-template-columns: 1fr 1fr;
       gap: 8px 32px;
     }
     .tips-list li { font-size: 12px; color: var(--body); display: flex; align-items: flex-start; gap: 8px; line-height: 1.7; }
@@ -437,11 +344,8 @@
 
     /* ACTIONS */
     .actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-top: 32px;
-      border-top: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 32px; border-top: 1px solid var(--line);
     }
     .btn-back {
       font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
@@ -453,7 +357,6 @@
       min-height: 48px;
     }
     .btn-back:hover { color: var(--white); border-color: var(--white); }
-
     .btn-next {
       font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
       color: var(--black); background: var(--gold);
@@ -471,13 +374,12 @@
       .progress-bar { padding: 0 20px; overflow-x: auto; }
       main { padding: 148px 18px 60px; }
       .page-title { font-size: 32px; }
+      .main-dropzone { padding: 48px 22px; min-height: 220px; }
+      .main-dropzone-title { font-size: 18px; }
+      .photos-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
       .tips-list { grid-template-columns: 1fr; }
       .actions { flex-direction: column; gap: 16px; }
       .btn-back, .btn-next { width: 100%; justify-content: center; }
-      .room-head { padding: 16px 18px; }
-      .room-body { padding: 6px 18px 20px; }
-      .room-meta { gap: 8px; font-size: 11px; }
-      .photo-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
     }
 
     /* FAB — 查詢下載 */
@@ -526,16 +428,55 @@
 <!-- MAIN -->
 <main>
   <p class="page-eyebrow">步驟 1 / 4</p>
-  <h1 class="page-title">上傳你的<em>空間資料</em></h1>
-  <p class="page-desc">請依空間分別上傳照片並補充用途與想法。客廳為預設主空間，本次設計提案會優先針對主空間製作；其他空間的照片與需求會保留在本次資料中。</p>
+  <h1 class="page-title">上傳你的<em>空間照片</em></h1>
+  <p class="page-desc">可同時選取或拖曳客廳、餐廳、房間、書房或開放式格局的廣角全景照。我們會先判斷主要空間與生活動線，為您整理成風格提案。</p>
 
-  <!-- 空間影片 -->
+  <!-- ── 主要照片 dropzone ─────────────────────────────────────────── -->
+  <div class="section-label">空間照片</div>
+
+  <div class="main-dropzone" id="photo-dropzone"
+       ondragover="onDragoverPhotos(event)"
+       ondragleave="onDragleavePhotos()"
+       ondrop="onDropPhotos(event)">
+    <input type="file" id="photo-input" accept="image/*" multiple onchange="onPickPhotos(this)">
+    <div class="main-dropzone-icon">📷</div>
+    <div class="main-dropzone-title">點擊上傳，或拖曳照片到這裡</div>
+    <div class="main-dropzone-sub">支援 JPG / PNG / HEIC，本次最多 30 張。<br>未標註的照片，我們會先視為客廳主空間資料處理。</div>
+    <div class="main-dropzone-formats">
+      <span class="format-tag">JPG</span>
+      <span class="format-tag">PNG</span>
+      <span class="format-tag">HEIC</span>
+    </div>
+  </div>
+
+  <div class="photos-meta" id="photos-meta" style="display:none;">
+    <span>已上傳 <strong id="totalCount">0</strong> / 30 張照片</span>
+    <span id="primaryHint" style="color:var(--muted);">主空間：客廳</span>
+  </div>
+
+  <div class="photos-grid" id="photos-grid"></div>
+
+  <div class="photos-warning" id="photos-warning"></div>
+
+  <!-- ── 全案備註 ─────────────────────────────────────────────── -->
+  <div class="notes-block">
+    <div class="notes-label">有想特別說明的地方嗎？（選填）</div>
+    <textarea class="notes-textarea" id="notes-textarea" maxlength="300"
+              placeholder="例如：客廳想明亮一點、小房間想做書房、餐廳希望保留走道通暢。"></textarea>
+    <div class="notes-meta">
+      <span class="notes-counter"><span id="notesCount">0</span> / 300</span>
+    </div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- ── 空間影片（選填）─────────────────────────────────────── -->
   <div class="section-label">空間影片（選填）</div>
   <div class="upload-box" id="video-box"
-       ondragover="handleDrag(event,'video-box')"
-       ondragleave="handleLeave('video-box')"
-       ondrop="handleDropVideo(event)">
-    <input type="file" id="video-input" accept="video/*" multiple onchange="handleVideoFiles(this)">
+       ondragover="onDragoverVideo(event)"
+       ondragleave="onDragleaveVideo()"
+       ondrop="onDropVideo(event)">
+    <input type="file" id="video-input" accept="video/*" multiple onchange="onPickVideo(this)">
     <div class="upload-icon">🎬</div>
     <div class="upload-title">拍攝每個房間，拖曳或點擊上傳</div>
     <div class="upload-hint">
@@ -552,32 +493,13 @@
 
   <div class="section-divider"></div>
 
-  <!-- 空間照片（7 空間 Accordion）-->
-  <div class="section-label">空間照片</div>
-
-  <div class="photo-intro">
-    <strong>客廳預設為主空間。</strong>本方案會先為主空間製作提案；其他空間的照片與需求會保留在本次資料中。<br>
-    廣角全景照可直接上傳到「客廳」欄位，系統會自動辨識客廳、餐廳、廚房與主要動線，<strong>不需要重複上傳到餐廳</strong>。
-  </div>
-
-  <div class="rooms-container" id="rooms-container"></div>
-
-  <div class="rooms-summary" id="rooms-summary">
-    <span>已上傳 <strong id="totalCount">0</strong> 張照片</span>
-    <span>主空間：<strong id="primaryLabel">客廳</strong></span>
-  </div>
-
-  <div class="rooms-warning" id="roomsWarning"></div>
-
-  <div class="section-divider"></div>
-
-  <!-- 建物測量圖（整戶共用，不歸屬個別 room）-->
+  <!-- ── 建物測量圖（整戶共用，獨立）─────────────────────────── -->
   <div class="section-label">建物測量圖（選填）</div>
   <div class="upload-box" id="plan-box"
-       ondragover="handleDrag(event,'plan-box')"
-       ondragleave="handleLeave('plan-box')"
-       ondrop="handleDropPlan(event)">
-    <input type="file" id="plan-input" accept=".pdf,image/*" multiple onchange="handlePlanFiles(this)">
+       ondragover="onDragoverPlan(event)"
+       ondragleave="onDragleavePlan()"
+       ondrop="onDropPlan(event)">
+    <input type="file" id="plan-input" accept=".pdf,image/*" multiple onchange="onPickPlan(this)">
     <div class="upload-icon">📐</div>
     <div class="upload-title">建物測量圖</div>
     <div class="upload-hint">地政事務所調閱<br>或建商提供的平面圖</div>
@@ -591,7 +513,7 @@
 
   <div class="section-divider"></div>
 
-  <!-- 拍攝提示 -->
+  <!-- ── 拍攝提示 ─────────────────────────────────────────────── -->
   <div class="tips-box">
     <div class="tips-title">✦ 拍攝小提示，讓系統理解更準確</div>
     <ul class="tips-list">
@@ -602,11 +524,11 @@
       <li>建議至少包含一張能清楚看見主要牆面、門窗與走道的照片</li>
       <li>光線充足比畫質重要</li>
       <li>建物測量圖請拍清楚全圖</li>
-      <li>有現有格局圖也一起上傳</li>
+      <li>廣角全景照可直接上傳，不必拆成多張</li>
     </ul>
   </div>
 
-  <!-- 操作按鈕 -->
+  <!-- ── 操作按鈕 ─────────────────────────────────────────────── -->
   <div class="actions">
     <a class="btn-back" href="index.html">← 返回首頁</a>
     <button class="btn-next" id="btnNext" onclick="nextStep()">下一步：確認風格 →</button>
@@ -614,59 +536,30 @@
 </main>
 
 <script>
-  // ── 常數 ──────────────────────────────────────────────────────────────────
+  // ── 常數 ──────────────────────────────────────────────────────────────
   var API_BASE = 'https://deco168-production.up.railway.app';
   var SUPABASE_URL = 'https://cjezgczjjsxfoeifduaj.supabase.co';
-  // anon key 設計上就可以公開（受 RLS 限制；uploads bucket 有 anon INSERT policy）
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4';
 
   var TOTAL_PHOTO_LIMIT = 30;
-  var ROOM_PHOTO_LIMIT  = 8;
-  var ROOM_NOTES_MAX    = 100;
+  var NOTES_MAX = 300;
 
-  // ── 7 個固定空間定義（順序也是 primary 自動轉移的順序）─────────────────
-  var ROOM_DEFS = [
-    { room_id: 'living_room',    room_type: 'living_room',    room_label: '客廳',           is_primary: true,  is_pinned: true },
-    { room_id: 'dining_room',    room_type: 'dining_room',    room_label: '餐廳',           is_primary: false, is_pinned: true },
-    { room_id: 'master_bedroom', room_type: 'master_bedroom', room_label: '房間 1（主臥）', is_primary: false, is_pinned: true },
-    { room_id: 'bedroom_2',      room_type: 'bedroom_2',      room_label: '房間 2',         is_primary: false, is_pinned: true },
-    { room_id: 'bedroom_3',      room_type: 'bedroom_3',      room_label: '房間 3',         is_primary: false, is_pinned: true },
-    { room_id: 'other_a',        room_type: '',               room_label: '其他空間 A',     is_primary: false, is_pinned: false, is_other_a: true },
-    { room_id: 'custom_room',    room_type: 'custom_room',    room_label: '',               is_primary: false, is_pinned: false, is_custom: true }
+  // 標籤選項（顯示用），對應 room_type / room_label
+  // 未標註預設視為「客廳」（不寫「自動判斷」，因為後端目前不做 per-photo 自動分類）
+  var LABEL_OPTIONS = [
+    { display: '客廳',        room_type: 'living_room',     room_label: '客廳' },
+    { display: '餐廳',        room_type: 'dining_room',     room_label: '餐廳' },
+    { display: '房間',        room_type: 'bedroom',         room_label: '房間' },
+    { display: '書房／工作室', room_type: 'study_workspace', room_label: '書房／工作室' },
+    { display: '其他',        room_type: 'other_room',      room_label: '其他' }
   ];
-
-  var OTHER_A_OPTIONS = [
-    { value: '',                  label: '請選擇空間' },
-    { value: 'study',             label: '書房' },
-    { value: 'workspace',         label: '工作室' },
-    { value: 'kids_room',         label: '小孩房' },
-    { value: 'elder_room',        label: '孝親房' },
-    { value: 'dressing_room',     label: '更衣室' },
-    { value: 'multipurpose_room', label: '多功能室' }
-  ];
+  var DEFAULT_LABEL = '客廳';
 
   // ── State ────────────────────────────────────────────────────────────────
-  // 同一頁固定一個 upload_id（避免 race，所有 room 的照片共享）
   var UPLOAD_ID = randomUploadId();
-
-  // roomsState：每 room 一個 entry，photos[] 是當 room 的照片
-  var roomsState = ROOM_DEFS.map(function(def) {
-    return {
-      room_id:    def.room_id,
-      room_type:  def.room_type,
-      room_label: def.room_label,
-      is_primary: !!def.is_primary,
-      is_pinned:  !!def.is_pinned,
-      is_other_a: !!def.is_other_a,
-      is_custom:  !!def.is_custom,
-      is_expanded: !!def.is_primary,  // 預設只展開客廳
-      photos:     [],   // [{id, status, progress, key, thumb, file, error}]
-      room_notes: '',
-      _photo_seq: 0     // 用來給每張照片唯一 NN
-    };
-  });
-
-  // 影片 / 建物測量圖維持 flat
+  // photos: [{id, file, status, progress, key, thumb, label, seq, error}]
+  var photos = [];
+  var _photo_seq = 0;
   var videoFiles = [];
   var planFiles  = [];
 
@@ -675,135 +568,28 @@
     return Math.random().toString(16).substring(2, 10).toUpperCase();
   }
 
-  function findRoom(roomId) {
-    for (var i = 0; i < roomsState.length; i++) {
-      if (roomsState[i].room_id === roomId) return roomsState[i];
-    }
-    return null;
+  function totalPhotoCount() { return photos.length; }
+  function uploadedCount() {
+    return photos.filter(function(p) { return p.status === 'uploaded'; }).length;
   }
-
-  function totalPhotoCount() {
-    return roomsState.reduce(function(s, r) { return s + r.photos.length; }, 0);
-  }
-
-  function uploadedPhotoCount() {
-    return roomsState.reduce(function(s, r) {
-      return s + r.photos.filter(function(p) { return p.status === 'uploaded'; }).length;
-    }, 0);
-  }
-
   function hasUploadingPhotos() {
-    return roomsState.some(function(r) {
-      return r.photos.some(function(p) { return p.status === 'uploading' || p.status === 'pending'; });
-    });
+    return photos.some(function(p) { return p.status === 'uploading' || p.status === 'pending'; });
   }
 
-  function getCurrentPrimary() {
-    return roomsState.filter(function(r) { return r.is_primary; })[0] || null;
+  function labelDefFor(display) {
+    for (var i = 0; i < LABEL_OPTIONS.length; i++) {
+      if (LABEL_OPTIONS[i].display === display) return LABEL_OPTIONS[i];
+    }
+    return LABEL_OPTIONS[0]; // fallback 客廳
   }
 
-  function isRoomActive(r) {
-    // 「啟用中」= 有照片 / 有備註 / 是 primary / 是已選類型的 other_a 或已命名的 custom
-    if (r.photos.length > 0) return true;
-    if ((r.room_notes || '').trim().length > 0) return true;
-    if (r.is_primary) return true;
-    if (r.is_other_a && r.room_type) return true;
-    if (r.is_custom && (r.room_label || '').trim()) return true;
-    return false;
-  }
-
-  function isRoomReadyForPrimary(r) {
-    // primary 必須要有有效身份 + 至少 1 張 uploaded 照片
-    if (r.is_other_a && !r.room_type) return false;
-    if (r.is_custom && !(r.room_label || '').trim()) return false;
-    return r.photos.some(function(p) { return p.status === 'uploaded'; });
-  }
-
-  // ── Drag helpers ─────────────────────────────────────────────────────────
-  function handleDrag(e, boxId) {
-    e.preventDefault();
-    var el = document.getElementById(boxId);
-    if (el) el.classList.add('active');
-  }
-  function handleLeave(boxId) {
-    var el = document.getElementById(boxId);
-    if (el) el.classList.remove('active');
-  }
-
-  function handleDropVideo(e) {
-    e.preventDefault();
-    document.getElementById('video-box').classList.remove('active');
-    Array.from(e.dataTransfer.files).forEach(function(f) { videoFiles.push(f); });
-    renderVideoList();
-  }
-  function handleDropPlan(e) {
-    e.preventDefault();
-    document.getElementById('plan-box').classList.remove('active');
-    Array.from(e.dataTransfer.files).forEach(function(f) { planFiles.push(f); });
-    renderPlanList();
-  }
-
-  function handleVideoFiles(input) {
-    Array.from(input.files || []).forEach(function(f) { videoFiles.push(f); });
-    renderVideoList();
-  }
-  function handlePlanFiles(input) {
-    Array.from(input.files || []).forEach(function(f) { planFiles.push(f); });
-    renderPlanList();
-  }
-
-  function renderFlatItem(file, onRemove) {
-    var div = document.createElement('div');
-    div.className = 'file-item';
-    var name = file.name;
-    var sizeMB = (file.size / 1024 / 1024).toFixed(1);
-    var icon = file.type && file.type.indexOf('video') >= 0 ? '🎬'
-             : file.type && file.type.indexOf('pdf')   >= 0 ? '📄' : '🖼️';
-    div.innerHTML =
-      '<div class="file-item-left">' +
-        '<span class="file-item-icon">' + icon + '</span>' +
-        '<span title="' + name + '">' + name + '</span>' +
-        '<span style="color:var(--muted);font-size:10px;flex-shrink:0;">' + sizeMB + ' MB</span>' +
-      '</div>' +
-      '<button class="file-remove" type="button">✕</button>';
-    div.querySelector('.file-remove').addEventListener('click', onRemove);
-    return div;
-  }
-
-  function renderVideoList() {
-    var list = document.getElementById('video-list');
-    list.innerHTML = '';
-    videoFiles.forEach(function(f, i) {
-      var node = renderFlatItem(f, function() {
-        videoFiles.splice(i, 1);
-        renderVideoList();
-      });
-      list.appendChild(node);
-    });
-  }
-
-  function renderPlanList() {
-    var list = document.getElementById('plan-list');
-    list.innerHTML = '';
-    planFiles.forEach(function(f, i) {
-      var node = renderFlatItem(f, function() {
-        planFiles.splice(i, 1);
-        renderPlanList();
-      });
-      list.appendChild(node);
-    });
-  }
-
-  // ── Supabase / R2 直傳 ──────────────────────────────────────────────────
-  // 照片 key 命名：<upload_id>/<room_type>_photo_<NN>_<ts>.<ext>
-  // 注意：<room_type> 是動態（other_a 可以是 study/workspace/...）。
-  function uploadPhotoToSupabase(file, uploadId, roomType, seq, onProgress) {
+  // ── Supabase 直傳 ──────────────────────────────────────────────────────
+  function uploadPhotoToSupabase(file, uploadId, seq, onProgress) {
     return new Promise(function(resolve, reject) {
       try {
         var ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-        var safeRoomType = String(roomType || 'unknown').replace(/[^a-z0-9_]/gi, '_');
         var nn = String(seq).padStart(2, '0');
-        var safeName = safeRoomType + '_photo_' + nn + '_' + Date.now() + '.' + ext;
+        var safeName = 'photo_' + nn + '_' + Date.now() + '.' + ext;
         var key = 'uploads/' + uploadId + '/' + safeName;
         var url = SUPABASE_URL + '/storage/v1/object/' + key;
 
@@ -818,8 +604,7 @@
         };
         xhr.onload = function() {
           if (xhr.status >= 200 && xhr.status < 300) resolve(key);
-          else reject(new Error('Supabase PUT failed HTTP ' + xhr.status + ': ' +
-                                  (xhr.responseText || '').substring(0, 200)));
+          else reject(new Error('Supabase PUT failed HTTP ' + xhr.status));
         };
         xhr.onerror = function() { reject(new Error('Supabase PUT network error')); };
         xhr.send(file);
@@ -852,626 +637,419 @@
         };
         xhr.onerror = function() { reject(new Error('R2 PUT network error')); };
         xhr.send(file);
-      } catch (e) {
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     });
   }
 
-  // ── Render rooms accordion ───────────────────────────────────────────────
-  function renderRooms() {
-    var container = document.getElementById('rooms-container');
-    container.innerHTML = '';
-    roomsState.forEach(function(r) {
-      container.appendChild(renderRoomCard(r));
+  // ── 影片 / 建物測量圖 drag handlers（沿用 flat） ───────────────────
+  function onDragoverVideo(e) { e.preventDefault(); document.getElementById('video-box').classList.add('active'); }
+  function onDragleaveVideo() { document.getElementById('video-box').classList.remove('active'); }
+  function onDropVideo(e) {
+    e.preventDefault();
+    document.getElementById('video-box').classList.remove('active');
+    Array.from(e.dataTransfer.files || []).forEach(function(f) { videoFiles.push(f); });
+    renderVideoList();
+  }
+  function onPickVideo(input) {
+    Array.from(input.files || []).forEach(function(f) { videoFiles.push(f); });
+    renderVideoList();
+  }
+
+  function onDragoverPlan(e) { e.preventDefault(); document.getElementById('plan-box').classList.add('active'); }
+  function onDragleavePlan() { document.getElementById('plan-box').classList.remove('active'); }
+  function onDropPlan(e) {
+    e.preventDefault();
+    document.getElementById('plan-box').classList.remove('active');
+    Array.from(e.dataTransfer.files || []).forEach(function(f) { planFiles.push(f); });
+    renderPlanList();
+  }
+  function onPickPlan(input) {
+    Array.from(input.files || []).forEach(function(f) { planFiles.push(f); });
+    renderPlanList();
+  }
+
+  function renderFlatItem(file, onRemove) {
+    var div = document.createElement('div');
+    div.className = 'file-item';
+    var name = file.name;
+    var sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    var icon = file.type && file.type.indexOf('video') >= 0 ? '🎬'
+             : file.type && file.type.indexOf('pdf')   >= 0 ? '📄' : '🖼️';
+    div.innerHTML =
+      '<div class="file-item-left">' +
+        '<span class="file-item-icon">' + icon + '</span>' +
+        '<span title="' + name + '">' + name + '</span>' +
+        '<span style="color:var(--muted);font-size:10px;flex-shrink:0;">' + sizeMB + ' MB</span>' +
+      '</div>' +
+      '<button class="file-remove" type="button">✕</button>';
+    div.querySelector('.file-remove').addEventListener('click', onRemove);
+    return div;
+  }
+
+  function renderVideoList() {
+    var list = document.getElementById('video-list');
+    list.innerHTML = '';
+    videoFiles.forEach(function(f, i) {
+      list.appendChild(renderFlatItem(f, function() {
+        videoFiles.splice(i, 1);
+        renderVideoList();
+      }));
     });
-    updateRoomsSummary();
-    updateNextButton();
   }
 
-  function renderRoomCard(r) {
-    var card = document.createElement('div');
-    card.className = 'room-card' + (r.is_expanded ? ' expanded' : '') + (r.is_primary ? ' primary' : '');
-    card.dataset.roomId = r.room_id;
-
-    // ── HEAD ──
-    var head = document.createElement('div');
-    head.className = 'room-head';
-    head.addEventListener('click', function(e) {
-      // 點擊 head 任何空白處 → toggle，但避免點到內部 input/button 也觸發
-      if (e.target.closest('.room-chevron') || e.target === head || e.target.classList.contains('room-name')) {
-        toggleRoom(r.room_id);
-      } else {
-        toggleRoom(r.room_id);
-      }
+  function renderPlanList() {
+    var list = document.getElementById('plan-list');
+    list.innerHTML = '';
+    planFiles.forEach(function(f, i) {
+      list.appendChild(renderFlatItem(f, function() {
+        planFiles.splice(i, 1);
+        renderPlanList();
+      }));
     });
-
-    var headLeft = document.createElement('div');
-    headLeft.className = 'room-head-left';
-
-    var nameEl = document.createElement('div');
-    nameEl.className = 'room-name';
-    var displayLabel = r.room_label || (r.is_other_a ? '其他空間 A' : (r.is_custom ? '其他空間 B' : '空間'));
-    nameEl.textContent = displayLabel;
-    headLeft.appendChild(nameEl);
-
-    if (r.is_primary) {
-      var badge = document.createElement('span');
-      badge.className = 'room-badge';
-      badge.textContent = '主空間';
-      headLeft.appendChild(badge);
-    }
-
-    // collapsed 時的 meta 摘要
-    if (!r.is_expanded) {
-      var meta = document.createElement('div');
-      meta.className = 'room-meta';
-      var photoText = r.photos.length > 0
-        ? '<span class="ok">已上傳 ' + r.photos.length + ' 張</span>'
-        : '<span>尚未上傳</span>';
-      var notesText = (r.room_notes || '').trim().length > 0
-        ? '<span class="ok">已填備註</span>'
-        : '';
-      meta.innerHTML = photoText + (notesText ? ' · ' + notesText : '');
-      headLeft.appendChild(meta);
-    }
-
-    head.appendChild(headLeft);
-
-    var chevron = document.createElement('div');
-    chevron.className = 'room-chevron';
-    chevron.textContent = '⌄';
-    head.appendChild(chevron);
-
-    card.appendChild(head);
-
-    // ── BODY ──
-    var body = document.createElement('div');
-    body.className = 'room-body';
-
-    // other_a: 未選擇前只顯示下拉
-    if (r.is_other_a && !r.room_type) {
-      body.appendChild(renderOtherADropdown(r));
-      card.appendChild(body);
-      return card;
-    }
-
-    // custom_room: 未命名前只顯示名稱輸入
-    if (r.is_custom && !(r.room_label || '').trim()) {
-      body.appendChild(renderCustomNameInput(r));
-      card.appendChild(body);
-      return card;
-    }
-
-    // 1. 設為主空間 row
-    body.appendChild(renderPrimaryRow(r));
-
-    // 2. 照片 dropzone
-    body.appendChild(renderPhotoDrop(r));
-
-    // 3. 照片 grid
-    body.appendChild(renderPhotoGrid(r));
-
-    // 4. 備註
-    body.appendChild(renderRoomNotes(r));
-
-    // 5. other_a 切換按鈕 / custom 改名按鈕
-    if (r.is_other_a && r.room_type) {
-      body.appendChild(renderOtherASwitchBtn(r));
-    }
-    if (r.is_custom && r.room_label) {
-      body.appendChild(renderCustomRenameBtn(r));
-    }
-
-    card.appendChild(body);
-    return card;
   }
 
-  function renderOtherADropdown(r) {
-    var wrap = document.createElement('div');
-    var hint = document.createElement('div');
-    hint.style.cssText = 'font-size:12px;color:var(--body);line-height:1.7;margin-bottom:6px;';
-    hint.textContent = '請先選擇此空間的類型，再進行上傳。';
-    wrap.appendChild(hint);
+  // ── 主要照片 dropzone handlers ────────────────────────────────────────
+  function onDragoverPhotos(e) {
+    e.preventDefault();
+    document.getElementById('photo-dropzone').classList.add('active');
+  }
+  function onDragleavePhotos() {
+    document.getElementById('photo-dropzone').classList.remove('active');
+  }
+  function onDropPhotos(e) {
+    e.preventDefault();
+    document.getElementById('photo-dropzone').classList.remove('active');
+    addPhotos(e.dataTransfer.files);
+  }
+  function onPickPhotos(input) {
+    addPhotos(input.files);
+    input.value = '';
+  }
 
-    var sel = document.createElement('select');
-    sel.className = 'other-a-select';
-    OTHER_A_OPTIONS.forEach(function(opt) {
-      var o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.label;
-      sel.appendChild(o);
+  // ── 加入照片 ────────────────────────────────────────────────────────────
+  function addPhotos(fileList) {
+    var files = Array.from(fileList || []).filter(function(f) {
+      return f && f.type && f.type.indexOf('image') === 0;
     });
-    sel.value = r.room_type || '';
-    sel.addEventListener('change', function() {
-      handleOtherAChange(r.room_id, sel.value);
-    });
-    wrap.appendChild(sel);
-    return wrap;
-  }
-
-  function renderOtherASwitchBtn(r) {
-    var sel = document.createElement('select');
-    sel.className = 'other-a-select';
-    sel.style.marginTop = '14px';
-    OTHER_A_OPTIONS.forEach(function(opt) {
-      var o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.label;
-      sel.appendChild(o);
-    });
-    sel.value = r.room_type || '';
-    sel.addEventListener('change', function(e) {
-      var newType = sel.value;
-      if (!newType) {
-        // 改回未選擇
-        if (r.photos.length > 0 || (r.room_notes || '').trim()) {
-          if (!confirm('更換空間名稱不會刪除已上傳照片，是否繼續？')) {
-            sel.value = r.room_type;
-            return;
-          }
-        }
-        handleOtherAChange(r.room_id, '');
-      } else if (newType !== r.room_type) {
-        if (r.photos.length > 0 || (r.room_notes || '').trim()) {
-          if (!confirm('更換空間名稱不會刪除已上傳照片，是否繼續？')) {
-            sel.value = r.room_type;
-            return;
-          }
-        }
-        handleOtherAChange(r.room_id, newType);
-      }
-    });
-    var lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#999;margin-top:18px;margin-bottom:6px;';
-    lbl.textContent = '更換此空間類型';
-    var box = document.createElement('div');
-    box.appendChild(lbl);
-    box.appendChild(sel);
-    return box;
-  }
-
-  function renderCustomNameInput(r) {
-    var wrap = document.createElement('div');
-    var hint = document.createElement('div');
-    hint.style.cssText = 'font-size:12px;color:var(--body);line-height:1.7;margin-bottom:6px;';
-    hint.textContent = '請先為此空間命名，再進行上傳。';
-    wrap.appendChild(hint);
-
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'custom-name-input';
-    input.maxLength = 20;
-    input.placeholder = '例如：電競房、健身房、儲藏室';
-    input.value = r.room_label || '';
-    input.addEventListener('blur', function() {
-      var name = input.value.trim();
-      if (name) handleCustomRename(r.room_id, name);
-    });
-    input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        input.blur();
-      }
-    });
-    wrap.appendChild(input);
-    return wrap;
-  }
-
-  function renderCustomRenameBtn(r) {
-    var box = document.createElement('div');
-    box.style.marginTop = '18px';
-
-    var lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#999;margin-bottom:6px;';
-    lbl.textContent = '此空間名稱';
-    box.appendChild(lbl);
-
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'custom-name-input';
-    input.maxLength = 20;
-    input.value = r.room_label || '';
-    input.addEventListener('blur', function() {
-      var name = input.value.trim();
-      if (name && name !== r.room_label) {
-        handleCustomRename(r.room_id, name);
-      } else if (!name) {
-        input.value = r.room_label;
-      }
-    });
-    box.appendChild(input);
-    return box;
-  }
-
-  function renderPrimaryRow(r) {
-    var row = document.createElement('div');
-    row.className = 'primary-row';
-
-    if (r.is_primary) {
-      var lbl = document.createElement('div');
-      lbl.className = 'primary-label-active';
-      lbl.textContent = '✦ 本次主空間';
-      row.appendChild(lbl);
-    } else {
-      var canSetPrimary = isRoomReadyForPrimary(r);
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn-set-primary';
-      btn.textContent = '設為本次主空間';
-      btn.disabled = !canSetPrimary;
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (!canSetPrimary) return;
-        setPrimary(r.room_id);
-      });
-      row.appendChild(btn);
-
-      if (!canSetPrimary) {
-        var hint = document.createElement('span');
-        hint.style.cssText = 'font-size:11px;color:var(--muted);letter-spacing:0.5px;';
-        hint.textContent = '上傳第一張照片後才能設為主空間';
-        row.appendChild(hint);
-      }
-    }
-    return row;
-  }
-
-  function renderPhotoDrop(r) {
-    var box = document.createElement('div');
-    box.className = 'photo-drop';
-    box.dataset.roomId = r.room_id;
-    box.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      box.classList.add('active');
-    });
-    box.addEventListener('dragleave', function() {
-      box.classList.remove('active');
-    });
-    box.addEventListener('drop', function(e) {
-      e.preventDefault();
-      box.classList.remove('active');
-      addPhotosToRoom(r.room_id, e.dataTransfer.files);
-    });
-
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    // 手機可喚相機/相簿
-    input.addEventListener('change', function() {
-      addPhotosToRoom(r.room_id, input.files);
-      input.value = '';
-    });
-    box.appendChild(input);
-
-    var text = document.createElement('div');
-    text.className = 'photo-drop-text';
-    if (r.room_id === 'living_room') {
-      text.innerHTML = '<strong>點擊或拖曳上傳照片</strong>';
-      var sub = document.createElement('div');
-      sub.className = 'photo-drop-sub';
-      sub.textContent = '廣角全景照可直接上傳，系統會辨識客廳、餐廳、廚房與主要動線，不需要重複上傳。';
-      box.appendChild(text);
-      box.appendChild(sub);
-    } else {
-      text.innerHTML = '<strong>點擊或拖曳上傳照片</strong>';
-      var sub2 = document.createElement('div');
-      sub2.className = 'photo-drop-sub';
-      sub2.textContent = '建議上傳 2–8 張，包含廣角、主要牆面與不同方向。';
-      box.appendChild(text);
-      box.appendChild(sub2);
-    }
-    return box;
-  }
-
-  function renderPhotoGrid(r) {
-    var grid = document.createElement('div');
-    grid.className = 'photo-grid';
-    if (r.photos.length === 0) {
-      grid.style.display = 'none';
-      return grid;
-    }
-    r.photos.forEach(function(p) {
-      var tile = document.createElement('div');
-      tile.className = 'photo-tile' + (p.status === 'failed' ? ' failed' : '');
-
-      if (p.thumb) {
-        var img = document.createElement('img');
-        img.src = p.thumb;
-        img.alt = '';
-        tile.appendChild(img);
-      } else {
-        // 重整 / 沒 thumb 時的空態
-        var empty = document.createElement('div');
-        empty.className = 'photo-tile-empty';
-        empty.textContent = '✓';
-        tile.appendChild(empty);
-      }
-
-      var rm = document.createElement('button');
-      rm.type = 'button';
-      rm.className = 'photo-tile-remove';
-      rm.textContent = '✕';
-      rm.addEventListener('click', function() {
-        removePhotoFromRoom(r.room_id, p.id);
-      });
-      tile.appendChild(rm);
-
-      if (p.status === 'uploading') {
-        var st = document.createElement('div');
-        st.className = 'photo-tile-status uploading';
-        st.textContent = '上傳中 ' + (p.progress || 0) + '%';
-        tile.appendChild(st);
-
-        var bar = document.createElement('div');
-        bar.className = 'photo-tile-bar';
-        bar.style.width = (p.progress || 0) + '%';
-        tile.appendChild(bar);
-      } else if (p.status === 'pending') {
-        var st2 = document.createElement('div');
-        st2.className = 'photo-tile-status uploading';
-        st2.textContent = '準備中…';
-        tile.appendChild(st2);
-      } else if (p.status === 'failed') {
-        var st3 = document.createElement('div');
-        st3.className = 'photo-tile-status failed';
-        st3.textContent = '上傳失敗';
-        tile.appendChild(st3);
-
-        var retry = document.createElement('button');
-        retry.type = 'button';
-        retry.className = 'photo-tile-retry';
-        retry.textContent = '重試';
-        retry.addEventListener('click', function(e) {
-          e.stopPropagation();
-          retryPhotoUpload(r.room_id, p.id);
-        });
-        tile.appendChild(retry);
-      }
-
-      grid.appendChild(tile);
-    });
-    return grid;
-  }
-
-  function renderRoomNotes(r) {
-    var wrap = document.createElement('div');
-    wrap.className = 'room-notes-wrap';
-
-    var lbl = document.createElement('div');
-    lbl.className = 'room-notes-label';
-    lbl.textContent = '補充這個空間的用途或想法（選填）';
-    wrap.appendChild(lbl);
-
-    var ta = document.createElement('textarea');
-    ta.className = 'room-notes';
-    ta.maxLength = ROOM_NOTES_MAX;
-    ta.placeholder = '例如：想做電腦室與書房，希望有雙人書桌、收納櫃，並保留右側走道。';
-    ta.value = r.room_notes || '';
-    var cnt = document.createElement('div');
-    cnt.className = 'room-notes-count';
-    cnt.textContent = (r.room_notes || '').length + ' / ' + ROOM_NOTES_MAX;
-    ta.addEventListener('input', function() {
-      r.room_notes = ta.value.slice(0, ROOM_NOTES_MAX);
-      cnt.textContent = r.room_notes.length + ' / ' + ROOM_NOTES_MAX;
-    });
-    wrap.appendChild(ta);
-    wrap.appendChild(cnt);
-    return wrap;
-  }
-
-  // ── Behavior ─────────────────────────────────────────────────────────────
-  function toggleRoom(roomId) {
-    var r = findRoom(roomId);
-    if (!r) return;
-    r.is_expanded = !r.is_expanded;
-    renderRooms();
-  }
-
-  function setPrimary(roomId) {
-    var target = findRoom(roomId);
-    if (!target) return;
-    if (!isRoomReadyForPrimary(target)) {
-      showWarning('該空間至少需要一張已上傳完成的照片才能設為主空間。');
-      return;
-    }
-    roomsState.forEach(function(r) { r.is_primary = (r.room_id === roomId); });
-    clearWarning();
-    renderRooms();
-  }
-
-  // primary 失效時，依固定順序找下一個有照片的空間
-  function autoTransferPrimary() {
-    for (var i = 0; i < roomsState.length; i++) {
-      var r = roomsState[i];
-      if (isRoomReadyForPrimary(r)) {
-        roomsState.forEach(function(x) { x.is_primary = (x.room_id === r.room_id); });
-        return r.room_id;
-      }
-    }
-    // 全部都沒照片 → 沒有 primary
-    roomsState.forEach(function(x) { x.is_primary = false; });
-    return null;
-  }
-
-  function handleOtherAChange(roomId, newType) {
-    var r = findRoom(roomId);
-    if (!r) return;
-    r.room_type = newType;
-    var opt = OTHER_A_OPTIONS.filter(function(o) { return o.value === newType; })[0];
-    r.room_label = opt ? opt.label : '其他空間 A';
-    if (!newType) {
-      // 改回未選擇 → 強制收合並失去 primary 資格
-      r.is_expanded = false;
-      if (r.is_primary) {
-        autoTransferPrimary();
-      }
-    } else {
-      r.is_expanded = true;
-    }
-    renderRooms();
-  }
-
-  function handleCustomRename(roomId, name) {
-    var r = findRoom(roomId);
-    if (!r) return;
-    r.room_label = name;
-    r.is_expanded = true;
-    renderRooms();
-  }
-
-  function showWarning(msg) {
-    var el = document.getElementById('roomsWarning');
-    el.textContent = msg;
-    el.classList.add('show');
-  }
-  function clearWarning() {
-    var el = document.getElementById('roomsWarning');
-    el.textContent = '';
-    el.classList.remove('show');
-  }
-
-  function addPhotosToRoom(roomId, fileList) {
-    var r = findRoom(roomId);
-    if (!r) return;
-    var files = Array.from(fileList || []).filter(function(f) { return f && f.type && f.type.indexOf('image') === 0; });
     if (files.length === 0) return;
 
-    // 全案 30 張 + 單空間 8 張限制
-    var roomAvail   = ROOM_PHOTO_LIMIT  - r.photos.length;
-    var totalAvail  = TOTAL_PHOTO_LIMIT - totalPhotoCount();
-    var canAccept   = Math.min(files.length, roomAvail, totalAvail);
-
-    if (canAccept < files.length) {
-      if (roomAvail < files.length) {
-        showWarning('每個空間最多可上傳 ' + ROOM_PHOTO_LIMIT + ' 張照片。');
-      }
-      if (totalAvail < files.length) {
-        showWarning('本次最多可上傳 ' + TOTAL_PHOTO_LIMIT + ' 張空間照片，請刪除部分照片後再繼續。');
-      }
+    var avail = TOTAL_PHOTO_LIMIT - photos.length;
+    if (avail <= 0) {
+      showWarning('本次最多可上傳 ' + TOTAL_PHOTO_LIMIT + ' 張空間照片，請刪除部分照片後再繼續。');
+      return;
+    }
+    if (files.length > avail) {
+      showWarning('已達 ' + TOTAL_PHOTO_LIMIT + ' 張上限，僅接受前 ' + avail + ' 張，請刪除部分照片後再上傳其餘。');
     } else {
       clearWarning();
     }
 
-    var accepted = files.slice(0, Math.max(0, canAccept));
+    var accepted = files.slice(0, avail);
     accepted.forEach(function(f) {
-      r._photo_seq = (r._photo_seq || 0) + 1;
-      var seq = r._photo_seq;
-      var pid = 'p-' + r.room_id + '-' + seq + '-' + Date.now();
+      _photo_seq += 1;
+      var seq = _photo_seq;
       var thumb = '';
       try { thumb = URL.createObjectURL(f); } catch (e) {}
-      var photo = {
-        id:       pid,
+      var p = {
+        id:       'p-' + seq + '-' + Date.now(),
         file:     f,
         status:   'uploading',
         progress: 0,
         key:      '',
         thumb:    thumb,
-        error:    '',
-        seq:      seq
+        label:    DEFAULT_LABEL,
+        seq:      seq,
+        error:    ''
       };
-      r.photos.push(photo);
-      // 啟動上傳
-      doUpload(r, photo);
+      photos.push(p);
+      doUpload(p);
     });
 
-    renderRooms();
+    renderPhotos();
   }
 
-  function doUpload(room, photo) {
-    photo.status = 'uploading';
-    photo.progress = 0;
-    photo.error = '';
-    uploadPhotoToSupabase(photo.file, UPLOAD_ID, room.room_type || 'unknown', photo.seq, function(pct) {
-      photo.progress = pct;
-      // 輕量更新：只刷一次 grid 比較費，用 requestAnimationFrame 節流
+  function doUpload(p) {
+    p.status = 'uploading';
+    p.progress = 0;
+    p.error = '';
+    uploadPhotoToSupabase(p.file, UPLOAD_ID, p.seq, function(pct) {
+      p.progress = pct;
       if (!doUpload._raf) {
         doUpload._raf = requestAnimationFrame(function() {
           doUpload._raf = 0;
-          renderRooms();
+          renderPhotos();
         });
       }
     }).then(function(key) {
-      photo.key = key;
-      photo.status = 'uploaded';
-      photo.progress = 100;
-      renderRooms();
+      p.key = key;
+      p.status = 'uploaded';
+      p.progress = 100;
+      renderPhotos();
     }).catch(function(err) {
-      photo.status = 'failed';
-      photo.error = (err && err.message) || 'upload failed';
-      console.warn('[upload] failed', photo.id, err);
-      renderRooms();
+      p.status = 'failed';
+      p.error = (err && err.message) || 'upload failed';
+      console.warn('[upload] failed', p.id, err);
+      renderPhotos();
     });
   }
 
-  function retryPhotoUpload(roomId, photoId) {
-    var r = findRoom(roomId);
-    if (!r) return;
-    var p = r.photos.filter(function(x) { return x.id === photoId; })[0];
+  function retryUpload(photoId) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p || !p.file) {
-      // 沒檔案物件（重整後）→ 無法重試，引導刪除
       showWarning('無法重試此照片，請刪除後重新上傳。');
       return;
     }
     clearWarning();
-    doUpload(r, p);
+    doUpload(p);
   }
 
-  function removePhotoFromRoom(roomId, photoId) {
-    var r = findRoom(roomId);
-    if (!r) return;
+  function removePhoto(photoId) {
     var idx = -1;
-    for (var i = 0; i < r.photos.length; i++) {
-      if (r.photos[i].id === photoId) { idx = i; break; }
+    for (var i = 0; i < photos.length; i++) {
+      if (photos[i].id === photoId) { idx = i; break; }
     }
     if (idx < 0) return;
-    var p = r.photos[idx];
+    var p = photos[idx];
     try { if (p.thumb) URL.revokeObjectURL(p.thumb); } catch (e) {}
-    r.photos.splice(idx, 1);
+    photos.splice(idx, 1);
+    renderPhotos();
+  }
 
-    // primary 失去最後一張 → 自動轉移
-    if (r.is_primary && r.photos.filter(function(x) { return x.status === 'uploaded'; }).length === 0) {
-      var nextPid = autoTransferPrimary();
-      if (!nextPid) {
-        showWarning('請先為其中一個空間上傳照片，再設定本次主空間。');
-      } else {
-        clearWarning();
-      }
+  function changePhotoLabel(photoId, newLabel) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.label = newLabel;
+    updatePrimaryHint();
+    updateNextButton();
+  }
+
+  // ── 渲染 photos grid ──────────────────────────────────────────────────
+  function renderPhotos() {
+    var grid = document.getElementById('photos-grid');
+    grid.innerHTML = '';
+    photos.forEach(function(p) {
+      grid.appendChild(renderPhotoCard(p));
+    });
+
+    var meta = document.getElementById('photos-meta');
+    if (photos.length > 0) {
+      meta.style.display = 'flex';
+      document.getElementById('totalCount').textContent = String(photos.length);
+    } else {
+      meta.style.display = 'none';
     }
-    renderRooms();
+    updatePrimaryHint();
+    updateNextButton();
   }
 
-  // ── Summary + next button gate ──────────────────────────────────────────
-  function updateRoomsSummary() {
-    document.getElementById('totalCount').textContent = String(totalPhotoCount());
-    var primary = getCurrentPrimary();
-    document.getElementById('primaryLabel').textContent = primary ? (primary.room_label || primary.room_type || '—') : '—';
+  function renderPhotoCard(p) {
+    var card = document.createElement('div');
+    card.className = 'photo-card' + (p.status === 'uploading' ? ' uploading' : '') + (p.status === 'failed' ? ' failed' : '');
+    card.dataset.id = p.id;
+
+    var thumbWrap = document.createElement('div');
+    thumbWrap.className = 'photo-thumb-wrap';
+
+    if (p.thumb) {
+      var img = document.createElement('img');
+      img.src = p.thumb;
+      img.alt = '';
+      thumbWrap.appendChild(img);
+    } else {
+      var empty = document.createElement('div');
+      empty.className = 'photo-thumb-empty';
+      empty.textContent = '✓';
+      thumbWrap.appendChild(empty);
+    }
+
+    var rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'photo-remove';
+    rm.textContent = '✕';
+    rm.title = '刪除';
+    rm.addEventListener('click', function(e) {
+      e.stopPropagation();
+      removePhoto(p.id);
+    });
+    thumbWrap.appendChild(rm);
+
+    if (p.status === 'uploading') {
+      var st = document.createElement('div');
+      st.className = 'photo-status';
+      st.textContent = '上傳中 ' + (p.progress || 0) + '%';
+      thumbWrap.appendChild(st);
+      var bar = document.createElement('div');
+      bar.className = 'photo-bar';
+      bar.style.width = (p.progress || 0) + '%';
+      thumbWrap.appendChild(bar);
+    } else if (p.status === 'pending') {
+      var st2 = document.createElement('div');
+      st2.className = 'photo-status';
+      st2.textContent = '準備中…';
+      thumbWrap.appendChild(st2);
+    } else if (p.status === 'failed') {
+      var st3 = document.createElement('div');
+      st3.className = 'photo-status failed';
+      st3.textContent = '上傳失敗';
+      thumbWrap.appendChild(st3);
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'photo-retry';
+      retry.textContent = '重試';
+      retry.addEventListener('click', function(e) {
+        e.stopPropagation();
+        retryUpload(p.id);
+      });
+      thumbWrap.appendChild(retry);
+    }
+
+    card.appendChild(thumbWrap);
+
+    var labelRow = document.createElement('div');
+    labelRow.className = 'photo-label-row';
+    var hint = document.createElement('span');
+    hint.className = 'photo-label-hint';
+    hint.textContent = '空間';
+    labelRow.appendChild(hint);
+
+    var sel = document.createElement('select');
+    sel.className = 'photo-label-select';
+    LABEL_OPTIONS.forEach(function(opt) {
+      var o = document.createElement('option');
+      o.value = opt.display;
+      o.textContent = opt.display;
+      sel.appendChild(o);
+    });
+    sel.value = p.label || DEFAULT_LABEL;
+    sel.addEventListener('change', function() {
+      changePhotoLabel(p.id, sel.value);
+    });
+    labelRow.appendChild(sel);
+
+    card.appendChild(labelRow);
+    return card;
   }
 
+  function updatePrimaryHint() {
+    var primaryDef = computePrimary();
+    var hintEl = document.getElementById('primaryHint');
+    if (!hintEl) return;
+    if (primaryDef) {
+      hintEl.textContent = '主空間：' + primaryDef.room_label;
+    } else {
+      hintEl.textContent = '尚未有可作為主空間的照片';
+    }
+  }
+
+  // ── notes ────────────────────────────────────────────────────────────────
+  (function bindNotes() {
+    var ta = document.getElementById('notes-textarea');
+    var cnt = document.getElementById('notesCount');
+    if (!ta || !cnt) return;
+    ta.addEventListener('input', function() {
+      if (ta.value.length > NOTES_MAX) ta.value = ta.value.slice(0, NOTES_MAX);
+      cnt.textContent = String(ta.value.length);
+    });
+  })();
+
+  function showWarning(msg) {
+    var el = document.getElementById('photos-warning');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function clearWarning() {
+    var el = document.getElementById('photos-warning');
+    el.textContent = '';
+    el.classList.remove('show');
+  }
+
+  // ── primary 計算 ────────────────────────────────────────────────────────
+  // 規則：
+  //   有 living_room 照片 → living_room 永遠 primary
+  //   沒 living_room 照片 → 找第一個有 uploaded 照片的 room（依 photos 排序）
+  function computePrimary() {
+    var uploaded = photos.filter(function(p) { return p.status === 'uploaded' && p.key; });
+    if (uploaded.length === 0) return null;
+
+    var hasLiving = uploaded.some(function(p) { return labelDefFor(p.label).room_type === 'living_room'; });
+    if (hasLiving) {
+      return labelDefFor('客廳');
+    }
+    // 找第一張 uploaded 照片的 label
+    var firstLabel = uploaded[0].label || DEFAULT_LABEL;
+    return labelDefFor(firstLabel);
+  }
+
+  // ── 打包 rooms_json ────────────────────────────────────────────────────
+  function buildRoomsJson() {
+    var uploaded = photos.filter(function(p) { return p.status === 'uploaded' && p.key; });
+    if (uploaded.length === 0) return [];
+
+    // 依 label → room_type 聚合
+    var groups = {};   // room_type → {room_type, room_label, photo_keys[]}
+    uploaded.forEach(function(p) {
+      var def = labelDefFor(p.label || DEFAULT_LABEL);
+      if (!groups[def.room_type]) {
+        groups[def.room_type] = {
+          room_type:  def.room_type,
+          room_label: def.room_label,
+          photo_keys: []
+        };
+      }
+      groups[def.room_type].photo_keys.push(p.key);
+    });
+
+    var primaryDef = computePrimary();
+    var notesText = (document.getElementById('notes-textarea').value || '').slice(0, NOTES_MAX);
+
+    var rooms = [];
+    // 先放 primary（確保 primary 在前）
+    if (primaryDef && groups[primaryDef.room_type]) {
+      var pg = groups[primaryDef.room_type];
+      rooms.push({
+        room_id:    pg.room_type,
+        room_type:  pg.room_type,
+        room_label: pg.room_label,
+        is_primary: true,
+        room_notes: notesText,
+        photo_keys: pg.photo_keys
+      });
+      delete groups[primaryDef.room_type];
+    }
+    // 其餘 rooms（is_primary=false，無 notes）
+    Object.keys(groups).forEach(function(rt) {
+      var g = groups[rt];
+      rooms.push({
+        room_id:    g.room_type,
+        room_type:  g.room_type,
+        room_label: g.room_label,
+        is_primary: false,
+        room_notes: '',
+        photo_keys: g.photo_keys
+      });
+    });
+    return rooms;
+  }
+
+  // ── next button 狀態 ──────────────────────────────────────────────────
   function updateNextButton() {
     var btn = document.getElementById('btnNext');
     if (!btn) return;
-    // 規則：若有上傳中 / 沒主空間 / 主空間沒任一已 uploaded → 禁用
-    var anyUploading = hasUploadingPhotos();
-    var primary = getCurrentPrimary();
-    var primaryReady = primary && primary.photos.some(function(p) { return p.status === 'uploaded'; });
-    var noPhotoAtAll = totalPhotoCount() === 0;
-
-    // 沒任何照片 → 允許示範模式（同舊行為），按鈕仍可點
-    if (noPhotoAtAll) {
+    if (totalPhotoCount() === 0) {
+      // 允許示範模式（沿用既有行為）
       btn.disabled = false;
       btn.textContent = '下一步：確認風格 →';
       return;
     }
-    if (anyUploading) {
+    if (hasUploadingPhotos()) {
       btn.disabled = true;
       btn.textContent = '照片仍在上傳中…';
       return;
     }
-    if (!primaryReady) {
+    var primary = computePrimary();
+    if (!primary) {
       btn.disabled = true;
-      btn.textContent = '請選擇有照片的主空間';
+      btn.textContent = '請等待至少一張照片上傳完成';
       return;
     }
     btn.disabled = false;
@@ -1480,17 +1058,15 @@
 
   // ── nextStep ─────────────────────────────────────────────────────────────
   async function nextStep() {
-    // 沒主空間 / 主空間沒 uploaded → 阻擋
-    var primary = getCurrentPrimary();
-    var noPhotoAtAll = totalPhotoCount() === 0;
+    var noPhotos = totalPhotoCount() === 0;
 
-    if (!noPhotoAtAll) {
+    if (!noPhotos) {
       if (hasUploadingPhotos()) {
         showWarning('照片仍在上傳中，請稍候完成。');
         return;
       }
-      if (!primary || !primary.photos.some(function(p) { return p.status === 'uploaded'; })) {
-        showWarning('主空間至少需要一張已上傳完成的照片。');
+      if (!computePrimary()) {
+        showWarning('請等待至少一張照片上傳完成。');
         return;
       }
     }
@@ -1514,16 +1090,11 @@
         videoKeys.push(vKey);
       }
 
-      // 照片：已經在 addPhotosToRoom 時上傳完了，這裡只收集已 uploaded 的 key
-      // 全 flat 列表給 /api/upload，per-room 歸屬在 C2-front-2 才送 rooms_json
-      var allPhotoKeys = [];
-      roomsState.forEach(function(r) {
-        r.photos.forEach(function(p) {
-          if (p.status === 'uploaded' && p.key) allPhotoKeys.push(p.key);
-        });
-      });
+      // flat photo_keys (union of all uploaded)
+      var allPhotoKeys = photos.filter(function(p) { return p.status === 'uploaded' && p.key; })
+                               .map(function(p) { return p.key; });
 
-      // ── 全部上傳完成，送 metadata 給 Railway 註冊 ──
+      // 註冊 metadata
       btn.textContent = '註冊中…';
       var formData = new FormData();
       formData.append('upload_id',  uploadId);
@@ -1537,48 +1108,29 @@
       localStorage.setItem('deco_upload_id', data.upload_id);
       localStorage.setItem('deco_files_count', String(data.count));
 
-      // 沒照片 → 示範模式，跟舊行為一致直接跳
-      if (noPhotoAtAll && videoKeys.length === 0) {
+      // 沒任何照片影片 → 示範模式
+      if (noPhotos && videoKeys.length === 0) {
         if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) {
           btn.textContent = orig;
           btn.disabled = false;
           return;
         }
-        // 示範模式：清掉舊 rooms 殘留，下一頁照舊
         try { localStorage.removeItem('deco_rooms'); } catch (e) {}
         window.location.href = 'style-form.html';
         return;
       }
 
-      // ── P2-MVP-0 / C2-front-2: 寫 rooms[] 到 localStorage 給 checkout 用 ──
-      // 過濾規則：
-      //   - 至少 1 張 uploaded 照片，或
-      //   - 有 room_notes 內容
-      //   - other_a 必須已選類型才視為有效
-      //   - custom_room 必須已命名才視為有效
-      // primary 一定要有 uploaded 照片（前面 nextStep 開頭已驗）
-      var validRooms = roomsState.filter(function(r) {
-        if (r.is_other_a && !r.room_type) return false;
-        if (r.is_custom && !(r.room_label || '').trim()) return false;
-        var anyUploaded = r.photos.some(function(p) { return p.status === 'uploaded' && p.key; });
-        var hasNotes = (r.room_notes || '').trim().length > 0;
-        return anyUploaded || hasNotes;
-      }).map(function(r) {
-        return {
-          room_id:    r.room_id,
-          room_type:  r.room_type,
-          room_label: r.room_label,
-          is_primary: !!r.is_primary,
-          room_notes: (r.room_notes || '').slice(0, ROOM_NOTES_MAX),
-          photo_keys: r.photos.filter(function(p) { return p.status === 'uploaded' && p.key; })
-                              .map(function(p) { return p.key; })
-        };
-      });
-
-      try {
-        localStorage.setItem('deco_rooms', JSON.stringify(validRooms));
-      } catch (e) {
-        console.warn('[upload] failed to write deco_rooms', e);
+      // 打包 rooms_json
+      var validRooms = buildRoomsJson();
+      if (validRooms.length > 0) {
+        try {
+          localStorage.setItem('deco_rooms', JSON.stringify(validRooms));
+        } catch (e) {
+          console.warn('[upload] failed to write deco_rooms', e);
+        }
+      } else {
+        // 有影片但沒照片時，清空 deco_rooms 走 legacy
+        try { localStorage.removeItem('deco_rooms'); } catch (e) {}
       }
 
       window.location.href = 'style-form.html';
@@ -1591,11 +1143,9 @@
 
   // ── INIT ─────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function() {
-    renderRooms();
-    setInterval(function() {
-      // 兜底刷新 next button（uploading 期間 progress 變動會 trigger，但保險）
-      updateNextButton();
-    }, 1500);
+    renderPhotos();
+    // 兜底刷新 next button（uploading 期間 progress 變動會 trigger，但保險）
+    setInterval(updateNextButton, 1500);
   });
 </script>
 
