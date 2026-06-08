@@ -134,7 +134,7 @@
     }
     .main-dropzone-sub {
       font-size: 13px; color: var(--body); line-height: 1.7;
-      max-width: 480px; margin-bottom: 18px;
+      max-width: 520px; margin-bottom: 18px;
     }
     .main-dropzone-formats {
       display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
@@ -146,18 +146,55 @@
       padding: 5px 12px; text-transform: uppercase;
     }
 
-    /* ── 已上傳照片 grid ──────────────────────────────────────────── */
-    .photos-meta {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-top: 28px; margin-bottom: 14px;
-      font-size: 12px; color: var(--body); letter-spacing: 0.5px;
+    /* ── 主空間 Bar（顯示 + 可手動切換）─────────────────────────── */
+    .primary-bar {
+      margin-top: 28px;
+      padding: 18px 22px;
+      border: 1px solid rgba(201,169,110,0.25);
+      background: rgba(201,169,110,0.04);
+      display: flex; align-items: center; gap: 18px;
+      flex-wrap: wrap;
     }
-    .photos-meta strong { color: var(--gold); font-weight: 400; }
+    .primary-bar-eyebrow {
+      font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+    .primary-bar-sep {
+      width: 1px; height: 18px; background: rgba(201,169,110,0.35);
+    }
+    .primary-bar-value {
+      font-size: 14px; color: var(--white);
+      letter-spacing: 0.5px;
+      flex: 1; min-width: 140px;
+    }
+    .primary-bar-select {
+      background: var(--dark);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 9px 14px;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      min-width: 160px;
+    }
+    .primary-bar-select:focus { border-color: var(--gold); outline: none; }
+    .primary-bar-count {
+      font-size: 12px; color: var(--body);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .primary-bar-count strong { color: var(--gold); font-weight: 400; }
 
+    /* ── 已上傳照片 grid ──────────────────────────────────────────── */
     .photos-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: 14px;
+      margin-top: 18px;
     }
 
     .photo-card {
@@ -215,31 +252,48 @@
       padding: 5px 10px; cursor: pointer;
     }
 
-    /* per-photo label select */
-    .photo-label-row {
-      padding: 10px 12px;
+    /* per-photo label area */
+    .photo-label-area {
+      padding: 10px 12px 12px;
       border-top: 1px solid var(--line);
-      display: flex; align-items: center; gap: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
     .photo-label-hint {
-      font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
       color: var(--muted);
-      flex-shrink: 0;
+      letter-spacing: 1.5px;
     }
     .photo-label-select {
-      flex: 1; min-width: 0;
+      width: 100%;
       background: var(--black);
       border: 1px solid var(--line);
       color: var(--white);
       font-family: 'Inter', sans-serif;
       font-size: 13px;
-      padding: 8px 10px;
+      padding: 9px 11px;
       appearance: none;
       -webkit-appearance: none;
       cursor: pointer;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }
     .photo-label-select:focus { border-color: var(--gold); outline: none; }
+
+    /* 「其他」自訂 input（label 為「其他」時才顯示） */
+    .photo-other-input {
+      width: 100%;
+      background: var(--black);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      padding: 8px 10px;
+      letter-spacing: 0.3px;
+      margin-top: 2px;
+    }
+    .photo-other-input::placeholder { color: var(--muted); }
+    .photo-other-input:focus { border-color: var(--gold); outline: none; }
 
     /* ── 全案備註 ──────────────────────────────────────────────── */
     .notes-block {
@@ -293,7 +347,7 @@
     }
     .photos-warning.show { display: block; }
 
-    /* ── 影片 + 建物測量圖（沿用） ────────────────────────────── */
+    /* ── 影片 + 建物測量圖 ────────────────────────────────────── */
     .upload-box {
       border: 1px dashed var(--line);
       padding: 40px 32px;
@@ -313,7 +367,6 @@
     .upload-hint { font-size: 12px; color: var(--body); line-height: 1.7; }
     .upload-formats { margin-top: 14px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
 
-    /* FLAT FILE LIST (影片 / 建物測量圖) */
     .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
     .file-item {
       display: flex; align-items: center; justify-content: space-between;
@@ -377,6 +430,9 @@
       .main-dropzone { padding: 48px 22px; min-height: 220px; }
       .main-dropzone-title { font-size: 18px; }
       .photos-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+      .primary-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+      .primary-bar-sep { display: none; }
+      .primary-bar-value { font-size: 13px; }
       .tips-list { grid-template-columns: 1fr; }
       .actions { flex-direction: column; gap: 16px; }
       .btn-back, .btn-next { width: 100%; justify-content: center; }
@@ -441,7 +497,7 @@
     <input type="file" id="photo-input" accept="image/*" multiple onchange="onPickPhotos(this)">
     <div class="main-dropzone-icon">📷</div>
     <div class="main-dropzone-title">點擊上傳，或拖曳照片到這裡</div>
-    <div class="main-dropzone-sub">支援 JPG / PNG / HEIC，本次最多 30 張。<br>未標註的照片，我們會先視為客廳主空間資料處理。</div>
+    <div class="main-dropzone-sub">支援 JPG / PNG / HEIC，本次最多 30 張。<br>開放式客餐廳、客餐廚或廣角全景照，可選「客廳／公共空間」或「開放式客餐廳」。</div>
     <div class="main-dropzone-formats">
       <span class="format-tag">JPG</span>
       <span class="format-tag">PNG</span>
@@ -449,9 +505,13 @@
     </div>
   </div>
 
-  <div class="photos-meta" id="photos-meta" style="display:none;">
-    <span>已上傳 <strong id="totalCount">0</strong> / 30 張照片</span>
-    <span id="primaryHint" style="color:var(--muted);">主空間：客廳</span>
+  <!-- 主空間 Bar -->
+  <div class="primary-bar" id="primary-bar" style="display:none;">
+    <span class="primary-bar-eyebrow">本次主要提案空間</span>
+    <span class="primary-bar-sep"></span>
+    <span class="primary-bar-value" id="primaryValue">—</span>
+    <select class="primary-bar-select" id="primarySelect" onchange="onManualPrimaryChange(this.value)" style="display:none;"></select>
+    <span class="primary-bar-count" id="primaryCount">已上傳 <strong>0</strong> / 30 張</span>
   </div>
 
   <div class="photos-grid" id="photos-grid"></div>
@@ -544,24 +604,31 @@
   var TOTAL_PHOTO_LIMIT = 30;
   var NOTES_MAX = 300;
 
-  // 標籤選項（顯示用），對應 room_type / room_label
-  // 未標註預設視為「客廳」（不寫「自動判斷」，因為後端目前不做 per-photo 自動分類）
+  // 標籤選項（display 值是 select 的 value）
+  // 注意：
+  //   「客廳／公共空間」與「開放式客餐廳」都對應 room_type='living_room'
+  //   買家若同時選兩種，在 buildRoomsJson 內合併成同一筆 living_room entry
+  //   room_label 規則：群組內有任一張選「開放式客餐廳」→ '開放式客餐廳'，否則 → '客廳'
+  // 未標註預設 = '客廳／公共空間'。不寫「自動判斷」，因為 backend 目前不做 per-photo 自動分類。
   var LABEL_OPTIONS = [
-    { display: '客廳',        room_type: 'living_room',     room_label: '客廳' },
-    { display: '餐廳',        room_type: 'dining_room',     room_label: '餐廳' },
-    { display: '房間',        room_type: 'bedroom',         room_label: '房間' },
-    { display: '書房／工作室', room_type: 'study_workspace', room_label: '書房／工作室' },
-    { display: '其他',        room_type: 'other_room',      room_label: '其他' }
+    { display: '客廳／公共空間', room_type: 'living_room',     base_label: '客廳' },
+    { display: '開放式客餐廳',  room_type: 'living_room',     base_label: '開放式客餐廳' },
+    { display: '餐廳／餐廚區',  room_type: 'dining_room',     base_label: '餐廳' },
+    { display: '房間／臥室',    room_type: 'bedroom',         base_label: '房間' },
+    { display: '書房／工作室',  room_type: 'study_workspace', base_label: '書房／工作室' },
+    { display: '其他',          room_type: 'other_room',      base_label: '其他' }
   ];
-  var DEFAULT_LABEL = '客廳';
+  var DEFAULT_LABEL_DISPLAY = '客廳／公共空間';
 
   // ── State ────────────────────────────────────────────────────────────────
   var UPLOAD_ID = randomUploadId();
-  // photos: [{id, file, status, progress, key, thumb, label, seq, error}]
+  // photos: [{id, file, status, progress, key, thumb, label, other_text, seq, error}]
   var photos = [];
   var _photo_seq = 0;
   var videoFiles = [];
   var planFiles  = [];
+  // 主空間手動切換：null = 套用預設規則
+  var manualPrimaryKey = null;
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function randomUploadId() {
@@ -569,21 +636,106 @@
   }
 
   function totalPhotoCount() { return photos.length; }
-  function uploadedCount() {
-    return photos.filter(function(p) { return p.status === 'uploaded'; }).length;
-  }
   function hasUploadingPhotos() {
     return photos.some(function(p) { return p.status === 'uploading' || p.status === 'pending'; });
   }
 
-  function labelDefFor(display) {
+  function findLabelOpt(display) {
     for (var i = 0; i < LABEL_OPTIONS.length; i++) {
       if (LABEL_OPTIONS[i].display === display) return LABEL_OPTIONS[i];
     }
-    return LABEL_OPTIONS[0]; // fallback 客廳
+    return LABEL_OPTIONS[0];
   }
 
-  // ── Supabase 直傳 ──────────────────────────────────────────────────────
+  // 算一張照片 effective meta：依 label + other_text
+  function effectiveRoomMeta(p) {
+    var opt = findLabelOpt(p.label || DEFAULT_LABEL_DISPLAY);
+    if (opt.room_type === 'living_room') {
+      // group_key 統一為 'living_room'，room_label 暫定 base_label
+      return {
+        room_type:  'living_room',
+        room_label: opt.base_label, // '客廳' 或 '開放式客餐廳'
+        group_key:  'living_room'
+      };
+    }
+    if (opt.room_type === 'other_room') {
+      var custom = (p.other_text || '').trim();
+      var label = custom || '其他';
+      return {
+        room_type:  'other_room',
+        room_label: label,
+        group_key:  'other_room|' + label
+      };
+    }
+    return {
+      room_type:  opt.room_type,
+      room_label: opt.base_label,
+      group_key:  opt.room_type
+    };
+  }
+
+  // 從目前 uploaded 照片建出 groups（也是 buildRoomsJson 的內部用）
+  // 回傳：{ groupKey: {room_type, room_label, photo_keys[], _has_open_dining} }（保留插入順序）
+  function buildGroups() {
+    var groups = {};
+    var uploaded = photos.filter(function(p) { return p.status === 'uploaded' && p.key; });
+    uploaded.forEach(function(p) {
+      var meta = effectiveRoomMeta(p);
+      var gk = meta.group_key;
+      if (!groups[gk]) {
+        groups[gk] = {
+          room_type:  meta.room_type,
+          room_label: meta.room_label,
+          photo_keys: []
+        };
+        if (meta.room_type === 'living_room') {
+          groups[gk]._has_open_dining = (meta.room_label === '開放式客餐廳');
+        }
+      } else if (meta.room_type === 'living_room' && meta.room_label === '開放式客餐廳') {
+        // living_room group：若任一張選「開放式客餐廳」→ 整組升級
+        groups[gk]._has_open_dining = true;
+        groups[gk].room_label = '開放式客餐廳';
+      }
+      groups[gk].photo_keys.push(p.key);
+    });
+    return groups;
+  }
+
+  // 給 primary bar / dropdown 顯示用的友善名稱
+  function groupDisplayName(group) {
+    if (group.room_type === 'living_room') {
+      return group._has_open_dining ? '開放式客餐廳' : '客廳／公共空間';
+    }
+    if (group.room_type === 'dining_room')     return '餐廳／餐廚區';
+    if (group.room_type === 'bedroom')         return '房間／臥室';
+    if (group.room_type === 'study_workspace') return '書房／工作室';
+    if (group.room_type === 'other_room')      return group.room_label;
+    return group.room_label || '其他';
+  }
+
+  // ── primary 計算 ────────────────────────────────────────────────────────
+  // 規則：
+  //   manualPrimaryKey 有值且該 group 仍存在 → 使用該手動選擇
+  //   else 有 living_room → 'living_room'
+  //   else → 第一個 group_key（依插入順序 = 第一張 uploaded 照片所屬）
+  function pickPrimaryGroupKey() {
+    var groups = buildGroups();
+    var keys = Object.keys(groups);
+    if (keys.length === 0) return null;
+
+    if (manualPrimaryKey && groups[manualPrimaryKey]) {
+      return manualPrimaryKey;
+    }
+    // 若手動選的 group 消失（刪光照片），清掉手動選擇
+    if (manualPrimaryKey && !groups[manualPrimaryKey]) {
+      manualPrimaryKey = null;
+    }
+
+    if (groups['living_room']) return 'living_room';
+    return keys[0];
+  }
+
+  // ── Supabase / R2 直傳 ──────────────────────────────────────────────────
   function uploadPhotoToSupabase(file, uploadId, seq, onProgress) {
     return new Promise(function(resolve, reject) {
       try {
@@ -592,7 +744,6 @@
         var safeName = 'photo_' + nn + '_' + Date.now() + '.' + ext;
         var key = 'uploads/' + uploadId + '/' + safeName;
         var url = SUPABASE_URL + '/storage/v1/object/' + key;
-
         var xhr = new XMLHttpRequest();
         xhr.open('PUT', url, true);
         xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_ANON_KEY);
@@ -624,7 +775,6 @@
         var presignResp = await fetch(API_BASE + '/api/r2/presign', { method: 'POST', body: fd });
         if (!presignResp.ok) throw new Error('presign failed HTTP ' + presignResp.status);
         var presign = await presignResp.json();
-
         var xhr = new XMLHttpRequest();
         xhr.open('PUT', presign.url, true);
         xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
@@ -751,15 +901,16 @@
       var thumb = '';
       try { thumb = URL.createObjectURL(f); } catch (e) {}
       var p = {
-        id:       'p-' + seq + '-' + Date.now(),
-        file:     f,
-        status:   'uploading',
-        progress: 0,
-        key:      '',
-        thumb:    thumb,
-        label:    DEFAULT_LABEL,
-        seq:      seq,
-        error:    ''
+        id:        'p-' + seq + '-' + Date.now(),
+        file:      f,
+        status:    'uploading',
+        progress:  0,
+        key:       '',
+        thumb:     thumb,
+        label:     DEFAULT_LABEL_DISPLAY,
+        other_text:'',
+        seq:       seq,
+        error:     ''
       };
       photos.push(p);
       doUpload(p);
@@ -819,7 +970,26 @@
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
     p.label = newLabel;
-    updatePrimaryHint();
+    // 切離「其他」時清掉 other_text
+    if (newLabel !== '其他') p.other_text = '';
+    renderPhotos();
+  }
+
+  function changeOtherText(photoId, text) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.other_text = (text || '').slice(0, 30);
+    // group_key 會變，所以重畫 primary bar；photo card 內 input 自己會反映 value
+    updatePrimaryBar();
+    updateNextButton();
+  }
+
+  function onManualPrimaryChange(newKey) {
+    if (!newKey) return;
+    var groups = buildGroups();
+    if (!groups[newKey]) return;
+    manualPrimaryKey = newKey;
+    updatePrimaryBar();
     updateNextButton();
   }
 
@@ -830,15 +1000,7 @@
     photos.forEach(function(p) {
       grid.appendChild(renderPhotoCard(p));
     });
-
-    var meta = document.getElementById('photos-meta');
-    if (photos.length > 0) {
-      meta.style.display = 'flex';
-      document.getElementById('totalCount').textContent = String(photos.length);
-    } else {
-      meta.style.display = 'none';
-    }
-    updatePrimaryHint();
+    updatePrimaryBar();
     updateNextButton();
   }
 
@@ -847,9 +1009,9 @@
     card.className = 'photo-card' + (p.status === 'uploading' ? ' uploading' : '') + (p.status === 'failed' ? ' failed' : '');
     card.dataset.id = p.id;
 
+    // thumb
     var thumbWrap = document.createElement('div');
     thumbWrap.className = 'photo-thumb-wrap';
-
     if (p.thumb) {
       var img = document.createElement('img');
       img.src = p.thumb;
@@ -905,12 +1067,13 @@
 
     card.appendChild(thumbWrap);
 
-    var labelRow = document.createElement('div');
-    labelRow.className = 'photo-label-row';
-    var hint = document.createElement('span');
+    // label area
+    var area = document.createElement('div');
+    area.className = 'photo-label-area';
+    var hint = document.createElement('div');
     hint.className = 'photo-label-hint';
-    hint.textContent = '空間';
-    labelRow.appendChild(hint);
+    hint.textContent = '這張主要是';
+    area.appendChild(hint);
 
     var sel = document.createElement('select');
     sel.className = 'photo-label-select';
@@ -920,28 +1083,73 @@
       o.textContent = opt.display;
       sel.appendChild(o);
     });
-    sel.value = p.label || DEFAULT_LABEL;
+    sel.value = p.label || DEFAULT_LABEL_DISPLAY;
     sel.addEventListener('change', function() {
       changePhotoLabel(p.id, sel.value);
     });
-    labelRow.appendChild(sel);
+    area.appendChild(sel);
 
-    card.appendChild(labelRow);
+    // 「其他」自訂 input
+    if (p.label === '其他') {
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'photo-other-input';
+      inp.maxLength = 30;
+      inp.placeholder = '例如：玄關、陽台、儲藏室';
+      inp.value = p.other_text || '';
+      inp.addEventListener('input', function() {
+        changeOtherText(p.id, inp.value);
+      });
+      area.appendChild(inp);
+    }
+
+    card.appendChild(area);
     return card;
   }
 
-  function updatePrimaryHint() {
-    var primaryDef = computePrimary();
-    var hintEl = document.getElementById('primaryHint');
-    if (!hintEl) return;
-    if (primaryDef) {
-      hintEl.textContent = '主空間：' + primaryDef.room_label;
+  function updatePrimaryBar() {
+    var bar   = document.getElementById('primary-bar');
+    var val   = document.getElementById('primaryValue');
+    var sel   = document.getElementById('primarySelect');
+    var count = document.getElementById('primaryCount');
+
+    if (photos.length === 0) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
+    count.innerHTML = '已上傳 <strong>' + photos.length + '</strong> / ' + TOTAL_PHOTO_LIMIT + ' 張';
+
+    var groups = buildGroups();
+    var groupKeys = Object.keys(groups);
+
+    if (groupKeys.length === 0) {
+      val.textContent = '尚未有可作為主空間的照片';
+      sel.style.display = 'none';
+      return;
+    }
+
+    var primaryKey = pickPrimaryGroupKey();
+    var pg = primaryKey ? groups[primaryKey] : null;
+    val.textContent = pg ? groupDisplayName(pg) : '—';
+
+    if (groupKeys.length >= 2) {
+      sel.style.display = '';
+      sel.innerHTML = '';
+      groupKeys.forEach(function(gk) {
+        var o = document.createElement('option');
+        o.value = gk;
+        o.textContent = groupDisplayName(groups[gk]);
+        sel.appendChild(o);
+      });
+      sel.value = primaryKey;
+      // value (左邊) 跟 select (右邊) 顯示同樣的群組名稱，但 select 才是互動點。
     } else {
-      hintEl.textContent = '尚未有可作為主空間的照片';
+      sel.style.display = 'none';
     }
   }
 
-  // ── notes ────────────────────────────────────────────────────────────────
+  // ── notes counter ────────────────────────────────────────────────────────
   (function bindNotes() {
     var ta = document.getElementById('notes-textarea');
     var cnt = document.getElementById('notesCount');
@@ -963,64 +1171,37 @@
     el.classList.remove('show');
   }
 
-  // ── primary 計算 ────────────────────────────────────────────────────────
-  // 規則：
-  //   有 living_room 照片 → living_room 永遠 primary
-  //   沒 living_room 照片 → 找第一個有 uploaded 照片的 room（依 photos 排序）
-  function computePrimary() {
-    var uploaded = photos.filter(function(p) { return p.status === 'uploaded' && p.key; });
-    if (uploaded.length === 0) return null;
-
-    var hasLiving = uploaded.some(function(p) { return labelDefFor(p.label).room_type === 'living_room'; });
-    if (hasLiving) {
-      return labelDefFor('客廳');
-    }
-    // 找第一張 uploaded 照片的 label
-    var firstLabel = uploaded[0].label || DEFAULT_LABEL;
-    return labelDefFor(firstLabel);
-  }
-
   // ── 打包 rooms_json ────────────────────────────────────────────────────
   function buildRoomsJson() {
-    var uploaded = photos.filter(function(p) { return p.status === 'uploaded' && p.key; });
-    if (uploaded.length === 0) return [];
+    var groups = buildGroups();
+    var keys = Object.keys(groups);
+    if (keys.length === 0) return [];
 
-    // 依 label → room_type 聚合
-    var groups = {};   // room_type → {room_type, room_label, photo_keys[]}
-    uploaded.forEach(function(p) {
-      var def = labelDefFor(p.label || DEFAULT_LABEL);
-      if (!groups[def.room_type]) {
-        groups[def.room_type] = {
-          room_type:  def.room_type,
-          room_label: def.room_label,
-          photo_keys: []
-        };
-      }
-      groups[def.room_type].photo_keys.push(p.key);
-    });
-
-    var primaryDef = computePrimary();
+    var primaryKey = pickPrimaryGroupKey();
     var notesText = (document.getElementById('notes-textarea').value || '').slice(0, NOTES_MAX);
 
+    // 安全 ID：把 group_key 內非字母數字底線都換成 _
+    function safeRoomId(gk) { return gk.replace(/[^a-z0-9_]/gi, '_'); }
+
     var rooms = [];
-    // 先放 primary（確保 primary 在前）
-    if (primaryDef && groups[primaryDef.room_type]) {
-      var pg = groups[primaryDef.room_type];
+    // primary 先
+    if (primaryKey && groups[primaryKey]) {
+      var pg = groups[primaryKey];
       rooms.push({
-        room_id:    pg.room_type,
+        room_id:    safeRoomId(primaryKey),
         room_type:  pg.room_type,
         room_label: pg.room_label,
         is_primary: true,
         room_notes: notesText,
         photo_keys: pg.photo_keys
       });
-      delete groups[primaryDef.room_type];
     }
-    // 其餘 rooms（is_primary=false，無 notes）
-    Object.keys(groups).forEach(function(rt) {
-      var g = groups[rt];
+    // 其餘
+    keys.forEach(function(gk) {
+      if (gk === primaryKey) return;
+      var g = groups[gk];
       rooms.push({
-        room_id:    g.room_type,
+        room_id:    safeRoomId(gk),
         room_type:  g.room_type,
         room_label: g.room_label,
         is_primary: false,
@@ -1036,7 +1217,6 @@
     var btn = document.getElementById('btnNext');
     if (!btn) return;
     if (totalPhotoCount() === 0) {
-      // 允許示範模式（沿用既有行為）
       btn.disabled = false;
       btn.textContent = '下一步：確認風格 →';
       return;
@@ -1046,8 +1226,8 @@
       btn.textContent = '照片仍在上傳中…';
       return;
     }
-    var primary = computePrimary();
-    if (!primary) {
+    var primaryKey = pickPrimaryGroupKey();
+    if (!primaryKey) {
       btn.disabled = true;
       btn.textContent = '請等待至少一張照片上傳完成';
       return;
@@ -1059,13 +1239,12 @@
   // ── nextStep ─────────────────────────────────────────────────────────────
   async function nextStep() {
     var noPhotos = totalPhotoCount() === 0;
-
     if (!noPhotos) {
       if (hasUploadingPhotos()) {
         showWarning('照片仍在上傳中，請稍候完成。');
         return;
       }
-      if (!computePrimary()) {
+      if (!pickPrimaryGroupKey()) {
         showWarning('請等待至少一張照片上傳完成。');
         return;
       }
@@ -1079,7 +1258,6 @@
     try {
       var uploadId = UPLOAD_ID;
 
-      // 影片 → R2
       var videoKeys = [];
       for (var i = 0; i < videoFiles.length; i++) {
         var vIdx = i + 1;
@@ -1090,11 +1268,9 @@
         videoKeys.push(vKey);
       }
 
-      // flat photo_keys (union of all uploaded)
       var allPhotoKeys = photos.filter(function(p) { return p.status === 'uploaded' && p.key; })
                                .map(function(p) { return p.key; });
 
-      // 註冊 metadata
       btn.textContent = '註冊中…';
       var formData = new FormData();
       formData.append('upload_id',  uploadId);
@@ -1108,7 +1284,6 @@
       localStorage.setItem('deco_upload_id', data.upload_id);
       localStorage.setItem('deco_files_count', String(data.count));
 
-      // 沒任何照片影片 → 示範模式
       if (noPhotos && videoKeys.length === 0) {
         if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) {
           btn.textContent = orig;
@@ -1120,7 +1295,6 @@
         return;
       }
 
-      // 打包 rooms_json
       var validRooms = buildRoomsJson();
       if (validRooms.length > 0) {
         try {
@@ -1129,7 +1303,6 @@
           console.warn('[upload] failed to write deco_rooms', e);
         }
       } else {
-        // 有影片但沒照片時，清空 deco_rooms 走 legacy
         try { localStorage.removeItem('deco_rooms'); } catch (e) {}
       }
 
@@ -1144,7 +1317,6 @@
   // ── INIT ─────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function() {
     renderPhotos();
-    // 兜底刷新 next button（uploading 期間 progress 變動會 trigger，但保險）
     setInterval(updateNextButton, 1500);
   });
 </script>
