@@ -104,11 +104,32 @@ def _build_layout_section(zoning: dict) -> str:
     layout_choice = zoning.get("_layout_choice")
     if living_where and zoning.get("_origin") == "user_confirmed_v2":
         choice_label = layout_choice or "A"
+
+        # C2.1：偵測 living_where 是否描述「靠窗 / 底端 / 後段 / 深處」
+        # 若是 → 在 PLACEMENT RULES 內加上明確的 back/window-side 深度位置鐵則
+        depth_hint = ""
+        window_side_keywords = [
+            "靠窗", "窗邊", "窗戶", "底端", "深處", "後半段", "後段",
+            "深端", "底部", "底側", "尾端", "末端",
+            "window", "back of the room", "back end", "deep end",
+            "far end", "rear",
+        ]
+        is_window_side = any(k in living_where for k in window_side_keywords)
+        if is_window_side:
+            depth_hint = (
+                " The confirmed living zone is described as on the WINDOW-SIDE / BACK / DEEP "
+                "end of the room. This means: the sofa MUST be placed close to the window or "
+                "in the deep half of the room (the half furthest from the entrance). The sofa "
+                "MUST NOT be placed in the front half, the middle transition zone, near the "
+                "entrance, or near the dining area — even by a sofa-length offset is wrong."
+            )
+
         parts.append(
             "USER-CONFIRMED LAYOUT (MANDATORY — this is the customer's explicit decision, "
             f"NOT a suggestion you may override). Chosen plan: {choice_label}. "
-            f"Living zone (binding): '{living_where}'. "
-            "PLACEMENT RULES: "
+            f"Living zone (binding): '{living_where}'."
+            + depth_hint +
+            " PLACEMENT RULES: "
             "(1) The sofa MUST physically sit inside the confirmed living zone area "
             f"(roughly: {living_where}). The sofa back rests against the wall closest "
             "to this confirmed zone. This is NOT a soft preference — placing the sofa "
@@ -124,7 +145,15 @@ def _build_layout_section(zoning: dict) -> str:
             "to the living zone. "
             "(5) Do not relocate the living area to a different part of the room because "
             "the confirmed area 'looks empty' or 'feels less balanced'. Visual balance is "
-            "added with soft furnishings, not by moving the sofa."
+            "added with soft furnishings, not by moving the sofa. "
+            "(6) DO NOT move the sofa forward, toward the entrance, or into the middle of "
+            "the room for better composition. EVEN IF the window-side / back living zone "
+            "looks visually empty, keep the sofa there. If there are not enough decor items "
+            "near the window area, keep the sofa placement correct and leave decor simpler. "
+            "(7) Visual balance, style composition, decor availability, or empty-wall "
+            "aesthetics MUST NEVER override the confirmed living zone position. The customer "
+            "made this layout decision before seeing the render — your job is to honor it, "
+            "not to second-guess it."
         )
 
     parts.append("ROOM LAYOUT (from spatial analysis of the room):")

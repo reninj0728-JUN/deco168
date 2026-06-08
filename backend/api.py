@@ -355,6 +355,18 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         "未在確認", "違反確認分區", "違反 living zone", "違反客戶確認",
         "未在客戶確認", "未在 living zone", "未在客廳區",
         "沙發跑到", "沙發放錯區", "沙發位置不對",
+        # 沙發位置 / 靠窗深度不對（C2.1 新）
+        "沙發偏前", "沙發在前段", "沙發在中段", "沙發偏中段",
+        "沙發在前中段", "沙發在前半段", "沙發在中間",
+        # 動詞接續的位置描述（Gemini 常見句型）
+        "放在中段", "擺在中段", "放在前段", "擺在前段",
+        "放在中間", "擺在中間", "放在前半段", "擺在前半段",
+        "中段而非", "前段而非", "中間而非",
+        "未靠近窗邊", "不在靠窗區", "未在靠窗", "沒有靠窗",
+        "偏離客戶確認區", "偏離確認區", "偏離 living zone", "偏離客廳區",
+        "位於入口側", "位於入口", "位於餐廳區", "位於餐廳",
+        "位於主動線", "位於走道", "位於前段", "位於中段", "位於中間",
+        "深度位置不對", "深度位置錯", "靠窗深度不對",
         # 英文 fallback（Gemini 偶爾回英文）
         "walkway blocked", "corridor blocked",
         "blocks the walkway", "blocking the walkway",
@@ -367,6 +379,19 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
         "violates the confirmed zone",
         "violates the confirmed layout",
         "not in the confirmed living zone",
+        # C2.1 英文新（depth position 描述）
+        "sofa is in the front half", "sofa in the front half",
+        "sofa is in the middle zone", "sofa in the middle zone",
+        "sofa is not near the window", "sofa not near the window",
+        "sofa is away from the confirmed living zone",
+        "sofa away from the confirmed living zone",
+        "sofa placed near the entrance",
+        "sofa placed in transition zone",
+        "sofa placed in dining zone",
+        "violates window-side living zone",
+        "violates the window-side",
+        "sofa is in the front", "sofa in the front",
+        "sofa is too far from the window",
     ]
     matched_kw = [kw for kw in bad_kw if kw in reason]
     if matched_kw:
