@@ -532,3 +532,149 @@ def build_nano_banana_inputs(
         "notes": DEFAULT_NOTES,
         "unmatched_visual_items": [],
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# USE_ANCHORED_MODE 分支（Phase 1, default OFF）
+#
+# D' 補測（2 張 source × fixed indexing）通過後加入的 anchored 配方。
+# 與 build_nano_banana_inputs 完全獨立、不共用任何長 prompt 段落。
+#
+# 啟用條件: USE_NANO_BANANA=1 且 USE_ANCHORED_MODE=1（兩者皆需明確開啟）
+# 預設行為: 兩個 env 任一未設或為 "0" → 完全不觸發本區塊
+# ─────────────────────────────────────────────────────────────────────────────
+
+ANCHORED_SYSTEM_PROMPT = (
+    "You are a precise image editor. Image 1 is the room — this is the CANVAS, "
+    "do not modify it. Your only task is to add the furniture shown in images 2+ "
+    "into image 1, matching their visual appearance exactly. Preserve everything "
+    "else in image 1 unchanged: walls, windows, doors, ceiling, floor material, "
+    "camera angle, lighting direction, room proportions. This is an edit, not a regeneration."
+)
+
+# 家具品類在 anchored prompt 內的顯示字（與 D' 驗證 prompt 完全一致）
+_ANCHORED_LABEL = {
+    "sofa":         "sofa",
+    "coffee_table": "coffee table",
+    "rug":          "rug",
+}
+
+# fal-ai/nano-banana-pro/edit aspect_ratio 官方 enum（2026-06 schema）
+_ASPECT_RATIO_ENUM: list[tuple[str, float]] = [
+    ("21:9", 21 / 9),
+    ("16:9", 16 / 9),
+    ("3:2",  3 / 2),
+    ("4:3",  4 / 3),
+    ("5:4",  5 / 4),
+    ("1:1",  1.0),
+    ("4:5",  4 / 5),
+    ("3:4",  3 / 4),
+    ("2:3",  2 / 3),
+    ("9:16", 9 / 16),
+]
+
+
+def pick_aspect_ratio_for_source(width: int | None, height: int | None) -> str:
+    """
+    把 source dims 映到 fal-ai/nano-banana-pro/edit 的 aspect_ratio enum。
+    找不到合適值或 dims 未知時回 "auto"（保留 endpoint 預設行為）。
+
+    映射策略：在 enum 中找與 source ratio 絕對差距最小者。
+    手機常見值：portrait 3:4、landscape 4:3、9:16/16:9 等都會自動對應。
+    """
+    if not width or not height:
+        return "auto"
+    r = width / height
+    return min(_ASPECT_RATIO_ENUM, key=lambda c: abs(c[1] - r))[0]
+
+
+def build_anchored_inputs(
+    entry: dict,
+    room_image_url: str,
+    source_dims: tuple[int, int] | None = None,
+) -> dict:
+    """
+    D' verified Nano Banana anchored mode 配方（USE_ANCHORED_MODE=1 時使用）。
+
+    image_urls 順序：
+        image 1 = source room
+        image 2 = source room (重複；實測下此組合結構保留較佳，非官方保證機制)
+        image 3 = sofa
+        image 4 = coffee table
+        image 5 = rug
+
+    家具 ref 缺漏處理：依 sofa → coffee_table → rug 順序組裝，缺漏者跳過、
+    對應 "Add the X shown in image N" 行也跳過、image index 連續往下排。
+
+    回傳 dict 額外帶 aspect_ratio/resolution/seed/output_format，供呼叫端直接拼進
+    fal arguments。
+    """
+    matched = entry.get("matched_furniture") or []
+    selected: dict[str, dict] = {}
+    for item in matched:
+        cat = (item.get("category_en") or "").strip()
+        url = (item.get("image_url") or "").strip()
+        if cat in MUST_HAVE_CATS and url.startswith("http") and cat not in selected:
+            selected[cat] = item
+
+    image_urls: list[str] = [room_image_url, room_image_url]
+    reference_map: list[dict] = [
+        {"index": 1, "role": "ROOM", "url": room_image_url,
+         "cat_en": None, "name_zh": None, "id": None},
+        {"index": 2, "role": "ROOM", "url": room_image_url,
+         "cat_en": None, "name_zh": None, "id": None},
+    ]
+
+    add_lines: list[str] = []
+    next_idx = 3
+    for cat in MUST_HAVE_CATS:
+        if cat in selected:
+            it = selected[cat]
+            display_role, _ = CAT_DISPLAY[cat]
+            label = _ANCHORED_LABEL[cat]
+            image_urls.append(it.get("image_url"))
+            reference_map.append({
+                "index": next_idx,
+                "role": display_role,
+                "url": it.get("image_url"),
+                "cat_en": cat,
+                "name_zh": it.get("name_zh", ""),
+                "id": it.get("id", ""),
+            })
+            add_lines.append(f"Add the {label} shown in image {next_idx}.")
+            next_idx += 1
+
+    style_label = entry.get("style_label") or entry.get("style") or ""
+
+    prompt_parts = [
+        "Image 1 and image 2 are identical copies of the source room and together "
+        "define the base canvas.",
+        *add_lines,
+        "Preserve the source room geometry, camera perspective, walls, doors, windows, "
+        "ceiling, floor direction and fixed fixtures.",
+        "Do not reinterpret image 2 as furniture.",
+        "This is an edit of images 1 and 2, not a new room generation.",
+        f"Style: {style_label}.",
+        "Place the sofa against the back/window-side wall (the deep half of the room) when applicable.",
+        "Place a low media console / TV cabinet on the opposite wall, aligned with the sofa.",
+        "Coffee table in front of sofa, rug under coffee table.",
+        "Photorealistic interior editorial photography.",
+    ]
+    prompt = " ".join(prompt_parts)
+
+    aspect_ratio = "auto"
+    if source_dims:
+        aspect_ratio = pick_aspect_ratio_for_source(source_dims[0], source_dims[1])
+
+    return {
+        "image_urls": image_urls,
+        "prompt": prompt,
+        "system_prompt": ANCHORED_SYSTEM_PROMPT,
+        "reference_map": reference_map,
+        "notes": DEFAULT_NOTES,
+        "unmatched_visual_items": [],
+        "aspect_ratio": aspect_ratio,
+        "resolution": "2K",
+        "seed": 42,
+        "output_format": "png",
+    }

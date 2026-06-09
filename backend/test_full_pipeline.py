@@ -36,7 +36,7 @@ def _get_system_prompt():
 
 from google.genai import types
 from furniture_match import enrich_renders
-from prompt_builder import build_nano_banana_inputs
+from prompt_builder import build_nano_banana_inputs, build_anchored_inputs
 import fal_client
 import requests
 
@@ -423,6 +423,18 @@ def show_furniture(enriched_renders: list[dict]):
 
 # ─── Step 3: Flux 生成渲染圖 ─────────────────────────────────────────────────
 
+def _source_dims(path: str) -> tuple[int, int] | None:
+    """讀取 source 照片的 (width, height); PIL 缺席或檔案壞掉時回 None
+    (caller 會 fallback 到 aspect_ratio="auto")"""
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im)
+            return im.size
+    except Exception:
+        return None
+
+
 def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") -> str:
     """
     把 Gemini 抓到的 architectural_features 變成具體 PRESERVE 指令。
@@ -485,9 +497,12 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
     retry_context: C2.3 第二次 retry 用，含前次 sofa_pct / anchor_pct，附加進 prompt
     """
     use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
+    use_anchored = use_nano and os.environ.get("USE_ANCHORED_MODE", "0").strip() == "1"
 
     print(f"\n{'='*56}")
-    if use_nano:
+    if use_anchored:
+        print("[Step 3] Nano Banana Pro ANCHORED MODE（USE_NANO_BANANA=1, USE_ANCHORED_MODE=1）")
+    elif use_nano:
         print("[Step 3] Nano Banana Pro 生成渲染圖（USE_NANO_BANANA=1）")
     else:
         print("[Step 3] Flux Kontext Pro 生成渲染圖")
@@ -541,6 +556,63 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
 
         # ── USE_NANO_BANANA=1：multi-image edit 分支 ──
         if use_nano:
+            # ── USE_ANCHORED_MODE=1：D' 驗證過的 anchored 配方 ──
+            if use_anchored:
+                base_path = image_paths[idx % len(img_urls)]
+                src_dims = _source_dims(base_path)
+                a_inputs = build_anchored_inputs(
+                    render, base_image_url, source_dims=src_dims,
+                )
+                print(f"  Nano Banana ANCHORED refs: {len(a_inputs['image_urls'])} 張 "
+                      f"(prompt {len(a_inputs['prompt'])} chars, "
+                      f"aspect_ratio={a_inputs['aspect_ratio']}, seed={a_inputs['seed']})")
+                try:
+                    result = fal_client.subscribe(
+                        "fal-ai/nano-banana-pro/edit",
+                        arguments={
+                            "image_urls":     a_inputs["image_urls"],
+                            "prompt":         a_inputs["prompt"],
+                            "system_prompt":  a_inputs["system_prompt"],
+                            "resolution":     a_inputs["resolution"],
+                            "aspect_ratio":   a_inputs["aspect_ratio"],
+                            "seed":           a_inputs["seed"],
+                            "output_format":  a_inputs["output_format"],
+                        },
+                        with_logs=False,
+                    )
+                    elapsed = time.time() - t0
+                    img_url = (result.get("images") or [{}])[0].get("url")
+                    if not img_url:
+                        raise ValueError(
+                            f"nano-banana-pro/edit (anchored) 未回傳 URL，result keys: {list(result.keys())}"
+                        )
+                    resp = requests.get(img_url, timeout=120)
+                    resp.raise_for_status()
+                    out_path = os.path.join(output_dir, f"render_{style}.png")
+                    with open(out_path, "wb") as f:
+                        f.write(resp.content)
+                    print(f"  ✓ ANCHORED 完成 ({elapsed:.1f}s) → {out_path}")
+                    results.append({
+                        **render,
+                        "render_path": out_path,
+                        "reference_map": a_inputs["reference_map"],
+                        "notes": a_inputs["notes"],
+                        "unmatched_visual_items": a_inputs["unmatched_visual_items"],
+                        "pipeline_version": "nano-banana-anchored-v1",
+                    })
+                except Exception as e:
+                    print(f"  ✗ Nano Banana ANCHORED 失敗: {e}")
+                    results.append({
+                        **render,
+                        "render_path": None,
+                        "error": str(e),
+                        "reference_map": a_inputs.get("reference_map", []),
+                        "notes": a_inputs.get("notes", ""),
+                        "unmatched_visual_items": a_inputs.get("unmatched_visual_items", []),
+                        "pipeline_version": "nano-banana-anchored-v1",
+                    })
+                continue   # 跳過底下的既有 nano-banana 與 Flux 分支
+
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,
