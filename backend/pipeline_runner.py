@@ -339,6 +339,61 @@ def _emit_pipeline_log(outcome: str, **fields):
     print("[pipeline] " + " ".join(parts))
 
 
+# ── C2.7 C3: PipelineWriter (Legacy mode only) ──────────────────────
+# 把 run_pipeline 內分散的 DB 寫入集中到 writer.
+# 本 commit 只實作 Legacy 模式, 與既有 sb_upsert/write_status/sb_get 行為逐項等價.
+# 未來 commit 會新增 worker mode (claim_token + fenced RPC), 此 class 仍向後相容.
+class PipelineWriter:
+    """
+    Pipeline DB writer abstraction.
+
+    C3 commit: 只支援 legacy 模式 (建構不帶任何參數).
+    所有方法為 db_helpers 既有函式的薄包裝, 0 行為改動.
+
+    未來 commit 會新增 worker mode 參數 (claim_token / worker_id) 與 fenced RPC,
+    但本 commit 不接受任何 worker 參數.
+    """
+
+    def write_status(self, job_id: str, job_dir: Path,
+                     status: str, progress: int, message: str) -> None:
+        """寫 status/progress/message 到 DB + 本機 status.json."""
+        write_status(job_id, job_dir, status, progress, message)
+
+    def merge_result(self, job_id: str, merge: dict) -> None:
+        """讀現有 result_json, merge 新欄位, 寫回 (不蓋 analysis/zoning/renders)."""
+        existing = (sb_get(job_id) or {}).get("result_json")
+        if not isinstance(existing, dict):
+            existing = {}
+        sb_upsert({"job_id": job_id, "result_json": {**existing, **merge}})
+
+    def finalize(self, job_id: str, final_status: str,
+                 message: str, result_merge: dict,
+                 progress: int | None = None) -> None:
+        """
+        Terminal DB write (completed 或 failed).
+        progress 預設: completed=100, failed=0; 早期失敗路徑可顯式 override.
+        result_json: 讀現有 + merge result_merge (不蓋既有 partial 資料).
+        """
+        if final_status not in ("completed", "failed"):
+            raise ValueError(f"invalid final_status: {final_status!r}")
+        if progress is None:
+            progress = 100 if final_status == "completed" else 0
+        existing = (sb_get(job_id) or {}).get("result_json")
+        if not isinstance(existing, dict):
+            existing = {}
+        sb_upsert({
+            "job_id":      job_id,
+            "status":      final_status,
+            "progress":    progress,
+            "message":     message,
+            "result_json": {**existing, **result_merge},
+        })
+
+    def get_order(self, job_id: str) -> dict | None:
+        """讀 order row (給 verify-after-completed 與 finally idempotent 守門用)."""
+        return sb_get(job_id)
+
+
 def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  space_type: str = "living", render_angle: str = "single",
                  design_mode: str = "furnish",
@@ -347,9 +402,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  budget_tier: str = "tier3",
                  customer_notes: str = "",
                  preferred_store: str = "none",
-                 upload_id: str = ""):
+                 upload_id: str = "",
+                 writer: PipelineWriter | None = None):
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
+
+    # C2.7 C3: 所有 DB 寫入經 writer; legacy mode (預設) 與既有行為等價.
+    writer = writer or PipelineWriter()
 
     # C2.6 失敗收尾追蹤狀態
     completed_flag = False
@@ -388,7 +447,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 key = p[len("r2://"):]
                 fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
                 dest = job_dir / fname
-                write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
+                writer.write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
                 local = r2_download_object(key, dest)
                 if local:
                     resolved_paths.append(local)
@@ -400,7 +459,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 key = p[len("supabase://"):]
                 fname = key.split("/")[-1] or f"video_{uuid.uuid4().hex[:6]}.mp4"
                 dest = job_dir / fname
-                write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
+                writer.write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
                 local = sb_download_object(key, dest)
                 if local:
                     resolved_paths.append(local)
@@ -421,13 +480,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if (video_paths and use_video_kf and image_paths):
             # NEW path：影片本身上傳 Gemini Files API（理解材料）
             #          + 抽 keyframes 當 render 候選 base
-            write_status(job_id, job_dir, "analyzing", 12, "抽影片關鍵幀…")
+            writer.write_status(job_id, job_dir, "analyzing", 12, "抽影片關鍵幀…")
             kf_dir = job_dir / "video_keyframes"
             keyframes = extract_video_keyframes(video_paths[0], kf_dir, count=6)
             print(f"[pipeline] USE_VIDEO_KEYFRAMES=1 → 影片 + {len(keyframes)} keyframes 一起送 Gemini")
             augmented_paths = list(image_paths) + keyframes
             sources = (["photo"] * len(image_paths)) + (["video_keyframe"] * len(keyframes))
-            write_status(job_id, job_dir, "analyzing", 15,
+            writer.write_status(job_id, job_dir, "analyzing", 15,
                          f"分析影片 + {len(image_paths)} 照 + {len(keyframes)} keyframes…")
             extra = augmented_paths[1:] if len(augmented_paths) > 1 else None
             analysis = analyze_image(augmented_paths[0], styles or None, extra_photos=extra,
@@ -439,17 +498,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         elif gemini_uris or video_paths:
             from gemini_analyze import analyze_space
             if gemini_uris:
-                write_status(job_id, job_dir, "analyzing", 15, "解析影片與照片，理解整體格局…")
+                writer.write_status(job_id, job_dir, "analyzing", 15, "解析影片與照片，理解整體格局…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None,
                                          is_uri=True, extra_photos=image_paths or None,
                                          space_type=space_type)
             else:
-                write_status(job_id, job_dir, "analyzing", 10, "正在解析你的空間影片（大檔案需要幾分鐘）…")
+                writer.write_status(job_id, job_dir, "analyzing", 10, "正在解析你的空間影片（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None,
                                          extra_photos=image_paths or None,
                                          space_type=space_type)
         else:
-            write_status(job_id, job_dir, "analyzing", 15, "理解空間格局中…")
+            writer.write_status(job_id, job_dir, "analyzing", 15, "理解空間格局中…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra,
                                      space_type=space_type, render_angle=render_angle)
@@ -462,14 +521,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             rt = insufficient.get("room_type", space_type)
             msg = insufficient.get("message") or f"本方案需 {req} 張 {rt} 空間照片，目前只有 {found} 張，請補上傳。"
             print(f"[pipeline] 早期失敗：insufficient_photos required={req} found={found} room_type={rt}")
-            write_status(job_id, job_dir, "failed", 100, msg)
-            sb_upsert({
-                "job_id": job_id, "status": "failed", "message": msg,
-                "result_json": {
-                    "analysis": analysis,
-                    "insufficient_photos": insufficient,
-                    "error_code": "INSUFFICIENT_PHOTOS",
-                },
+            writer.write_status(job_id, job_dir, "failed", 100, msg)
+            writer.merge_result(job_id, {
+                "analysis": analysis,
+                "insufficient_photos": insufficient,
+                "error_code": "INSUFFICIENT_PHOTOS",
             })
             return
 
@@ -550,7 +606,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         zoning_result: dict = {"confidence": "none", "error": "not computed"}
         if user_zoning_v2:
             # ── Z2: 使用者已在 zoning-confirm 確認 v2 分區，跳過重跑 ──
-            write_status(job_id, job_dir, "zoning", 40, "套用您確認的分區設定…")
+            writer.write_status(job_id, job_dir, "zoning", 40, "套用您確認的分區設定…")
             try:
                 zoning_result = flatten_zoning_v2_to_v1(user_zoning_v2, user_layout_choice or "A")
                 print(f"[pipeline] 使用 user-confirmed zoning v2, layout_choice={user_layout_choice or 'A'}")
@@ -558,7 +614,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 print(f"[pipeline] flatten v2→v1 失敗，fallback compute_zoning: {fe}")
                 user_zoning_v2 = None  # 失敗 → 走原本路徑
         if not user_zoning_v2:
-            write_status(job_id, job_dir, "zoning", 40, "判讀空間動線中…")
+            writer.write_status(job_id, job_dir, "zoning", 40, "判讀空間動線中…")
             if zoning_photos:
                 try:
                     from zoning import compute_zoning
@@ -571,7 +627,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         failed_stage = "matching"
         last_progress = 45
-        write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
+        writer.write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis,
                                   budget_tier=budget_tier,
                                   preferred_store=preferred_store)
@@ -587,7 +643,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 expanded.append(copy)
 
         total = len(expanded)
-        write_status(job_id, job_dir, "rendering", 60,
+        writer.write_status(job_id, job_dir, "rendering", 60,
                      f"生成 {total} 張設計提案中（{len(enriched)} 風格 × {len(flux_bases)} 視角）…")
 
         failed_stage = "render_main"
@@ -628,7 +684,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── 結構保留驗證（純評估、不重跑、不過濾、不影響前端）──
         failed_stage = "validate"
         last_progress = 85
-        write_status(job_id, job_dir, "validating", 85, "確認設計品質中…")
+        writer.write_status(job_id, job_dir, "validating", 85, "確認設計品質中…")
 
         # Commit A：把 user_confirmed_v2 的 layout 資訊送給 validate_render
         # 讓 Gemini 多回一個 sofa_outside_living_zone flag
@@ -724,7 +780,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     attempt_label = f"#{current_rc + 1}"
                     print(f"[pipeline] Z3 retry {attempt_label} render[{idx}] "
                           f"style={r.get('style')} — {retry_reason}")
-                    write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
+                    writer.write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
                     # 第 2 次 retry：帶入前次失敗的 depth_percent 給 retry prompt
                     retry_ctx = _build_retry_ctx_from_validation(v) if current_rc >= 1 else None
                     # C2.6 Patch B: Z3 retry 過程中, fal 明確失敗保留原 root cause
@@ -916,10 +972,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         # C2.6: completed DB write 需驗證, 否則不可設 completed_flag
         failed_stage = "result_upsert"
-        sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
-                   "message": "設計方案生成完畢！",
-                   "result_json": result_json_payload})
-        verify_row = sb_get(job_id) or {}
+        writer.finalize(job_id, "completed", "設計方案生成完畢！", result_json_payload)
+        verify_row = writer.get_order(job_id) or {}
         if verify_row.get("status") != "completed":
             raise RuntimeError(
                 f"completed DB write verification failed; "
@@ -936,10 +990,6 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # C2.6 失敗收尾: merge 現有 result_json 不蓋既有 analysis / zoning / partial renders
         err_txt = traceback.format_exc()
         try:
-            existing_row = sb_get(job_id) or {}
-            existing_rj = existing_row.get("result_json")
-            if not isinstance(existing_rj, dict):
-                existing_rj = {}
             diagnostic = {
                 "error":         str(e)[:300],
                 "error_type":    type(e).__name__,
@@ -951,11 +1001,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             }
             if isinstance(e, AnchoredValidationFailed):
                 diagnostic.update(e.extras)
-            merged = {**existing_rj, **diagnostic}
-            sb_upsert({"job_id": job_id, "status": "failed", "progress": 0,
-                       "message": "生成逾時或處理失敗，請聯絡客服",
-                       "result_json": merged})
-            write_status(job_id, job_dir, "failed", 0, "處理失敗，請聯絡客服")
+            # writer.finalize 內部 sb_get + merge + sb_upsert (與既有 manually 同邏輯)
+            writer.finalize(job_id, "failed",
+                            "生成逾時或處理失敗，請聯絡客服", diagnostic)
+            writer.write_status(job_id, job_dir, "failed", 0, "處理失敗，請聯絡客服")
         except Exception as fe:
             _emit_pipeline_log("exception", job_id=job_id,
                                upload_id_masked=uid_masked,
@@ -973,22 +1022,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # SIGKILL / OOM 不會走到這裡, 須由下一輪 watchdog 處理
         if not completed_flag:
             try:
-                cur = sb_get(job_id) or {}
+                cur = writer.get_order(job_id) or {}
                 cur_status = cur.get("status")
                 if cur_status not in ("completed", "failed"):
-                    cur_rj = cur.get("result_json") if isinstance(cur.get("result_json"), dict) else {}
-                    merged_finally = {
-                        **(cur_rj or {}),
+                    # writer.finalize 內部 sb_get + merge + sb_upsert (與既有同邏輯)
+                    writer.finalize(job_id, "failed", "處理失敗，請聯絡客服", {
                         "error":         "pipeline finally fallback (no exception caught)",
                         "error_type":    "FinallySafetyNet",
                         "failed_stage":  failed_stage,
                         "render_mode":   last_render_mode,
                         "last_progress": last_progress,
                         "failed_at":     _utc_now_iso(),
-                    }
-                    sb_upsert({"job_id": job_id, "status": "failed", "progress": 0,
-                               "message": "處理失敗，請聯絡客服",
-                               "result_json": merged_finally})
+                    })
                     _emit_pipeline_log("finally_safety_net", job_id=job_id,
                                        upload_id_masked=uid_masked,
                                        render_mode=last_render_mode,
