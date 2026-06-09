@@ -593,7 +593,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
     try:
         failed_stage = "import"
         sys.path.insert(0, str(BASE_DIR))
-        from test_full_pipeline import analyze_image, generate_renders
+        from test_full_pipeline import (
+            analyze_image, generate_renders,
+            FalGenerationTimeout, FalResultDownloadError,
+        )
         from furniture_match import enrich_renders
 
         # Phase 1.1: 判定本訂單是否走 anchored 路徑 (僅內部測試)
@@ -956,6 +959,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
                     # 第 2 次 retry：帶入前次失敗的 depth_percent 給 retry prompt
                     retry_ctx = _build_retry_ctx_from_validation(v) if current_rc >= 1 else None
+                    # C2.6 Patch B: Z3 retry 過程中, fal 明確失敗保留原 root cause
+                    failed_stage = "z3_retry_generate_renders"
                     try:
                         retry_results = generate_renders(
                             entry["_base_path"], [entry],
@@ -971,6 +976,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             attempt=current_rc + 2,   # 初次=1, 1st retry=2, 2nd retry=3
                             stage="z3_retry",
                         )
+                    except (FalGenerationTimeout, FalResultDownloadError):
+                        # C2.6 Patch B: 不被後續 anchored validation collapse 改寫.
+                        # 直接讓 outer except 把原始 error_type 寫進 result_json.
+                        raise
                     except Exception as re_e:
                         print(f"[pipeline] Z3 retry 例外: {re_e}")
                         r["retry_count"] = current_rc + 1

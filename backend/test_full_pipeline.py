@@ -750,19 +750,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "pipeline_version": "nano-banana-anchored-v1",
                         "render_mode": "anchored",
                     })
-                except (FalGenerationTimeout, FalResultDownloadError) as e:
-                    # _fal_subscribe_timed 已印 structured log; 這裡只記 entry
-                    results.append({
-                        **render,
-                        "render_path": None,
-                        "error": f"{type(e).__name__}: {str(e)[:200]}",
-                        "error_type": type(e).__name__,
-                        "reference_map": a_inputs.get("reference_map", []),
-                        "notes": a_inputs.get("notes", ""),
-                        "unmatched_visual_items": a_inputs.get("unmatched_visual_items", []),
-                        "pipeline_version": "nano-banana-anchored-v1",
-                        "render_mode": "anchored",
-                    })
+                except (FalGenerationTimeout, FalResultDownloadError):
+                    # C2.6 Patch A: 不吞 fal 明確例外; 讓 run_pipeline outer except 標 failed.
+                    # _fal_subscribe_timed 已印 structured log, 不必重複.
+                    raise
                 except Exception as e:
                     results.append({
                         **render,
@@ -816,18 +807,9 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "pipeline_version": "nano-banana-v1",
                     "render_mode": "legacy",
                 })
-            except (FalGenerationTimeout, FalResultDownloadError) as e:
-                results.append({
-                    **render,
-                    "render_path": None,
-                    "error": f"{type(e).__name__}: {str(e)[:200]}",
-                    "error_type": type(e).__name__,
-                    "reference_map": inputs.get("reference_map", []),
-                    "notes": inputs.get("notes", ""),
-                    "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
-                    "pipeline_version": "nano-banana-v1",
-                    "render_mode": "legacy",
-                })
+            except (FalGenerationTimeout, FalResultDownloadError):
+                # C2.6 Patch A: fal 明確例外不吞, 讓 outer except 標訂單 failed.
+                raise
             except Exception as e:
                 # 失敗：不自動 fallback Flux，直接標記 failed
                 results.append({
@@ -874,12 +856,9 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 f.write(img_bytes)
             results.append({**render, "render_path": out_path, "pipeline_version": "flux-v1",
                             "render_mode": "legacy"})
-        except (FalGenerationTimeout, FalResultDownloadError) as e:
-            results.append({**render, "render_path": None,
-                            "error": f"{type(e).__name__}: {str(e)[:200]}",
-                            "error_type": type(e).__name__,
-                            "pipeline_version": "flux-v1",
-                            "render_mode": "legacy"})
+        except (FalGenerationTimeout, FalResultDownloadError):
+            # C2.6 Patch A: fal 明確例外不吞, 讓 outer except 標訂單 failed.
+            raise
         except Exception as e:
             results.append({**render, "render_path": None, "error": str(e),
                             "error_type": type(e).__name__,
