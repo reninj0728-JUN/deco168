@@ -284,9 +284,13 @@ def canonical_photo_key(s: str | None) -> str:
       - URL decode（前端有時送 %20 等）
       - 反斜線 → 正斜線
       - 去開頭斜線
-      - 去 "uploads/" 前綴
+      - 反覆剝離 directory 前綴: app/uploads/, uploads/
+        （順序：較長先；避免 "app/" 殘留導致 mismatch）
 
     回傳格式典型為：<upload_id>/<filename>
+
+    精確比對保證：保留 <upload_id>/<filename> 兩段，不退化到 basename-only,
+    所以不同 upload_id 同名照片不會誤配。
     """
     if not isinstance(s, str):
         return ""
@@ -308,8 +312,11 @@ def canonical_photo_key(s: str | None) -> str:
     s = s.replace("\\", "/")
     while s.startswith("/"):
         s = s[1:]
-    if s.startswith("uploads/"):
-        s = s[len("uploads/"):]
+    # 較長前綴先剝, 否則 "app/uploads/" 會被 "uploads/" 部分匹配漏掉
+    for prefix in ("app/uploads/", "uploads/"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
     return s
 
 
