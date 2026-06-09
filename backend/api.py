@@ -519,6 +519,25 @@ def extract_frame(video_path: str, out_path: str, position: float = 0.33) -> str
     return out_path
 
 
+# ── Phase 1.1: ANCHORED upload_id 白名單 (內部測試分流, 非身份驗證) ────
+# 流程: 操作員把測試 upload_id 設進 Railway env ANCHORED_TEST_UPLOAD_IDS,
+# 等 redeploy 完成, 該訂單在 run_pipeline 內被命中 → force_anchored=True
+# 命中後傳給 generate_renders, 由 generate_renders 自行決定 render_mode.
+# 任何解析錯誤、env 空、未命中、upload_id 空 → fail-safe 走 legacy.
+def _parse_anchored_uid_whitelist() -> set[str]:
+    raw = os.environ.get("ANCHORED_TEST_UPLOAD_IDS", "") or ""
+    return {x.strip().upper() for x in raw.split(",") if x.strip()}
+
+
+def _mask_upload_id(uid: str) -> str:
+    if not uid:
+        return "***"
+    u = uid.strip()
+    if len(u) < 5:
+        return "*" * len(u)
+    return f"{u[:2]}**{u[-3:]}"
+
+
 def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  space_type: str = "living", render_angle: str = "single",
                  design_mode: str = "furnish",
@@ -526,7 +545,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  user_layout_choice: str = "",
                  budget_tier: str = "tier3",
                  customer_notes: str = "",
-                 preferred_store: str = "none"):
+                 preferred_store: str = "none",
+                 upload_id: str = ""):
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
 
@@ -534,6 +554,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         sys.path.insert(0, str(BASE_DIR))
         from test_full_pipeline import analyze_image, generate_renders
         from furniture_match import enrich_renders
+
+        # Phase 1.1: 判定本訂單是否走 anchored 路徑 (僅內部測試)
+        uid_norm = (upload_id or "").strip().upper()
+        _anchored_wl = _parse_anchored_uid_whitelist()
+        force_anchored = bool(uid_norm and _anchored_wl and uid_norm in _anchored_wl)
+        if force_anchored:
+            print(f"[render_mode] anchored whitelist matched upload_id={_mask_upload_id(uid_norm)}")
+        else:
+            print(f"[render_mode] legacy default upload_id={_mask_upload_id(uid_norm)}")
 
         # 先把 r2:// 或 supabase:// 影片從雲端下載到本機 job_dir
         # r2_keys_to_delete: pipeline 跑完後要清掉的 R2 物件
@@ -750,7 +779,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                              analysis=analysis, design_mode=design_mode,
                                              zoning=zoning_result,
                                              customer_notes=customer_notes,
-                                             budget_tier=budget_tier)
+                                             budget_tier=budget_tier,
+                                             force_anchored=force_anchored)
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -876,6 +906,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             customer_notes=customer_notes,
                             budget_tier=budget_tier,
                             retry_context=retry_ctx,
+                            force_anchored=force_anchored,
                         )
                     except Exception as re_e:
                         print(f"[pipeline] Z3 retry 例外: {re_e}")
@@ -994,6 +1025,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if primary_room_notes_for_json:
             customer_inputs["primary_room_notes"] = primary_room_notes_for_json
 
+        # Phase 1.1: 把每張 render 實際採用的 render_mode 滙集成 top-level
+        # 由 generate_renders() 標示, api.py 不重新推測。
+        # 全部相同 → 該值; 混合 → "mixed"; 全 None → 不寫.
+        _modes = {r.get("render_mode") for r in final if r.get("render_mode")}
+        top_render_mode: str | None = None
+        if len(_modes) == 1:
+            top_render_mode = next(iter(_modes))
+        elif len(_modes) > 1:
+            top_render_mode = "mixed"
+
         result_json_payload = {
             "analysis":           analysis,
             "zoning":             zoning_result,
@@ -1003,6 +1044,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "validation_summary": validation_summary,
             "customer_inputs":    customer_inputs,            # Phase A
         }
+        if top_render_mode:
+            result_json_payload["render_mode"] = top_render_mode
         if rooms_for_json:
             result_json_payload["rooms"] = rooms_for_json     # P2-MVP-0
 
@@ -1309,7 +1352,8 @@ async def create_job(
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
                               space_type, render_angle, design_mode,
                               user_zoning_v2, layout_choice,
-                              budget_tier, customer_notes, preferred_store)
+                              budget_tier, customer_notes, preferred_store,
+                              upload_id)
 
     return {"job_id": job_id}
 

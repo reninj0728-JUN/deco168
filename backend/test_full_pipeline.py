@@ -488,7 +488,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      zoning: dict | None = None,
                      customer_notes: str = "",
                      budget_tier: str = "tier3",
-                     retry_context: dict | None = None):
+                     retry_context: dict | None = None,
+                     force_anchored: bool = False):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
@@ -497,7 +498,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
     retry_context: C2.3 第二次 retry 用，含前次 sofa_pct / anchor_pct，附加進 prompt
     """
     use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
-    use_anchored = use_nano and os.environ.get("USE_ANCHORED_MODE", "0").strip() == "1"
+    use_anchored = use_nano and (
+        force_anchored
+        or os.environ.get("USE_ANCHORED_MODE", "0").strip() == "1"
+    )
 
     print(f"\n{'='*56}")
     if use_anchored:
@@ -599,6 +603,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "notes": a_inputs["notes"],
                         "unmatched_visual_items": a_inputs["unmatched_visual_items"],
                         "pipeline_version": "nano-banana-anchored-v1",
+                        "render_mode": "anchored",
                     })
                 except Exception as e:
                     print(f"  ✗ Nano Banana ANCHORED 失敗: {e}")
@@ -610,6 +615,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "notes": a_inputs.get("notes", ""),
                         "unmatched_visual_items": a_inputs.get("unmatched_visual_items", []),
                         "pipeline_version": "nano-banana-anchored-v1",
+                        "render_mode": "anchored",
                     })
                 continue   # 跳過底下的既有 nano-banana 與 Flux 分支
 
@@ -649,6 +655,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "notes": inputs["notes"],
                     "unmatched_visual_items": inputs["unmatched_visual_items"],
                     "pipeline_version": "nano-banana-v1",
+                    "render_mode": "legacy",
                 })
             except Exception as e:
                 # 失敗：不自動 fallback Flux，直接標記 failed
@@ -661,6 +668,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "notes": inputs.get("notes", ""),
                     "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
                     "pipeline_version": "nano-banana-v1",
+                    "render_mode": "legacy",
                 })
             continue   # 跳過底下的 Flux 分支
 
@@ -693,11 +701,13 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 f.write(resp.content)
 
             print(f"  ✓ 完成 ({elapsed:.1f}s) → {out_path}")
-            results.append({**render, "render_path": out_path, "pipeline_version": "flux-v1"})
+            results.append({**render, "render_path": out_path, "pipeline_version": "flux-v1",
+                            "render_mode": "legacy"})
 
         except Exception as e:
             print(f"  ✗ 失敗: {e}")
-            results.append({**render, "render_path": None, "error": str(e), "pipeline_version": "flux-v1"})
+            results.append({**render, "render_path": None, "error": str(e), "pipeline_version": "flux-v1",
+                            "render_mode": "legacy"})
 
     return results
 
