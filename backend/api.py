@@ -545,6 +545,32 @@ def _mask_upload_id(uid: str) -> str:
     return f"{u[:2]}**{u[-3:]}"
 
 
+# ── C2.6: 生成可靠性安全鎖 ──────────────────────────────────────
+class AnchoredValidationFailed(Exception):
+    """
+    force_anchored=True 訂單在 retry 上限內仍未通過 validation.
+    extras 用來帶 failed_render_styles + validation_reasons 給 result_json.
+    """
+    def __init__(self, message: str, extras: dict | None = None):
+        super().__init__(message)
+        self.extras = extras or {}
+
+
+def _utc_now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _emit_pipeline_log(outcome: str, **fields):
+    """run_pipeline 內部 structured log (與 [fal] 分開命名空間)"""
+    parts = [f"outcome={outcome}"]
+    for k in ("job_id", "upload_id_masked", "render_mode", "stage", "error_type"):
+        v = fields.get(k)
+        if v is not None and v != "":
+            parts.append(f"{k}={v}")
+    print("[pipeline] " + " ".join(parts))
+
+
 def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  space_type: str = "living", render_angle: str = "single",
                  design_mode: str = "furnish",
@@ -557,19 +583,30 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
     job_dir = JOBS_DIR / job_id
     os.chdir(str(BASE_DIR))
 
+    # C2.6 失敗收尾追蹤狀態
+    completed_flag = False
+    failed_stage: str = "init"
+    last_progress: int = 0
+    last_render_mode: str | None = None
+    uid_masked = _mask_upload_id((upload_id or "").strip().upper())
+
     try:
+        failed_stage = "import"
         sys.path.insert(0, str(BASE_DIR))
         from test_full_pipeline import analyze_image, generate_renders
         from furniture_match import enrich_renders
 
         # Phase 1.1: 判定本訂單是否走 anchored 路徑 (僅內部測試)
+        failed_stage = "anchored_decision"
         uid_norm = (upload_id or "").strip().upper()
         _anchored_wl = _parse_anchored_uid_whitelist()
         force_anchored = bool(uid_norm and _anchored_wl and uid_norm in _anchored_wl)
         if force_anchored:
-            print(f"[render_mode] anchored whitelist matched upload_id={_mask_upload_id(uid_norm)}")
+            print(f"[render_mode] anchored whitelist matched upload_id={uid_masked}")
+            last_render_mode = "anchored"
         else:
-            print(f"[render_mode] legacy default upload_id={_mask_upload_id(uid_norm)}")
+            print(f"[render_mode] legacy default upload_id={uid_masked}")
+            last_render_mode = "legacy"
 
         # 先把 r2:// 或 supabase:// 影片從雲端下載到本機 job_dir
         # r2_keys_to_delete: pipeline 跑完後要清掉的 R2 物件
@@ -737,6 +774,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if i != zb and len(zoning_photos) < 3:
                     zoning_photos.append(p)
 
+        failed_stage = "zoning"
+        last_progress = 40
         zoning_result: dict = {"confidence": "none", "error": "not computed"}
         if user_zoning_v2:
             # ── Z2: 使用者已在 zoning-confirm 確認 v2 分區，跳過重跑 ──
@@ -759,6 +798,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         print(f"[pipeline] zoning confidence={zoning_result.get('confidence')} "
               f"error={zoning_result.get('error', '(none)')[:80]}")
 
+        failed_stage = "matching"
+        last_progress = 45
         write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
         enriched = enrich_renders(analysis.get("renders", []), analysis=analysis,
                                   budget_tier=budget_tier,
@@ -778,6 +819,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         write_status(job_id, job_dir, "rendering", 60,
                      f"生成 {total} 張設計提案中（{len(enriched)} 風格 × {len(flux_bases)} 視角）…")
 
+        failed_stage = "render_main"
+        last_progress = 60
         # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
         for idx, entry in enumerate(expanded):
@@ -787,7 +830,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                              zoning=zoning_result,
                                              customer_notes=customer_notes,
                                              budget_tier=budget_tier,
-                                             force_anchored=force_anchored)
+                                             force_anchored=force_anchored,
+                                             job_id=job_id,
+                                             upload_id_masked=uid_masked,
+                                             attempt=1,
+                                             stage="initial")
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -808,6 +855,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             json.dump(result, f, ensure_ascii=False, indent=2)
 
         # ── 結構保留驗證（純評估、不重跑、不過濾、不影響前端）──
+        failed_stage = "validate"
+        last_progress = 85
         write_status(job_id, job_dir, "validating", 85, "確認設計品質中…")
 
         # Commit A：把 user_confirmed_v2 的 layout 資訊送給 validate_render
@@ -879,7 +928,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             return ctx or None
 
         if use_nano:
-            MAX_RETRY = 2
+            failed_stage = "z3_retry"
+            last_progress = 92
+            # C2.6: anchored 白名單測試 retry 上限 = 1, legacy 維持 2
+            MAX_RETRY = 1 if force_anchored else 2
             for idx in range(len(final)):
                 # 每張 render 自己跑 retry loop（最多 MAX_RETRY 次）
                 while True:
@@ -914,6 +966,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             budget_tier=budget_tier,
                             retry_context=retry_ctx,
                             force_anchored=force_anchored,
+                            job_id=job_id,
+                            upload_id_masked=uid_masked,
+                            attempt=current_rc + 2,   # 初次=1, 1st retry=2, 2nd retry=3
+                            stage="z3_retry",
                         )
                     except Exception as re_e:
                         print(f"[pipeline] Z3 retry 例外: {re_e}")
@@ -1035,12 +1091,37 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # Phase 1.1: 把每張 render 實際採用的 render_mode 滙集成 top-level
         # 由 generate_renders() 標示, api.py 不重新推測。
         # 全部相同 → 該值; 混合 → "mixed"; 全 None → 不寫.
+        failed_stage = "result_build"
         _modes = {r.get("render_mode") for r in final if r.get("render_mode")}
         top_render_mode: str | None = None
         if len(_modes) == 1:
             top_render_mode = next(iter(_modes))
         elif len(_modes) > 1:
             top_render_mode = "mixed"
+        last_render_mode = top_render_mode or last_render_mode
+
+        # C2.6: anchored 路徑下若仍有 render validation.ok=False, 不可交付
+        if force_anchored:
+            bad_renders = [
+                r for r in final
+                if (r.get("validation") or {}).get("ok") is False
+            ]
+            if bad_renders:
+                failed_styles = [r.get("style") for r in bad_renders if r.get("style")]
+                reasons = []
+                for r in bad_renders:
+                    v = r.get("validation") or {}
+                    reason = v.get("reason") or v.get("error") or ""
+                    if reason:
+                        reasons.append({"style": r.get("style"),
+                                        "reason": str(reason)[:200]})
+                raise AnchoredValidationFailed(
+                    f"anchored validation failed on {len(bad_renders)} render(s) after retries",
+                    extras={
+                        "failed_render_styles": failed_styles,
+                        "validation_reasons":   reasons,
+                    },
+                )
 
         result_json_payload = {
             "analysis":           analysis,
@@ -1056,9 +1137,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if rooms_for_json:
             result_json_payload["rooms"] = rooms_for_json     # P2-MVP-0
 
+        # C2.6: completed DB write 需驗證, 否則不可設 completed_flag
+        failed_stage = "result_upsert"
         sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
                    "message": "設計方案生成完畢！",
                    "result_json": result_json_payload})
+        verify_row = sb_get(job_id) or {}
+        if verify_row.get("status") != "completed":
+            raise RuntimeError(
+                f"completed DB write verification failed; "
+                f"current status={verify_row.get('status')!r}"
+            )
+        completed_flag = True
 
         # 跑完自動清掉 R2 上的影片（隱私 + 省空間）
         for key in r2_keys_to_delete:
@@ -1066,12 +1156,72 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             print(f"[pipeline] R2 清除 {key}: {'OK' if ok else 'FAIL'}")
 
     except Exception as e:
+        # C2.6 失敗收尾: merge 現有 result_json 不蓋既有 analysis / zoning / partial renders
         err_txt = traceback.format_exc()
-        write_status(job_id, job_dir, "failed", 0, f"處理失敗，請聯絡客服")
-        sb_upsert({"job_id": job_id, "status": "failed", "message": f"處理失敗，請聯絡客服",
-                   "result_json": {"error": str(e), "traceback": err_txt[-2000:]}})
-        with open(job_dir / "error.log", "w", encoding="utf-8") as f:
-            f.write(err_txt)
+        try:
+            existing_row = sb_get(job_id) or {}
+            existing_rj = existing_row.get("result_json")
+            if not isinstance(existing_rj, dict):
+                existing_rj = {}
+            diagnostic = {
+                "error":         str(e)[:300],
+                "error_type":    type(e).__name__,
+                "failed_stage":  failed_stage,
+                "render_mode":   last_render_mode,
+                "last_progress": last_progress,
+                "failed_at":     _utc_now_iso(),
+                "traceback":     err_txt[-2000:],
+            }
+            if isinstance(e, AnchoredValidationFailed):
+                diagnostic.update(e.extras)
+            merged = {**existing_rj, **diagnostic}
+            sb_upsert({"job_id": job_id, "status": "failed", "progress": 0,
+                       "message": "生成逾時或處理失敗，請聯絡客服",
+                       "result_json": merged})
+            write_status(job_id, job_dir, "failed", 0, "處理失敗，請聯絡客服")
+        except Exception as fe:
+            _emit_pipeline_log("exception", job_id=job_id,
+                               upload_id_masked=uid_masked,
+                               render_mode=last_render_mode,
+                               stage="failure_db_write",
+                               error_type=type(fe).__name__)
+        try:
+            with open(job_dir / "error.log", "w", encoding="utf-8") as f:
+                f.write(err_txt)
+        except Exception:
+            pass
+
+    finally:
+        # C2.6 防呆: 主要失敗處理由上方 except 負責, finally 只當補強
+        # SIGKILL / OOM 不會走到這裡, 須由下一輪 watchdog 處理
+        if not completed_flag:
+            try:
+                cur = sb_get(job_id) or {}
+                cur_status = cur.get("status")
+                if cur_status not in ("completed", "failed"):
+                    cur_rj = cur.get("result_json") if isinstance(cur.get("result_json"), dict) else {}
+                    merged_finally = {
+                        **(cur_rj or {}),
+                        "error":         "pipeline finally fallback (no exception caught)",
+                        "error_type":    "FinallySafetyNet",
+                        "failed_stage":  failed_stage,
+                        "render_mode":   last_render_mode,
+                        "last_progress": last_progress,
+                        "failed_at":     _utc_now_iso(),
+                    }
+                    sb_upsert({"job_id": job_id, "status": "failed", "progress": 0,
+                               "message": "處理失敗，請聯絡客服",
+                               "result_json": merged_finally})
+                    _emit_pipeline_log("finally_safety_net", job_id=job_id,
+                                       upload_id_masked=uid_masked,
+                                       render_mode=last_render_mode,
+                                       stage=failed_stage)
+            except Exception as fe:
+                _emit_pipeline_log("exception", job_id=job_id,
+                                   upload_id_masked=uid_masked,
+                                   render_mode=last_render_mode,
+                                   stage="finally_safety_net_db_write",
+                                   error_type=type(fe).__name__)
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────

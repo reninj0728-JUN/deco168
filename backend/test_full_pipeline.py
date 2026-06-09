@@ -40,6 +40,147 @@ from prompt_builder import build_nano_banana_inputs, build_anchored_inputs
 import fal_client
 import requests
 
+
+# ═════════════════════════════════════════════════════════════════════════
+# C2.6 生成可靠性安全鎖 — fal call bounded timeout + structured logging
+# ═════════════════════════════════════════════════════════════════════════
+class FalGenerationTimeout(Exception):
+    """fal subscribe / queue / generation / download 總耗時超過 total_timeout"""
+    pass
+
+
+class FalResultDownloadError(Exception):
+    """fal subscribe 已成功回傳, 但 image URL 缺失或下載失敗 (非超時類)"""
+    pass
+
+
+DEFAULT_FAL_TIMEOUT = 180  # 秒, 涵蓋 queue + 生成 + image download
+
+
+def _mask_uid_for_log(uid: str) -> str:
+    """遮罩 upload_id (不是 job_id) 給 log 使用"""
+    if not uid:
+        return ""
+    u = uid.strip()
+    if len(u) < 5:
+        return "*" * len(u)
+    return f"{u[:2]}**{u[-3:]}"
+
+
+def _emit_fal_log(outcome: str, **fields):
+    """
+    Structured single-line log for fal call lifecycle.
+
+    outcome: started / queued / success / timeout / download_error / exception
+    建議含: job_id, render_mode, style, render_index, attempt, stage
+    選填:   upload_id_masked, fal_request_id, elapsed_seconds, error_type
+
+    嚴禁傳完整 upload_id、API key、image URL query secret 或客戶資料。
+    """
+    parts = [f"outcome={outcome}"]
+    for k in ("job_id", "upload_id_masked", "render_mode", "style",
+              "render_index", "attempt", "stage", "fal_request_id",
+              "elapsed_seconds", "error_type"):
+        v = fields.get(k)
+        if v is not None and v != "":
+            parts.append(f"{k}={v}")
+    print("[fal] " + " ".join(parts))
+
+
+def _fal_subscribe_timed(model: str, arguments: dict, *,
+                         total_timeout: int = DEFAULT_FAL_TIMEOUT,
+                         log_ctx: dict) -> tuple[dict, bytes]:
+    """
+    包裝 fal_client.subscribe + image download, 單次硬性 deadline = total_timeout 秒.
+
+    log_ctx 必含: job_id, render_mode, style, render_index, attempt, stage
+                 (建議含 upload_id_masked)
+
+    成功 → return (fal_result_dict, image_bytes)
+    fal 超時 / 總 deadline 到 → raise FalGenerationTimeout
+    image URL 缺失 / 下載 (非超時) 失敗 → raise FalResultDownloadError
+    其他非預期例外 → 原樣 raise
+    """
+    deadline = time.time() + total_timeout
+    request_id_box = {"id": None}
+
+    _emit_fal_log("started", **log_ctx)
+
+    def on_enq(rid: str):
+        request_id_box["id"] = rid
+        _emit_fal_log("queued", fal_request_id=rid, **log_ctx)
+
+    t0 = time.time()
+    # ── Phase 1: queue + generation ──
+    try:
+        gen_remaining = max(1.0, deadline - time.time())
+        result = fal_client.subscribe(
+            model,
+            arguments=arguments,
+            with_logs=False,
+            on_enqueue=on_enq,
+            client_timeout=gen_remaining,
+        )
+    except Exception as e:
+        elapsed = round(time.time() - t0, 1)
+        type_name = type(e).__name__
+        # 判 timeout: 例外類名含 timeout / 已耗 >= 95% total_timeout
+        is_timeout = ("timeout" in type_name.lower()) or (elapsed >= total_timeout * 0.95)
+        if is_timeout:
+            _emit_fal_log("timeout", fal_request_id=request_id_box["id"],
+                          elapsed_seconds=elapsed, error_type=type_name, **log_ctx)
+            raise FalGenerationTimeout(
+                f"fal generation exceeded {total_timeout}s ({type_name})"
+            ) from e
+        _emit_fal_log("exception", fal_request_id=request_id_box["id"],
+                      elapsed_seconds=elapsed, error_type=type_name, **log_ctx)
+        raise
+
+    # ── Phase 2: extract image URL ──
+    img_url = (result.get("images") or [{}])[0].get("url")
+    if not img_url:
+        elapsed = round(time.time() - t0, 1)
+        _emit_fal_log("download_error", fal_request_id=request_id_box["id"],
+                      elapsed_seconds=elapsed, error_type="NoImageURL", **log_ctx)
+        raise FalResultDownloadError(
+            f"fal result no image URL; result keys={list(result.keys())}"
+        )
+
+    # ── Phase 3: image download (同一 deadline) ──
+    dl_remaining = deadline - time.time()
+    if dl_remaining <= 0:
+        elapsed = round(time.time() - t0, 1)
+        _emit_fal_log("timeout", fal_request_id=request_id_box["id"],
+                      elapsed_seconds=elapsed, error_type="DeadlineReached", **log_ctx)
+        raise FalGenerationTimeout(
+            f"fal total deadline {total_timeout}s reached before image download"
+        )
+
+    try:
+        resp = requests.get(img_url, timeout=min(60.0, dl_remaining))
+        resp.raise_for_status()
+    except Exception as e:
+        elapsed = round(time.time() - t0, 1)
+        type_name = type(e).__name__
+        # 下載期間 timeout 也算總 deadline overflow
+        if elapsed >= total_timeout * 0.95:
+            _emit_fal_log("timeout", fal_request_id=request_id_box["id"],
+                          elapsed_seconds=elapsed, error_type=type_name, **log_ctx)
+            raise FalGenerationTimeout(
+                f"fal image download caused total deadline overflow ({type_name})"
+            ) from e
+        _emit_fal_log("download_error", fal_request_id=request_id_box["id"],
+                      elapsed_seconds=elapsed, error_type=type_name, **log_ctx)
+        raise FalResultDownloadError(
+            f"fal image download failed: {type_name}"
+        ) from e
+
+    elapsed = round(time.time() - t0, 1)
+    _emit_fal_log("success", fal_request_id=request_id_box["id"],
+                  elapsed_seconds=elapsed, **log_ctx)
+    return result, resp.content
+
+
 # ─── Step 1: Gemini 分析照片（支援多張）─────────────────────────────────────
 
 # 空間類型中文標籤
@@ -489,7 +630,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      customer_notes: str = "",
                      budget_tier: str = "tier3",
                      retry_context: dict | None = None,
-                     force_anchored: bool = False):
+                     force_anchored: bool = False,
+                     job_id: str = "",
+                     upload_id_masked: str = "",
+                     attempt: int = 1,
+                     stage: str = "initial"):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
@@ -570,10 +715,19 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 print(f"  Nano Banana ANCHORED refs: {len(a_inputs['image_urls'])} 張 "
                       f"(prompt {len(a_inputs['prompt'])} chars, "
                       f"aspect_ratio={a_inputs['aspect_ratio']}, seed={a_inputs['seed']})")
+                log_ctx = {
+                    "job_id":           job_id,
+                    "upload_id_masked": upload_id_masked,
+                    "render_mode":      "anchored",
+                    "style":            style,
+                    "render_index":     idx,
+                    "attempt":          attempt,
+                    "stage":            stage,
+                }
                 try:
-                    result = fal_client.subscribe(
+                    result, img_bytes = _fal_subscribe_timed(
                         "fal-ai/nano-banana-pro/edit",
-                        arguments={
+                        {
                             "image_urls":     a_inputs["image_urls"],
                             "prompt":         a_inputs["prompt"],
                             "system_prompt":  a_inputs["system_prompt"],
@@ -582,20 +736,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                             "seed":           a_inputs["seed"],
                             "output_format":  a_inputs["output_format"],
                         },
-                        with_logs=False,
+                        log_ctx=log_ctx,
                     )
-                    elapsed = time.time() - t0
-                    img_url = (result.get("images") or [{}])[0].get("url")
-                    if not img_url:
-                        raise ValueError(
-                            f"nano-banana-pro/edit (anchored) 未回傳 URL，result keys: {list(result.keys())}"
-                        )
-                    resp = requests.get(img_url, timeout=120)
-                    resp.raise_for_status()
                     out_path = os.path.join(output_dir, f"render_{style}.png")
                     with open(out_path, "wb") as f:
-                        f.write(resp.content)
-                    print(f"  ✓ ANCHORED 完成 ({elapsed:.1f}s) → {out_path}")
+                        f.write(img_bytes)
                     results.append({
                         **render,
                         "render_path": out_path,
@@ -605,12 +750,25 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "pipeline_version": "nano-banana-anchored-v1",
                         "render_mode": "anchored",
                     })
+                except (FalGenerationTimeout, FalResultDownloadError) as e:
+                    # _fal_subscribe_timed 已印 structured log; 這裡只記 entry
+                    results.append({
+                        **render,
+                        "render_path": None,
+                        "error": f"{type(e).__name__}: {str(e)[:200]}",
+                        "error_type": type(e).__name__,
+                        "reference_map": a_inputs.get("reference_map", []),
+                        "notes": a_inputs.get("notes", ""),
+                        "unmatched_visual_items": a_inputs.get("unmatched_visual_items", []),
+                        "pipeline_version": "nano-banana-anchored-v1",
+                        "render_mode": "anchored",
+                    })
                 except Exception as e:
-                    print(f"  ✗ Nano Banana ANCHORED 失敗: {e}")
                     results.append({
                         **render,
                         "render_path": None,
                         "error": str(e),
+                        "error_type": type(e).__name__,
                         "reference_map": a_inputs.get("reference_map", []),
                         "notes": a_inputs.get("notes", ""),
                         "unmatched_visual_items": a_inputs.get("unmatched_visual_items", []),
@@ -625,29 +783,30 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                                               retry_context=retry_context)
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
+            log_ctx = {
+                "job_id":           job_id,
+                "upload_id_masked": upload_id_masked,
+                "render_mode":      "legacy",
+                "style":            style,
+                "render_index":     idx,
+                "attempt":          attempt,
+                "stage":            stage,
+            }
             try:
-                result = fal_client.subscribe(
+                result, img_bytes = _fal_subscribe_timed(
                     "fal-ai/nano-banana-pro/edit",
-                    arguments={
-                        "image_urls": inputs["image_urls"],
-                        "prompt": inputs["prompt"],
+                    {
+                        "image_urls":    inputs["image_urls"],
+                        "prompt":        inputs["prompt"],
                         "system_prompt": inputs["system_prompt"],
-                        "resolution": "1K",
+                        "resolution":    "1K",
                         "output_format": "png",
                     },
-                    with_logs=False,
+                    log_ctx=log_ctx,
                 )
-                elapsed = time.time() - t0
-                img_url = (result.get("images") or [{}])[0].get("url")
-                if not img_url:
-                    raise ValueError(f"nano-banana-pro/edit 未回傳 URL，result keys: {list(result.keys())}")
-                resp = requests.get(img_url, timeout=120)
-                resp.raise_for_status()
                 out_path = os.path.join(output_dir, f"render_{style}.png")
                 with open(out_path, "wb") as f:
-                    f.write(resp.content)
-
-                print(f"  ✓ 完成 ({elapsed:.1f}s) → {out_path}")
+                    f.write(img_bytes)
                 results.append({
                     **render,
                     "render_path": out_path,
@@ -657,13 +816,25 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "pipeline_version": "nano-banana-v1",
                     "render_mode": "legacy",
                 })
+            except (FalGenerationTimeout, FalResultDownloadError) as e:
+                results.append({
+                    **render,
+                    "render_path": None,
+                    "error": f"{type(e).__name__}: {str(e)[:200]}",
+                    "error_type": type(e).__name__,
+                    "reference_map": inputs.get("reference_map", []),
+                    "notes": inputs.get("notes", ""),
+                    "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
+                    "pipeline_version": "nano-banana-v1",
+                    "render_mode": "legacy",
+                })
             except Exception as e:
                 # 失敗：不自動 fallback Flux，直接標記 failed
-                print(f"  ✗ Nano Banana 失敗: {e}")
                 results.append({
                     **render,
                     "render_path": None,
                     "error": str(e),
+                    "error_type": type(e).__name__,
                     "reference_map": inputs.get("reference_map", []),
                     "notes": inputs.get("notes", ""),
                     "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
@@ -672,41 +843,47 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 })
             continue   # 跳過底下的 Flux 分支
 
+        # ── 正式 endpoint（鎖定 kontext，POC 結論 2026-06-03）──
+        # kontext/max、ControlNet Canny/Depth/Depth+Canny 經 POC 比較後
+        # 都未達可用門檻或無明顯收益，僅保留在 backend/poc_*.py 作未來研究。
+        # 不要在沒有新 POC 證明前切換。
+        log_ctx = {
+            "job_id":           job_id,
+            "upload_id_masked": upload_id_masked,
+            "render_mode":      "legacy",
+            "style":            style,
+            "render_index":     idx,
+            "attempt":          attempt,
+            "stage":            stage,
+        }
         try:
-            # ── 正式 endpoint（鎖定 kontext，POC 結論 2026-06-03）──
-            # kontext/max、ControlNet Canny/Depth/Depth+Canny 經 POC 比較後
-            # 都未達可用門檻或無明顯收益，僅保留在 backend/poc_*.py 作未來研究。
-            # 不要在沒有新 POC 證明前切換。
-            result = fal_client.subscribe(
+            result, img_bytes = _fal_subscribe_timed(
                 "fal-ai/flux-pro/kontext",
-                arguments={
-                    "image_url": base_image_url,
-                    "prompt": final_prompt,
-                    "guidance_scale": guidance,
+                {
+                    "image_url":           base_image_url,
+                    "prompt":              final_prompt,
+                    "guidance_scale":      guidance,
                     "num_inference_steps": 40,
-                    "output_format": "jpeg",
-                    "safety_tolerance": "5",
+                    "output_format":       "jpeg",
+                    "safety_tolerance":    "5",
                 },
-                with_logs=False,
+                log_ctx=log_ctx,
             )
-            elapsed = time.time() - t0
-
-            img_url = (result.get("images") or [{}])[0].get("url")
-            if not img_url:
-                raise ValueError(f"fal.ai 未回傳圖片 URL，result keys: {list(result.keys())}")
-            resp = requests.get(img_url, timeout=60)
-            resp.raise_for_status()
             out_path = os.path.join(output_dir, f"render_{style}.jpg")
             with open(out_path, "wb") as f:
-                f.write(resp.content)
-
-            print(f"  ✓ 完成 ({elapsed:.1f}s) → {out_path}")
+                f.write(img_bytes)
             results.append({**render, "render_path": out_path, "pipeline_version": "flux-v1",
                             "render_mode": "legacy"})
-
+        except (FalGenerationTimeout, FalResultDownloadError) as e:
+            results.append({**render, "render_path": None,
+                            "error": f"{type(e).__name__}: {str(e)[:200]}",
+                            "error_type": type(e).__name__,
+                            "pipeline_version": "flux-v1",
+                            "render_mode": "legacy"})
         except Exception as e:
-            print(f"  ✗ 失敗: {e}")
-            results.append({**render, "render_path": None, "error": str(e), "pipeline_version": "flux-v1",
+            results.append({**render, "render_path": None, "error": str(e),
+                            "error_type": type(e).__name__,
+                            "pipeline_version": "flux-v1",
                             "render_mode": "legacy"})
 
     return results
