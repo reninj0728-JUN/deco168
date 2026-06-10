@@ -29,6 +29,7 @@ from pipeline_runner import (
     run_pipeline,
     AnchoredValidationFailed,
     BASE_DIR, UPLOADS_DIR, JOBS_DIR,
+    _parse_anchored_uid_whitelist, _mask_upload_id,
 )
 UPLOADS_DIR.mkdir(exist_ok=True)
 JOBS_DIR.mkdir(exist_ok=True)
@@ -367,11 +368,7 @@ async def create_job(
             json.dump({"rooms": rooms_data,
                        "primary_room_notes": primary_room_notes}, f, ensure_ascii=False)
 
-    sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
-               "photo_count": len(new_paths), "status": "queued",
-               "progress": 5, "message": "訂單已成立，即將開始解析空間…"})
-
-    # Z2: parse 使用者已確認的 v2 zoning（可選）
+    # Z2: parse 使用者已確認的 v2 zoning (兩條路徑都需要)
     user_zoning_v2 = None
     if zoning_json:
         try:
@@ -380,6 +377,106 @@ async def create_job(
                 user_zoning_v2 = parsed
         except Exception as je:
             print(f"[/api/job] zoning_json parse 失敗, 忽略: {je}")
+
+    # ── C2.7 Routing: anchored worker queue 雙重 gate ─────────────────
+    # 同時符合才走 worker queue: USE_WORKER_QUEUE=1 AND upload_id 命中白名單.
+    # 其他情況 (未設/0/解析失敗/白名單未命中) 一律走 Legacy BackgroundTasks.
+    uid_norm = (upload_id or "").strip().upper()
+    queue_env_on = os.environ.get("USE_WORKER_QUEUE", "0").strip() == "1"
+    anchored_wl = _parse_anchored_uid_whitelist()
+    use_worker_queue = (
+        queue_env_on
+        and bool(uid_norm)
+        and bool(anchored_wl)
+        and uid_norm in anchored_wl
+    )
+
+    if use_worker_queue:
+        # ─── Worker Queue 路徑 ──────────────────────────────────────
+        # 1) photo_paths 必須全為雲端 object key (supabase://, r2://)
+        #    任何本機路徑 / http URL → fail-closed (worker 跨服務不能讀本機檔案)
+        cloud_only = [
+            p for p in new_paths
+            if isinstance(p, str) and (p.startswith("supabase://") or p.startswith("r2://"))
+        ]
+        if not cloud_only or len(cloud_only) != len(new_paths):
+            print(f"[/api/job] FAIL_CLOSED (worker queue): "
+                  f"non-cloud paths ({len(new_paths) - len(cloud_only)} 本機), "
+                  f"upload_id={_mask_upload_id(uid_norm)}")
+            return JSONResponse(status_code=400, content={
+                "error": "worker queue 要求所有照片為雲端 object key"
+            })
+
+        # 2) 建完整 queue_payload (依 worker.validate_queue_payload 必填規則)
+        from datetime import datetime, timezone
+        queue_payload = {
+            "upload_id":           upload_id,
+            "photo_paths":         cloud_only,
+            "styles":              styles_list,
+            "plan":                plan,
+            "space_type":          space_type,
+            "render_angle":        render_angle,
+            "design_mode":         design_mode,
+            "layout_choice":       layout_choice,
+            "budget_tier":         budget_tier,
+            "customer_notes":      customer_notes,
+            "preferred_store":     preferred_store,
+            "user_zoning_v2":      user_zoning_v2,
+            "rooms":               rooms_data,
+            "primary_room_notes":  primary_room_notes,
+            "excluded_photo_keys": (excluded_photos if primary_obj else []),
+            "video_uri":           "",
+            "video_keys":          [],
+            "use_video_keyframes": False,
+            "queued_at":           datetime.now(timezone.utc).isoformat(),
+        }
+
+        # 3) 單次 atomic upsert: 所有 worker queue 欄位一次寫齊 (不二次 update)
+        try:
+            resp = _req.post(
+                f"{SUPABASE_URL}/rest/v1/orders",
+                json={
+                    "job_id":           job_id,
+                    "plan":             plan,
+                    "styles":           styles_list,
+                    "photo_count":      len(cloud_only),
+                    "status":           "queued",
+                    "progress":         0,
+                    "message":          "等待 Worker 接手生成…",
+                    "execution_mode":   "anchored",
+                    "worker_state":     "unclaimed",
+                    "attempt_count":    0,
+                    "max_attempts":     2,
+                    "queue_payload":    queue_payload,
+                    "claim_token":      None,
+                    "claimed_by":       None,
+                    "claimed_at":       None,
+                    "lease_expires_at": None,
+                    "heartbeat_at":     None,
+                },
+                headers=_SB_HEADERS,
+                timeout=15,
+            )
+            if resp.status_code < 200 or resp.status_code >= 300:
+                raise RuntimeError(f"HTTP {resp.status_code}: {(resp.text or '')[:200]}")
+        except Exception as e:
+            # Fail-closed: DB write 失敗 → 不 add background task
+            print(f"[/api/job] FAIL_CLOSED (worker queue upsert): "
+                  f"{type(e).__name__}: {str(e)[:200]}")
+            return JSONResponse(status_code=500, content={
+                "error": "worker queue 建單失敗，請稍後再試"
+            })
+
+        write_status(job_id, job_dir, "queued", 0, "等待 Worker 接手生成…")
+        print(f"[/api/job] worker queue 建單成功: job_id={job_id} "
+              f"upload_id_masked={_mask_upload_id(uid_norm)}")
+        # ⚠️ 不 add background task: worker 會 poll 拿
+        return {"job_id": job_id}
+
+    # ─── Legacy 路徑 (預設; 完全不變) ────────────────────────────────
+    sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
+               "photo_count": len(new_paths), "status": "queued",
+               "progress": 5, "message": "訂單已成立，即將開始解析空間…"})
 
     write_status(job_id, job_dir, "queued", 5, "訂單已成立，即將開始解析空間…")
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
