@@ -339,41 +339,115 @@ def _emit_pipeline_log(outcome: str, **fields):
     print("[pipeline] " + " ".join(parts))
 
 
-# ── C2.7 C3: PipelineWriter (Legacy mode only) ──────────────────────
-# 把 run_pipeline 內分散的 DB 寫入集中到 writer.
-# 本 commit 只實作 Legacy 模式, 與既有 sb_upsert/write_status/sb_get 行為逐項等價.
-# 未來 commit 會新增 worker mode (claim_token + fenced RPC), 此 class 仍向後相容.
+# ── C2.7 C3 + C6: PipelineWriter (Legacy + Worker fenced modes) ────
+# Legacy: writer 透傳 db_helpers (sb_upsert/sb_get/write_status). 與既有等價.
+# Worker:  writer 透 db_queue fenced RPC. RPC 回 false → raise ClaimRevoked.
+
+class ClaimRevoked(Exception):
+    """
+    Fenced UPDATE 回 0 rows; 代表 claim 已失效:
+      - lease 過期被別 worker reclaim, 或
+      - claim_token 不匹配 (極少數 race), 或
+      - worker_state 已轉 released (已 finalize)
+    Worker 模式收到此 exception:
+      - 不再嘗試任何 DB 寫
+      - 不再 finalize
+      - finally safety net 也不執行
+      - 純結構化 log 後乾淨退出
+    """
+    pass
+
+
 class PipelineWriter:
     """
     Pipeline DB writer abstraction.
 
-    C3 commit: 只支援 legacy 模式 (建構不帶任何參數).
-    所有方法為 db_helpers 既有函式的薄包裝, 0 行為改動.
+    建構模式 (互斥):
+      - PipelineWriter()                                  → Legacy mode
+      - PipelineWriter(worker_id=str, claim_token=uuid)   → Worker fenced mode
+      - 只給一個 → ValueError
 
-    未來 commit 會新增 worker mode 參數 (claim_token / worker_id) 與 fenced RPC,
-    但本 commit 不接受任何 worker 參數.
+    Legacy 與 Worker 的方法簽名相同, 行為差異:
+      - Legacy: 直接透傳 db_helpers (與 C3 等價, 不變)
+      - Worker: 走 db_queue fenced RPC. RPC 回 false → raise ClaimRevoked.
+
+    get_order: 兩模式都用 sb_get (read-only, 不需 fencing).
     """
+
+    def __init__(self, worker_id: str | None = None, claim_token=None):
+        # 嚴格互斥: 不接受半套
+        if (worker_id is None) != (claim_token is None):
+            raise ValueError(
+                "PipelineWriter: worker_id 和 claim_token 必須同時給或同時不給"
+            )
+        self._worker_id = worker_id
+        self._claim_token = claim_token
+
+    @property
+    def is_worker_mode(self) -> bool:
+        return self._worker_id is not None
 
     def write_status(self, job_id: str, job_dir: Path,
                      status: str, progress: int, message: str) -> None:
-        """寫 status/progress/message 到 DB + 本機 status.json."""
+        """寫 status/progress/message; Worker 模式走 fenced RPC."""
+        if self.is_worker_mode:
+            # Import 延後: 避免 module-level import db_queue 把 fail-fast 提早.
+            from db_queue import update_progress as _rpc_update
+            ok = _rpc_update(self._worker_id, job_id, self._claim_token,
+                             status, progress, message)
+            if not ok:
+                raise ClaimRevoked(
+                    f"update_progress fenced UPDATE 0 rows; "
+                    f"job_id={job_id} stage={status}"
+                )
+            return
+        # Legacy: 透傳 db_helpers.write_status (DB + 本機 status.json)
         write_status(job_id, job_dir, status, progress, message)
 
     def merge_result(self, job_id: str, merge: dict) -> None:
-        """讀現有 result_json, merge 新欄位, 寫回 (不蓋 analysis/zoning/renders)."""
+        """讀現有 result_json, merge 新欄位, 寫回."""
+        if self.is_worker_mode:
+            from db_queue import merge_result as _rpc_merge
+            ok = _rpc_merge(self._worker_id, job_id, self._claim_token, merge)
+            if not ok:
+                raise ClaimRevoked(
+                    f"merge_result fenced UPDATE 0 rows; job_id={job_id}"
+                )
+            return
         existing = (sb_get(job_id) or {}).get("result_json")
         if not isinstance(existing, dict):
             existing = {}
         sb_upsert({"job_id": job_id, "result_json": {**existing, **merge}})
 
+    def set_state(self, job_id: str, new_state: str) -> None:
+        """Worker state transition (running/finalizing). Legacy mode = no-op."""
+        if not self.is_worker_mode:
+            return
+        from db_queue import set_state as _rpc_set
+        ok = _rpc_set(self._worker_id, job_id, self._claim_token, new_state)
+        if not ok:
+            raise ClaimRevoked(
+                f"set_state fenced UPDATE 0 rows; "
+                f"job_id={job_id} new_state={new_state}"
+            )
+
     def finalize(self, job_id: str, final_status: str,
                  message: str, result_merge: dict,
                  progress: int | None = None) -> None:
-        """
-        Terminal DB write (completed 或 failed).
-        progress 預設: completed=100, failed=0; 早期失敗路徑可顯式 override.
-        result_json: 讀現有 + merge result_merge (不蓋既有 partial 資料).
-        """
+        """Terminal DB write. Worker 模式走 fenced RPC (worker_finalize)."""
+        if self.is_worker_mode:
+            if final_status not in ("completed", "failed"):
+                raise ValueError(f"invalid final_status: {final_status!r}")
+            from db_queue import finalize as _rpc_final
+            ok = _rpc_final(self._worker_id, job_id, self._claim_token,
+                            final_status, message, result_merge or {})
+            if not ok:
+                raise ClaimRevoked(
+                    f"finalize fenced UPDATE 0 rows; "
+                    f"job_id={job_id} status={final_status}"
+                )
+            return
+        # Legacy
         if final_status not in ("completed", "failed"):
             raise ValueError(f"invalid final_status: {final_status!r}")
         if progress is None:
@@ -390,7 +464,7 @@ class PipelineWriter:
         })
 
     def get_order(self, job_id: str) -> dict | None:
-        """讀 order row (給 verify-after-completed 與 finally idempotent 守門用)."""
+        """Read order row (兩模式都用 sb_get; read-only 不需 fencing)."""
         return sb_get(job_id)
 
 
@@ -412,6 +486,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
     # C2.6 失敗收尾追蹤狀態
     completed_flag = False
+    claim_revoked  = False   # C6: Worker mode 收到 ClaimRevoked 時設; finally 不寫 DB
     failed_stage: str = "init"
     last_progress: int = 0
     last_render_mode: str | None = None
@@ -986,6 +1061,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             ok = r2_delete_object(key)
             print(f"[pipeline] R2 清除 {key}: {'OK' if ok else 'FAIL'}")
 
+    except ClaimRevoked as ce:
+        # C6 Worker mode: claim 已被回收 (lease 過期 / token 不符 / 已 released)
+        # 不寫 DB, 不 finalize, finally 也跳過 safety net.
+        claim_revoked = True
+        _emit_pipeline_log("claim_revoked", job_id=job_id,
+                           upload_id_masked=uid_masked,
+                           render_mode=last_render_mode,
+                           stage=failed_stage,
+                           error_type="ClaimRevoked")
     except Exception as e:
         # C2.6 失敗收尾: merge 現有 result_json 不蓋既有 analysis / zoning / partial renders
         err_txt = traceback.format_exc()
@@ -1005,6 +1089,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             writer.finalize(job_id, "failed",
                             "生成逾時或處理失敗，請聯絡客服", diagnostic)
             writer.write_status(job_id, job_dir, "failed", 0, "處理失敗，請聯絡客服")
+        except ClaimRevoked:
+            # C6: finalize 本身撞 ClaimRevoked (極少數 race) — 視同 claim 已被新 worker 接管
+            claim_revoked = True
+            _emit_pipeline_log("claim_revoked", job_id=job_id,
+                               upload_id_masked=uid_masked,
+                               render_mode=last_render_mode,
+                               stage="failure_db_write",
+                               error_type="ClaimRevoked")
         except Exception as fe:
             _emit_pipeline_log("exception", job_id=job_id,
                                upload_id_masked=uid_masked,
@@ -1018,14 +1110,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             pass
 
     finally:
-        # C2.6 防呆: 主要失敗處理由上方 except 負責, finally 只當補強
-        # SIGKILL / OOM 不會走到這裡, 須由下一輪 watchdog 處理
-        if not completed_flag:
+        # C2.6 防呆: 主要失敗處理由上方 except 負責, finally 只當補強.
+        # C6 護欄: 嚴禁 return; 用條件式略過 safety net.
+        # SIGKILL / OOM 不會走到這裡, 須由 commit 5 watchdog (queue 8) 處理.
+        if (not claim_revoked) and (not completed_flag):
             try:
                 cur = writer.get_order(job_id) or {}
                 cur_status = cur.get("status")
                 if cur_status not in ("completed", "failed"):
-                    # writer.finalize 內部 sb_get + merge + sb_upsert (與既有同邏輯)
+                    # writer.finalize 內部:
+                    #   - Legacy: sb_get + merge + sb_upsert
+                    #   - Worker: fenced RPC (可能 raise ClaimRevoked)
                     writer.finalize(job_id, "failed", "處理失敗，請聯絡客服", {
                         "error":         "pipeline finally fallback (no exception caught)",
                         "error_type":    "FinallySafetyNet",
@@ -1038,6 +1133,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                        upload_id_masked=uid_masked,
                                        render_mode=last_render_mode,
                                        stage=failed_stage)
+            except ClaimRevoked:
+                # finally safety net 撞 ClaimRevoked: claim 已被新 worker 接管, 不再嘗試
+                _emit_pipeline_log("claim_revoked", job_id=job_id,
+                                   upload_id_masked=uid_masked,
+                                   render_mode=last_render_mode,
+                                   stage="finally_safety_net",
+                                   error_type="ClaimRevoked")
             except Exception as fe:
                 _emit_pipeline_log("exception", job_id=job_id,
                                    upload_id_masked=uid_masked,
