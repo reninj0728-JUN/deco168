@@ -783,16 +783,30 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 "attempt":          attempt,
                 "stage":            stage,
             }
+            # ── Model-specific payload (env-gated, 預設保守 Nano Banana) ──
+            # RENDER_MODEL 預設 fal-ai/nano-banana-pro/edit (現況). 改為
+            # openai/gpt-image-2/edit 啟用 GPT Image 2 medium 降成本.
+            # 兩組 args 不同, 不能用同一份 payload 餵.
+            render_model = os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit").strip()
+            if render_model == "openai/gpt-image-2/edit":
+                fal_args = {
+                    "image_urls":    inputs["image_urls"],
+                    "prompt":        inputs["prompt"],
+                    "quality":       os.environ.get("GPT_IMAGE_2_QUALITY", "medium").strip(),
+                    "output_format": "png",
+                }
+            else:
+                fal_args = {
+                    "image_urls":    inputs["image_urls"],
+                    "prompt":        inputs["prompt"],
+                    "system_prompt": inputs["system_prompt"],
+                    "resolution":    "1K",
+                    "output_format": "png",
+                }
             try:
                 result, img_bytes = _fal_subscribe_timed(
-                    "fal-ai/nano-banana-pro/edit",
-                    {
-                        "image_urls":    inputs["image_urls"],
-                        "prompt":        inputs["prompt"],
-                        "system_prompt": inputs["system_prompt"],
-                        "resolution":    "1K",
-                        "output_format": "png",
-                    },
+                    render_model,
+                    fal_args,
                     log_ctx=log_ctx,
                 )
                 out_path = os.path.join(output_dir, f"render_{style}.png")
