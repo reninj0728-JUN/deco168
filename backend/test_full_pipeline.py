@@ -789,11 +789,26 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             # 兩組 args 不同, 不能用同一份 payload 餵.
             render_model = os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit").strip()
             if render_model == "openai/gpt-image-2/edit":
+                # gpt-image-2 傾向 auto zoom-in / 重構成 staged 室內攝影棚.
+                # 補硬性 camera constraints 鎖原圖視角 + 廣角縱深 + 前景地板.
+                # image_size=auto 明確設定 (即便目前已是預設, 防未來預設變動).
+                camera_constraints = (
+                    "Preserve the exact original camera position, wide-angle field of view, "
+                    "framing, perspective, and foreground floor depth from the source photo. "
+                    "Do not zoom in, crop, reframe, straighten into a staged interior photo, "
+                    "or move the camera forward. "
+                    "Keep the same amount of empty foreground floor visible as in the source image. "
+                    "Add furniture into the existing room only; do not rebuild the room as a new "
+                    "interior photoshoot. "
+                    "Preserve existing ceiling pipes, lights, wall openings, doorways, windows, "
+                    "wall seams, floor direction, and room proportions."
+                )
                 fal_args = {
                     "image_urls":    inputs["image_urls"],
-                    "prompt":        inputs["prompt"],
+                    "prompt":        camera_constraints + " " + inputs["prompt"],
                     "quality":       os.environ.get("GPT_IMAGE_2_QUALITY", "medium").strip(),
                     "output_format": "png",
+                    "image_size":    "auto",
                 }
             else:
                 fal_args = {
