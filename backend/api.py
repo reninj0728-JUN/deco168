@@ -320,6 +320,152 @@ def canonical_photo_key(s: str | None) -> str:
     return s
 
 
+# ─── PhotoMeta v1 vocabulary + normalization ──────────────────────────────────
+# 規格簽核版本: PhotoMeta v1 (2026-06-13).
+# 本輪 (Step 1) 僅做資料接收 + 驗證 + 退化 + result_json 保存,
+# 不改 AI 行為 (analyze_image / prompt_builder / render path / zoning_json 不動).
+ZONE_ENUM: tuple[str, ...] = (
+    "living", "dining", "walkway", "entrance",
+    "kitchen", "bedroom", "study", "balcony", "other",
+)
+LOCATION_HINT_ENUM: tuple[str, ...] = (
+    "rear_near_window", "front_near_entrance",
+    "left_side", "right_side", "center", "unspecified",
+)
+# 從 legacy room_type (single-select per photo) 退化為 v1 Zone
+ROOM_TYPE_TO_ZONE: dict[str, str] = {
+    "living_room":     "living",
+    "dining_room":     "dining",
+    "bedroom":         "bedroom",
+    "study_workspace": "study",
+    "other_room":      "other",
+}
+
+
+def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
+    """
+    PhotoMeta v1 per-room normalization + validation.
+
+    輸入: room dict (含 room_type + photo_keys + 可選 photo_meta).
+    回傳: (normalized_photo_meta_list, error_str).
+          error_str 非空 → caller 應回 400.
+
+    退化規則 (老 client / 沒傳 photo_meta):
+      - photo_contains:       [default_zone]
+      - target_zone:          default_zone (from ROOM_TYPE_TO_ZONE)
+      - target_location_hint: "unspecified"
+      - avoid_zones:          []
+
+    驗證規則:
+      - photo_meta 必須是 array
+      - 每筆 photo_key 必須屬於 room.photo_keys
+      - target_zone 必須包含於 photo_contains
+      - avoid_zones 不可包含 target_zone
+      - avoid_zones 內每個 zone 必須包含於 photo_contains
+      - 所有 Zone 必須在 ZONE_ENUM 內
+      - target_location_hint 必須在 LOCATION_HINT_ENUM 內
+      - photo_contains 非空
+
+    room.photo_keys 內若 photo_meta 沒涵蓋的 key, 自動補退化值.
+    """
+    room_type = (room.get("room_type") or "").strip()
+    default_zone = ROOM_TYPE_TO_ZONE.get(room_type, "other")
+    photo_keys = [str(k) for k in (room.get("photo_keys") or []) if isinstance(k, str)]
+    photo_keys_set = set(photo_keys)
+
+    raw_meta = room.get("photo_meta")
+
+    def _degrade(pk: str) -> dict:
+        return {
+            "photo_key":            pk,
+            "photo_contains":       [default_zone],
+            "target_zone":          default_zone,
+            "target_location_hint": "unspecified",
+            "avoid_zones":          [],
+        }
+
+    # 老 client / 缺值 → 全部退化
+    if raw_meta is None or raw_meta == []:
+        return [_degrade(pk) for pk in photo_keys], ""
+
+    if not isinstance(raw_meta, list):
+        return [], "photo_meta 必須是 array"
+
+    out: list[dict] = []
+    for i, m in enumerate(raw_meta):
+        if not isinstance(m, dict):
+            return [], f"photo_meta[{i}] 必須是 object"
+        pk = (m.get("photo_key") or "").strip()
+        if not pk:
+            return [], f"photo_meta[{i}].photo_key 必填"
+        if pk not in photo_keys_set:
+            return [], (f"photo_meta[{i}].photo_key={pk!r} "
+                        f"不屬於該 room.photo_keys")
+
+        # photo_contains
+        contains = m.get("photo_contains")
+        if contains is None:
+            contains = [default_zone]
+        if not isinstance(contains, list) or len(contains) == 0:
+            return [], f"photo_meta[{i}].photo_contains 必須是非空 array"
+        contains = [str(z) for z in contains]
+        for z in contains:
+            if z not in ZONE_ENUM:
+                return [], f"photo_meta[{i}].photo_contains 含非法 Zone: {z!r}"
+
+        # target_zone
+        target = m.get("target_zone")
+        if target is None:
+            target = contains[0]
+        target = str(target)
+        if target not in ZONE_ENUM:
+            return [], f"photo_meta[{i}].target_zone 非法 Zone: {target!r}"
+        if target not in contains:
+            return [], (f"photo_meta[{i}].target_zone={target!r} "
+                        f"必須包含於 photo_contains={contains!r}")
+
+        # target_location_hint
+        hint = m.get("target_location_hint")
+        if hint is None:
+            hint = "unspecified"
+        hint = str(hint)
+        if hint not in LOCATION_HINT_ENUM:
+            return [], f"photo_meta[{i}].target_location_hint 非法: {hint!r}"
+
+        # avoid_zones
+        avoid = m.get("avoid_zones")
+        if avoid is None:
+            avoid = []
+        if not isinstance(avoid, list):
+            return [], f"photo_meta[{i}].avoid_zones 必須是 array"
+        avoid = [str(z) for z in avoid]
+        for z in avoid:
+            if z not in ZONE_ENUM:
+                return [], f"photo_meta[{i}].avoid_zones 含非法 Zone: {z!r}"
+            if z not in contains:
+                return [], (f"photo_meta[{i}].avoid_zones 含 {z!r}, "
+                            f"但 photo_contains 不含")
+        if target in avoid:
+            return [], (f"photo_meta[{i}].avoid_zones 不可包含 "
+                        f"target_zone={target!r}")
+
+        out.append({
+            "photo_key":            pk,
+            "photo_contains":       contains,
+            "target_zone":          target,
+            "target_location_hint": hint,
+            "avoid_zones":          avoid,
+        })
+
+    # room.photo_keys 內未被 photo_meta 涵蓋的, 補退化值
+    covered = {m["photo_key"] for m in out}
+    for pk in photo_keys:
+        if pk not in covered:
+            out.append(_degrade(pk))
+
+    return out, ""
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -1079,8 +1225,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         # ── P2-MVP-0: 把 /api/job 傳過來的 rooms_meta.json 補進 result_json ──
         # 沒檔案 = 沒 rooms = 等同 Phase A 原行為，不寫 rooms 欄位
+        # PhotoMeta v1 (Step 1): 把 photo_meta_by_key 也讀回, 寫進 customer_inputs.
+        # 注意: Step 1 不消費這個欄位 (analyze_image / prompt_builder / render 不動),
+        #       只是落地保存. Step 2+ 才開始注入 AI prompt.
         rooms_for_json: list = []
         primary_room_notes_for_json: str = ""
+        photo_meta_by_key_for_json: dict = {}
         rooms_meta_file = job_dir / "rooms_meta.json"
         if rooms_meta_file.exists():
             try:
@@ -1091,11 +1241,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         rooms_for_json = rm["rooms"]
                     if isinstance(rm.get("primary_room_notes"), str):
                         primary_room_notes_for_json = rm["primary_room_notes"]
+                    if isinstance(rm.get("photo_meta_by_key"), dict):
+                        photo_meta_by_key_for_json = rm["photo_meta_by_key"]
             except Exception as me:
                 print(f"[pipeline] rooms_meta 讀取失敗，忽略: {me}")
 
         if primary_room_notes_for_json:
             customer_inputs["primary_room_notes"] = primary_room_notes_for_json
+        if photo_meta_by_key_for_json:
+            customer_inputs["photo_meta_by_key"] = photo_meta_by_key_for_json
 
         # Phase 1.1: 把每張 render 實際採用的 render_mode 滙集成 top-level
         # 由 generate_renders() 標示, api.py 不重新推測。
@@ -1370,6 +1524,7 @@ async def create_job(
     rooms_data: list = []
     primary_room_notes: str = ""
     primary_obj: dict | None = None
+    photo_meta_by_key: dict[str, dict] = {}   # PhotoMeta v1
 
     rooms_json_str = (rooms_json or "").strip()
     if rooms_json_str:
@@ -1399,6 +1554,8 @@ async def create_job(
                         "room_notes": str(r.get("room_notes") or "")[:100],
                         "photo_keys": [str(k)[:200] for k in (r.get("photo_keys") or []) if isinstance(k, str)],
                         "video_keys": [str(k)[:200] for k in (r.get("video_keys") or []) if isinstance(k, str)],
+                        # PhotoMeta v1 raw (在下方 normalization block 驗證)
+                        "_raw_photo_meta": r.get("photo_meta"),
                     })
                 if not cleaned:
                     fail_reason = "rooms_json 沒有有效的空間資料"
@@ -1408,9 +1565,25 @@ async def create_job(
                         fail_reason = (f"主空間「{primary['room_label'] or primary['room_type']}」"
                                        f"必須至少上傳一張照片")
                     else:
-                        rooms_data = cleaned
-                        primary_room_notes = primary["room_notes"]
-                        primary_obj = primary
+                        # ── PhotoMeta v1: per-room normalize + validate ──
+                        # 老 client 沒 photo_meta → 退化為現況行為.
+                        # 新 client 有 photo_meta → 驗 5 條規則 (見 _normalize_photo_meta_for_room).
+                        # 任一 room 驗證失敗 → 全單 fail-closed 400.
+                        for room in cleaned:
+                            # 把 _raw_photo_meta 重新映到 photo_meta 給 normalize 用
+                            tmp = {**room, "photo_meta": room.pop("_raw_photo_meta")}
+                            normalized, pm_err = _normalize_photo_meta_for_room(tmp)
+                            if pm_err:
+                                label = room.get("room_label") or room.get("room_type") or "?"
+                                fail_reason = f"PhotoMeta v1: room「{label}」: {pm_err}"
+                                break
+                            for m in normalized:
+                                photo_meta_by_key[m["photo_key"]] = m
+
+                        if not fail_reason:
+                            rooms_data = cleaned
+                            primary_room_notes = primary["room_notes"]
+                            primary_obj = primary
         if fail_reason:
             print(f"[/api/job] FAIL_CLOSED (rooms_json): {fail_reason}")
             return JSONResponse(status_code=400, content={"error": fail_reason})
@@ -1495,10 +1668,14 @@ async def create_job(
 
     # ── P2-MVP-0: 把 rooms[] + primary_room_notes 寫進 side file 給 run_pipeline ──
     # 不改 run_pipeline 簽名；run_pipeline 自己在 sb_upsert 前讀回
+    # PhotoMeta v1 (Step 1): photo_meta_by_key 也走同一個 side file
     if rooms_data:
         with open(job_dir / "rooms_meta.json", "w", encoding="utf-8") as f:
-            json.dump({"rooms": rooms_data,
-                       "primary_room_notes": primary_room_notes}, f, ensure_ascii=False)
+            json.dump({
+                "rooms":              rooms_data,
+                "primary_room_notes": primary_room_notes,
+                "photo_meta_by_key":  photo_meta_by_key,
+            }, f, ensure_ascii=False)
 
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
                "photo_count": len(new_paths), "status": "queued",
