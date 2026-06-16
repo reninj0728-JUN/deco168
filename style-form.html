@@ -812,7 +812,6 @@
           <select id="plan">
             <option value="single">概念方案 — 2 種風格設計提案（NT$1,199）</option>
             <option value="multi">多角度方案 — 2 種風格 × 多視角提案（NT$1,799）</option>
-            <option value="full">設計師審核方案 — 含設計師人工審核（NT$9,800）</option>
           </select>
         </div>
       </div>
@@ -1197,12 +1196,6 @@ const DELIVERABLES = {
     '空間格局與採光分析',
     '風格與色調建議',
   ],
-  full: [
-    '2 種風格的設計提案',
-    '台灣設計師人工審核與補充建議',
-    '為你搭配好的家具清單（可購買連結）',
-    '空間格局、採光與材料建議',
-  ],
 };
 
 function updateDeliverables(plan) {
@@ -1230,9 +1223,6 @@ function updateSummary() {
   if (plan === 'multi') {
     document.getElementById('s-plan').textContent    = '多角度方案';
     document.getElementById('s-price').textContent   = 'NT$ 1,799';
-  } else if (plan === 'full') {
-    document.getElementById('s-plan').textContent    = '設計師審核方案';
-    document.getElementById('s-price').textContent   = 'NT$ 9,800';
   } else { // single
     document.getElementById('s-plan').textContent    = '概念方案';
     document.getElementById('s-price').textContent   = spaceTypeVal === 'whole' ? 'NT$ 1,799' : 'NT$ 1,199';
