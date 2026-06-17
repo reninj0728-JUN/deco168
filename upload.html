@@ -1198,38 +1198,14 @@
     // label area
     var area = document.createElement('div');
     area.className = 'photo-label-area';
-    var hint = document.createElement('div');
-    hint.className = 'photo-label-hint';
-    hint.textContent = '這張主要是';
-    area.appendChild(hint);
 
-    var sel = document.createElement('select');
-    sel.className = 'photo-label-select';
-    LABEL_OPTIONS.forEach(function(opt) {
-      var o = document.createElement('option');
-      o.value = opt.display;
-      o.textContent = opt.display;
-      sel.appendChild(o);
-    });
-    sel.value = p.label || DEFAULT_LABEL_DISPLAY;
-    sel.addEventListener('change', function() {
-      changePhotoLabel(p.id, sel.value);
-    });
-    area.appendChild(sel);
-
-    // 「其他」自訂 input
-    if (p.label === '其他') {
-      var inp = document.createElement('input');
-      inp.type = 'text';
-      inp.className = 'photo-other-input';
-      inp.maxLength = 30;
-      inp.placeholder = '例如：玄關、陽台、儲藏室';
-      inp.value = p.other_text || '';
-      inp.addEventListener('input', function() {
-        changeOtherText(p.id, inp.value);
-      });
-      area.appendChild(inp);
-    }
+    // PhotoMeta v1 Step 2 (v2 UI v5): legacy「這張主要是」下拉與「其他」自訂 input
+    // 已從畫面移除 — UI 預設只剩 target_zone + 兩個 toggle.
+    // p.label 永遠保持 DEFAULT_LABEL_DISPLAY ('客廳／公共空間') → effectiveRoomMeta 回
+    // {room_type:'living_room', room_label:'客廳', group_key:'living_room'} → 所有照片
+    // group 為單一 living_room. rooms_json 結構 / backend 處理路徑完全不動.
+    // ('開放式客餐廳' 群組旗標已不再從 LABEL 取得; 如需該語意, 用 target_zone=living +
+    //  secondary=dining 在 photo_meta 表達, AI 仍能正確消費.)
 
     // PhotoMeta v1 Step 2 (v2 UI): 主要是 (target_zone, 必填, 9 zones)
     var tz = p.target_zone || DEFAULT_TARGET_ZONE;
