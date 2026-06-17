@@ -543,12 +543,10 @@
     </div>
   </div>
 
-  <!-- 主空間 Bar -->
+  <!-- 上傳張數 Bar (v2 UI v5.1: 移除「本次主要提案空間 / 客廳／公共空間」全域標籤,
+       避免使用者誤以為整批照片被綁定同一空間. 每張照片的空間語意改由 photo card
+       自己的 target_zone + secondary 決定.) -->
   <div class="primary-bar" id="primary-bar" style="display:none;">
-    <span class="primary-bar-eyebrow">本次主要提案空間</span>
-    <span class="primary-bar-sep"></span>
-    <span class="primary-bar-value" id="primaryValue">—</span>
-    <select class="primary-bar-select" id="primarySelect" onchange="onManualPrimaryChange(this.value)" style="display:none;"></select>
     <span class="primary-bar-count" id="primaryCount">已上傳 <strong>0</strong> / 30 張</span>
   </div>
 
@@ -1307,45 +1305,18 @@
   }
 
   function updatePrimaryBar() {
+    // v2 UI v5.1: 上方 Bar 只剩計數. 全域空間名稱 / select 已從 DOM 移除.
+    // (buildGroups / pickPrimaryGroupKey / groupDisplayName 仍由 buildRoomsJson +
+    //  updateNextButton 使用, 不在此處讀.)
     var bar   = document.getElementById('primary-bar');
-    var val   = document.getElementById('primaryValue');
-    var sel   = document.getElementById('primarySelect');
     var count = document.getElementById('primaryCount');
-
+    if (!bar || !count) return;
     if (photos.length === 0) {
       bar.style.display = 'none';
       return;
     }
     bar.style.display = 'flex';
     count.innerHTML = '已上傳 <strong>' + photos.length + '</strong> / ' + TOTAL_PHOTO_LIMIT + ' 張';
-
-    var groups = buildGroups();
-    var groupKeys = Object.keys(groups);
-
-    if (groupKeys.length === 0) {
-      val.textContent = '尚未有可作為主空間的照片';
-      sel.style.display = 'none';
-      return;
-    }
-
-    var primaryKey = pickPrimaryGroupKey();
-    var pg = primaryKey ? groups[primaryKey] : null;
-    val.textContent = pg ? groupDisplayName(pg) : '—';
-
-    if (groupKeys.length >= 2) {
-      sel.style.display = '';
-      sel.innerHTML = '';
-      groupKeys.forEach(function(gk) {
-        var o = document.createElement('option');
-        o.value = gk;
-        o.textContent = groupDisplayName(groups[gk]);
-        sel.appendChild(o);
-      });
-      sel.value = primaryKey;
-      // value (左邊) 跟 select (右邊) 顯示同樣的群組名稱，但 select 才是互動點。
-    } else {
-      sel.style.display = 'none';
-    }
   }
 
   // ── notes counter ────────────────────────────────────────────────────────
