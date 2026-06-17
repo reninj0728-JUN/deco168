@@ -295,6 +295,50 @@
     .photo-other-input::placeholder { color: var(--muted); }
     .photo-other-input:focus { border-color: var(--gold); outline: none; }
 
+    /* PhotoMeta v1 Step 2 補完：多選 photo_contains + 補充說明 100 字 */
+    .photo-contains-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px 10px;
+      margin-top: 2px;
+    }
+    .photo-contains-chip {
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--white);
+      letter-spacing: 0.3px;
+      user-select: none;
+    }
+    .photo-contains-chip input[type=checkbox] {
+      accent-color: var(--gold);
+      width: 13px; height: 13px; margin: 0;
+    }
+    .photo-contains-chip.checked {
+      border-color: var(--gold);
+      background: rgba(201,169,110,0.08);
+    }
+    .photo-note-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--black);
+      border: 1px solid var(--line);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      padding: 8px 10px;
+      letter-spacing: 0.3px;
+      min-height: 56px;
+      resize: vertical;
+    }
+    .photo-note-textarea::placeholder { color: var(--muted); }
+    .photo-note-textarea:focus { border-color: var(--gold); outline: none; }
+    .photo-note-counter {
+      font-size: 10px; color: var(--muted); text-align: right; letter-spacing: 0.5px;
+    }
+
     /* ── 全案備註 ──────────────────────────────────────────────── */
     .notes-block {
       margin-top: 40px;
@@ -620,15 +664,18 @@
   ];
   var DEFAULT_LABEL_DISPLAY = '客廳／公共空間';
 
-  // PhotoMeta v1 Step 2: 每張照片可以多選兩件事 — 「想設計哪一區」+「目標位置」.
-  // 對應後端 PhotoMeta enum (zone / location_hint). value 是寫進 rooms_json 的 enum,
-  // display 是顯示給用戶看的中文.
-  var TARGET_ZONE_OPTIONS = [
-    { value: 'other',    display: '整體空間（不特別指定）' },
+  // PhotoMeta v1 Step 2 (補完): 完整 9 Zone 列表, 對應後端 ZONE_ENUM.
+  // 同時用於 photo_contains (多選) + target_zone (單選, 必須屬於 photo_contains).
+  var ZONE_OPTIONS = [
     { value: 'living',   display: '客廳' },
     { value: 'dining',   display: '餐廳' },
+    { value: 'walkway',  display: '走道' },
+    { value: 'entrance', display: '玄關' },
+    { value: 'kitchen',  display: '廚房' },
     { value: 'bedroom',  display: '臥室' },
-    { value: 'study',    display: '書房' }
+    { value: 'study',    display: '書房' },
+    { value: 'balcony',  display: '陽台' },
+    { value: 'other',    display: '其他' }
   ];
   var TARGET_LOCATION_HINT_OPTIONS = [
     { value: 'unspecified',         display: '不指定' },
@@ -638,8 +685,18 @@
     { value: 'right_side',          display: '右側' },
     { value: 'center',              display: '中段' }
   ];
+  var DEFAULT_PHOTO_CONTAINS = ['other'];   // 老 client 相容: 退化為單一 other
   var DEFAULT_TARGET_ZONE = 'other';
   var DEFAULT_TARGET_LOCATION_HINT = 'unspecified';
+  var DEFAULT_TARGET_NOTE = '';
+  var TARGET_NOTE_MAX = 100;                // 與 backend TARGET_NOTE_MAX_LEN 一致
+
+  function zoneDisplay(z) {
+    for (var i = 0; i < ZONE_OPTIONS.length; i++) {
+      if (ZONE_OPTIONS[i].value === z) return ZONE_OPTIONS[i].display;
+    }
+    return z || '?';
+  }
 
   // ── State ────────────────────────────────────────────────────────────────
   var UPLOAD_ID = randomUploadId();
@@ -930,8 +987,10 @@
         thumb:     thumb,
         label:     DEFAULT_LABEL_DISPLAY,
         other_text:'',
+        photo_contains:       DEFAULT_PHOTO_CONTAINS.slice(),
         target_zone:          DEFAULT_TARGET_ZONE,
         target_location_hint: DEFAULT_TARGET_LOCATION_HINT,
+        target_note:          DEFAULT_TARGET_NOTE,
         seq:       seq,
         error:     ''
       };
@@ -1018,6 +1077,39 @@
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
     p.target_location_hint = newHint || DEFAULT_TARGET_LOCATION_HINT;
+  }
+
+  // PhotoMeta v1 Step 2 補完: photo_contains 多選 toggle. 規則:
+  //   - 至少 1 個 zone (取消最後一個 → 退回 default 'other')
+  //   - target_zone 必須屬於 photo_contains: 切離後若不在裡面, 自動退回 photo_contains[0]
+  //   - 變動會改變 target_zone select options, 所以要重畫整張卡 (renderPhotos)
+  function togglePhotoContains(photoId, zone, isChecked) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    var contains = Array.isArray(p.photo_contains) ? p.photo_contains.slice() : [];
+    var idx = contains.indexOf(zone);
+    if (isChecked) {
+      if (idx < 0) contains.push(zone);
+    } else {
+      if (idx >= 0) contains.splice(idx, 1);
+    }
+    if (contains.length === 0) contains = DEFAULT_PHOTO_CONTAINS.slice();
+    p.photo_contains = contains;
+    if (contains.indexOf(p.target_zone) < 0) {
+      p.target_zone = contains[0];
+    }
+    renderPhotos();
+  }
+
+  // PhotoMeta v1 Step 2 補完: target_note 自由文字, ≤100 字 (前端硬擋).
+  // 不影響 group_key / target_zone, 不重畫整張卡 — textarea 自己反映 value.
+  function changePhotoTargetNote(photoId, text) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    var s = (text || '').slice(0, TARGET_NOTE_MAX);
+    p.target_note = s;
+    var counterEl = document.getElementById('note-counter-' + photoId);
+    if (counterEl) counterEl.textContent = s.length + ' / ' + TARGET_NOTE_MAX;
   }
 
   function onManualPrimaryChange(newKey) {
@@ -1139,28 +1231,57 @@
       area.appendChild(inp);
     }
 
-    // PhotoMeta v1 Step 2: 兩個 minimum 下拉
-    //   1) 這張照片想設計哪一區? → target_zone
-    //   2) 目標區域大約在畫面哪裡? → target_location_hint
+    // PhotoMeta v1 Step 2 補完: photo_contains 多選 (這張照片包含哪些空間)
+    var hintC = document.createElement('div');
+    hintC.className = 'photo-label-hint';
+    hintC.textContent = '這張照片包含哪些空間? (可複選)';
+    area.appendChild(hintC);
+
+    var containsArr = Array.isArray(p.photo_contains) && p.photo_contains.length > 0
+      ? p.photo_contains
+      : DEFAULT_PHOTO_CONTAINS.slice();
+
+    var gridC = document.createElement('div');
+    gridC.className = 'photo-contains-grid';
+    ZONE_OPTIONS.forEach(function(opt) {
+      var lab = document.createElement('label');
+      lab.className = 'photo-contains-chip' + (containsArr.indexOf(opt.value) >= 0 ? ' checked' : '');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = opt.value;
+      cb.checked = containsArr.indexOf(opt.value) >= 0;
+      cb.addEventListener('change', function() {
+        togglePhotoContains(p.id, opt.value, cb.checked);
+      });
+      var sp = document.createElement('span');
+      sp.textContent = opt.display;
+      lab.appendChild(cb);
+      lab.appendChild(sp);
+      gridC.appendChild(lab);
+    });
+    area.appendChild(gridC);
+
+    // target_zone 單選: options = photo_contains 子集
     var hintZ = document.createElement('div');
     hintZ.className = 'photo-label-hint';
-    hintZ.textContent = '這張照片想設計哪一區?';
+    hintZ.textContent = '這張照片想設計哪一區? (必須是上面勾選的其中之一)';
     area.appendChild(hintZ);
 
     var selZ = document.createElement('select');
     selZ.className = 'photo-label-select';
-    TARGET_ZONE_OPTIONS.forEach(function(opt) {
+    containsArr.forEach(function(z) {
       var o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.display;
+      o.value = z;
+      o.textContent = zoneDisplay(z);
       selZ.appendChild(o);
     });
-    selZ.value = p.target_zone || DEFAULT_TARGET_ZONE;
+    selZ.value = containsArr.indexOf(p.target_zone) >= 0 ? p.target_zone : containsArr[0];
     selZ.addEventListener('change', function() {
       changePhotoTargetZone(p.id, selZ.value);
     });
     area.appendChild(selZ);
 
+    // target_location_hint 單選 (位置)
     var hintL = document.createElement('div');
     hintL.className = 'photo-label-hint';
     hintL.textContent = '目標區域大約在畫面哪裡?';
@@ -1179,6 +1300,29 @@
       changePhotoTargetLocationHint(p.id, selL.value);
     });
     area.appendChild(selL);
+
+    // target_note 補充說明 (≤100 字, optional)
+    var hintN = document.createElement('div');
+    hintN.className = 'photo-label-hint';
+    hintN.textContent = '補充說明 (最多 100 字, 可不填)';
+    area.appendChild(hintN);
+
+    var ta = document.createElement('textarea');
+    ta.className = 'photo-note-textarea';
+    ta.maxLength = TARGET_NOTE_MAX;
+    ta.placeholder = '例：客廳在窗戶旁，餐廳在中間，走道不要放大型家具。';
+    ta.value = p.target_note || '';
+    ta.addEventListener('input', function() {
+      if (ta.value.length > TARGET_NOTE_MAX) ta.value = ta.value.slice(0, TARGET_NOTE_MAX);
+      changePhotoTargetNote(p.id, ta.value);
+    });
+    area.appendChild(ta);
+
+    var cnt = document.createElement('div');
+    cnt.className = 'photo-note-counter';
+    cnt.id = 'note-counter-' + p.id;
+    cnt.textContent = (p.target_note || '').length + ' / ' + TARGET_NOTE_MAX;
+    area.appendChild(cnt);
 
     card.appendChild(area);
     return card;
@@ -1260,18 +1404,31 @@
     // 安全 ID：把 group_key 內非字母數字底線都換成 _
     function safeRoomId(gk) { return gk.replace(/[^a-z0-9_]/gi, '_'); }
 
-    // PhotoMeta v1 Step 2: 依 photo_keys 順序對齊 photo_meta[].
-    // 每張 photo 帶 target_zone + target_location_hint, 後端 normalize 為 PhotoMeta v1 spec.
+    // PhotoMeta v1 Step 2 (補完): 依 photo_keys 順序對齊 photo_meta[].
+    // 每張 photo 帶完整 PhotoMeta v1 欄位:
+    //   photo_contains (多選) / target_zone (單選, 必屬於 photo_contains) /
+    //   target_location_hint / target_note (≤100 字, 前端再保險 trim 一次)
+    // avoid_zones 本輪 UI 不開放, 後端會補空 array.
     function buildPhotoMeta(photo_keys) {
       return photo_keys.map(function(k) {
         var pp = null;
         for (var i = 0; i < photos.length; i++) {
           if (photos[i].key === k) { pp = photos[i]; break; }
         }
+        var contains = (pp && Array.isArray(pp.photo_contains) && pp.photo_contains.length > 0)
+          ? pp.photo_contains.slice()
+          : DEFAULT_PHOTO_CONTAINS.slice();
+        var tzone = (pp && pp.target_zone) || DEFAULT_TARGET_ZONE;
+        if (contains.indexOf(tzone) < 0) tzone = contains[0];
+        var note = (pp && typeof pp.target_note === 'string')
+          ? pp.target_note.slice(0, TARGET_NOTE_MAX)
+          : '';
         return {
           photo_key:            k,
-          target_zone:          (pp && pp.target_zone)          || DEFAULT_TARGET_ZONE,
-          target_location_hint: (pp && pp.target_location_hint) || DEFAULT_TARGET_LOCATION_HINT
+          photo_contains:       contains,
+          target_zone:          tzone,
+          target_location_hint: (pp && pp.target_location_hint) || DEFAULT_TARGET_LOCATION_HINT,
+          target_note:          note
         };
       });
     }

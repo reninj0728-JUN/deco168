@@ -332,6 +332,8 @@ LOCATION_HINT_ENUM: tuple[str, ...] = (
     "rear_near_window", "front_near_entrance",
     "left_side", "right_side", "center", "unspecified",
 )
+# PhotoMeta v1 Step 2 (補完): 補充說明 target_note 上限 100 字 (前後端都擋一次)
+TARGET_NOTE_MAX_LEN = 100
 # 從 legacy room_type (single-select per photo) 退化為 v1 Zone
 ROOM_TYPE_TO_ZONE: dict[str, str] = {
     "living_room":     "living",
@@ -382,6 +384,7 @@ def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
             "target_zone":          default_zone,
             "target_location_hint": "unspecified",
             "avoid_zones":          [],
+            "target_note":          "",
         }
 
     # 老 client / 缺值 → 全部退化
@@ -449,12 +452,27 @@ def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
             return [], (f"photo_meta[{i}].avoid_zones 不可包含 "
                         f"target_zone={target!r}")
 
+        # target_note (PhotoMeta v1 Step 2 補完): optional, ≤100 字.
+        # 規格: 結構化欄位優先, target_note 只是補充 — 超過就直接 400 不做 truncate,
+        # 避免雜訊進 prompt.
+        note_raw = m.get("target_note")
+        if note_raw is None:
+            note = ""
+        else:
+            if not isinstance(note_raw, str):
+                return [], f"photo_meta[{i}].target_note 必須是字串"
+            note = note_raw.strip()
+            if len(note) > TARGET_NOTE_MAX_LEN:
+                return [], (f"photo_meta[{i}].target_note 超過 "
+                            f"{TARGET_NOTE_MAX_LEN} 字 (目前 {len(note)} 字)")
+
         out.append({
             "photo_key":            pk,
             "photo_contains":       contains,
             "target_zone":          target,
             "target_location_hint": hint,
             "avoid_zones":          avoid,
+            "target_note":          note,
         })
 
     # room.photo_keys 內未被 photo_meta 涵蓋的, 補退化值
@@ -869,11 +887,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                      space_type=space_type, render_angle=render_angle,
                                      photo_meta_list=_build_photo_meta_list(image_paths, photo_meta_by_key_early))
 
-        # PhotoMeta v1 Step 2: 從 best_photo 抽 target_zone + target_location_hint, 給後面
-        # generate_renders → build_nano_banana_inputs 注入 PHOTO TARGET 段.
+        # PhotoMeta v1 Step 2: 從 best_photo 抽 target_zone + target_location_hint + target_note,
+        # 給後面 generate_renders → build_nano_banana_inputs 注入 PHOTO TARGET 段.
         # photo_meta_by_key_early 空 / 沒對到 / best_idx 不合法 → None, 等於關掉新功能.
         _best_pm_target_zone: str | None = None
         _best_pm_location_hint: str | None = None
+        _best_pm_target_note: str | None = None
         if photo_meta_by_key_early and image_paths and isinstance(analysis, dict):
             _best_idx = analysis.get("best_photo_index")
             if not isinstance(_best_idx, int) or not (0 <= _best_idx < len(image_paths)):
@@ -884,10 +903,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 _best_meta = photo_meta_by_key_early.get(_best_ck) or {}
                 _best_pm_target_zone = _best_meta.get("target_zone") or None
                 _best_pm_location_hint = _best_meta.get("target_location_hint") or None
-                if _best_pm_target_zone or _best_pm_location_hint:
+                _note_raw = _best_meta.get("target_note")
+                _best_pm_target_note = (_note_raw or "").strip() or None
+                if _best_pm_target_zone or _best_pm_location_hint or _best_pm_target_note:
                     print(f"[pipeline] PhotoMeta v1 best_photo[{_best_idx}] "
                           f"target_zone={_best_pm_target_zone} "
-                          f"target_location_hint={_best_pm_location_hint}")
+                          f"target_location_hint={_best_pm_location_hint} "
+                          f"target_note={(_best_pm_target_note or '')[:30]!r}")
 
         # Phase 1: 照片不足以滿足 (space_type, render_angle) 需求 → 早期失敗，不 render
         insufficient = analysis.get("insufficient_photos") if isinstance(analysis, dict) else None
@@ -1042,7 +1064,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                              attempt=1,
                                              stage="initial",
                                              target_zone=_best_pm_target_zone,
-                                             target_location_hint=_best_pm_location_hint)
+                                             target_location_hint=_best_pm_location_hint,
+                                             target_note=_best_pm_target_note)
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -1182,6 +1205,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             stage="z3_retry",
                             target_zone=_best_pm_target_zone,
                             target_location_hint=_best_pm_location_hint,
+                            target_note=_best_pm_target_note,
                         )
                     except (FalGenerationTimeout, FalResultDownloadError):
                         # C2.6 Patch B: 不被後續 anchored validation collapse 改寫.

@@ -491,6 +491,36 @@ def _build_photo_meta_section(target_zone: str | None,
     )
 
 
+def _build_target_note_section(target_note: str | None) -> str:
+    """
+    PhotoMeta v1 Step 2 補完: 用戶自由文字補充說明 (≤100 字), optional.
+
+    優先順序鐵則 (在段落本身講明, 讓 model 不會把 note 解讀為覆蓋結構化欄位):
+        1) photo_contains / target_zone / target_location_hint  (structured, hard)
+        2) USER SUPPLEMENTARY NOTE                              (this section, soft)
+        3) model 自己看照片推論
+
+    安全處理:
+        - strip 後判斷
+        - escape triple-backtick 避免 prompt fence 被打斷
+        - 100 字上限由 caller (api.py + analyze stage) 已擋過, 這裡不再 truncate
+    """
+    if not target_note:
+        return ""
+    note = target_note.strip()
+    if not note:
+        return ""
+    safe = note.replace("```", "'''")
+    return (
+        "USER SUPPLEMENTARY NOTE (照片補充說明 — 輔助理解, 不得覆蓋上方 PHOTO TARGET / "
+        "photo_contains / target_zone / target_location_hint 等結構化欄位):\n"
+        f"使用者補充說明：{safe}\n"
+        "Priority order: structured fields (PHOTO TARGET / photo_contains / target_zone / "
+        "target_location_hint) > this supplementary note > model's own inference from the photo.\n"
+        "If this note appears to contradict any structured field above, the structured field wins."
+    )
+
+
 def build_nano_banana_inputs(
     entry: dict,
     zoning: dict | None,
@@ -500,6 +530,7 @@ def build_nano_banana_inputs(
     retry_context: dict | None = None,
     target_zone: str | None = None,
     target_location_hint: str | None = None,
+    target_note: str | None = None,
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -573,6 +604,9 @@ def build_nano_banana_inputs(
     # PhotoMeta v1 Step 2: 使用者明確指定 target_zone + target_location_hint
     # → 注入在 inputs 之後 / layout 之前. 兩個值任一缺/unspecified → 空字串.
     photo_meta_sec = _build_photo_meta_section(target_zone, target_location_hint)
+    # PhotoMeta v1 Step 2 補完: target_note (≤100 字補充說明), optional.
+    # 緊跟 photo_meta_sec 之後, 讓 model 看到 "structured 在前, note 是補充" 的順序.
+    target_note_sec = _build_target_note_section(target_note)
 
     # 順序：硬規則（layout/product）在前，預算/客戶偏好在後，最後 CRITICAL_RULES + QUALITY_TAIL
     # CRITICAL_RULES 必須在 customer_sec 之後，再次強調 layout/structural 不可被偏好覆蓋
@@ -580,6 +614,8 @@ def build_nano_banana_inputs(
     sections = [inputs_sec]
     if photo_meta_sec:
         sections.append(photo_meta_sec)
+    if target_note_sec:
+        sections.append(target_note_sec)
     sections.extend([layout_sec, product_sec, style_sec])
     if budget_sec:
         sections.append(budget_sec)

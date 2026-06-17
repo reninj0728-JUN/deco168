@@ -353,16 +353,33 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
             "unspecified":         "未指定",
         }
         _lines = []
+        _note_lines = []
         for _i, _pm in enumerate(photo_meta_list):
             if not isinstance(_pm, dict):
                 continue
             _tz = _pm.get("target_zone")
             _lh = _pm.get("target_location_hint")
-            if not _tz and not _lh:
+            # photo_contains (Step 2 補完): 同一張照片包含的所有空間 (多選)
+            _contains = _pm.get("photo_contains")
+            if isinstance(_contains, list) and _contains:
+                _contains_zh = "、".join(_PM_ZONE_ZH.get(z, z) for z in _contains)
+            else:
+                _contains_zh = ""
+            # target_note (Step 2 補完): 用戶自由文字, ≤100 字, 結構化欄位之輔助
+            _note = (_pm.get("target_note") or "").strip()
+            if not _tz and not _lh and not _contains_zh and not _note:
                 continue
             _zh_z = _PM_ZONE_ZH.get(_tz, _tz or "?")
             _zh_h = _PM_HINT_ZH.get(_lh, _lh or "?")
-            _lines.append(f"  - 第 {_i} 張：用戶想設計【{_zh_z}】，目標區域大約在【{_zh_h}】")
+            _line = f"  - 第 {_i} 張："
+            if _contains_zh:
+                _line += f"照片含【{_contains_zh}】；"
+            _line += f"想設計【{_zh_z}】，目標區域大約在【{_zh_h}】"
+            _lines.append(_line)
+            if _note:
+                # 防 prompt injection: escape triple-backtick + 截到 100 字
+                _safe_note = _note.replace("```", "'''")[:100]
+                _note_lines.append(f"  - 第 {_i} 張補充說明：{_safe_note}")
         if _lines:
             photo_meta_note = (
                 "\n【用戶逐張指定的設計區域 (最高優先 ground truth)】\n"
@@ -370,8 +387,17 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
                 "這些 user-explicit 指定**比你看到的家具/格局還重要**。"
                 "如果用戶說『這張照片設計客廳』，就算這張照片裡同時看到餐廳/走道，"
                 "best_photo_index 與 regions[] 仍應把這張照片歸到用戶指定的 zone。"
+                "photo_contains 是用戶明確標註該張照片包含的所有空間 (多選), "
+                "請以此為照片內含空間的 ground truth, 不要排除其中任何一個."
                 "target_location_hint 不必寫進回傳 JSON，但會影響後續 render layout。\n"
             )
+            if _note_lines:
+                photo_meta_note += (
+                    "\n【用戶補充說明 (輔助理解, 不可覆蓋上方結構化指定)】\n"
+                    + "\n".join(_note_lines) + "\n"
+                    "優先順序: photo_contains / target_zone / target_location_hint > 補充說明 > "
+                    "你自己看照片推論. 若補充說明與結構化欄位衝突, 以結構化欄位為準.\n"
+                )
 
     prompt = f"""
 {photo_count_note}
@@ -678,7 +704,9 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      stage: str = "initial",
                      # PhotoMeta v1 Step 2: 使用者明確指定的設計目標 + 位置
                      target_zone: str | None = None,
-                     target_location_hint: str | None = None):
+                     target_location_hint: str | None = None,
+                     # PhotoMeta v1 Step 2 補完: 使用者自由文字補充說明 (≤100 字, optional)
+                     target_note: str | None = None):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
@@ -817,7 +845,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                                               budget_tier=budget_tier,
                                               retry_context=retry_context,
                                               target_zone=target_zone,
-                                              target_location_hint=target_location_hint)
+                                              target_location_hint=target_location_hint,
+                                              target_note=target_note)
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             log_ctx = {
