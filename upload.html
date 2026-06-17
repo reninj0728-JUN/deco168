@@ -295,31 +295,7 @@
     .photo-other-input::placeholder { color: var(--muted); }
     .photo-other-input:focus { border-color: var(--gold); outline: none; }
 
-    /* PhotoMeta v1 Step 2 補完：多選 photo_contains + 補充說明 100 字 */
-    .photo-contains-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px 10px;
-      margin-top: 2px;
-    }
-    .photo-contains-chip {
-      display: flex; align-items: center; gap: 5px;
-      padding: 6px 8px;
-      border: 1px solid var(--line);
-      cursor: pointer;
-      font-size: 12px;
-      color: var(--white);
-      letter-spacing: 0.3px;
-      user-select: none;
-    }
-    .photo-contains-chip input[type=checkbox] {
-      accent-color: var(--gold);
-      width: 13px; height: 13px; margin: 0;
-    }
-    .photo-contains-chip.checked {
-      border-color: var(--gold);
-      background: rgba(201,169,110,0.08);
-    }
+    /* PhotoMeta v1 Step 2 補完：補充說明 100 字 textarea */
     .photo-note-textarea {
       width: 100%;
       box-sizing: border-box;
@@ -664,8 +640,8 @@
   ];
   var DEFAULT_LABEL_DISPLAY = '客廳／公共空間';
 
-  // PhotoMeta v1 Step 2 (補完): 完整 9 Zone 列表, 對應後端 ZONE_ENUM.
-  // 同時用於 photo_contains (多選) + target_zone (單選, 必須屬於 photo_contains).
+  // PhotoMeta v1 Step 2 (補完 v2 UI): 完整 9 Zone 列表, 對應後端 ZONE_ENUM.
+  // UI 收斂為 2 個下拉 (主要是 / 也包含), backend payload 仍是 photo_contains[] + target_zone.
   var ZONE_OPTIONS = [
     { value: 'living',   display: '客廳' },
     { value: 'dining',   display: '餐廳' },
@@ -681,12 +657,13 @@
     { value: 'unspecified',         display: '不指定' },
     { value: 'rear_near_window',    display: '靠窗深處後段' },
     { value: 'front_near_entrance', display: '入口前段' },
-    { value: 'left_side',           display: '左側' },
-    { value: 'right_side',          display: '右側' },
-    { value: 'center',              display: '中段' }
+    { value: 'left_side',           display: '畫面左側' },
+    { value: 'right_side',          display: '畫面右側' },
+    { value: 'center',              display: '畫面中段' }
   ];
-  var DEFAULT_PHOTO_CONTAINS = ['other'];   // 老 client 相容: 退化為單一 other
-  var DEFAULT_TARGET_ZONE = 'other';
+  var SECONDARY_NONE = 'none';
+  var DEFAULT_TARGET_ZONE = 'living';
+  var DEFAULT_SECONDARY_ZONE = SECONDARY_NONE;
   var DEFAULT_TARGET_LOCATION_HINT = 'unspecified';
   var DEFAULT_TARGET_NOTE = '';
   var TARGET_NOTE_MAX = 100;                // 與 backend TARGET_NOTE_MAX_LEN 一致
@@ -696,6 +673,16 @@
       if (ZONE_OPTIONS[i].value === z) return ZONE_OPTIONS[i].display;
     }
     return z || '?';
+  }
+
+  // photo_contains = [target_zone] + (secondary if 非 none 且 !== target_zone), 去重.
+  // 即使老 client 沒帶 secondary 也能正確產出 photo_contains.
+  function computePhotoContains(target_zone, secondary_zone) {
+    var tz = target_zone || DEFAULT_TARGET_ZONE;
+    var sec = secondary_zone || SECONDARY_NONE;
+    var arr = [tz];
+    if (sec && sec !== SECONDARY_NONE && sec !== tz) arr.push(sec);
+    return arr;
   }
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -987,8 +974,8 @@
         thumb:     thumb,
         label:     DEFAULT_LABEL_DISPLAY,
         other_text:'',
-        photo_contains:       DEFAULT_PHOTO_CONTAINS.slice(),
         target_zone:          DEFAULT_TARGET_ZONE,
+        secondary_zone:       DEFAULT_SECONDARY_ZONE,
         target_location_hint: DEFAULT_TARGET_LOCATION_HINT,
         target_note:          DEFAULT_TARGET_NOTE,
         seq:       seq,
@@ -1066,43 +1053,27 @@
     updateNextButton();
   }
 
-  // PhotoMeta v1 Step 2: 不會影響 group_key / primary 計算, 只寫進 rooms_json[].photo_meta[].
-  // 因此不重畫 primary bar, 也不重畫整張卡 (select 自己反映 value).
+  // PhotoMeta v1 Step 2 (v2 UI): target_zone (主要) 改變時, 若 secondary == 新的 target_zone,
+  // 自動把 secondary 退回 'none' (避免兩格選同一個 zone), 並重畫整張卡讓「也包含」下拉重生 options.
   function changePhotoTargetZone(photoId, newZone) {
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
     p.target_zone = newZone || DEFAULT_TARGET_ZONE;
+    if (p.secondary_zone && p.secondary_zone === p.target_zone) {
+      p.secondary_zone = SECONDARY_NONE;
+    }
+    renderPhotos();
+  }
+  function changePhotoSecondaryZone(photoId, newSec) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.secondary_zone = newSec || SECONDARY_NONE;
   }
   function changePhotoTargetLocationHint(photoId, newHint) {
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
     p.target_location_hint = newHint || DEFAULT_TARGET_LOCATION_HINT;
   }
-
-  // PhotoMeta v1 Step 2 補完: photo_contains 多選 toggle. 規則:
-  //   - 至少 1 個 zone (取消最後一個 → 退回 default 'other')
-  //   - target_zone 必須屬於 photo_contains: 切離後若不在裡面, 自動退回 photo_contains[0]
-  //   - 變動會改變 target_zone select options, 所以要重畫整張卡 (renderPhotos)
-  function togglePhotoContains(photoId, zone, isChecked) {
-    var p = photos.filter(function(x) { return x.id === photoId; })[0];
-    if (!p) return;
-    var contains = Array.isArray(p.photo_contains) ? p.photo_contains.slice() : [];
-    var idx = contains.indexOf(zone);
-    if (isChecked) {
-      if (idx < 0) contains.push(zone);
-    } else {
-      if (idx >= 0) contains.splice(idx, 1);
-    }
-    if (contains.length === 0) contains = DEFAULT_PHOTO_CONTAINS.slice();
-    p.photo_contains = contains;
-    if (contains.indexOf(p.target_zone) < 0) {
-      p.target_zone = contains[0];
-    }
-    renderPhotos();
-  }
-
-  // PhotoMeta v1 Step 2 補完: target_note 自由文字, ≤100 字 (前端硬擋).
-  // 不影響 group_key / target_zone, 不重畫整張卡 — textarea 自己反映 value.
   function changePhotoTargetNote(photoId, text) {
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
@@ -1231,60 +1202,59 @@
       area.appendChild(inp);
     }
 
-    // PhotoMeta v1 Step 2 補完: photo_contains 多選 (這張照片包含哪些空間)
-    var hintC = document.createElement('div');
-    hintC.className = 'photo-label-hint';
-    hintC.textContent = '這張照片包含哪些空間? (可複選)';
-    area.appendChild(hintC);
+    // PhotoMeta v1 Step 2 (v2 UI): 主要是 (target_zone, 必填, 9 zones)
+    var tz = p.target_zone || DEFAULT_TARGET_ZONE;
 
-    var containsArr = Array.isArray(p.photo_contains) && p.photo_contains.length > 0
-      ? p.photo_contains
-      : DEFAULT_PHOTO_CONTAINS.slice();
-
-    var gridC = document.createElement('div');
-    gridC.className = 'photo-contains-grid';
-    ZONE_OPTIONS.forEach(function(opt) {
-      var lab = document.createElement('label');
-      lab.className = 'photo-contains-chip' + (containsArr.indexOf(opt.value) >= 0 ? ' checked' : '');
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.value = opt.value;
-      cb.checked = containsArr.indexOf(opt.value) >= 0;
-      cb.addEventListener('change', function() {
-        togglePhotoContains(p.id, opt.value, cb.checked);
-      });
-      var sp = document.createElement('span');
-      sp.textContent = opt.display;
-      lab.appendChild(cb);
-      lab.appendChild(sp);
-      gridC.appendChild(lab);
-    });
-    area.appendChild(gridC);
-
-    // target_zone 單選: options = photo_contains 子集
     var hintZ = document.createElement('div');
     hintZ.className = 'photo-label-hint';
-    hintZ.textContent = '這張照片想設計哪一區? (必須是上面勾選的其中之一)';
+    hintZ.textContent = '這張照片主要是？';
     area.appendChild(hintZ);
 
     var selZ = document.createElement('select');
     selZ.className = 'photo-label-select';
-    containsArr.forEach(function(z) {
+    ZONE_OPTIONS.forEach(function(opt) {
       var o = document.createElement('option');
-      o.value = z;
-      o.textContent = zoneDisplay(z);
+      o.value = opt.value;
+      o.textContent = opt.display;
       selZ.appendChild(o);
     });
-    selZ.value = containsArr.indexOf(p.target_zone) >= 0 ? p.target_zone : containsArr[0];
+    selZ.value = tz;
     selZ.addEventListener('change', function() {
       changePhotoTargetZone(p.id, selZ.value);
     });
     area.appendChild(selZ);
 
-    // target_location_hint 單選 (位置)
+    // PhotoMeta v1 Step 2 (v2 UI): 也包含 (secondary, 選填, 不需要 + 排除 target_zone 的其他 zones)
+    var hintS = document.createElement('div');
+    hintS.className = 'photo-label-hint';
+    hintS.textContent = '這張照片也包含？（選填）';
+    area.appendChild(hintS);
+
+    var selS = document.createElement('select');
+    selS.className = 'photo-label-select';
+    var noneOpt = document.createElement('option');
+    noneOpt.value = SECONDARY_NONE;
+    noneOpt.textContent = '不需要';
+    selS.appendChild(noneOpt);
+    ZONE_OPTIONS.forEach(function(opt) {
+      if (opt.value === tz) return; // 排除已選為主要的 zone
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.display;
+      selS.appendChild(o);
+    });
+    var secVal = p.secondary_zone || SECONDARY_NONE;
+    if (secVal === tz) secVal = SECONDARY_NONE; // 防呆: 主要改了但 state 還沒同步
+    selS.value = secVal;
+    selS.addEventListener('change', function() {
+      changePhotoSecondaryZone(p.id, selS.value);
+    });
+    area.appendChild(selS);
+
+    // target_location_hint 單選 (位置, 選填)
     var hintL = document.createElement('div');
     hintL.className = 'photo-label-hint';
-    hintL.textContent = '目標區域大約在畫面哪裡?';
+    hintL.textContent = '目標區域大約在哪裡？（選填）';
     area.appendChild(hintL);
 
     var selL = document.createElement('select');
@@ -1301,16 +1271,16 @@
     });
     area.appendChild(selL);
 
-    // target_note 補充說明 (≤100 字, optional)
+    // target_note 補充說明 (選填, ≤100 字)
     var hintN = document.createElement('div');
     hintN.className = 'photo-label-hint';
-    hintN.textContent = '補充說明 (最多 100 字, 可不填)';
+    hintN.textContent = '補充說明（選填，最多 100 字）';
     area.appendChild(hintN);
 
     var ta = document.createElement('textarea');
     ta.className = 'photo-note-textarea';
     ta.maxLength = TARGET_NOTE_MAX;
-    ta.placeholder = '例：客廳在窗戶旁，餐廳在中間，走道不要放大型家具。';
+    ta.placeholder = '例：客廳靠窗，走道不要放大型家具';
     ta.value = p.target_note || '';
     ta.addEventListener('input', function() {
       if (ta.value.length > TARGET_NOTE_MAX) ta.value = ta.value.slice(0, TARGET_NOTE_MAX);
@@ -1404,10 +1374,10 @@
     // 安全 ID：把 group_key 內非字母數字底線都換成 _
     function safeRoomId(gk) { return gk.replace(/[^a-z0-9_]/gi, '_'); }
 
-    // PhotoMeta v1 Step 2 (補完): 依 photo_keys 順序對齊 photo_meta[].
-    // 每張 photo 帶完整 PhotoMeta v1 欄位:
-    //   photo_contains (多選) / target_zone (單選, 必屬於 photo_contains) /
-    //   target_location_hint / target_note (≤100 字, 前端再保險 trim 一次)
+    // PhotoMeta v1 Step 2 (v2 UI): 依 photo_keys 順序對齊 photo_meta[].
+    // 每張 photo 由 target_zone + secondary_zone 推導 photo_contains:
+    //   photo_contains = [target_zone] (+ secondary if 非 none 且 !== target_zone), 去重.
+    // target_location_hint 預設 'unspecified', target_note 前端再保險 trim 100 字.
     // avoid_zones 本輪 UI 不開放, 後端會補空 array.
     function buildPhotoMeta(photo_keys) {
       return photo_keys.map(function(k) {
@@ -1415,11 +1385,9 @@
         for (var i = 0; i < photos.length; i++) {
           if (photos[i].key === k) { pp = photos[i]; break; }
         }
-        var contains = (pp && Array.isArray(pp.photo_contains) && pp.photo_contains.length > 0)
-          ? pp.photo_contains.slice()
-          : DEFAULT_PHOTO_CONTAINS.slice();
         var tzone = (pp && pp.target_zone) || DEFAULT_TARGET_ZONE;
-        if (contains.indexOf(tzone) < 0) tzone = contains[0];
+        var sec   = (pp && pp.secondary_zone) || SECONDARY_NONE;
+        var contains = computePhotoContains(tzone, sec);
         var note = (pp && typeof pp.target_note === 'string')
           ? pp.target_note.slice(0, TARGET_NOTE_MAX)
           : '';
