@@ -145,6 +145,51 @@ def case3():
     return payload_ok and backend_ok
 
 
+def simulate_secondary_toggle_collapse(p_state):
+    """1:1 mirror upload.html toggleSecondaryExpanded(...) 收合分支:
+    收合時 reset secondary_zone = 'none' (避免使用者以為已取消, payload 卻還帶 secondary)"""
+    p_state = dict(p_state)
+    p_state["secondary_expanded"] = False
+    p_state["secondary_zone"] = SECONDARY_NONE
+    return p_state
+
+
+def case4():
+    """toggle 展開後選餐廳 → 再收合 → secondary reset none → payload 只剩 target_zone"""
+    label = "Case 4 (toggle 展開選 dining → 收合 reset)"
+    pk = "uploads/case4/photo_01.jpg"
+    # 起始: 使用者展開 toggle 並選了 dining
+    expanded_state = {
+        "target_zone":        "living",
+        "secondary_zone":     "dining",
+        "secondary_expanded": True,
+        "target_note":        "",
+    }
+    # 中間檢查 (展開狀態下) payload 應含 dining
+    out_expanded = build_photo_meta_entry(pk, expanded_state)
+    assert out_expanded["photo_contains"] == ["living", "dining"], (
+        f"展開狀態下 payload 不對: {out_expanded}"
+    )
+    print(f"  展開狀態下 photo_contains = {out_expanded['photo_contains']}  OK")
+
+    # 模擬 toggle 收合 → state 應 reset
+    collapsed_state = simulate_secondary_toggle_collapse(expanded_state)
+    expected = {
+        "photo_key":            pk,
+        "photo_contains":       ["living"],
+        "target_zone":          "living",
+        "target_location_hint": "unspecified",
+        "target_note":          "",
+    }
+    out, payload_ok = _check_payload(label, collapsed_state, pk, expected)
+    backend_ok = _check_backend_accepts(label, "living_room", pk, out)
+    assert collapsed_state["secondary_zone"] == SECONDARY_NONE, (
+        f"收合後 secondary_zone 應 reset 為 'none', 實際 {collapsed_state['secondary_zone']!r}"
+    )
+    print(f"  收合後 state secondary_zone = {collapsed_state['secondary_zone']!r}  OK")
+    return payload_ok and backend_ok
+
+
 def case_extra_target_zone_eq_secondary():
     """防呆: secondary 跟 target_zone 同值 → 自動去重, photo_contains 只剩一個"""
     label = "Case extra (target==secondary 防呆)"
@@ -174,6 +219,7 @@ def main():
         ("Case 1", case1()),
         ("Case 2", case2()),
         ("Case 3", case3()),
+        ("Case 4", case4()),
         ("Case extra (dedupe)", case_extra_target_zone_eq_secondary()),
     ]
     print("\n" + "=" * 72)

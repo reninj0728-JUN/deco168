@@ -988,6 +988,7 @@
         other_text:'',
         target_zone:          DEFAULT_TARGET_ZONE,
         secondary_zone:       DEFAULT_SECONDARY_ZONE,
+        secondary_expanded:   false,
         target_note:          DEFAULT_TARGET_NOTE,
         note_expanded:        false,
         seq:       seq,
@@ -1095,6 +1096,19 @@
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
     p.note_expanded = !p.note_expanded;
+    renderPhotos();
+  }
+
+  // PhotoMeta v1 Step 2 (v2 UI v4): 也包含其他空間 toggle.
+  // 與 note toggle 不同: 收合時 reset secondary_zone = 'none', 避免
+  // 使用者以為已取消但 payload 還帶 secondary (per spec).
+  function toggleSecondaryExpanded(photoId) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.secondary_expanded = !p.secondary_expanded;
+    if (!p.secondary_expanded) {
+      p.secondary_zone = SECONDARY_NONE;
+    }
     renderPhotos();
   }
 
@@ -1239,32 +1253,43 @@
     });
     area.appendChild(selZ);
 
-    // PhotoMeta v1 Step 2 (v2 UI): 也包含 (secondary, 選填, 不需要 + 排除 target_zone 的其他 zones)
-    var hintS = document.createElement('div');
-    hintS.className = 'photo-label-hint';
-    hintS.textContent = '這張照片也包含？（選填）';
-    area.appendChild(hintS);
+    // PhotoMeta v1 Step 2 (v2 UI v4): 也包含其他空間 toggle (預設收合)
+    var secToggleBtn = document.createElement('button');
+    secToggleBtn.type = 'button';
+    secToggleBtn.className = 'photo-note-toggle' + (p.secondary_expanded ? ' expanded' : '');
+    secToggleBtn.textContent = p.secondary_expanded ? '− 收合其他空間' : '＋ 也包含其他空間';
+    secToggleBtn.addEventListener('click', function() {
+      toggleSecondaryExpanded(p.id);
+    });
+    area.appendChild(secToggleBtn);
 
-    var selS = document.createElement('select');
-    selS.className = 'photo-label-select';
-    var noneOpt = document.createElement('option');
-    noneOpt.value = SECONDARY_NONE;
-    noneOpt.textContent = '不需要';
-    selS.appendChild(noneOpt);
-    ZONE_OPTIONS.forEach(function(opt) {
-      if (opt.value === tz) return; // 排除已選為主要的 zone
-      var o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.display;
-      selS.appendChild(o);
-    });
-    var secVal = p.secondary_zone || SECONDARY_NONE;
-    if (secVal === tz) secVal = SECONDARY_NONE; // 防呆: 主要改了但 state 還沒同步
-    selS.value = secVal;
-    selS.addEventListener('change', function() {
-      changePhotoSecondaryZone(p.id, selS.value);
-    });
-    area.appendChild(selS);
+    if (p.secondary_expanded) {
+      var hintS = document.createElement('div');
+      hintS.className = 'photo-label-hint';
+      hintS.textContent = '也包含？（選填）';
+      area.appendChild(hintS);
+
+      var selS = document.createElement('select');
+      selS.className = 'photo-label-select';
+      var noneOpt = document.createElement('option');
+      noneOpt.value = SECONDARY_NONE;
+      noneOpt.textContent = '不需要';
+      selS.appendChild(noneOpt);
+      ZONE_OPTIONS.forEach(function(opt) {
+        if (opt.value === tz) return; // 排除已選為主要的 zone
+        var o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.display;
+        selS.appendChild(o);
+      });
+      var secVal = p.secondary_zone || SECONDARY_NONE;
+      if (secVal === tz) secVal = SECONDARY_NONE; // 防呆: 主要改了但 state 還沒同步
+      selS.value = secVal;
+      selS.addEventListener('change', function() {
+        changePhotoSecondaryZone(p.id, selS.value);
+      });
+      area.appendChild(selS);
+    }
 
     // PhotoMeta v1 Step 2 (v2 UI v3): 補充說明 toggle (預設收合)
     // 預設不展開 textarea, 介面只剩兩個下拉. 點 toggle 才出現補充說明 UI.
