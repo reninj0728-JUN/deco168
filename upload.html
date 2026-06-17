@@ -295,7 +295,25 @@
     .photo-other-input::placeholder { color: var(--muted); }
     .photo-other-input:focus { border-color: var(--gold); outline: none; }
 
-    /* PhotoMeta v1 Step 2 補完：補充說明 100 字 textarea */
+    /* PhotoMeta v1 Step 2 (v2 UI v3 — 收合補充說明): toggle button */
+    .photo-note-toggle {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+      padding: 8px 11px;
+      cursor: pointer;
+      text-align: left;
+      margin-top: 4px;
+      width: 100%;
+      transition: color .15s, border-color .15s;
+    }
+    .photo-note-toggle:hover { color: var(--white); border-color: var(--gold); }
+    .photo-note-toggle.expanded { color: var(--white); border-color: var(--gold); }
+
+    /* PhotoMeta v1 Step 2 補完：補充說明 100 字 textarea (toggle 展開後才出現) */
     .photo-note-textarea {
       width: 100%;
       box-sizing: border-box;
@@ -653,14 +671,8 @@
     { value: 'balcony',  display: '陽台' },
     { value: 'other',    display: '其他' }
   ];
-  var TARGET_LOCATION_HINT_OPTIONS = [
-    { value: 'unspecified',         display: '不指定' },
-    { value: 'rear_near_window',    display: '靠窗深處後段' },
-    { value: 'front_near_entrance', display: '入口前段' },
-    { value: 'left_side',           display: '畫面左側' },
-    { value: 'right_side',          display: '畫面右側' },
-    { value: 'center',              display: '畫面中段' }
-  ];
+  // PhotoMeta v1 Step 2 (v2 UI v3): target_location_hint 不再開放 UI 控制,
+  // 固定送 'unspecified'. backend 仍接收 / 驗證 / 注入 prompt 邏輯不動.
   var SECONDARY_NONE = 'none';
   var DEFAULT_TARGET_ZONE = 'living';
   var DEFAULT_SECONDARY_ZONE = SECONDARY_NONE;
@@ -976,8 +988,8 @@
         other_text:'',
         target_zone:          DEFAULT_TARGET_ZONE,
         secondary_zone:       DEFAULT_SECONDARY_ZONE,
-        target_location_hint: DEFAULT_TARGET_LOCATION_HINT,
         target_note:          DEFAULT_TARGET_NOTE,
+        note_expanded:        false,
         seq:       seq,
         error:     ''
       };
@@ -1069,11 +1081,6 @@
     if (!p) return;
     p.secondary_zone = newSec || SECONDARY_NONE;
   }
-  function changePhotoTargetLocationHint(photoId, newHint) {
-    var p = photos.filter(function(x) { return x.id === photoId; })[0];
-    if (!p) return;
-    p.target_location_hint = newHint || DEFAULT_TARGET_LOCATION_HINT;
-  }
   function changePhotoTargetNote(photoId, text) {
     var p = photos.filter(function(x) { return x.id === photoId; })[0];
     if (!p) return;
@@ -1081,6 +1088,14 @@
     p.target_note = s;
     var counterEl = document.getElementById('note-counter-' + photoId);
     if (counterEl) counterEl.textContent = s.length + ' / ' + TARGET_NOTE_MAX;
+  }
+  // PhotoMeta v1 Step 2 (v2 UI v3): 補充說明 toggle. 不清空 target_note,
+  // 收合後仍會送進 payload (per spec "收合不清空內容，避免使用者誤刪").
+  function toggleNoteExpanded(photoId) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.note_expanded = !p.note_expanded;
+    renderPhotos();
   }
 
   function onManualPrimaryChange(newKey) {
@@ -1251,48 +1266,40 @@
     });
     area.appendChild(selS);
 
-    // target_location_hint 單選 (位置, 選填)
-    var hintL = document.createElement('div');
-    hintL.className = 'photo-label-hint';
-    hintL.textContent = '目標區域大約在哪裡？（選填）';
-    area.appendChild(hintL);
-
-    var selL = document.createElement('select');
-    selL.className = 'photo-label-select';
-    TARGET_LOCATION_HINT_OPTIONS.forEach(function(opt) {
-      var o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.display;
-      selL.appendChild(o);
+    // PhotoMeta v1 Step 2 (v2 UI v3): 補充說明 toggle (預設收合)
+    // 預設不展開 textarea, 介面只剩兩個下拉. 點 toggle 才出現補充說明 UI.
+    var toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'photo-note-toggle' + (p.note_expanded ? ' expanded' : '');
+    toggleBtn.textContent = p.note_expanded ? '− 收合補充說明' : '＋ 補充說明';
+    toggleBtn.addEventListener('click', function() {
+      toggleNoteExpanded(p.id);
     });
-    selL.value = p.target_location_hint || DEFAULT_TARGET_LOCATION_HINT;
-    selL.addEventListener('change', function() {
-      changePhotoTargetLocationHint(p.id, selL.value);
-    });
-    area.appendChild(selL);
+    area.appendChild(toggleBtn);
 
-    // target_note 補充說明 (選填, ≤100 字)
-    var hintN = document.createElement('div');
-    hintN.className = 'photo-label-hint';
-    hintN.textContent = '補充說明（選填，最多 100 字）';
-    area.appendChild(hintN);
+    if (p.note_expanded) {
+      var hintN = document.createElement('div');
+      hintN.className = 'photo-label-hint';
+      hintN.textContent = '補充說明（選填，最多 100 字）';
+      area.appendChild(hintN);
 
-    var ta = document.createElement('textarea');
-    ta.className = 'photo-note-textarea';
-    ta.maxLength = TARGET_NOTE_MAX;
-    ta.placeholder = '例：客廳靠窗，走道不要放大型家具';
-    ta.value = p.target_note || '';
-    ta.addEventListener('input', function() {
-      if (ta.value.length > TARGET_NOTE_MAX) ta.value = ta.value.slice(0, TARGET_NOTE_MAX);
-      changePhotoTargetNote(p.id, ta.value);
-    });
-    area.appendChild(ta);
+      var ta = document.createElement('textarea');
+      ta.className = 'photo-note-textarea';
+      ta.maxLength = TARGET_NOTE_MAX;
+      ta.placeholder = '例：客廳靠窗，走道不要放大型家具';
+      ta.value = p.target_note || '';
+      ta.addEventListener('input', function() {
+        if (ta.value.length > TARGET_NOTE_MAX) ta.value = ta.value.slice(0, TARGET_NOTE_MAX);
+        changePhotoTargetNote(p.id, ta.value);
+      });
+      area.appendChild(ta);
 
-    var cnt = document.createElement('div');
-    cnt.className = 'photo-note-counter';
-    cnt.id = 'note-counter-' + p.id;
-    cnt.textContent = (p.target_note || '').length + ' / ' + TARGET_NOTE_MAX;
-    area.appendChild(cnt);
+      var cnt = document.createElement('div');
+      cnt.className = 'photo-note-counter';
+      cnt.id = 'note-counter-' + p.id;
+      cnt.textContent = (p.target_note || '').length + ' / ' + TARGET_NOTE_MAX;
+      area.appendChild(cnt);
+    }
 
     card.appendChild(area);
     return card;
