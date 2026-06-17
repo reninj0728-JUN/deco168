@@ -620,6 +620,27 @@
   ];
   var DEFAULT_LABEL_DISPLAY = '客廳／公共空間';
 
+  // PhotoMeta v1 Step 2: 每張照片可以多選兩件事 — 「想設計哪一區」+「目標位置」.
+  // 對應後端 PhotoMeta enum (zone / location_hint). value 是寫進 rooms_json 的 enum,
+  // display 是顯示給用戶看的中文.
+  var TARGET_ZONE_OPTIONS = [
+    { value: 'other',    display: '整體空間（不特別指定）' },
+    { value: 'living',   display: '客廳' },
+    { value: 'dining',   display: '餐廳' },
+    { value: 'bedroom',  display: '臥室' },
+    { value: 'study',    display: '書房' }
+  ];
+  var TARGET_LOCATION_HINT_OPTIONS = [
+    { value: 'unspecified',         display: '不指定' },
+    { value: 'rear_near_window',    display: '靠窗深處後段' },
+    { value: 'front_near_entrance', display: '入口前段' },
+    { value: 'left_side',           display: '左側' },
+    { value: 'right_side',          display: '右側' },
+    { value: 'center',              display: '中段' }
+  ];
+  var DEFAULT_TARGET_ZONE = 'other';
+  var DEFAULT_TARGET_LOCATION_HINT = 'unspecified';
+
   // ── State ────────────────────────────────────────────────────────────────
   var UPLOAD_ID = randomUploadId();
   // photos: [{id, file, status, progress, key, thumb, label, other_text, seq, error}]
@@ -909,6 +930,8 @@
         thumb:     thumb,
         label:     DEFAULT_LABEL_DISPLAY,
         other_text:'',
+        target_zone:          DEFAULT_TARGET_ZONE,
+        target_location_hint: DEFAULT_TARGET_LOCATION_HINT,
         seq:       seq,
         error:     ''
       };
@@ -982,6 +1005,19 @@
     // group_key 會變，所以重畫 primary bar；photo card 內 input 自己會反映 value
     updatePrimaryBar();
     updateNextButton();
+  }
+
+  // PhotoMeta v1 Step 2: 不會影響 group_key / primary 計算, 只寫進 rooms_json[].photo_meta[].
+  // 因此不重畫 primary bar, 也不重畫整張卡 (select 自己反映 value).
+  function changePhotoTargetZone(photoId, newZone) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.target_zone = newZone || DEFAULT_TARGET_ZONE;
+  }
+  function changePhotoTargetLocationHint(photoId, newHint) {
+    var p = photos.filter(function(x) { return x.id === photoId; })[0];
+    if (!p) return;
+    p.target_location_hint = newHint || DEFAULT_TARGET_LOCATION_HINT;
   }
 
   function onManualPrimaryChange(newKey) {
@@ -1103,6 +1139,47 @@
       area.appendChild(inp);
     }
 
+    // PhotoMeta v1 Step 2: 兩個 minimum 下拉
+    //   1) 這張照片想設計哪一區? → target_zone
+    //   2) 目標區域大約在畫面哪裡? → target_location_hint
+    var hintZ = document.createElement('div');
+    hintZ.className = 'photo-label-hint';
+    hintZ.textContent = '這張照片想設計哪一區?';
+    area.appendChild(hintZ);
+
+    var selZ = document.createElement('select');
+    selZ.className = 'photo-label-select';
+    TARGET_ZONE_OPTIONS.forEach(function(opt) {
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.display;
+      selZ.appendChild(o);
+    });
+    selZ.value = p.target_zone || DEFAULT_TARGET_ZONE;
+    selZ.addEventListener('change', function() {
+      changePhotoTargetZone(p.id, selZ.value);
+    });
+    area.appendChild(selZ);
+
+    var hintL = document.createElement('div');
+    hintL.className = 'photo-label-hint';
+    hintL.textContent = '目標區域大約在畫面哪裡?';
+    area.appendChild(hintL);
+
+    var selL = document.createElement('select');
+    selL.className = 'photo-label-select';
+    TARGET_LOCATION_HINT_OPTIONS.forEach(function(opt) {
+      var o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.display;
+      selL.appendChild(o);
+    });
+    selL.value = p.target_location_hint || DEFAULT_TARGET_LOCATION_HINT;
+    selL.addEventListener('change', function() {
+      changePhotoTargetLocationHint(p.id, selL.value);
+    });
+    area.appendChild(selL);
+
     card.appendChild(area);
     return card;
   }
@@ -1183,6 +1260,22 @@
     // 安全 ID：把 group_key 內非字母數字底線都換成 _
     function safeRoomId(gk) { return gk.replace(/[^a-z0-9_]/gi, '_'); }
 
+    // PhotoMeta v1 Step 2: 依 photo_keys 順序對齊 photo_meta[].
+    // 每張 photo 帶 target_zone + target_location_hint, 後端 normalize 為 PhotoMeta v1 spec.
+    function buildPhotoMeta(photo_keys) {
+      return photo_keys.map(function(k) {
+        var pp = null;
+        for (var i = 0; i < photos.length; i++) {
+          if (photos[i].key === k) { pp = photos[i]; break; }
+        }
+        return {
+          photo_key:            k,
+          target_zone:          (pp && pp.target_zone)          || DEFAULT_TARGET_ZONE,
+          target_location_hint: (pp && pp.target_location_hint) || DEFAULT_TARGET_LOCATION_HINT
+        };
+      });
+    }
+
     var rooms = [];
     // primary 先
     if (primaryKey && groups[primaryKey]) {
@@ -1193,7 +1286,8 @@
         room_label: pg.room_label,
         is_primary: true,
         room_notes: notesText,
-        photo_keys: pg.photo_keys
+        photo_keys: pg.photo_keys,
+        photo_meta: buildPhotoMeta(pg.photo_keys)
       });
     }
     // 其餘
@@ -1206,7 +1300,8 @@
         room_label: g.room_label,
         is_primary: false,
         room_notes: '',
-        photo_keys: g.photo_keys
+        photo_keys: g.photo_keys,
+        photo_meta: buildPhotoMeta(g.photo_keys)
       });
     });
     return rooms;

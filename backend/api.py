@@ -466,6 +466,28 @@ def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
     return out, ""
 
 
+def _build_photo_meta_list(paths: list, photo_meta_by_key: dict | None) -> list | None:
+    """
+    PhotoMeta v1 Step 2: 依 paths 順序生成對齊的 photo_meta list.
+    每張 path 取 canonical_photo_key 後到 photo_meta_by_key 查詢; 找不到放 None.
+    全 None / dict 空 → 回 None (signal 給 analyze_image 完全不注入).
+    """
+    if not photo_meta_by_key or not paths:
+        return None
+    out: list = []
+    any_hit = False
+    for p in paths:
+        if not isinstance(p, str):
+            out.append(None)
+            continue
+        ck = canonical_photo_key(p)
+        m = photo_meta_by_key.get(ck)
+        if m:
+            any_hit = True
+        out.append(m)
+    return out if any_hit else None
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -745,6 +767,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         )
         from furniture_match import enrich_renders
 
+        # PhotoMeta v1 Step 2: 早期讀回 photo_meta_by_key, 後面 analyze + render
+        # 都可消費. 沒檔案 / 空 → 空 dict, 等同現況行為.
+        photo_meta_by_key_early: dict = {}
+        try:
+            rms_file_early = job_dir / "rooms_meta.json"
+            if rms_file_early.exists():
+                with open(rms_file_early, encoding="utf-8") as f:
+                    rm_early = json.load(f)
+                if isinstance(rm_early, dict) and isinstance(rm_early.get("photo_meta_by_key"), dict):
+                    photo_meta_by_key_early = rm_early["photo_meta_by_key"]
+        except Exception as me:
+            print(f"[pipeline] PhotoMeta v1 early-read 失敗, 忽略: {me}")
+
         # Phase 1.1: 判定本訂單是否走 anchored 路徑 (僅內部測試)
         failed_stage = "anchored_decision"
         uid_norm = (upload_id or "").strip().upper()
@@ -811,7 +846,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             analysis = analyze_image(augmented_paths[0], styles or None, extra_photos=extra,
                                      space_type=space_type, render_angle=render_angle,
                                      photo_sources=sources,
-                                     video_path=video_paths[0])
+                                     video_path=video_paths[0],
+                                     photo_meta_list=_build_photo_meta_list(augmented_paths, photo_meta_by_key_early))
             # 把 augmented_paths 寫回 image_paths 給後續 _resolve_region_base / zoning_photos 使用
             image_paths = augmented_paths
         elif gemini_uris or video_paths:
@@ -830,7 +866,28 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             write_status(job_id, job_dir, "analyzing", 15, "理解空間格局中…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra,
-                                     space_type=space_type, render_angle=render_angle)
+                                     space_type=space_type, render_angle=render_angle,
+                                     photo_meta_list=_build_photo_meta_list(image_paths, photo_meta_by_key_early))
+
+        # PhotoMeta v1 Step 2: 從 best_photo 抽 target_zone + target_location_hint, 給後面
+        # generate_renders → build_nano_banana_inputs 注入 PHOTO TARGET 段.
+        # photo_meta_by_key_early 空 / 沒對到 / best_idx 不合法 → None, 等於關掉新功能.
+        _best_pm_target_zone: str | None = None
+        _best_pm_location_hint: str | None = None
+        if photo_meta_by_key_early and image_paths and isinstance(analysis, dict):
+            _best_idx = analysis.get("best_photo_index")
+            if not isinstance(_best_idx, int) or not (0 <= _best_idx < len(image_paths)):
+                _best_idx = 0
+            _best_path = image_paths[_best_idx]
+            if isinstance(_best_path, str):
+                _best_ck = canonical_photo_key(_best_path)
+                _best_meta = photo_meta_by_key_early.get(_best_ck) or {}
+                _best_pm_target_zone = _best_meta.get("target_zone") or None
+                _best_pm_location_hint = _best_meta.get("target_location_hint") or None
+                if _best_pm_target_zone or _best_pm_location_hint:
+                    print(f"[pipeline] PhotoMeta v1 best_photo[{_best_idx}] "
+                          f"target_zone={_best_pm_target_zone} "
+                          f"target_location_hint={_best_pm_location_hint}")
 
         # Phase 1: 照片不足以滿足 (space_type, render_angle) 需求 → 早期失敗，不 render
         insufficient = analysis.get("insufficient_photos") if isinstance(analysis, dict) else None
@@ -983,7 +1040,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                              job_id=job_id,
                                              upload_id_masked=uid_masked,
                                              attempt=1,
-                                             stage="initial")
+                                             stage="initial",
+                                             target_zone=_best_pm_target_zone,
+                                             target_location_hint=_best_pm_location_hint)
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
@@ -1121,6 +1180,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             upload_id_masked=uid_masked,
                             attempt=current_rc + 2,   # 初次=1, 1st retry=2, 2nd retry=3
                             stage="z3_retry",
+                            target_zone=_best_pm_target_zone,
+                            target_location_hint=_best_pm_location_hint,
                         )
                     except (FalGenerationTimeout, FalResultDownloadError):
                         # C2.6 Patch B: 不被後續 anchored validation collapse 改寫.

@@ -433,6 +433,64 @@ def _build_retry_context_section(retry_context: dict | None) -> str:
     return " ".join(lines)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PhotoMeta v1 Step 2: per-photo design target + location hint
+#
+# 在 prompt 早期 (inputs_sec 之後, layout_sec 之前) 注入一段「使用者明確指定」
+# 段落, 強制 render model 只在指定的 zone + location 放沙發/茶几/地毯/TV 櫃.
+#
+# 啟動條件: target_zone 非空 AND target_location_hint 非 "unspecified".
+# 兩者任一缺值或 unspecified → 不注入, 完全 backwards compatible.
+# ─────────────────────────────────────────────────────────────────────────────
+_TARGET_ZONE_EN = {
+    "living":  "living-room area (sofa, coffee table, area rug, focal anchor)",
+    "dining":  "dining area",
+    "bedroom": "bedroom",
+    "study":   "study / workspace",
+    "kitchen": "kitchen area",
+    "balcony": "balcony area",
+    "entrance":"entrance area",
+    "walkway": "walkway",
+    "other":   "the designated zone",
+}
+_TARGET_LOCATION_HINT_EN = {
+    "rear_near_window":    "the BACK / WINDOW-SIDE / DEEP half of the room (far from camera, near the window)",
+    "front_near_entrance": "the FRONT half of the room near the entrance",
+    "left_side":           "the LEFT side of the room",
+    "right_side":          "the RIGHT side of the room",
+    "center":              "the CENTER of the room",
+    # "unspecified" 不會走到這 table, 直接 early return
+}
+
+
+def _build_photo_meta_section(target_zone: str | None,
+                              target_location_hint: str | None) -> str:
+    """
+    PhotoMeta v1 Step 2 prompt 注入. 兩個值都明確時才有輸出.
+    """
+    if not target_zone or not target_location_hint:
+        return ""
+    if target_location_hint == "unspecified":
+        return ""
+    zone_en = _TARGET_ZONE_EN.get(target_zone)
+    loc_en  = _TARGET_LOCATION_HINT_EN.get(target_location_hint)
+    if not zone_en or not loc_en:
+        return ""
+    return (
+        f"PHOTO TARGET (user explicit intent — highest priority, MANDATORY):\n"
+        f"This rendering targets ONLY the {zone_en}. "
+        f"The {zone_en} MUST be placed at {loc_en}.\n"
+        f"Do NOT place large furniture (sofa, coffee table, area rug, TV cabinet, "
+        f"media console, or any major piece) in any OTHER zone of the photo "
+        f"(e.g., dining area, walkway, entrance, balcony, kitchen).\n"
+        f"If the photo shows multiple zones (e.g., living + dining + walkway in "
+        f"one wide-angle shot), only the targeted zone receives furniture; the "
+        f"other zones must look untouched and empty of large furniture.\n"
+        f"User's intent (which area, where in the photo) overrides any other "
+        f"composition preference."
+    )
+
+
 def build_nano_banana_inputs(
     entry: dict,
     zoning: dict | None,
@@ -440,6 +498,8 @@ def build_nano_banana_inputs(
     customer_notes: str = "",
     budget_tier: str = "tier3",
     retry_context: dict | None = None,
+    target_zone: str | None = None,
+    target_location_hint: str | None = None,
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -510,10 +570,17 @@ def build_nano_banana_inputs(
     customer_sec = _build_customer_notes_section(customer_notes)
     retry_sec = _build_retry_context_section(retry_context)
 
+    # PhotoMeta v1 Step 2: 使用者明確指定 target_zone + target_location_hint
+    # → 注入在 inputs 之後 / layout 之前. 兩個值任一缺/unspecified → 空字串.
+    photo_meta_sec = _build_photo_meta_section(target_zone, target_location_hint)
+
     # 順序：硬規則（layout/product）在前，預算/客戶偏好在後，最後 CRITICAL_RULES + QUALITY_TAIL
     # CRITICAL_RULES 必須在 customer_sec 之後，再次強調 layout/structural 不可被偏好覆蓋
     # retry_sec 緊接在 CRITICAL_RULES 之前 — 讓模型最後看到「上次哪裡錯」+ CRITICAL_RULES 鐵則
-    sections = [inputs_sec, layout_sec, product_sec, style_sec]
+    sections = [inputs_sec]
+    if photo_meta_sec:
+        sections.append(photo_meta_sec)
+    sections.extend([layout_sec, product_sec, style_sec])
     if budget_sec:
         sections.append(budget_sec)
     if customer_sec:

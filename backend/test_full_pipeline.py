@@ -199,7 +199,8 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
                   space_type: str = "living",
                   render_angle: str = "single",
                   photo_sources: list[str] | None = None,
-                  video_path: str | None = None) -> dict:
+                  video_path: str | None = None,
+                  photo_meta_list: list | None = None) -> dict:
     """
     image_path   : 主要照片（給渲染基底用）
     extra_photos : 補充角度照片清單（一起送 Gemini 分析）
@@ -333,8 +334,48 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
         if photo_count > 1 else f"你現在看到 1 張照片{('+ 1 段影片' if video_path else '')}。"
     )
 
+    # PhotoMeta v1 Step 2: 用戶在前端逐張指定「想設計哪一區 + 目標區域位置」.
+    # 把它整理成 brief block 給 Gemini, 當分類 / best_photo / regions 的 ground truth.
+    # photo_meta_list 對齊 all_paths (index 一致). 沒填 → 整段不出現, 等於現況行為.
+    photo_meta_note = ""
+    if photo_meta_list and any(isinstance(x, dict) for x in photo_meta_list):
+        _PM_ZONE_ZH = {
+            "living": "客廳", "dining": "餐廳", "bedroom": "臥室",
+            "study": "書房", "kitchen": "廚房", "balcony": "陽台",
+            "entrance": "玄關", "walkway": "走道", "other": "指定區",
+        }
+        _PM_HINT_ZH = {
+            "rear_near_window":    "靠窗深處後段",
+            "front_near_entrance": "入口前段",
+            "left_side":           "左側",
+            "right_side":          "右側",
+            "center":              "中段",
+            "unspecified":         "未指定",
+        }
+        _lines = []
+        for _i, _pm in enumerate(photo_meta_list):
+            if not isinstance(_pm, dict):
+                continue
+            _tz = _pm.get("target_zone")
+            _lh = _pm.get("target_location_hint")
+            if not _tz and not _lh:
+                continue
+            _zh_z = _PM_ZONE_ZH.get(_tz, _tz or "?")
+            _zh_h = _PM_HINT_ZH.get(_lh, _lh or "?")
+            _lines.append(f"  - 第 {_i} 張：用戶想設計【{_zh_z}】，目標區域大約在【{_zh_h}】")
+        if _lines:
+            photo_meta_note = (
+                "\n【用戶逐張指定的設計區域 (最高優先 ground truth)】\n"
+                + "\n".join(_lines) + "\n"
+                "這些 user-explicit 指定**比你看到的家具/格局還重要**。"
+                "如果用戶說『這張照片設計客廳』，就算這張照片裡同時看到餐廳/走道，"
+                "best_photo_index 與 regions[] 仍應把這張照片歸到用戶指定的 zone。"
+                "target_location_hint 不必寫進回傳 JSON，但會影響後續 render layout。\n"
+            )
+
     prompt = f"""
 {photo_count_note}
+{photo_meta_note}
 分析這{'些' if photo_count > 1 else '張'}空間照片，理解完整格局，並依使用者選的方案做照片分類。
 
 【使用者方案】
@@ -634,7 +675,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      job_id: str = "",
                      upload_id_masked: str = "",
                      attempt: int = 1,
-                     stage: str = "initial"):
+                     stage: str = "initial",
+                     # PhotoMeta v1 Step 2: 使用者明確指定的設計目標 + 位置
+                     target_zone: str | None = None,
+                     target_location_hint: str | None = None):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
@@ -771,7 +815,9 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,
-                                              retry_context=retry_context)
+                                              retry_context=retry_context,
+                                              target_zone=target_zone,
+                                              target_location_hint=target_location_hint)
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             log_ctx = {
