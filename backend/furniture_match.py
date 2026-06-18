@@ -46,11 +46,41 @@ LIVING_NICE_TO_HAVE = [
 # 客廳模式排除（不准進主家具清單）
 LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding']
 
+# ── 軟裝接入 (2026-06-18) ────────────────────────────────────────────────────
+# 軟裝 = 「不算主家具總計、另開獨立區塊建議」的搭配商品.
+# 預算策略採 B 方案: 主家具 (sofa/coffee_table/rug) 算主總計; 軟裝獨立顯示, 不併主總計.
+# real catalog 可用品類 (見 _inspect_catalog.txt):
+#   pillow   116 件   (category=抱枕)
+#   curtain   91 件   (category=窗簾)
+#   wall_art  13 件   (category=裝飾, name_zh 含 掛畫/畫框)
+#   vase      59 件   (category=裝飾, name_zh 含 花瓶/花器)
+#   plant      7 件   (category=裝飾, name_zh 含 植栽/盆栽)
+#   decor      3 件   (太少, 本輪不主動撈)
+# 每張 render 各 cat 撈 1 件, 上限 5 件.
+SOFT_FURNISHING_CATS = ['pillow', 'curtain', 'wall_art', 'vase', 'plant']
+
+# 軟裝單件預算上限 (不算主總計, 但仍隨 tier 控制單件不要太貴)
+SOFT_FURNISHING_CAP = {
+    'tier1': 3000,
+    'tier2': 6000,
+    'tier3': None,
+}
+
 # 椅子細分關鍵字（name_zh 命中即覆蓋 chair 為子類）
 CHAIR_SUBCAT_RULES = [
     ('bar_stool', ['吧台', '吧檯', '吧椅', '高腳椅', 'bar stool', 'STIG', 'barstool']),
     ('dining_chair', ['餐椅', 'dining chair']),
     ('accent_chair', ['單人沙發', '單椅', '搖椅', '躺椅', '休閒椅', 'lounge', 'accent chair', '皮革椅', '扶手椅', 'armchair']),
+]
+
+# 軟裝細分: real catalog 的「裝飾」cat 是雜燴 (含掛畫/花瓶/植栽/擺件/沙發墊),
+# 用 name_zh 關鍵字細分成可用的子類別; 命中即覆蓋 mirror 為 wall_art / vase / plant / decor.
+# 不命中保留 mirror (跟原行為一致).
+DECOR_SUBCAT_RULES = [
+    ('wall_art', ['掛畫', '畫框', '裝飾畫', '藝術畫', 'wall art', 'poster', 'art print']),
+    ('vase',     ['花瓶', '花器', 'vase', 'flower vessel']),
+    ('plant',    ['植栽', '盆栽', '綠植', 'planter', 'potted', 'green plant']),
+    ('decor',    ['擺件', '擺設', '飾品', 'figurine', 'ornament']),
 ]
 
 # 桌子細分（保守：只在 LIVING_EXCLUDED 過濾與 NICE_TO_HAVE 配對時才用）
@@ -61,7 +91,7 @@ TABLE_SUBCAT_RULES = [
 
 
 def refine_subcategory(en_cat: str, name_zh: str) -> str:
-    """按品名細分 chair / table，其他類別維持原樣"""
+    """按品名細分 chair / table / mirror(裝飾雜燴 → 軟裝)，其他類別維持原樣"""
     name_lower = (name_zh or '').lower()
     if en_cat == 'chair':
         for sub, kws in CHAIR_SUBCAT_RULES:
@@ -73,6 +103,13 @@ def refine_subcategory(en_cat: str, name_zh: str) -> str:
             if any(kw.lower() in name_lower for kw in kws):
                 return sub
         return 'table'
+    # 軟裝接入 (2026-06-18): real catalog 的「裝飾」cat (CATEGORY_ZH_TO_EN → 'mirror')
+    # 實際是雜燴, 含掛畫/花瓶/植栽/擺件. 按 name_zh 細分後才能正確分流到軟裝段.
+    if en_cat == 'mirror':
+        for sub, kws in DECOR_SUBCAT_RULES:
+            if any(kw.lower() in name_lower for kw in kws):
+                return sub
+        return 'mirror'
     return en_cat
 
 
@@ -519,6 +556,58 @@ def match_furniture(
     return ordered
 
 
+def match_soft_furnishing(
+    style: str,
+    catalog: list[dict],
+    budget_tier: str = "tier3",
+    preferred_store: str = "none",
+) -> list[dict]:
+    """
+    軟裝接入 (2026-06-18): 為當前風格各撈一件 pillow / curtain / wall_art / vase / plant.
+    與 match_furniture 完全獨立 — 不影響主家具撈取邏輯, 不算進主總計.
+    撈不到某 cat 就跳過 (不 fallback 跨類別).
+    回傳 list (順序固定 SOFT_FURNISHING_CATS).
+    """
+    soft_cap = SOFT_FURNISHING_CAP.get(budget_tier)
+
+    def _under_soft_budget(item: dict) -> bool:
+        if soft_cap is None:
+            return True
+        try:
+            price = int(item.get('price_twd') or 0)
+        except (TypeError, ValueError):
+            return True
+        return price <= 0 or price <= soft_cap
+
+    selected: list[dict] = []
+    for cat in SOFT_FURNISHING_CATS:
+        # 同 cat 池子
+        pool = [it for it in catalog
+                if resolve_category(it) == cat
+                and (it.get("image_url") or "").startswith("http")
+                and _under_soft_budget(it)]
+        if not pool:
+            # 放寬: 全價域
+            pool = [it for it in catalog
+                    if resolve_category(it) == cat
+                    and (it.get("image_url") or "").startswith("http")]
+        if not pool:
+            continue
+        # 用既有 _pick_best_in_category 評分:
+        # 但 cap 用軟裝專用上限, 不走主家具 BUDGET_CAT_CAP.
+        # 直接複用 score_item 簡化.
+        scored = [
+            (score_item(it, style, [],
+                        match_style=True,
+                        is_long_room=False,
+                        preferred_store=preferred_store), it)
+            for it in pool
+        ]
+        scored.sort(key=lambda x: -x[0])
+        selected.append(scored[0][1])
+    return selected
+
+
 def _legacy_match(style: str, prompt_keywords: list[str], catalog: list[dict], top_n: int) -> list[dict]:
     """舊邏輯（非 living 模式 fallback 用）：混評分 + 每類 1 件"""
     scored = []
@@ -665,6 +754,30 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
             }
             for item in matched
         ]
+
+        # 軟裝接入 (2026-06-18): 額外撈 pillow/curtain/wall_art/vase/plant 進 soft_furnishing,
+        # 跟 matched_furniture 完全分開. 結果頁獨立顯示「軟裝搭配建議」, 不併主總計.
+        soft = match_soft_furnishing(style, catalog,
+                                     budget_tier=budget_tier,
+                                     preferred_store=preferred_store)
+        render_copy["soft_furnishing"] = [
+            {
+                "id": item.get("id", ""),
+                "name_zh": item.get("name_zh", ""),
+                "brand": item.get("brand", ""),
+                "category": item.get("category", ""),
+                "category_en": resolve_category(item),
+                "price_twd": item.get("price_twd", 0),
+                "image_url": item.get("image_url", ""),
+                "purchase_url": item.get("purchase_url", ""),
+            }
+            for item in soft
+        ]
+        if soft:
+            cats_dbg = [resolve_category(it) for it in soft]
+            print(f"[furniture_match] soft_furnishing ({style}): "
+                  f"{len(soft)} 件 cats={cats_dbg}")
+
         enriched.append(render_copy)
 
     return enriched

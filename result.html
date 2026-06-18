@@ -351,6 +351,8 @@
     if (angleLbl === '主視角') angleLbl = '客廳主視角';
     var furn     = r.matched_furniture || [];
     var total    = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
+    // 軟裝接入 (2026-06-18): 軟裝獨立顯示, 不併入主總計
+    var soft     = r.soft_furnishing || [];
     var nAngles  = group.angles.length;
 
     // 左右切換 + 角度指示
@@ -409,9 +411,56 @@
           : '')
       : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">商品清單生成中…</p>';
 
+    // 軟裝接入 (2026-06-18): 顯示 pillow / curtain / wall_art / vase / plant.
+    // 不算入主總計; 中文 cat label 用既有 category 欄位 (例如「抱枕」「窗簾」「裝飾」).
+    var SOFT_CAT_LABEL = {
+      pillow:   '抱枕',
+      curtain:  '窗簾',
+      wall_art: '掛畫',
+      vase:     '花瓶',
+      plant:    '植栽',
+      decor:    '擺件',
+      mirror:   '裝飾'
+    };
+    var softItems = '';
+    if (soft.length) {
+      softItems = soft.map(function(f, j) {
+        var price  = f.price_twd ? 'NT$' + Number(f.price_twd).toLocaleString() : '—';
+        var rawUrl = f.purchase_url || '';
+        if (rawUrl.includes('google.com/search')) {
+          var m = rawUrl.match(/q=IKEA\+([^&+]+)/);
+          rawUrl = m ? 'https://www.ikea.com.tw/zh/search/?query=' + m[1] : 'https://www.ikea.com.tw';
+        }
+        var linkBtn = rawUrl
+          ? '<a href="' + rawUrl + '" target="_blank" rel="noopener" class="buy-btn">前往購買</a>'
+          : '';
+        var catLbl = SOFT_CAT_LABEL[f.category_en] || (f.category || '軟裝');
+        return '<div class="f-item">' +
+          '<div class="f-num">' + (j+1) + '</div>' +
+          '<div class="f-info">' +
+            '<div class="f-name">' + (f.name_zh || '') + '</div>' +
+            '<div class="f-meta">' + catLbl + '</div>' +
+          '</div>' +
+          '<div class="f-right">' +
+            '<div class="f-brand">' + (f.brand || '—') + '</div>' +
+            '<div class="f-price">' + price + '</div>' +
+            linkBtn +
+          '</div></div>';
+      }).join('');
+    }
+    var softSection = softItems
+      ? '<div class="soft-furnishing-box" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line);">' +
+          '<h3 style="font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;">軟裝搭配建議</h3>' +
+          '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-bottom:14px;">' +
+            '此區為建議搭配的軟裝品項，不併入上方主家具總計' +
+          '</div>' +
+          softItems +
+        '</div>'
+      : '';
+
     return '<div class="panel-grid">' +
            '<div class="render-box">' + imgSection + '</div>' +
-           '<div class="furniture-box"><h3>為你搭配的家具</h3>' + furnItems + '</div>' +
+           '<div class="furniture-box"><h3>為你搭配的家具</h3>' + furnItems + softSection + '</div>' +
            '</div>';
   }
 

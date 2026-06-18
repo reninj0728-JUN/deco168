@@ -890,6 +890,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # PhotoMeta v1 Step 2: 從 best_photo 抽 target_zone + target_location_hint + target_note,
         # 給後面 generate_renders → build_nano_banana_inputs 注入 PHOTO TARGET 段.
         # photo_meta_by_key_early 空 / 沒對到 / best_idx 不合法 → None, 等於關掉新功能.
+        #
+        # 位置修正 (2026-06-18): 若使用者在 zoning-confirm 頁選了「靠窗做客廳」 (plan A)
+        # AND best_photo 的 target_zone=='living' AND hint 未指定 (None/unspecified),
+        # 後端自動把 hint 設為 'rear_near_window'. 條件嚴格鎖死 — 任一不符就維持原行為.
         _best_pm_target_zone: str | None = None
         _best_pm_location_hint: str | None = None
         _best_pm_target_note: str | None = None
@@ -910,6 +914,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                           f"target_zone={_best_pm_target_zone} "
                           f"target_location_hint={_best_pm_location_hint} "
                           f"target_note={(_best_pm_target_note or '')[:30]!r}")
+
+        # 位置修正: 使用者「明確選了」 plan A (靠窗做客廳) + target_zone=living
+        # + hint 未指定 → 自動把 hint 提升為 rear_near_window, 啟動 PHOTO TARGET 鎖位置.
+        # 嚴格條件:
+        #   1. user_layout_choice 必須是非空字串 'A' (空字串 / 'B' / 其他都不觸發,
+        #      避免沒走過 zoning 頁的單也誤觸發)
+        #   2. best_photo 的 target_zone == 'living'
+        #   3. hint 是 None / '' / 'unspecified' (用戶有自己填就不蓋)
+        _layout_choice_raw = (user_layout_choice or "").strip().upper()
+        _hint_unspecified = (_best_pm_location_hint in (None, "", "unspecified"))
+        if (_layout_choice_raw == "A"
+                and _best_pm_target_zone == "living"
+                and _hint_unspecified):
+            _best_pm_location_hint = "rear_near_window"
+            print(f"[pipeline] 位置修正: layout_choice=A + target_zone=living "
+                  f"→ 自動設 target_location_hint='rear_near_window' (PHOTO TARGET 啟動)")
 
         # Phase 1: 照片不足以滿足 (space_type, render_angle) 需求 → 早期失敗，不 render
         insufficient = analysis.get("insufficient_photos") if isinstance(analysis, dict) else None
@@ -1287,6 +1307,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
                 "matched_furniture": r.get("matched_furniture", [])[:3],
+                # 軟裝接入 (2026-06-18): 結果頁獨立區塊顯示, 不併入主總計
+                "soft_furnishing":   r.get("soft_furnishing", []),
                 "validation":        r.get("validation"),
                 # ── T4 新增：Nano Banana 路徑會帶；Flux 路徑用預設值 ──
                 "pipeline_version":      r.get("pipeline_version", "flux-v1"),

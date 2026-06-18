@@ -27,6 +27,17 @@ CAT_DISPLAY = {
     "rug":          ("RUG",          "area rug"),
 }
 
+# 軟裝接入 (2026-06-18): 軟裝 cat → 英文 phrase for prompt text section.
+# 不上 reference image (避免 image_urls 列表變長影響 Nano Banana / GPT Image 2 的家具識別),
+# 只用文字引導 model 順手把這些 styled accessory 畫進場景.
+SOFT_FURNISHING_EN = {
+    "pillow":   "throw pillows / sofa cushions",
+    "curtain":  "window curtains",
+    "wall_art": "wall art / framed picture above the sofa",
+    "vase":     "a decorative vase (with or without flowers) on the coffee table or side table",
+    "plant":    "a potted plant in the corner near the window",
+}
+
 # 預設標示文字（result_json.notes 給 UI 用）
 DEFAULT_NOTES = "主家具（沙發、茶几、地毯）為可購買商品；其餘物件為情境示意。"
 
@@ -251,6 +262,36 @@ def _build_fallback_layout_section() -> str:
         "Keep the entrance area within 1.5m of the main door clear. "
         "Keep any corridor/passage opening unobstructed. "
         "Anchor the living conversation zone near the window for natural light."
+    )
+
+
+def _build_soft_furnishing_section(soft_furnishing: list[dict]) -> str:
+    """
+    軟裝接入 (2026-06-18): SOFT FURNISHING SUGGESTIONS — 文字段, 不上 reference image.
+
+    給 model 一段提示「順便畫上抱枕/窗簾/掛畫/花瓶/植栽，風格要跟主家具一致」.
+    軟裝是 styled accessory, 不取代 sofa/coffee_table/rug 主家具.
+    結果頁有獨立的「軟裝搭配建議」列表展示對應商品連結, 跟主家具總計分開.
+
+    空列表 → 回空字串, 不注入.
+    """
+    if not soft_furnishing:
+        return ""
+    bullets: list[str] = []
+    for it in soft_furnishing:
+        cat = (it.get("category_en") or "").strip()
+        phrase = SOFT_FURNISHING_EN.get(cat)
+        if not phrase:
+            continue
+        bullets.append(f"  - {phrase}")
+    if not bullets:
+        return ""
+    return (
+        "SOFT FURNISHING SUGGESTIONS (styled accessories — NOT primary furniture):\n"
+        "Naturally include the following soft furnishing items, styled to match the "
+        "chosen design style of this render. These are decor accents only and must NOT "
+        "replace or overshadow the sofa / coffee table / area rug placement defined above.\n"
+        + "\n".join(bullets)
     )
 
 
@@ -608,6 +649,11 @@ def build_nano_banana_inputs(
     # 緊跟 photo_meta_sec 之後, 讓 model 看到 "structured 在前, note 是補充" 的順序.
     target_note_sec = _build_target_note_section(target_note)
 
+    # 軟裝接入 (2026-06-18): 從 entry 讀 soft_furnishing[] (furniture_match.enrich_renders
+    # 已寫入), 組「SOFT FURNISHING SUGGESTIONS」文字段提示 model 順手畫上 pillow/curtain/
+    # wall_art/vase/plant. 沒撈到任何軟裝 → 空字串, 跟現況一致.
+    soft_furnishing_sec = _build_soft_furnishing_section(entry.get("soft_furnishing") or [])
+
     # 順序：硬規則（layout/product）在前，預算/客戶偏好在後，最後 CRITICAL_RULES + QUALITY_TAIL
     # CRITICAL_RULES 必須在 customer_sec 之後，再次強調 layout/structural 不可被偏好覆蓋
     # retry_sec 緊接在 CRITICAL_RULES 之前 — 讓模型最後看到「上次哪裡錯」+ CRITICAL_RULES 鐵則
@@ -617,6 +663,10 @@ def build_nano_banana_inputs(
     if target_note_sec:
         sections.append(target_note_sec)
     sections.extend([layout_sec, product_sec, style_sec])
+    # 軟裝段放在 product/style 後, budget/customer 前: 維持「主家具放置定位」優先,
+    # 軟裝是 styled accessory, 不可覆蓋主家具.
+    if soft_furnishing_sec:
+        sections.append(soft_furnishing_sec)
     if budget_sec:
         sections.append(budget_sec)
     if customer_sec:
