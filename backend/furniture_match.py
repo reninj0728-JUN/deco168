@@ -46,18 +46,25 @@ LIVING_NICE_TO_HAVE = [
 # 客廳模式排除（不准進主家具清單）
 LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding']
 
-# ── 軟裝接入 (2026-06-18) ────────────────────────────────────────────────────
+# ── 軟裝接入 (2026-06-18, Step 3B 規則修正後) ────────────────────────────────
 # 軟裝 = 「不算主家具總計、另開獨立區塊建議」的搭配商品.
 # 預算策略採 B 方案: 主家具 (sofa/coffee_table/rug) 算主總計; 軟裝獨立顯示, 不併主總計.
-# real catalog 可用品類 (見 _inspect_catalog.txt):
-#   pillow   116 件   (category=抱枕)
-#   curtain   91 件   (category=窗簾)
-#   wall_art  13 件   (category=裝飾, name_zh 含 掛畫/畫框)
-#   vase      59 件   (category=裝飾, name_zh 含 花瓶/花器)
-#   plant      7 件   (category=裝飾, name_zh 含 植栽/盆栽)
-#   decor      3 件   (太少, 本輪不主動撈)
-# 每張 render 各 cat 撈 1 件, 上限 5 件.
-SOFT_FURNISHING_CATS = ['pillow', 'curtain', 'wall_art', 'vase', 'plant']
+#
+# Step 3B 規則修正後 real catalog 預期可用品類 (audit 確認):
+#   pillow    ~110 件  (category=抱枕 扣掉抱枕套後)
+#   curtain     91 件  (category=窗簾)
+#   wall_art   ~45 件  (category=裝飾 含掛畫/相框/壁掛框/裝飾畫)
+#   vase      ~200 件  (category=裝飾 含花瓶/花盆/盆器/花盆套 — 容器類全收)
+#   plant       ~7 件  (catalog 真植栽稀少)
+#   decor      ~10 件  (category=裝飾 含擺件/裝飾盤/展示罩)
+#   textile    ~10 件  (category=裝飾 含沙發墊/沙發毯/抱枕套)
+#   lighting   103 件  (category=燈具 桌燈/立燈/吊燈)
+#
+# 每張 render 各 cat 撈 1 件, 上限 8 件 (8 cat × 1).
+SOFT_FURNISHING_CATS = [
+    'pillow', 'curtain', 'wall_art', 'vase', 'plant',
+    'decor', 'textile', 'lighting',
+]
 
 # 軟裝單件預算上限 (不算主總計, 但仍隨 tier 控制單件不要太貴)
 SOFT_FURNISHING_CAP = {
@@ -73,14 +80,39 @@ CHAIR_SUBCAT_RULES = [
     ('accent_chair', ['單人沙發', '單椅', '搖椅', '躺椅', '休閒椅', 'lounge', 'accent chair', '皮革椅', '扶手椅', 'armchair']),
 ]
 
-# 軟裝細分: real catalog 的「裝飾」cat 是雜燴 (含掛畫/花瓶/植栽/擺件/沙發墊),
-# 用 name_zh 關鍵字細分成可用的子類別; 命中即覆蓋 mirror 為 wall_art / vase / plant / decor.
-# 不命中保留 mirror (跟原行為一致).
+# 軟裝細分 (Step 3B, 2026-06-18): 「裝飾」cat 278 件原本只 13/59/7/3 = 79 件命中,
+# 其餘 195 件全 fallback 到 mirror, 其中 156 件根本不是鏡子.
+# 重做規則: 用「強關鍵字」而非寬詞, 嚴格不用「畫/框/造型/裝飾」這 4 個 — 會誤抓
+# 「金屬框架椅 / 造型茶几 / 裝飾抱枕」等已正確分類的家具.
+# textile 為新子類, 接住沙發墊 / 沙發毯 / 沙發巾 / 抱枕套 等紡織軟裝.
 DECOR_SUBCAT_RULES = [
-    ('wall_art', ['掛畫', '畫框', '裝飾畫', '藝術畫', 'wall art', 'poster', 'art print']),
-    ('vase',     ['花瓶', '花器', 'vase', 'flower vessel']),
-    ('plant',    ['植栽', '盆栽', '綠植', 'planter', 'potted', 'green plant']),
-    ('decor',    ['擺件', '擺設', '飾品', 'figurine', 'ornament']),
+    # wall_art: 牆面藝術 (掛畫類). 不用「畫」「框」單字, 改用組合詞.
+    ('wall_art', [
+        '掛畫', '壁畫', '壁飾', '壁掛框', '掛牆',
+        '相框', '畫框', '裝飾畫', '藝術畫',
+        'wall art', 'poster', 'photo frame', 'picture frame',
+    ]),
+    # vase: 花瓶 + 花盆容器 (catalog 沒真植栽, 但有大量容器類軟裝, 全收進 vase).
+    ('vase', [
+        '花瓶', '花器', '花盆', '盆器', '花盆套',
+        'vase', 'planter', 'pot',
+    ]),
+    # plant: 真植物 / 仿植物本體 (catalog 量少 ~7 件, 規則不放寬).
+    ('plant', [
+        '植栽', '盆栽', '綠植', 'potted plant', 'green plant',
+    ]),
+    # decor: 純擺飾. 強關鍵字: 擺件 / 擺飾 / 雕塑 / 公仔 / 裝飾盤 (組合詞) / 展示罩.
+    # 嚴格不用「裝飾」「造型」單字, 否則會抓到 裝飾抱枕 / 造型桌燈 等.
+    ('decor', [
+        '擺件', '擺飾', '飾品', '雕塑', '公仔',
+        '裝飾盤', '裝飾擺件', '展示罩',
+        'ornament', 'figurine', 'sculpture',
+    ]),
+    # textile: 紡織軟裝 (沙發墊 / 沙發毯 / 抱枕套 等). 從「裝飾」cat 撈出來.
+    ('textile', [
+        '沙發墊', '沙發毯', '沙發巾', '沙發蓋毯', '抱枕套',
+        'throw blanket', 'sofa cover', 'pillow cover',
+    ]),
 ]
 
 # 桌子細分（保守：只在 LIVING_EXCLUDED 過濾與 NICE_TO_HAVE 配對時才用）
@@ -91,7 +123,7 @@ TABLE_SUBCAT_RULES = [
 
 
 def refine_subcategory(en_cat: str, name_zh: str) -> str:
-    """按品名細分 chair / table / mirror(裝飾雜燴 → 軟裝)，其他類別維持原樣"""
+    """按品名細分 chair / table / mirror(裝飾雜燴 → 軟裝) / pillow(抱枕套→textile)，其他類別維持原樣"""
     name_lower = (name_zh or '').lower()
     if en_cat == 'chair':
         for sub, kws in CHAIR_SUBCAT_RULES:
@@ -103,13 +135,26 @@ def refine_subcategory(en_cat: str, name_zh: str) -> str:
             if any(kw.lower() in name_lower for kw in kws):
                 return sub
         return 'table'
-    # 軟裝接入 (2026-06-18): real catalog 的「裝飾」cat (CATEGORY_ZH_TO_EN → 'mirror')
-    # 實際是雜燴, 含掛畫/花瓶/植栽/擺件. 按 name_zh 細分後才能正確分流到軟裝段.
+    # Step 3B (2026-06-18) pillow 分支: 「抱枕套」/「pillow cover」是紡織軟裝, 歸 textile.
+    # 純抱枕本體 → 維持 pillow.
+    if en_cat == 'pillow':
+        for kw in ('抱枕套', 'pillow cover', 'pillow case', 'cushion cover'):
+            if kw.lower() in name_lower:
+                return 'textile'
+        return 'pillow'
+    # Step 3B (2026-06-18) mirror 分支: 修 fallback —
+    #   1. 先試 DECOR_SUBCAT_RULES (wall_art / vase / plant / decor / textile).
+    #   2. 都沒命中時, 不再 fallback 到 mirror;
+    #      只有 name_zh 明確含「鏡」/「mirror」 才歸 mirror.
+    #   3. 其餘歸 'decor_unknown' (新狀態, 不進 SOFT_FURNISHING_CATS,
+    #      但保留資料完整性, 後續 audit / 規則 補強用).
     if en_cat == 'mirror':
         for sub, kws in DECOR_SUBCAT_RULES:
             if any(kw.lower() in name_lower for kw in kws):
                 return sub
-        return 'mirror'
+        if ('鏡' in (name_zh or '')) or ('mirror' in name_lower):
+            return 'mirror'
+        return 'decor_unknown'
     return en_cat
 
 
@@ -563,7 +608,17 @@ def match_soft_furnishing(
     preferred_store: str = "none",
 ) -> list[dict]:
     """
-    軟裝接入 (2026-06-18): 為當前風格各撈一件 pillow / curtain / wall_art / vase / plant.
+    軟裝接入 (Step 3B, 2026-06-18): 為當前風格各撈一件
+    pillow / curtain / wall_art / vase / plant / decor / textile / lighting.
+
+    matching 原則 (per spec):
+      1. 類別多樣性: 各 cat 撈 1 件, 順序固定 SOFT_FURNISHING_CATS
+      2. 每件必須有 image_url
+      3. 每件必須有 purchase_url
+      4. 不要全部同 cat (天然由每 cat 1 件保證)
+      5. mirror 不再當萬用桶 (fallback 已改成 decor_unknown, 不會被選)
+      6. 軟裝仍不併主家具總計 (由 result.html 控制)
+
     與 match_furniture 完全獨立 — 不影響主家具撈取邏輯, 不算進主總計.
     撈不到某 cat 就跳過 (不 fallback 跨類別).
     回傳 list (順序固定 SOFT_FURNISHING_CATS).
@@ -579,23 +634,22 @@ def match_soft_furnishing(
             return True
         return price <= 0 or price <= soft_cap
 
+    def _has_url(it: dict) -> bool:
+        img = (it.get("image_url") or "").startswith("http")
+        buy = (it.get("purchase_url") or "").startswith("http")
+        return img and buy
+
     selected: list[dict] = []
     for cat in SOFT_FURNISHING_CATS:
-        # 同 cat 池子
-        pool = [it for it in catalog
-                if resolve_category(it) == cat
-                and (it.get("image_url") or "").startswith("http")
-                and _under_soft_budget(it)]
+        cat_pool = [it for it in catalog if resolve_category(it) == cat]
+        # Stage 1: 有圖 + 有購買連結 + 預算內
+        pool = [it for it in cat_pool if _has_url(it) and _under_soft_budget(it)]
         if not pool:
-            # 放寬: 全價域
-            pool = [it for it in catalog
-                    if resolve_category(it) == cat
-                    and (it.get("image_url") or "").startswith("http")]
+            # Stage 2: 放寬預算, 但圖/購買連結仍硬性
+            pool = [it for it in cat_pool if _has_url(it)]
         if not pool:
+            # 該 cat 缺資料完整的商品 → 跳過, 不放寬到無連結商品
             continue
-        # 用既有 _pick_best_in_category 評分:
-        # 但 cap 用軟裝專用上限, 不走主家具 BUDGET_CAT_CAP.
-        # 直接複用 score_item 簡化.
         scored = [
             (score_item(it, style, [],
                         match_style=True,

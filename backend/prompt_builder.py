@@ -27,7 +27,7 @@ CAT_DISPLAY = {
     "rug":          ("RUG",          "area rug"),
 }
 
-# 軟裝接入 (2026-06-18): 軟裝 cat → 英文 phrase for prompt text section.
+# 軟裝接入 (Step 3B, 2026-06-18): 軟裝 cat → 英文 phrase for prompt text section.
 # 不上 reference image (避免 image_urls 列表變長影響 Nano Banana / GPT Image 2 的家具識別),
 # 只用文字引導 model 順手把這些 styled accessory 畫進場景.
 SOFT_FURNISHING_EN = {
@@ -36,6 +36,12 @@ SOFT_FURNISHING_EN = {
     "wall_art": "wall art / framed picture above the sofa",
     "vase":     "a decorative vase (with or without flowers) on the coffee table or side table",
     "plant":    "a potted plant in the corner near the window",
+    "textile":  "soft textile accents (throw blanket / sofa cover / cushion cover) "
+                "draped over the sofa",
+    "decor":    "a small decorative accent piece (sculpture / display object / ornament) "
+                "on the coffee table or side table",
+    "lighting": "a complementary lamp (table lamp on the side table OR floor lamp "
+                "next to the sofa) consistent with the chosen style",
 }
 
 # 預設標示文字（result_json.notes 給 UI 用）
