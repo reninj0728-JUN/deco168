@@ -510,10 +510,42 @@
     alert(type === 'style' ? '風格報告將在生成完整後提供下載。' : '材料清單將在生成完整後提供下載。');
   }
 
+  // Step 3B preview fixture: demo fallback 加 soft_furnishing 8 件 (+ matched_furniture
+  // 一小份) 讓使用者打開 preview 時可直接看到「軟裝搭配建議」UI. 這份資料只在 JOB_ID
+  // 缺席 / API fetch 失敗時用 (見 loadResult). 真實 job path 不受影響.
+  var _demoMatchedFurniture = [
+    { name_zh: '簡約現代雙人沙發',  brand: 'IKEA', category: '沙發', category_en: 'sofa',
+      price_twd: 8990,  purchase_url: 'https://www.ikea.com.tw' },
+    { name_zh: '異形黑色烤漆茶几',  brand: 'momo', category: '茶几', category_en: 'coffee_table',
+      price_twd: 4916,  purchase_url: 'https://www.momoshop.com.tw' },
+    { name_zh: '幾何圖案現代風地毯', brand: 'momo', category: '地毯', category_en: 'rug',
+      price_twd: 1888,  purchase_url: 'https://www.momoshop.com.tw' },
+  ];
+  var _demoSoftFurnishing = [
+    { name_zh: '簡約條紋坐墊',       brand: 'IKEA',   category: '抱枕', category_en: 'pillow',
+      price_twd: 399,  purchase_url: 'https://www.ikea.com.tw' },
+    { name_zh: '純色簡約遮光窗簾',   brand: 'IKEA',   category: '窗簾', category_en: 'curtain',
+      price_twd: 1599, purchase_url: 'https://www.ikea.com.tw' },
+    { name_zh: '白色方形畫框',       brand: 'IKEA',   category: '裝飾', category_en: 'wall_art',
+      price_twd: 249,  purchase_url: 'https://www.ikea.com.tw' },
+    { name_zh: '簡約圓柱花盆',       brand: 'IKEA',   category: '裝飾', category_en: 'vase',
+      price_twd: 49,   purchase_url: 'https://www.ikea.com.tw' },
+    { name_zh: '仿真檸檬樹盆栽',     brand: 'PChome', category: '裝飾', category_en: 'plant',
+      price_twd: 3680, purchase_url: 'https://24h.pchome.com.tw' },
+    { name_zh: '藍綠色玻璃裝飾盤',   brand: 'IKEA',   category: '裝飾', category_en: 'decor',
+      price_twd: 1499, purchase_url: 'https://www.ikea.com.tw' },
+    { name_zh: '人字紋沙發墊',       brand: 'momo',   category: '裝飾', category_en: 'textile',
+      price_twd: 659,  purchase_url: 'https://www.momoshop.com.tw' },
+    { name_zh: '甜甜圈造型桌燈',     brand: 'IKEA',   category: '燈具', category_en: 'lighting',
+      price_twd: 1799, purchase_url: 'https://www.ikea.com.tw' },
+  ];
   var _demoRenders = [
-    { style: 'modern',   style_label: '現代簡約', render_url: null, matched_furniture: [] },
-    { style: 'japanese', style_label: '日式侘寂', render_url: null, matched_furniture: [] },
-    { style: 'luxury',   style_label: '輕奢過渡', render_url: null, matched_furniture: [] },
+    { style: 'modern',   style_label: '現代簡約', render_url: null,
+      matched_furniture: _demoMatchedFurniture, soft_furnishing: _demoSoftFurnishing },
+    { style: 'japanese', style_label: '日式侘寂', render_url: null,
+      matched_furniture: _demoMatchedFurniture, soft_furnishing: _demoSoftFurnishing },
+    { style: 'luxury',   style_label: '輕奢過渡', render_url: null,
+      matched_furniture: _demoMatchedFurniture, soft_furnishing: _demoSoftFurnishing },
   ];
 
   function fillAnalysis(a) {
