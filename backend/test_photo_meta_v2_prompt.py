@@ -393,6 +393,68 @@ def case_sofa_wall_rule_overrides_window_side_depth():
     _assert_contains(prompt, "電視牆可設於右側實牆", "tv_wall text")
 
 
+def case_soft_furnishing_product_refs_limited_to_three():
+    """
+    Soft furnishings should behave like product references, but only 2-3 per render.
+    Full soft_furnishing[] can still feed result URLs; render refs stay capped.
+    """
+    print("\n[case K] soft furnishing product refs -> max 3 refs, categorized")
+    entry = _minimal_entry()
+    entry["soft_furnishing"] = [
+        {
+            "id": "soft-curtain-1",
+            "category_en": "curtain",
+            "name_zh": "純色窗簾",
+            "image_url": "https://example.test/curtain.jpg",
+        },
+        {
+            "id": "soft-lighting-1",
+            "category_en": "lighting",
+            "name_zh": "桌燈",
+            "image_url": "https://example.test/lamp.jpg",
+        },
+        {
+            "id": "soft-wall-art-1",
+            "category_en": "wall_art",
+            "name_zh": "壁掛畫框",
+            "image_url": "https://example.test/wall-art.jpg",
+        },
+        {
+            "id": "soft-plant-1",
+            "category_en": "plant",
+            "name_zh": "盆栽",
+            "image_url": "https://example.test/plant.jpg",
+        },
+        {
+            "id": "soft-vase-1",
+            "category_en": "vase",
+            "name_zh": "花器",
+            "image_url": "https://example.test/vase.jpg",
+        },
+    ]
+    out = build_nano_banana_inputs(
+        entry=entry,
+        zoning=_minimal_zoning(),
+        room_image_url="https://example.test/room.jpg",
+    )
+    prompt = out.get("prompt") or ""
+    soft_refs = [r for r in out["reference_map"] if r.get("kind") == "SOFT"]
+    assert len(soft_refs) == 3, f"expected 3 soft refs, got {len(soft_refs)}"
+    assert [r.get("cat_en") for r in soft_refs] == ["curtain", "lighting", "wall_art"], soft_refs
+    assert len(out["image_urls"]) == 4, f"room + 3 soft refs expected, got {len(out['image_urls'])}"
+    _assert_contains(prompt, "SOFT FURNISHING PRODUCT REFERENCES",
+                     "soft product refs header")
+    _assert_contains(prompt, "Reference image 2 is the CURTAIN SOFT FURNISHING PRODUCT",
+                     "curtain input classification")
+    _assert_contains(prompt, "Reference image 3 is the LAMP SOFT FURNISHING PRODUCT",
+                     "lighting input classification")
+    _assert_contains(prompt, "Reference image 4 is the WALL ART SOFT FURNISHING PRODUCT",
+                     "wall_art input classification")
+    _assert_contains(prompt, "Use reference image 2", "soft ref placement line")
+    _assert_contains(prompt, "must remain secondary accents",
+                     "soft refs stay secondary to main furniture")
+
+
 def main():
     print("=" * 60)
     print("PhotoMeta v1 Step 2 — prompt 注入測試")
@@ -407,6 +469,7 @@ def main():
     case_note_empty_string_skips()
     case_backend_normalize_target_note()
     case_sofa_wall_rule_overrides_window_side_depth()
+    case_soft_furnishing_product_refs_limited_to_three()
     print("\nALL PASS")
 
 

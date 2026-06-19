@@ -44,8 +44,58 @@ SOFT_FURNISHING_EN = {
                 "next to the sofa) consistent with the chosen style",
 }
 
+# Soft furnishing product references:
+# keep this small so product refs improve the render without confusing the main furniture.
+SOFT_REFERENCE_CATS = ("curtain", "lighting", "wall_art", "plant", "vase", "pillow")
+MAX_SOFT_REFERENCE_IMAGES = 3
+
+SOFT_CAT_DISPLAY = {
+    "curtain":  ("CURTAIN", "curtains"),
+    "lighting": ("LAMP", "lamp"),
+    "wall_art": ("WALL ART", "wall art / framed picture"),
+    "plant":    ("PLANT", "potted plant"),
+    "vase":     ("VASE", "decorative vase"),
+    "pillow":   ("PILLOW", "throw pillows / sofa cushions"),
+    "textile":  ("TEXTILE", "soft textile accent"),
+    "decor":    ("DECOR", "small decorative object"),
+}
+
+SOFT_REFERENCE_PLACEMENT = {
+    "curtain": (
+        "Use only if the room photo has a visible window; place it on the existing window, "
+        "matching the product's color, fabric weight, and drape as closely as perspective allows. "
+        "Do not invent a new window."
+    ),
+    "lighting": (
+        "Place as a table lamp on a side table / console, or as a floor lamp beside the sofa, "
+        "where it naturally supports the living-room group without blocking the walkway."
+    ),
+    "wall_art": (
+        "Place on a solid wall in or near the living zone, above the sofa or focal console. "
+        "Do not cover windows, doors, switches, ceiling pipes, or corridor openings."
+    ),
+    "plant": (
+        "Place in an empty corner or beside the sofa / focal console, scaled naturally and kept "
+        "out of the walkway and door-opening clearance."
+    ),
+    "vase": (
+        "Place on the coffee table, side table, or focal console as a small accent. "
+        "Keep it secondary to the main furniture."
+    ),
+    "pillow": (
+        "Place on the sofa. Match visible color, pattern, and textile character, but adapt the "
+        "number and scale naturally to the sofa."
+    ),
+    "textile": (
+        "Drape on the sofa or place as a soft accent where it looks natural. Keep it secondary."
+    ),
+    "decor": (
+        "Place on the coffee table, side table, or focal console as a small accent. Keep it secondary."
+    ),
+}
+
 # 預設標示文字（result_json.notes 給 UI 用）
-DEFAULT_NOTES = "主家具（沙發、茶几、地毯）為可購買商品；其餘物件為情境示意。"
+DEFAULT_NOTES = "主家具（沙發、茶几、地毯）與部分軟裝為可購買商品；其餘物件為情境示意。"
 
 
 SYSTEM_PROMPT = (
@@ -98,6 +148,12 @@ def _build_inputs_section(reference_map: list[dict]) -> str:
         idx = ref["index"]
         if role == "ROOM":
             lines.append(f"Reference image {idx} is the ROOM (base scene to stage).")
+        elif ref.get("kind") == "SOFT":
+            display = role
+            lines.append(
+                f"Reference image {idx} is the {display} SOFT FURNISHING PRODUCT "
+                "(a real purchasable accessory to naturally include if suitable)."
+            )
         else:
             display = role  # already display form, e.g. SOFA / COFFEE TABLE / RUG
             lines.append(f"Reference image {idx} is the {display} PRODUCT (a real product to use).")
@@ -295,39 +351,79 @@ def _build_fallback_layout_section() -> str:
     )
 
 
-def _build_soft_furnishing_section(soft_furnishing: list[dict]) -> str:
+def _build_soft_furnishing_section(soft_furnishing: list[dict],
+                                   reference_map: list[dict] | None = None) -> str:
     """
-    軟裝接入 (2026-06-18): SOFT FURNISHING SUGGESTIONS — 文字段, 不上 reference image.
+    軟裝接入: SOFT FURNISHING SUGGESTIONS + optional product references.
 
     給 model 一段提示「順便畫上抱枕/窗簾/掛畫/花瓶/植栽，風格要跟主家具一致」.
+    若 reference_map 內有 kind=SOFT, 代表該軟裝商品圖已進 image_urls, 要盡量照圖渲染.
     軟裝是 styled accessory, 不取代 sofa/coffee_table/rug 主家具.
     結果頁有獨立的「軟裝搭配建議」列表展示對應商品連結, 跟主家具總計分開.
 
     空列表 → 回空字串, 不注入.
     """
-    if not soft_furnishing:
-        return ""
+    soft_refs = [
+        r for r in (reference_map or [])
+        if r.get("kind") == "SOFT"
+    ]
+    ref_ids = {r.get("id") for r in soft_refs if r.get("id")}
+
+    ref_lines: list[str] = []
+    for r in soft_refs:
+        cat = (r.get("cat_en") or "").strip()
+        idx = r.get("index")
+        role = r.get("role") or SOFT_CAT_DISPLAY.get(cat, (cat.upper(), cat))[0]
+        name = r.get("name_zh", "")
+        cat_human = SOFT_CAT_DISPLAY.get(cat, (role, role.lower()))[1]
+        placement = SOFT_REFERENCE_PLACEMENT.get(
+            cat,
+            "Place where it naturally fits the living-room composition, without blocking walkways."
+        )
+        ref_lines.append(
+            f"  - {role}: Use reference image {idx} ({name}) as the {cat_human}. "
+            f"Match the product's visible color, material, pattern, and silhouette as closely as possible. "
+            f"{placement}"
+        )
+
     bullets: list[str] = []
     for it in soft_furnishing:
+        if it.get("id") and it.get("id") in ref_ids:
+            continue
         cat = (it.get("category_en") or "").strip()
         phrase = SOFT_FURNISHING_EN.get(cat)
         if not phrase:
             continue
         bullets.append(f"  - {phrase}")
-    if not bullets:
+
+    if not ref_lines and not bullets:
         return ""
-    return (
-        "SOFT FURNISHING SUGGESTIONS (styled accessories — NOT primary furniture):\n"
-        "Naturally include the following soft furnishing items, styled to match the "
-        "chosen design style of this render. These are decor accents only and must NOT "
-        "replace or overshadow the sofa / coffee table / area rug placement defined above.\n"
-        + "\n".join(bullets)
-    )
+
+    sections: list[str] = []
+    if ref_lines:
+        sections.append(
+            "SOFT FURNISHING PRODUCT REFERENCES (real purchasable accessories, max 2-3 per render):\n"
+            "Use these soft furnishing reference images where they naturally fit the customer's "
+            "chosen style and the actual room photo. They must remain secondary accents and must "
+            "NOT replace, move, or overshadow the sofa / coffee table / area rug placement defined above.\n"
+            + "\n".join(ref_lines)
+        )
+    if bullets:
+        sections.append(
+            "SOFT FURNISHING SUGGESTIONS (style-compatible accessories, NOT primary furniture, NOT product references):\n"
+            "If visually appropriate, naturally include small secondary accents from these categories. "
+            "They are not required to match a reference image and must stay secondary.\n"
+            + "\n".join(bullets)
+        )
+    return "\n\n".join(sections)
 
 
 def _build_product_placement_section(reference_map: list[dict]) -> str:
     """根據 reference_map 裡的 sofa/coffee_table/rug 動態組裝家具擺位指令"""
-    product_refs = [r for r in reference_map if r["role"] != "ROOM"]
+    product_refs = [
+        r for r in reference_map
+        if r.get("role") != "ROOM" and r.get("cat_en") in MUST_HAVE_CATS
+    ]
     if not product_refs:
         return (
             "FURNITURE: Place a sofa, coffee table, and area rug appropriate to the style "
@@ -691,6 +787,7 @@ def build_nano_banana_inputs(
         "cat_en": None,
         "name_zh": None,
         "id": None,
+        "kind": "ROOM",
     }]
     image_urls: list[str] = [room_image_url]
 
@@ -706,11 +803,40 @@ def build_nano_banana_inputs(
                 "cat_en": cat,
                 "name_zh": it.get("name_zh", ""),
                 "id": it.get("id", ""),
+                "kind": "PRIMARY",
             })
             image_urls.append(it.get("image_url"))
             next_idx += 1
 
     # 組 prompt 段落
+    soft_selected: dict[str, dict] = {}
+    for item in entry.get("soft_furnishing") or []:
+        cat = (item.get("category_en") or "").strip()
+        url = (item.get("image_url") or "").strip()
+        if cat in SOFT_REFERENCE_CATS and url.startswith("http") and cat not in soft_selected:
+            soft_selected[cat] = item
+
+    soft_ref_count = 0
+    for cat in SOFT_REFERENCE_CATS:
+        if cat not in soft_selected:
+            continue
+        if soft_ref_count >= MAX_SOFT_REFERENCE_IMAGES:
+            break
+        it = soft_selected[cat]
+        display_role, _ = SOFT_CAT_DISPLAY.get(cat, (cat.upper(), cat))
+        reference_map.append({
+            "index": next_idx,
+            "role": display_role,
+            "url": it.get("image_url"),
+            "cat_en": cat,
+            "name_zh": it.get("name_zh", ""),
+            "id": it.get("id", ""),
+            "kind": "SOFT",
+        })
+        image_urls.append(it.get("image_url"))
+        next_idx += 1
+        soft_ref_count += 1
+
     inputs_sec = _build_inputs_section(reference_map)
 
     if _is_zoning_usable(zoning):
@@ -741,7 +867,10 @@ def build_nano_banana_inputs(
     # 軟裝接入 (2026-06-18): 從 entry 讀 soft_furnishing[] (furniture_match.enrich_renders
     # 已寫入), 組「SOFT FURNISHING SUGGESTIONS」文字段提示 model 順手畫上 pillow/curtain/
     # wall_art/vase/plant. 沒撈到任何軟裝 → 空字串, 跟現況一致.
-    soft_furnishing_sec = _build_soft_furnishing_section(entry.get("soft_furnishing") or [])
+    soft_furnishing_sec = _build_soft_furnishing_section(
+        entry.get("soft_furnishing") or [],
+        reference_map=reference_map,
+    )
 
     # 順序：硬規則（layout/product）在前，預算/客戶偏好在後，最後 CRITICAL_RULES + QUALITY_TAIL
     # CRITICAL_RULES 必須在 customer_sec 之後，再次強調 layout/structural 不可被偏好覆蓋
