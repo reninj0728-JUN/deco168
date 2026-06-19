@@ -347,6 +347,52 @@ def case_backend_normalize_target_note():
     print(f"  PASS  H4 非字串 target_note 拒絕: {err}")
 
 
+def case_sofa_wall_rule_overrides_window_side_depth():
+    """
+    Hotfix 2026-06-19:
+    Window-side / back-end living zone should control depth only.
+    If zoning provides sofa_wall, that rule must control sofa back-wall / facing.
+    """
+    print("\n[case J] window-side living zone + explicit sofa_wall -> sofa_wall controls direction")
+    zoning = {
+        "confidence": "high",
+        "_origin": "user_confirmed_v2",
+        "_layout_choice": "A",
+        "zones": {
+            "living_zone": {"where": "空間最深處靠窗區域"},
+            "walkway": {"where": "貫穿室內的中心軸線"},
+        },
+        "spatial_synthesis": {
+            "room_shape": "長型矩形格局",
+            "main_window_wall": "位於長型空間的最深處",
+        },
+        "furniture_placement_rules": {
+            "sofa_wall": "沙發靠左側牆面擺放",
+            "tv_wall": "電視牆可設於右側實牆",
+            "coffee_table_position": "in front of the sofa",
+            "rug_anchor": "anchored under the coffee table",
+        },
+    }
+    out = build_nano_banana_inputs(
+        entry=_minimal_entry(),
+        zoning=zoning,
+        room_image_url="https://example.test/room.jpg",
+    )
+    prompt = out.get("prompt") or ""
+    _assert_contains(prompt, "Use the explicit Sofa wall rule",
+                     "explicit sofa_wall binding wording")
+    _assert_contains(prompt, "沙發靠左側牆面擺放", "sofa_wall text")
+    _assert_contains(prompt, "not which wall the sofa must back onto",
+                     "depth/area separated from sofa back-wall")
+    _assert_contains(prompt, "MUST NOT be interpreted",
+                     "window-side must not imply back-window placement")
+    _assert_contains(prompt, "directly against the window wall",
+                     "no sofa-back-against-window unless explicit")
+    _assert_contains(prompt, "Use the explicit TV/focal wall rule",
+                     "explicit focal wall binding wording")
+    _assert_contains(prompt, "電視牆可設於右側實牆", "tv_wall text")
+
+
 def main():
     print("=" * 60)
     print("PhotoMeta v1 Step 2 — prompt 注入測試")
@@ -360,6 +406,7 @@ def main():
     case_photo_directive_no_window_scenario()
     case_note_empty_string_skips()
     case_backend_normalize_target_note()
+    case_sofa_wall_rule_overrides_window_side_depth()
     print("\nALL PASS")
 
 

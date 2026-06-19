@@ -141,6 +141,26 @@ def _build_layout_section(zoning: dict) -> str:
                 "entrance, or near the dining area — even by a sofa-length offset is wrong."
             )
 
+        explicit_sofa_wall = (rules.get("sofa_wall") or "").strip()
+        explicit_tv_wall = (rules.get("tv_wall") or "").strip()
+        sofa_wall_rule = (
+            "Use the explicit Sofa wall rule below as the binding sofa back-wall and "
+            "facing-direction instruction: "
+            f"'{explicit_sofa_wall}'. "
+            "The confirmed living zone tells you the DEPTH / AREA of the living room group, "
+            "not which wall the sofa must back onto. Window-side / back / deep-end wording "
+            "MUST NOT be interpreted as 'put the sofa back directly against the window wall' "
+            "unless the Sofa wall rule explicitly says the window wall is the sofa wall. "
+        ) if explicit_sofa_wall else (
+            "No explicit Sofa wall rule is provided; choose the nearest solid wall inside "
+            "the confirmed living zone, but do NOT place the sofa back directly against "
+            "the main window wall unless there is no other solid-wall option. "
+        )
+        focal_wall_rule = (
+            "Use the explicit TV/focal wall rule as the binding focal-anchor wall: "
+            f"'{explicit_tv_wall}'. "
+        ) if explicit_tv_wall else ""
+
         parts.append(
             "USER-CONFIRMED LAYOUT (MANDATORY — this is the customer's explicit decision, "
             f"NOT a suggestion you may override). Chosen plan: {choice_label}. "
@@ -148,8 +168,9 @@ def _build_layout_section(zoning: dict) -> str:
             + depth_hint +
             " PLACEMENT RULES: "
             "(1) The sofa MUST physically sit inside the confirmed living zone area "
-            f"(roughly: {living_where}). The sofa back rests against the wall closest "
-            "to this confirmed zone. This is NOT a soft preference — placing the sofa "
+            f"(roughly: {living_where}). "
+            + sofa_wall_rule +
+            "This is NOT a soft preference — placing the sofa "
             "anywhere outside this zone (entrance area, mid-room, dining zone, opposite "
             "side of the room) is an error. "
             "(2) The coffee table and area rug should be centered around the sofa and "
@@ -159,6 +180,7 @@ def _build_layout_section(zoning: dict) -> str:
             "(3) The sofa, coffee table, and rug MUST NOT be placed in the dining zone, "
             "walkway, or entrance zone. "
             "(4) FOCAL WALL ANCHOR — every living-room proposal MUST include one. "
+            + focal_wall_rule +
             "Place a clear focal wall anchor on the wall directly opposite or visually "
             "aligned with the sofa, from within or adjacent to the living zone. The focal "
             "wall MUST NOT be left as bare paint or a single small frame on its own. The "
