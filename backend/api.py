@@ -915,21 +915,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                           f"target_location_hint={_best_pm_location_hint} "
                           f"target_note={(_best_pm_target_note or '')[:30]!r}")
 
-        # 位置修正: 使用者「明確選了」 plan A (靠窗做客廳) + target_zone=living
-        # + hint 未指定 → 自動把 hint 提升為 rear_near_window, 啟動 PHOTO TARGET 鎖位置.
-        # 嚴格條件:
-        #   1. user_layout_choice 必須是非空字串 'A' (空字串 / 'B' / 其他都不觸發,
-        #      避免沒走過 zoning 頁的單也誤觸發)
-        #   2. best_photo 的 target_zone == 'living'
-        #   3. hint 是 None / '' / 'unspecified' (用戶有自己填就不蓋)
-        _layout_choice_raw = (user_layout_choice or "").strip().upper()
-        _hint_unspecified = (_best_pm_location_hint in (None, "", "unspecified"))
-        if (_layout_choice_raw == "A"
-                and _best_pm_target_zone == "living"
-                and _hint_unspecified):
-            _best_pm_location_hint = "rear_near_window"
-            print(f"[pipeline] 位置修正: layout_choice=A + target_zone=living "
-                  f"→ 自動設 target_location_hint='rear_near_window' (PHOTO TARGET 啟動)")
+        # Step 3 dropped (2026-06-19): plan A → rear_near_window 的硬 mapping 已移除.
+        # 原因: 'A'/'B' 是 zoning-confirm 頁的方案代號, 不代表「靠窗」語意; 客廳不一定有窗;
+        # 硬注入 PHOTO TARGET=BACK/WINDOW-SIDE/DEEP 會在無窗或非靠窗格局誤導 model.
+        # 替代: zoning_result.flatten_zoning_v2_to_v1 仍把 layout_choice 帶進 prompt 的
+        # LAYOUT 段 (USER-CONFIRMED LAYOUT binding), 提供合理的方位約束; PhotoMeta v1 維持
+        # 「用戶有自己填 hint / target_note 才 nudge」的行為.
 
         # Phase 1: 照片不足以滿足 (space_type, render_angle) 需求 → 早期失敗，不 render
         insufficient = analysis.get("insufficient_photos") if isinstance(analysis, dict) else None

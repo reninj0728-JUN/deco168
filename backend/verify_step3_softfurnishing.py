@@ -24,52 +24,26 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 
 def case_a_hint_auto_inject():
-    print("\n[Case A] layout_choice='A' + target_zone='living' + hint='unspecified' → 升 rear_near_window")
-    # mirror run_pipeline 那段判斷邏輯
-    user_layout_choice = "A"
-    target_zone = "living"
-    hint_in = "unspecified"
+    """
+    Step 3 dropped (2026-06-19): plan A → rear_near_window 硬 mapping 已從 api.py 移除.
+    本 case 改為驗證「不論 layout_choice 為何, 用戶提交的 hint 不會被後端自動改」.
+    用戶想 nudge → 自己填 hint 或 target_note. zoning_result 仍透過
+    flatten_zoning_v2_to_v1 → _build_layout_section 表達方案語意, 不再經 PhotoMeta.
+    """
+    print("\n[Case A] (Step 3 dropped) layout_choice 不再自動 mapping 成 rear_near_window")
 
-    layout = (user_layout_choice or "").strip().upper()
-    hint_unspecified = (hint_in in (None, "", "unspecified"))
-    if layout == "A" and target_zone == "living" and hint_unspecified:
-        hint_out = "rear_near_window"
-    else:
-        hint_out = hint_in
-    print(f"  layout={layout}  zone={target_zone}  hint_in={hint_in}  → hint_out={hint_out}")
-    assert hint_out == "rear_near_window", "Case A 應升 rear_near_window"
-    print("  PASS")
+    # 直接從 api.py 抓真實程式碼確認沒有「= 'rear_near_window'」這種強制覆蓋句
+    import inspect
+    from api import run_pipeline
+    src = inspect.getsource(run_pipeline)
+    assert "_best_pm_location_hint = \"rear_near_window\"" not in src \
+        and "_best_pm_location_hint = 'rear_near_window'" not in src, \
+        "api.py run_pipeline 仍有 rear_near_window 硬 mapping — 移除沒完成"
+    print("  api.py 已無 rear_near_window 硬 mapping  PASS")
 
-    # 反向 case: plan B 不該觸發
-    print("\n  反向 1: layout_choice='B' → 不觸發")
-    layout = "B"
-    if layout == "A" and target_zone == "living" and hint_unspecified:
-        hint_out = "rear_near_window"
-    else:
-        hint_out = hint_in
-    assert hint_out == "unspecified", "plan B 不該升"
-    print("  PASS")
-
-    print("  反向 2: hint 已自填 'left_side' → 不蓋")
-    layout = "A"
-    hint_in2 = "left_side"
-    hint_unspec2 = (hint_in2 in (None, "", "unspecified"))
-    if layout == "A" and target_zone == "living" and hint_unspec2:
-        hint_out2 = "rear_near_window"
-    else:
-        hint_out2 = hint_in2
-    assert hint_out2 == "left_side", "用戶自填的 hint 不該被覆蓋"
-    print("  PASS")
-
-    print("  反向 3: target_zone='bedroom' → 不觸發")
-    layout = "A"
-    tz = "bedroom"
-    if layout == "A" and tz == "living" and hint_unspecified:
-        hint_out3 = "rear_near_window"
-    else:
-        hint_out3 = hint_in
-    assert hint_out3 == "unspecified", "非客廳 zone 不該觸發"
-    print("  PASS")
+    # 確認註解有寫「Step 3 dropped」, 給未來閱讀的人線索
+    assert "Step 3 dropped" in src, "新行為說明缺少 Step 3 dropped 註記"
+    print("  程式碼註解保留歷史軌跡  PASS")
 
 
 def case_b_soft_section_in_prompt():

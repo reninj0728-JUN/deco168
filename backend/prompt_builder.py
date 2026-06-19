@@ -538,14 +538,23 @@ def _build_photo_meta_section(target_zone: str | None,
     )
 
 
-def _build_target_note_section(target_note: str | None) -> str:
+def _build_target_note_section(target_note: str | None,
+                               has_structured_hint: bool = False) -> str:
     """
     PhotoMeta v1 Step 2 補完: 用戶自由文字補充說明 (≤100 字), optional.
 
-    優先順序鐵則 (在段落本身講明, 讓 model 不會把 note 解讀為覆蓋結構化欄位):
-        1) photo_contains / target_zone / target_location_hint  (structured, hard)
-        2) USER SUPPLEMENTARY NOTE                              (this section, soft)
-        3) model 自己看照片推論
+    Step 3 微調 (2026-06-19): 依「上方是否有結構化 PHOTO TARGET 段」走兩個語氣:
+
+    [A] has_structured_hint=True  → SUPPLEMENTARY 模式 (與既有行為一致)
+        PHOTO TARGET (zone + hint) 段已注入, note 補強. 優先順序:
+        structured > note > model 推論. 衝突以 structured 為準.
+
+    [B] has_structured_hint=False → PRIMARY DIRECTIVE 模式 (新)
+        hint=unspecified, PHOTO TARGET 段不出現. 此時 note 是用戶唯一明確訊號,
+        升格成 USER PRIMARY DIRECTIVE. 但仍 NOT override 三件事:
+          - 結構保留 (牆面/窗戶/天花板/門洞)
+          - 動線淨空 (走道/通道/門口開口)
+          - 安全 / 物理規則 (沙發不能浮空、不能擋門等)
 
     安全處理:
         - strip 後判斷
@@ -558,13 +567,31 @@ def _build_target_note_section(target_note: str | None) -> str:
     if not note:
         return ""
     safe = note.replace("```", "'''")
+
+    if has_structured_hint:
+        # 結構化欄位優先, note 為補強說明
+        return (
+            "USER SUPPLEMENTARY NOTE (照片補充說明 — 輔助理解, 不得覆蓋上方 PHOTO TARGET / "
+            "photo_contains / target_zone / target_location_hint 等結構化欄位):\n"
+            f"使用者補充說明：{safe}\n"
+            "Priority order: structured fields (PHOTO TARGET / photo_contains / target_zone / "
+            "target_location_hint) > this supplementary note > model's own inference from the photo.\n"
+            "If this note appears to contradict any structured field above, the structured field wins."
+        )
+
+    # 沒有結構化 hint, note 升格為主要指令
     return (
-        "USER SUPPLEMENTARY NOTE (照片補充說明 — 輔助理解, 不得覆蓋上方 PHOTO TARGET / "
-        "photo_contains / target_zone / target_location_hint 等結構化欄位):\n"
+        "USER PRIMARY DIRECTIVE (使用者明確偏好 — 結合照片內容理解後的擺位指引, 最高優先級):\n"
         f"使用者補充說明：{safe}\n"
-        "Priority order: structured fields (PHOTO TARGET / photo_contains / target_zone / "
-        "target_location_hint) > this supplementary note > model's own inference from the photo.\n"
-        "If this note appears to contradict any structured field above, the structured field wins."
+        "Read this directive together with the room photo: use it to identify where the user "
+        "wants the targeted zone within the actual room layout (windows, walls, walkways, "
+        "doorways visible in the photo). The room may not have a window at all — interpret the "
+        "directive in light of what is actually visible in the photo, not assumed.\n"
+        "Priority order: this user directive > model's own composition preference.\n"
+        "Hard constraints NOT overridden by this note: structural preservation (existing walls, "
+        "windows, ceiling pipes, doorways must remain exactly as in the source photo), walkway / "
+        "corridor opening clearance, and the safety / placement rules elsewhere in this prompt "
+        "(no overlap with openings, no blocking of corridors, no floating furniture)."
     )
 
 
@@ -651,9 +678,13 @@ def build_nano_banana_inputs(
     # PhotoMeta v1 Step 2: 使用者明確指定 target_zone + target_location_hint
     # → 注入在 inputs 之後 / layout 之前. 兩個值任一缺/unspecified → 空字串.
     photo_meta_sec = _build_photo_meta_section(target_zone, target_location_hint)
-    # PhotoMeta v1 Step 2 補完: target_note (≤100 字補充說明), optional.
-    # 緊跟 photo_meta_sec 之後, 讓 model 看到 "structured 在前, note 是補充" 的順序.
-    target_note_sec = _build_target_note_section(target_note)
+    # PhotoMeta v1 Step 2 補完 (+ Step 3 微調 2026-06-19): target_note 依「上方是否有
+    # PHOTO TARGET 段」走兩個語氣 — 結構化 hint 在 → SUPPLEMENTARY; hint=unspecified →
+    # USER PRIMARY DIRECTIVE, note 升格成主要指令 (但仍不能覆蓋結構保留 / 動線 / 安全).
+    target_note_sec = _build_target_note_section(
+        target_note,
+        has_structured_hint=bool(photo_meta_sec),
+    )
 
     # 軟裝接入 (2026-06-18): 從 entry 讀 soft_furnishing[] (furniture_match.enrich_renders
     # 已寫入), 組「SOFT FURNISHING SUGGESTIONS」文字段提示 model 順手畫上 pillow/curtain/
