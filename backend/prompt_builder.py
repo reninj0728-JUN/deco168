@@ -35,7 +35,7 @@ SOFT_FURNISHING_EN = {
     "curtain":  "window curtains",
     "wall_art": "wall art / framed picture above the sofa",
     "vase":     "a decorative vase (with or without flowers) on the coffee table or side table",
-    "plant":    "a potted plant in the corner near the window",
+    "plant":    "a potted plant in the corner near the window if visible, otherwise in an empty corner of the room",
     "textile":  "soft textile accents (throw blanket / sofa cover / cushion cover) "
                 "draped over the sofa",
     "decor":    "a small decorative accent piece (sculpture / display object / ornament) "

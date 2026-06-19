@@ -1,9 +1,8 @@
 """
-Step 3 驗收 (位置修正 + 軟裝接入), 不打 fal/Gemini/不跑新圖.
+Step 3 驗收 (軟裝接入 + plan-A mapping 已移除), 不打 fal/Gemini/不跑新圖.
 
-Case A:  layout_choice='A' + target_zone='living' + hint='unspecified'
-         → run_pipeline 該段邏輯應把 hint 升為 'rear_near_window'
-         (直接模擬 if 分支邏輯)
+Case A:  api.py run_pipeline 已不含 plan-A → rear_near_window 硬 mapping
+         (Step 3 dropped 2026-06-19; 從 inspect.getsource 抽源碼確認)
 
 Case B:  build_nano_banana_inputs 拿到含 soft_furnishing 的 entry
          → prompt 內應出現 SOFT FURNISHING SUGGESTIONS + 對應品類描述
