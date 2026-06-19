@@ -888,12 +888,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                      photo_meta_list=_build_photo_meta_list(image_paths, photo_meta_by_key_early))
 
         # PhotoMeta v1 Step 2: 從 best_photo 抽 target_zone + target_location_hint + target_note,
-        # 給後面 generate_renders → build_nano_banana_inputs 注入 PHOTO TARGET 段.
-        # photo_meta_by_key_early 空 / 沒對到 / best_idx 不合法 → None, 等於關掉新功能.
-        #
-        # 位置修正 (2026-06-18): 若使用者在 zoning-confirm 頁選了「靠窗做客廳」 (plan A)
-        # AND best_photo 的 target_zone=='living' AND hint 未指定 (None/unspecified),
-        # 後端自動把 hint 設為 'rear_near_window'. 條件嚴格鎖死 — 任一不符就維持原行為.
+        # 給後面 generate_renders → build_nano_banana_inputs 用. 三個值各自決定 prompt 行為:
+        #   - target_zone: 主要設計區域 (UI 預設 'living')
+        #   - target_location_hint:
+        #       != 'unspecified' → prompt_builder 注入 PHOTO TARGET 段, 鎖位置
+        #       == 'unspecified' → 不注入 PHOTO TARGET; 若 target_note 非空, 改走 USER PHOTO
+        #         DIRECTIVE 段升格成主要照片理解指引 (見 prompt_builder._build_target_note_section)
+        #   - target_note: 補充說明 (≤100 字, optional)
+        # photo_meta_by_key_early 空 / 沒對到 / best_idx 不合法 → 三個值都 None, 等於不啟用 PhotoMeta.
         _best_pm_target_zone: str | None = None
         _best_pm_location_hint: str | None = None
         _best_pm_target_note: str | None = None

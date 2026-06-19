@@ -174,55 +174,82 @@ def case_combined_living_dining_walkway():
 
 def case_note_only_no_zone():
     """
-    Step 3 微調 (2026-06-19): hint=unspecified 時 note 段應改為 PRIMARY DIRECTIVE,
-    讓 note 升格為主要指令 (但仍不能覆蓋結構保留 / 動線 / 安全).
+    Step 3 微調 (2026-06-19): hint=unspecified 時 note 段應改為 USER PHOTO DIRECTIVE
+    (Step 3 微調收斂版 — 不再宣稱「最高優先級」, 改成「主要照片理解指引」, 並列出 4 個
+    不可覆蓋的硬約束, 含 user-confirmed layout binding).
     """
-    print("\n[case F] 只有 target_note, 沒有 target_zone/hint → 注入 PRIMARY DIRECTIVE 段")
+    print("\n[case F] 只有 target_note, 沒有 target_zone/hint → 注入 USER PHOTO DIRECTIVE 段")
     out = build_nano_banana_inputs(
         entry=_minimal_entry(),
         zoning=_minimal_zoning(),
         room_image_url="https://example.test/room.jpg",
+        target_zone="living",   # UI 預設值, 帶進去看 Structured target zone 行為
         target_note="走道留出 90 cm 通行",
     )
     prompt = out.get("prompt") or ""
     # PHOTO TARGET 段不應出現 (hint 缺值)
     if "PHOTO TARGET (user explicit intent" in prompt:
         raise AssertionError("PHOTO TARGET 段不應在 zone/hint 缺值時出現")
-    # PRIMARY DIRECTIVE 段應出現, SUPPLEMENTARY 不應出現
-    _assert_contains(prompt, "USER PRIMARY DIRECTIVE", "新 PRIMARY DIRECTIVE header")
+    # USER PHOTO DIRECTIVE 段應出現, SUPPLEMENTARY 與舊 PRIMARY 都不應出現
+    _assert_contains(prompt, "USER PHOTO DIRECTIVE", "新 PHOTO DIRECTIVE header")
     if "USER SUPPLEMENTARY NOTE" in prompt:
         raise AssertionError("SUPPLEMENTARY 不應在 hint=unspecified 時出現")
+    if "USER PRIMARY DIRECTIVE" in prompt:
+        raise AssertionError("舊 PRIMARY DIRECTIVE header 不應殘留")
     _assert_contains(prompt, "走道留出 90 cm 通行", "note 原文")
+    # Point 4: target_zone 帶進去, 應顯示 "Structured target zone selected by user"
+    _assert_contains(prompt, "Structured target zone selected by user",
+                     "Point 4: target_zone context line")
+    _assert_contains(prompt, "living-room area", "target_zone EN expansion")
+    _assert_contains(prompt, "but do not infer a location",
+                     "Point 4: 不可由 target_zone 推位置")
     # 應明確告訴 model: 房間不一定有窗 + 不可假設
     _assert_contains(prompt, "may not have a window", "提醒 model 房間可能無窗")
-    # 仍保留結構鐵則
-    _assert_contains(prompt, "structural preservation", "硬性約束: 結構保留")
-    _assert_contains(prompt, "walkway / corridor opening clearance", "硬性約束: 動線淨空")
+    # 4 個硬約束都要出現
+    _assert_contains(prompt, "User-confirmed layout binding",
+                     "硬性約束 1: zoning-confirm layout binding")
+    _assert_contains(prompt, "Structural preservation",
+                     "硬性約束 2: 結構保留")
+    _assert_contains(prompt, "Walkway / corridor opening clearance",
+                     "硬性約束 3: 動線淨空")
+    _assert_contains(prompt, "no floating furniture",
+                     "硬性約束 4: 安全規則")
 
 
-def case_primary_directive_no_window_scenario():
+def case_photo_directive_no_window_scenario():
     """
-    無窗房間情境: target_note='客廳擺中段', 沒有結構化 hint.
-    應走 PRIMARY DIRECTIVE 模式, note 升格為主要指令.
-    Critical: 不可出現 PHOTO TARGET 'BACK / WINDOW-SIDE / DEEP' 之類強制靠窗詞.
+    無窗房間情境: target_note='客廳擺中段, 沒有窗', 沒有結構化 hint.
+    應走 USER PHOTO DIRECTIVE 模式.
+    Critical: PHOTO TARGET 段不出現, BACK / WINDOW-SIDE 強制詞不出現.
+    target_zone='living' 帶進去, 應顯示 Structured target zone line.
     """
-    print("\n[case I] 無窗房間 + 中段擺位 directive → PRIMARY DIRECTIVE, 不含靠窗詞")
+    print("\n[case I] 無窗房間 + 中段擺位 directive → USER PHOTO DIRECTIVE, 不含靠窗詞")
     out = build_nano_banana_inputs(
         entry=_minimal_entry(),
         zoning=_minimal_zoning(),
         room_image_url="https://example.test/room.jpg",
+        target_zone="living",
         target_note="客廳擺中段, 沒有窗",
     )
     prompt = out.get("prompt") or ""
-    _assert_contains(prompt, "USER PRIMARY DIRECTIVE", "PRIMARY DIRECTIVE header")
+    _assert_contains(prompt, "USER PHOTO DIRECTIVE", "PHOTO DIRECTIVE header")
     _assert_contains(prompt, "客廳擺中段, 沒有窗", "note 原文逐字")
     # PHOTO TARGET 段 (含 WINDOW-SIDE 強制詞) 不應出現
     if "PHOTO TARGET (user explicit intent" in prompt:
         raise AssertionError("PHOTO TARGET 段不應強制注入 (本 case 沒結構化 hint)")
     if "BACK / WINDOW-SIDE / DEEP" in prompt:
         raise AssertionError("PHOTO TARGET 的靠窗詞不應出現 — 用戶說了沒有窗")
+    # Point 3: fallback layout 不應有「Anchor ... near the window for natural light」硬綁
+    if "Anchor the living conversation zone near the window for natural light" in prompt:
+        raise AssertionError("fallback layout 仍有 c08042a 之前的硬綁靠窗句, Point 3 沒生效")
+    # fallback layout 改成條件式: 若有窗才 prefer
+    _assert_contains(prompt, "If a main window is visible",
+                     "Point 3: fallback layout 改條件式")
+    # Point 4: target_zone 帶進 PHOTO DIRECTIVE
+    _assert_contains(prompt, "Structured target zone selected by user",
+                     "Point 4: target_zone context line")
     # 還是要明示「不能覆蓋結構保留」
-    _assert_contains(prompt, "structural preservation", "結構保留鐵則")
+    _assert_contains(prompt, "Structural preservation", "結構保留鐵則")
 
 
 def case_note_empty_string_skips():
@@ -330,7 +357,7 @@ def main():
     case_no_kwargs_skips()
     case_combined_living_dining_walkway()
     case_note_only_no_zone()
-    case_primary_directive_no_window_scenario()
+    case_photo_directive_no_window_scenario()
     case_note_empty_string_skips()
     case_backend_normalize_target_note()
     print("\nALL PASS")

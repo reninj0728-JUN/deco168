@@ -259,15 +259,17 @@ def _build_layout_section(zoning: dict) -> str:
 
 
 def _build_fallback_layout_section() -> str:
-    """zoning 不可用時的退化版（純通則）"""
+    """zoning 不可用時的退化版（純通則, 條件式 — 不假設房間一定有窗）"""
     return (
         "ROOM LAYOUT: "
-        "Use the ROOM reference image to determine wall positions, window location, "
-        "and entrance/corridor openings. "
+        "Use the ROOM reference image to determine wall positions, window location "
+        "(if any), and entrance/corridor openings. "
         "Place the sofa against the longest solid wall (no openings). "
         "Keep the entrance area within 1.5m of the main door clear. "
         "Keep any corridor/passage opening unobstructed. "
-        "Anchor the living conversation zone near the window for natural light."
+        "If a main window is visible in the room photo, prefer placing the living "
+        "conversation zone with natural light access; otherwise anchor it along the "
+        "longest solid wall."
     )
 
 
@@ -539,22 +541,30 @@ def _build_photo_meta_section(target_zone: str | None,
 
 
 def _build_target_note_section(target_note: str | None,
-                               has_structured_hint: bool = False) -> str:
+                               has_structured_hint: bool = False,
+                               target_zone: str | None = None) -> str:
     """
     PhotoMeta v1 Step 2 補完: 用戶自由文字補充說明 (≤100 字), optional.
 
     Step 3 微調 (2026-06-19): 依「上方是否有結構化 PHOTO TARGET 段」走兩個語氣:
 
-    [A] has_structured_hint=True  → SUPPLEMENTARY 模式 (與既有行為一致)
+    [A] has_structured_hint=True  → SUPPLEMENTARY 模式 (既有行為)
         PHOTO TARGET (zone + hint) 段已注入, note 補強. 優先順序:
         structured > note > model 推論. 衝突以 structured 為準.
 
-    [B] has_structured_hint=False → PRIMARY DIRECTIVE 模式 (新)
-        hint=unspecified, PHOTO TARGET 段不出現. 此時 note 是用戶唯一明確訊號,
-        升格成 USER PRIMARY DIRECTIVE. 但仍 NOT override 三件事:
+    [B] has_structured_hint=False → PHOTO DIRECTIVE 模式 (Step 3 微調收斂版)
+        hint=unspecified, PHOTO TARGET 段不出現. 此時 note 是用戶針對「該擺哪裡」
+        的唯一明確訊號 → 升格成 USER PHOTO DIRECTIVE, 比 model 自己的構圖偏好優先.
+        但**不得覆蓋**:
+          - User-confirmed layout binding (zoning-confirm 選擇, 在 LAYOUT 段)
           - 結構保留 (牆面/窗戶/天花板/門洞)
           - 動線淨空 (走道/通道/門口開口)
           - 安全 / 物理規則 (沙發不能浮空、不能擋門等)
+
+    target_zone (Point 4, 2026-06-19): UI 已有的結構化 target_zone 也帶進
+    PHOTO DIRECTIVE, 給 model 「設計哪一區」context. 措辭保守:
+    "Structured target zone selected by user: ...". 只補「哪一區」, 不補「擺哪裡」
+    — 不可由此推位置, 避免回到 c08042a 那種錯誤硬鎖.
 
     安全處理:
         - strip 後判斷
@@ -569,7 +579,7 @@ def _build_target_note_section(target_note: str | None,
     safe = note.replace("```", "'''")
 
     if has_structured_hint:
-        # 結構化欄位優先, note 為補強說明
+        # 結構化 hint 在, note 為補強說明 (措辭不動)
         return (
             "USER SUPPLEMENTARY NOTE (照片補充說明 — 輔助理解, 不得覆蓋上方 PHOTO TARGET / "
             "photo_contains / target_zone / target_location_hint 等結構化欄位):\n"
@@ -579,19 +589,36 @@ def _build_target_note_section(target_note: str | None,
             "If this note appears to contradict any structured field above, the structured field wins."
         )
 
-    # 沒有結構化 hint, note 升格為主要指令
+    # 沒有結構化 hint → USER PHOTO DIRECTIVE
+    # Point 4: 帶 target_zone 給 model 「設計哪一區」context (保守措辭)
+    zone_line = ""
+    if target_zone:
+        zone_en = _TARGET_ZONE_EN.get(target_zone)
+        if zone_en:
+            zone_line = (
+                f"Structured target zone selected by user: {zone_en}.\n"
+                "Use this as the target area context for the note, but do not infer "
+                "a location unless the note or visible photo evidence supports it.\n"
+            )
+
     return (
-        "USER PRIMARY DIRECTIVE (使用者明確偏好 — 結合照片內容理解後的擺位指引, 最高優先級):\n"
+        "USER PHOTO DIRECTIVE (在沒有明確 target_location_hint 時, 用戶補充說明是主要"
+        "照片理解指引 — 但不得覆蓋 user-confirmed layout / 結構保留 / 動線 / 安全規則):\n"
         f"使用者補充說明：{safe}\n"
+        + zone_line +
         "Read this directive together with the room photo: use it to identify where the user "
         "wants the targeted zone within the actual room layout (windows, walls, walkways, "
-        "doorways visible in the photo). The room may not have a window at all — interpret the "
-        "directive in light of what is actually visible in the photo, not assumed.\n"
-        "Priority order: this user directive > model's own composition preference.\n"
-        "Hard constraints NOT overridden by this note: structural preservation (existing walls, "
-        "windows, ceiling pipes, doorways must remain exactly as in the source photo), walkway / "
-        "corridor opening clearance, and the safety / placement rules elsewhere in this prompt "
-        "(no overlap with openings, no blocking of corridors, no floating furniture)."
+        "doorways visible in the photo). The room may not have a window at all — interpret "
+        "the directive in light of what is actually visible in the photo, not assumed.\n"
+        "Priority: this user directive > model's own composition preference.\n"
+        "Hard constraints NOT overridden by this directive:\n"
+        "  - User-confirmed layout binding from the LAYOUT section above "
+        "(zoning-confirm page user choice)\n"
+        "  - Structural preservation (existing walls, windows, ceiling pipes, doorways must "
+        "remain exactly as in the source photo)\n"
+        "  - Walkway / corridor opening clearance\n"
+        "  - Safety / placement rules elsewhere in this prompt "
+        "(no floating furniture, no blocking of corridors, no overlap with openings)"
     )
 
 
@@ -679,11 +706,14 @@ def build_nano_banana_inputs(
     # → 注入在 inputs 之後 / layout 之前. 兩個值任一缺/unspecified → 空字串.
     photo_meta_sec = _build_photo_meta_section(target_zone, target_location_hint)
     # PhotoMeta v1 Step 2 補完 (+ Step 3 微調 2026-06-19): target_note 依「上方是否有
-    # PHOTO TARGET 段」走兩個語氣 — 結構化 hint 在 → SUPPLEMENTARY; hint=unspecified →
-    # USER PRIMARY DIRECTIVE, note 升格成主要指令 (但仍不能覆蓋結構保留 / 動線 / 安全).
+    # PHOTO TARGET 段」走兩個語氣 — 結構化 hint 在 → USER SUPPLEMENTARY NOTE;
+    # hint=unspecified → USER PHOTO DIRECTIVE, note 升格成主要照片理解指引 (但仍不能覆蓋
+    # user-confirmed layout / 結構保留 / 動線 / 安全). Point 4: 也帶 target_zone 給 model
+    # 「設計哪一區」 context, 措辭保守, 不可由此推位置.
     target_note_sec = _build_target_note_section(
         target_note,
         has_structured_hint=bool(photo_meta_sec),
+        target_zone=target_zone,
     )
 
     # 軟裝接入 (2026-06-18): 從 entry 讀 soft_furnishing[] (furniture_match.enrich_renders
