@@ -222,28 +222,45 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
     """
     ez = zoning_v2.get("existing_zones") or {}
     pz = zoning_v2.get("proposed_zones") or {}
+    pz_living = pz.get("living_zone") or {}
+
+    # sofa_side / tv_side ground truth (2026-06-21): 沙發左右邊由 Gemini 在 zoning 階段決定，
+    # render prompt 與 validation 共用同一份，不再各自重猜。方案 B 用 alt_* 對調。
+    def _norm_side(s):
+        s = str(s or "").strip().lower()
+        return s if s in ("left", "right") else ""
+    if layout_choice == "B":
+        sofa_side = _norm_side(pz_living.get("alt_sofa_side")) or _norm_side(pz_living.get("sofa_side"))
+        tv_side   = _norm_side(pz_living.get("alt_tv_side"))   or _norm_side(pz_living.get("tv_side"))
+    else:
+        sofa_side = _norm_side(pz_living.get("sofa_side"))
+        tv_side   = _norm_side(pz_living.get("tv_side"))
+    # tv_side 缺值時用 sofa_side 的對面補上
+    if sofa_side and not tv_side:
+        tv_side = "right" if sofa_side == "left" else "left"
+    sofa_side_confidence = str(pz_living.get("sofa_side_confidence") or "").strip().lower()
 
     if layout_choice == "B":
         living = {
-            "where": (pz.get("living_zone") or {}).get("alt_option") or (pz.get("dining_zone") or {}).get("where", ""),
+            "where": pz_living.get("alt_option") or (pz.get("dining_zone") or {}).get("where", ""),
             "why_here": "使用者選擇方案 B（替代佈局）",
             "evidence": "user choice",
         }
         dining = {
-            "where": (pz.get("dining_zone") or {}).get("alt_option") or (pz.get("living_zone") or {}).get("where", ""),
+            "where": (pz.get("dining_zone") or {}).get("alt_option") or pz_living.get("where", ""),
         }
-        sofa_wall_hint = (pz.get("living_zone") or {}).get("alt_option") or "the longest solid wall"
+        sofa_wall_hint = pz_living.get("alt_option") or "the longest solid wall"
     else:
         # 'A' 或空字串都當 A 處理（預設）
         living = {
-            "where": (pz.get("living_zone") or {}).get("where", ""),
-            "why_here": (pz.get("living_zone") or {}).get("rationale", ""),
+            "where": pz_living.get("where", ""),
+            "why_here": pz_living.get("rationale", ""),
             "evidence": "user-confirmed AI recommendation",
         }
         dining = {
             "where": (pz.get("dining_zone") or {}).get("where", ""),
         }
-        sofa_wall_hint = (pz.get("living_zone") or {}).get("rationale", "") or living["where"] or "the longest solid wall"
+        sofa_wall_hint = pz_living.get("rationale", "") or living["where"] or "the longest solid wall"
 
     no_go = []
     if pz.get("no_large_furniture_zone"):
@@ -263,6 +280,9 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
         "furniture_placement_rules": {
             "sofa_wall":                sofa_wall_hint,
             "tv_wall":                  "",
+            "sofa_side":                sofa_side,             # "left"/"right"/"" — 共用 ground truth
+            "tv_side":                  tv_side,               # sofa_side 的對面
+            "sofa_side_confidence":     sofa_side_confidence,  # "high"/"medium"/"low"/""
             "coffee_table_position":    "in front of the sofa, on top of the rug",
             "rug_anchor":               "anchored under the coffee table in the living zone",
             "accent_chair_position":    "",
@@ -1286,6 +1306,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "room_shape":               syn.get("room_shape", ""),
                 "living_where":             living,
                 "sofa_wall_rule":           rules.get("sofa_wall", ""),
+                "sofa_side":                rules.get("sofa_side", ""),
+                "tv_side":                  rules.get("tv_side", ""),
                 "walkway":                  walkway,
                 "no_large_furniture_zones": rules.get("no_large_furniture_zones", []),
                 "target_zone":              _best_pm_target_zone or "",
@@ -1327,6 +1349,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "coffee_table_in_walkway",
             "furniture_blocks_walkway",
             "sofa_faces_walkway",
+            "sofa_on_wrong_side",
         )
         def _has_high_severity(v: dict) -> bool:
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)

@@ -244,11 +244,28 @@ def _build_layout_section(zoning: dict) -> str:
             "the TV/focal wall described there gets the media console / TV cabinet, "
             "and the sofa belongs on the opposite side facing it. "
         ) if focal_wall_text else ""
+        # sofa_side / tv_side：zoning 階段決定的 ground truth，render 不可重猜（修「錯邊」根因）。
+        sofa_side = (rules.get("sofa_side") or "").strip().lower()
+        _SIDE_EN = {"left": "LEFT", "right": "RIGHT"}
+        if sofa_side in _SIDE_EN:
+            _opp = "right" if sofa_side == "left" else "left"
+            side_choice_clause = (
+                "BOUND SIDE (single source of truth — do NOT re-decide which side): as seen "
+                f"in the room photo from the camera viewpoint, the sofa BACK MUST be flush "
+                f"against the {_SIDE_EN[sofa_side]} long side wall, and the {_SIDE_EN[_opp]} long "
+                "side wall holds the TV cabinet / media console / focal anchor facing the sofa. "
+                f"Putting the sofa on the {_SIDE_EN[_opp]} side is a FAILURE. "
+            )
+        else:
+            side_choice_clause = (
+                "Choose the left or right side according to visible doors and openings. "
+            )
         long_room_side_wall_rule = (
             " LONG-ROOM SIDE-WALL CONTRACT (hard rule): This is a long rectangular room. "
             "The sofa BACK must be flush and parallel against ONE unobstructed LONG SIDE WALL "
-            "running from the entrance/front toward the window/back. Choose the left or right "
-            "side according to visible doors and openings. The opposite long side wall must hold "
+            "running from the entrance/front toward the window/back. "
+            + side_choice_clause +
+            "The opposite long side wall must hold "
             "the TV cabinet / media console / focal anchor, facing the sofa. The sofa must not "
             "float in the room, sit transversely across the room, or back directly against the "
             "window/end wall. Keep the coffee table and rug between the sofa and focal wall, close "
@@ -313,6 +330,18 @@ def _build_layout_section(zoning: dict) -> str:
             "made this layout decision before seeing the render — your job is to honor it, "
             "not to second-guess it."
         )
+
+        # 沙發左右邊 ground truth：即使房型沒被判為長房，只要 zoning 已決定 sofa_side
+        # 就硬綁，避免房型偵測漏判時又退回「模型自己挑邊」。長房已在 contract 內綁過，不重複。
+        if sofa_side in _SIDE_EN and not is_long_room_layout:
+            _opp2 = "right" if sofa_side == "left" else "left"
+            parts.append(
+                "SOFA SIDE (single source of truth — do NOT re-decide): as seen in the room "
+                f"photo from the camera viewpoint, the sofa BACK must be against the "
+                f"{_SIDE_EN[sofa_side]} wall, and the TV cabinet / focal anchor goes on the "
+                f"{_SIDE_EN[_opp2]} side facing the sofa. Placing the sofa on the "
+                f"{_SIDE_EN[_opp2]} side is a FAILURE."
+            )
 
         # C2.4：depth-percent 硬尺。只在 window-side 時 append，量化「back」這個語意
         if is_window_side:
@@ -660,6 +689,10 @@ _RETRY_FLAG_FIX_EN = {
     "sofa_faces_walkway":
         "The sofa faced the walkway instead of the focal anchor. Turn the sofa to face "
         "the TV cabinet / focal wall, not the corridor.",
+    "sofa_on_wrong_side":
+        "The sofa was placed against the WRONG side wall. Re-read the bound SOFA SIDE / "
+        "LONG-ROOM SIDE-WALL CONTRACT above and put the sofa BACK against the specified "
+        "side wall; the TV cabinet / focal anchor goes on the opposite side facing it.",
 }
 
 

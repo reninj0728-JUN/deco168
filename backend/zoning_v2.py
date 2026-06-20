@@ -53,6 +53,20 @@ PROMPT = """\
     如果 existing 模糊（例如空屋長條沒有任何家具線索），proposed_zones 要在 evidence 註明
     「此區屋主可選 X 或 Y」並把雙方案都列出來。
 
+【沙發靠哪一面長牆（sofa_side）— 長型房間必填，這是渲染與驗收共用的唯一依據】
+針對「主視角照片（index 0）的觀看者視角」（畫面左 = left，畫面右 = right）判斷:
+  - sofa_side: 沙發椅背應該貼「左側長牆」還是「右側長牆」。回 "left" 或 "right"。
+    判斷依據（綜合考量，不要只看單一條件）:
+      1. 哪一面長牆有「最長的連續實牆」可以完整靠一張沙發的背（沙發不該擋到門/開口）。
+      2. 把沙發放這面後，對面長牆要能放電視櫃/視覺焦點，且人坐沙發時面向焦點而非走道。
+      3. 門/通道淨空: 沙發不可擋住任何房門、玄關或主動線開口。
+    若兩面長牆條件接近、難以決定 → sofa_side 仍給最佳猜測，但 sofa_side_confidence 標 "low"。
+  - tv_side: 電視/視覺焦點牆，必為 sofa_side 的「對面」("left"↔"right")。
+  - sofa_side_confidence: "high"/"medium"/"low" — 你對 sofa_side 的信心。
+  - sofa_side_reason: 一句話說明為什麼選這面（繁體中文）。
+  - alt_sofa_side / alt_tv_side: 若屋主選方案 B（客餐廳對調），沙發/電視各自該靠哪面（"left"/"right"）。
+    若方案 B 的沙發側與方案 A 相同就照填相同值。
+
 【bounding box（畫 overlay 用）】
 請對「主視角照片」（index 0，第 1 張）每個 zone 給一個 normalized bounding box，
 格式 [ymin, xmin, ymax, xmax]，數值 0–1000。
@@ -87,6 +101,12 @@ PROMPT = """\
       "where": "...",
       "rationale": "為什麼 AI 建議擺這（要明確說「我尊重 existing X」或「existing 模糊，這是 AI 的選擇」）",
       "alt_option": "如果屋主想反過來擺（例：把客廳跟餐廳對調），這裡描述 alt 方案",
+      "sofa_side": "left/right（主視角觀看者視角，沙發椅背貼哪面長牆）",
+      "tv_side": "left/right（sofa_side 的對面，電視/焦點牆）",
+      "sofa_side_confidence": "high/medium/low",
+      "sofa_side_reason": "一句話說明為什麼沙發靠這面（繁體中文）",
+      "alt_sofa_side": "left/right（方案 B 的沙發側）",
+      "alt_tv_side": "left/right（方案 B 的電視側）",
       "bbox_on_best_photo": [ymin, xmin, ymax, xmax]
     }},
     "dining_zone": {{...}},
