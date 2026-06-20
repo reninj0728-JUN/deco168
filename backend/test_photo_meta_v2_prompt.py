@@ -346,6 +346,36 @@ def case_backend_normalize_target_note():
     )
     print(f"  PASS  H4 非字串 target_note 拒絕: {err}")
 
+    # H5: render PhotoMeta 選取不應只看 best_photo。
+    # best_photo 是餐廳角度且沒有 note, 另一張 living photo 有「客廳靠窗」時,
+    # render 必須吃 living note, 並升格成 rear_near_window。
+    from api import _select_render_photo_meta
+    meta = {
+        "uploads/U/photo_01.jpg": {
+            "photo_key": "uploads/U/photo_01.jpg",
+            "photo_contains": ["dining"],
+            "target_zone": "dining",
+            "target_location_hint": "unspecified",
+            "target_note": "",
+        },
+        "uploads/U/photo_02.jpg": {
+            "photo_key": "uploads/U/photo_02.jpg",
+            "photo_contains": ["living", "dining"],
+            "target_zone": "living",
+            "target_location_hint": "unspecified",
+            "target_note": "客廳靠窗",
+        },
+    }
+    tz, hint, note, idx = _select_render_photo_meta(
+        meta,
+        ["C:/tmp/job/photo_01.jpg", "C:/tmp/job/photo_02.jpg"],
+        {"best_photo_index": 0},
+    )
+    assert (tz, hint, note, idx) == ("living", "rear_near_window", "客廳靠窗", 1), (
+        f"H5 render meta selection wrong: {(tz, hint, note, idx)!r}"
+    )
+    print("  PASS  H5 非 best_photo 的「客廳靠窗」會進 render 並升格靠窗 hint")
+
 
 def case_sofa_wall_rule_overrides_window_side_depth():
     """

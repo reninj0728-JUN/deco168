@@ -506,6 +506,98 @@ def _build_photo_meta_list(paths: list, photo_meta_by_key: dict | None) -> list 
     return out if any_hit else None
 
 
+def _note_implies_rear_near_window(note: str | None) -> bool:
+    """User note can promote an unspecified hint only when clearly window-side."""
+    if not isinstance(note, str):
+        return False
+    s = note.strip().lower()
+    if not s:
+        return False
+    negative_markers = ("不要靠窗", "不靠窗", "不要窗邊", "不在窗邊", "not near window")
+    if any(k in s for k in negative_markers):
+        return False
+    positive_markers = (
+        "客廳靠窗", "靠窗做客廳", "客廳窗邊", "窗邊客廳",
+        "靠窗那邊是客廳", "靠窗的那空間是客廳",
+        "near window", "by the window", "window-side",
+    )
+    return any(k in s for k in positive_markers)
+
+
+def _select_render_photo_meta(photo_meta_by_key: dict | None,
+                              image_paths: list,
+                              analysis: dict | None) -> tuple[str | None, str | None, str | None, int | None]:
+    """
+    Pick PhotoMeta for render prompt.
+
+    Baseline: use analysis.best_photo_index. If that photo has no target_note but
+    another uploaded photo does, prefer the note-bearing meta. User notes are
+    explicit render intent and should not be dropped because Gemini picked a
+    different best angle.
+    """
+    if not photo_meta_by_key or not image_paths or not isinstance(analysis, dict):
+        return None, None, None, None
+
+    best_idx = analysis.get("best_photo_index")
+    if not isinstance(best_idx, int) or not (0 <= best_idx < len(image_paths)):
+        best_idx = 0
+
+    def _meta_for_idx(idx: int) -> dict:
+        path = image_paths[idx]
+        if not isinstance(path, str):
+            return {}
+        ck = canonical_photo_key(path)
+        direct = (
+            photo_meta_by_key.get(ck)
+            or photo_meta_by_key.get(path)
+            or photo_meta_by_key.get(f"uploads/{ck}")
+        )
+        if direct:
+            return direct
+
+        # image_paths may be local temp paths while photo_meta_by_key uses upload keys.
+        # Within one job, filename fallback preserves the user's per-photo note better
+        # than dropping PhotoMeta entirely.
+        filename = Path(path).name
+        if filename:
+            for key, meta in photo_meta_by_key.items():
+                if not isinstance(meta, dict):
+                    continue
+                candidates = [key, meta.get("photo_key", "")]
+                if any(isinstance(c, str) and Path(c.replace("\\", "/")).name == filename
+                       for c in candidates):
+                    return meta
+        return {}
+
+    selected_idx = best_idx
+    selected_meta = _meta_for_idx(best_idx)
+    selected_note = (selected_meta.get("target_note") or "").strip()
+
+    if not selected_note:
+        noted: list[tuple[int, dict, str]] = []
+        for idx, _ in enumerate(image_paths):
+            m = _meta_for_idx(idx)
+            note = (m.get("target_note") or "").strip()
+            if note:
+                noted.append((idx, m, note))
+        if noted:
+            living_noted = [x for x in noted if x[1].get("target_zone") == "living"]
+            selected_idx, selected_meta, selected_note = (living_noted or noted)[0]
+
+    target_zone = selected_meta.get("target_zone") or None
+    location_hint = selected_meta.get("target_location_hint") or None
+    target_note = selected_note or None
+
+    if (
+        target_zone == "living"
+        and (not location_hint or location_hint == "unspecified")
+        and _note_implies_rear_near_window(target_note)
+    ):
+        location_hint = "rear_near_window"
+
+    return target_zone, location_hint, target_note, selected_idx
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -887,35 +979,34 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                      space_type=space_type, render_angle=render_angle,
                                      photo_meta_list=_build_photo_meta_list(image_paths, photo_meta_by_key_early))
 
-        # PhotoMeta v1 Step 2: 從 best_photo 抽 target_zone + target_location_hint + target_note,
-        # 給後面 generate_renders → build_nano_banana_inputs 用. 三個值各自決定 prompt 行為:
+        # PhotoMeta v1 Step 2: 抽 target_zone + target_location_hint + target_note,
+        # 給後面 generate_renders → build_nano_banana_inputs 用. 預設沿用 best_photo,
+        # 但若 best_photo 沒 note、其他同批照片有 target_note, 以有 note 的照片為準;
+        # 使用者自由文字是明確 render 意圖, 不能因 best_photo 換角度而遺失.
+        #
+        # 三個值各自決定 prompt 行為:
         #   - target_zone: 主要設計區域 (UI 預設 'living')
         #   - target_location_hint:
         #       != 'unspecified' → prompt_builder 注入 PHOTO TARGET 段, 鎖位置
         #       == 'unspecified' → 不注入 PHOTO TARGET; 若 target_note 非空, 改走 USER PHOTO
         #         DIRECTIVE 段升格成主要照片理解指引 (見 prompt_builder._build_target_note_section)
+        #       若 target_note 明確寫「客廳靠窗 / 靠窗做客廳」, 後端升格為
+        #       rear_near_window; 這是使用者文字, 不是 plan A/B 代號 mapping.
         #   - target_note: 補充說明 (≤100 字, optional)
         # photo_meta_by_key_early 空 / 沒對到 / best_idx 不合法 → 三個值都 None, 等於不啟用 PhotoMeta.
         _best_pm_target_zone: str | None = None
         _best_pm_location_hint: str | None = None
         _best_pm_target_note: str | None = None
-        if photo_meta_by_key_early and image_paths and isinstance(analysis, dict):
-            _best_idx = analysis.get("best_photo_index")
-            if not isinstance(_best_idx, int) or not (0 <= _best_idx < len(image_paths)):
-                _best_idx = 0
-            _best_path = image_paths[_best_idx]
-            if isinstance(_best_path, str):
-                _best_ck = canonical_photo_key(_best_path)
-                _best_meta = photo_meta_by_key_early.get(_best_ck) or {}
-                _best_pm_target_zone = _best_meta.get("target_zone") or None
-                _best_pm_location_hint = _best_meta.get("target_location_hint") or None
-                _note_raw = _best_meta.get("target_note")
-                _best_pm_target_note = (_note_raw or "").strip() or None
-                if _best_pm_target_zone or _best_pm_location_hint or _best_pm_target_note:
-                    print(f"[pipeline] PhotoMeta v1 best_photo[{_best_idx}] "
-                          f"target_zone={_best_pm_target_zone} "
-                          f"target_location_hint={_best_pm_location_hint} "
-                          f"target_note={(_best_pm_target_note or '')[:30]!r}")
+        _best_pm_idx: int | None = None
+        (_best_pm_target_zone,
+         _best_pm_location_hint,
+         _best_pm_target_note,
+         _best_pm_idx) = _select_render_photo_meta(photo_meta_by_key_early, image_paths, analysis)
+        if _best_pm_target_zone or _best_pm_location_hint or _best_pm_target_note:
+            print(f"[pipeline] PhotoMeta v1 render_meta[{_best_pm_idx}] "
+                  f"target_zone={_best_pm_target_zone} "
+                  f"target_location_hint={_best_pm_location_hint} "
+                  f"target_note={(_best_pm_target_note or '')[:30]!r}")
 
         # Step 3 dropped (2026-06-19): plan A → rear_near_window 的硬 mapping 已移除.
         # 原因: 'A'/'B' 是 zoning-confirm 頁的方案代號, 不代表「靠窗」語意; 客廳不一定有窗;
@@ -1117,10 +1208,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             walkway = (zones.get("walkway") or {}).get("where", "")
             rules = zr.get("furniture_placement_rules") or {}
             return {
-                "layout_choice":  zr.get("_layout_choice") or "A",
-                "living_where":   living,
-                "sofa_wall_rule": rules.get("sofa_wall", ""),
-                "walkway":        walkway,
+                "layout_choice":            zr.get("_layout_choice") or "A",
+                "living_where":             living,
+                "sofa_wall_rule":           rules.get("sofa_wall", ""),
+                "walkway":                  walkway,
+                "no_large_furniture_zones": rules.get("no_large_furniture_zones", []),
+                "target_zone":              _best_pm_target_zone or "",
+                "target_location_hint":     _best_pm_location_hint or "",
+                "target_note":              _best_pm_target_note or "",
             }
 
         layout_ctx = _build_layout_ctx(zoning_result)
