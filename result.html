@@ -282,8 +282,16 @@
 
 <script>
   var API_BASE = 'https://deco168-production.up.railway.app';
+  var PUBLIC_WEB_BASE = 'https://deco168.vercel.app';
   var _params  = new URLSearchParams(window.location.search);
   var JOB_ID   = _params.get('job') || localStorage.getItem('deco_job_id');
+
+  (function canonicalResultUrl() {
+    var host = window.location.hostname;
+    if (JOB_ID && host.endsWith('.vercel.app') && host !== 'deco168.vercel.app') {
+      window.location.replace(PUBLIC_WEB_BASE + '/result?job=' + encodeURIComponent(JOB_ID));
+    }
+  })();
 
   (function guard() {
     if (!localStorage.getItem('deco_order_id') && !_params.get('job')) {

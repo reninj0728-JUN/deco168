@@ -282,6 +282,7 @@
   })();
 
   var API_BASE = 'https://deco168-production.up.railway.app';
+  var PUBLIC_WEB_BASE = 'https://deco168.vercel.app';
   var JOB_ID   = localStorage.getItem('deco_job_id');
   if (JOB_ID) {
     var el = document.getElementById('displayJobId');
@@ -365,7 +366,9 @@
           updateSteps(5);
           document.getElementById('step5').className = 'proc-step done';
           document.getElementById('timerText').textContent = '提案完成，正在為你打開設計頁…';
-          setTimeout(function() { window.location.href = 'result.html?job=' + JOB_ID; }, 1500);
+          setTimeout(function() {
+            window.location.href = PUBLIC_WEB_BASE + '/result?job=' + encodeURIComponent(JOB_ID);
+          }, 1500);
         } else if (data.status === 'failed') {
           stopRotate();
           clearInterval(pollTimer);
@@ -395,7 +398,9 @@
       stopRotate();
       document.getElementById('step5').className = 'proc-step done';
       document.getElementById('timerText').textContent = '提案完成，正在為你打開設計頁…';
-      setTimeout(function() { window.location.href = 'result.html?job=' + (JOB_ID || 'DEMO'); }, 1200);
+      setTimeout(function() {
+        window.location.href = PUBLIC_WEB_BASE + '/result?job=' + encodeURIComponent(JOB_ID || 'DEMO');
+      }, 1200);
     }, 15000);
   }
 </script>
