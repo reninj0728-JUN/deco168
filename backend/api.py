@@ -1379,9 +1379,49 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         }
         print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n} retried={retry_n}")
 
+        # Delivery gate (2026-06-20):
+        # retry 後 validation.ok=False 的 render 不可當正式成果交付。
+        # 若至少還有通過/未驗證明確失敗的圖，先交付可用圖並記錄被移除的 style；
+        # 若全部失敗，讓 job failed，避免 result 頁展示已知錯圖。
+        delivery_final = [
+            r for r in final
+            if (r.get("validation") or {}).get("ok") is not False
+        ]
+        dropped_failed_renders = [
+            r for r in final
+            if (r.get("validation") or {}).get("ok") is False
+        ]
+        dropped_validation_reasons = []
+        for r in dropped_failed_renders:
+            v = r.get("validation") or {}
+            reason = v.get("reason") or v.get("error") or ""
+            dropped_validation_reasons.append({
+                "style": r.get("style"),
+                "reason": str(reason)[:240],
+            })
+
+        if dropped_failed_renders:
+            print(
+                "[pipeline] delivery gate dropped failed render(s): "
+                + ",".join(str(r.get("style") or "?") for r in dropped_failed_renders)
+            )
+
+        if not delivery_final:
+            failed_stage = "validation_delivery_gate"
+            raise AnchoredValidationFailed(
+                "all renders failed validation after retries",
+                extras={
+                    "failed_render_styles": [
+                        r.get("style") for r in dropped_failed_renders if r.get("style")
+                    ],
+                    "validation_reasons": dropped_validation_reasons,
+                    "validation_summary": validation_summary,
+                },
+            )
+
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
-        for r in final:
+        for r in delivery_final:
             raw_path = r.get("render_path") or ""
             render_path = Path(raw_path) if raw_path else None
             render_url = None
@@ -1450,7 +1490,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 由 generate_renders() 標示, api.py 不重新推測。
         # 全部相同 → 該值; 混合 → "mixed"; 全 None → 不寫.
         failed_stage = "result_build"
-        _modes = {r.get("render_mode") for r in final if r.get("render_mode")}
+        _modes = {r.get("render_mode") for r in delivery_final if r.get("render_mode")}
         top_render_mode: str | None = None
         if len(_modes) == 1:
             top_render_mode = next(iter(_modes))
@@ -1490,6 +1530,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "validation_summary": validation_summary,
             "customer_inputs":    customer_inputs,            # Phase A
         }
+        if dropped_failed_renders:
+            result_json_payload["dropped_failed_render_styles"] = [
+                r.get("style") for r in dropped_failed_renders if r.get("style")
+            ]
+            result_json_payload["validation_reasons"] = dropped_validation_reasons
         if top_render_mode:
             result_json_payload["render_mode"] = top_render_mode
         if rooms_for_json:
