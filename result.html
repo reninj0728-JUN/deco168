@@ -432,9 +432,27 @@
       lighting: '燈具',
       mirror:   '掛鏡'
     };
-    var softItems = '';
-    if (soft.length) {
-      softItems = soft.map(function(f, j) {
+    var softRefs = (r.reference_map || []).filter(function(ref) {
+      return ref && ref.kind === 'SOFT';
+    });
+    var usedSoftKeys = {};
+    var mainSoft = softRefs.map(function(ref) {
+      var found = soft.find(function(f) {
+        return (ref.id && f.id === ref.id) ||
+               (ref.cat_en && f.category_en === ref.cat_en && (!ref.name_zh || ref.name_zh === f.name_zh));
+      });
+      return found || null;
+    }).filter(Boolean);
+    mainSoft.forEach(function(f) {
+      usedSoftKeys[(f.id || '') + '|' + (f.category_en || '') + '|' + (f.name_zh || '')] = true;
+    });
+    var extraSoft = soft.filter(function(f) {
+      var key = (f.id || '') + '|' + (f.category_en || '') + '|' + (f.name_zh || '');
+      return !usedSoftKeys[key];
+    });
+
+    function renderSoftItems(items) {
+      return items.map(function(f, j) {
         var price  = f.price_twd ? 'NT$' + Number(f.price_twd).toLocaleString() : '—';
         var rawUrl = f.purchase_url || '';
         if (rawUrl.includes('google.com/search')) {
@@ -458,13 +476,22 @@
           '</div></div>';
       }).join('');
     }
-    var softSection = softItems
+
+    var mainSoftItems = mainSoft.length ? renderSoftItems(mainSoft) : '';
+    var extraSoftItems = extraSoft.length ? renderSoftItems(extraSoft) : '';
+    var softSection = mainSoftItems
       ? '<div class="soft-furnishing-box" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line);">' +
-          '<h3 style="font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;">軟裝搭配建議</h3>' +
+          '<h3 style="font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;">圖中軟裝商品</h3>' +
           '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-bottom:14px;">' +
-            '此區為建議搭配的軟裝品項，不併入上方主家具總計' +
+            '此區為本張渲染圖實際使用的軟裝參考，不併入上方主家具總計' +
           '</div>' +
-          softItems +
+          mainSoftItems +
+          (extraSoftItems
+            ? '<details style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px;">' +
+                '<summary style="cursor:pointer;color:var(--muted);font-size:11px;letter-spacing:1.5px;">延伸搭配建議（圖中未必完整呈現）</summary>' +
+                '<div style="margin-top:10px;">' + extraSoftItems + '</div>' +
+              '</details>'
+            : '') +
         '</div>'
       : '';
 

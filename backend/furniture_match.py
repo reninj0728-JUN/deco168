@@ -63,11 +63,25 @@ LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding'
 #   textile    ~10 件  (category=裝飾 含沙發墊/沙發毯/抱枕套)
 #   lighting   103 件  (category=燈具 桌燈/立燈/吊燈)
 #
-# 每張 render 各 cat 撈 1 件, 上限 8 件 (8 cat × 1).
+# 每張 render 依風格挑 3-5 件; 不再固定 8 類全塞, 避免結果頁出現圖上沒有的硬湊軟裝.
 SOFT_FURNISHING_CATS = [
     'pillow', 'curtain', 'wall_art', 'vase', 'plant',
     'decor', 'textile', 'lighting',
 ]
+SOFT_FURNISHING_MAX_RESULTS = 5
+
+SOFT_STYLE_CAT_PRIORITY = {
+    'french': ['lighting', 'curtain', 'wall_art', 'vase', 'plant', 'textile', 'pillow', 'decor'],
+    'luxury': ['lighting', 'wall_art', 'vase', 'curtain', 'plant', 'decor', 'pillow', 'textile'],
+    'art-deco': ['lighting', 'wall_art', 'vase', 'curtain', 'decor', 'plant', 'pillow', 'textile'],
+    'chinese-modern': ['lighting', 'wall_art', 'vase', 'plant', 'curtain', 'textile', 'decor', 'pillow'],
+    'modern': ['lighting', 'wall_art', 'plant', 'curtain', 'vase', 'decor', 'pillow', 'textile'],
+    'muji': ['curtain', 'plant', 'lighting', 'wall_art', 'vase', 'textile', 'pillow', 'decor'],
+    'nordic': ['curtain', 'plant', 'lighting', 'wall_art', 'vase', 'textile', 'pillow', 'decor'],
+    'cream': ['curtain', 'lighting', 'plant', 'wall_art', 'vase', 'textile', 'pillow', 'decor'],
+    'japanese': ['curtain', 'plant', 'wall_art', 'lighting', 'vase', 'textile', 'pillow', 'decor'],
+    'wood': ['plant', 'curtain', 'lighting', 'wall_art', 'vase', 'textile', 'pillow', 'decor'],
+}
 
 # 軟裝單件預算上限 (不算主總計, 但仍隨 tier 控制單件不要太貴)
 SOFT_FURNISHING_CAP = {
@@ -633,22 +647,21 @@ def match_soft_furnishing(
     preferred_store: str = "none",
 ) -> list[dict]:
     """
-    軟裝接入 (Step 3B, 2026-06-18): 為當前風格各撈一件
-    pillow / curtain / wall_art / vase / plant / decor / textile / lighting.
+    軟裝接入: 為當前風格挑 3-5 件真正適合放進圖面的軟裝.
 
     matching 原則 (per spec):
-      1. 類別多樣性: 各 cat 撈 1 件, 順序固定 SOFT_FURNISHING_CATS
+      1. 類別多樣性: 依風格 priority 各 cat 撈 1 件, 最多 5 件
       2. 每件必須有 image_url
       3. 每件必須有 purchase_url
-      4. 不要全部同 cat (天然由每 cat 1 件保證)
-      5. mirror 不再當萬用桶 (fallback 已改成 decor_unknown, 不會被選)
-      6. 軟裝仍不併主家具總計 (由 result.html 控制)
+      4. 不硬塞不適合的固定 8 類; 撈不到某 cat 就跳過
+      5. 軟裝仍不併主家具總計 (由 result.html 控制)
 
     與 match_furniture 完全獨立 — 不影響主家具撈取邏輯, 不算進主總計.
     撈不到某 cat 就跳過 (不 fallback 跨類別).
-    回傳 list (順序固定 SOFT_FURNISHING_CATS).
+    回傳 list (順序為風格 priority).
     """
     soft_cap = SOFT_FURNISHING_CAP.get(budget_tier)
+    cat_order = SOFT_STYLE_CAT_PRIORITY.get(style, SOFT_FURNISHING_CATS)
 
     def _under_soft_budget(item: dict) -> bool:
         if soft_cap is None:
@@ -665,7 +678,9 @@ def match_soft_furnishing(
         return img and buy
 
     selected: list[dict] = []
-    for cat in SOFT_FURNISHING_CATS:
+    for cat in cat_order:
+        if len(selected) >= SOFT_FURNISHING_MAX_RESULTS:
+            break
         cat_pool = [it for it in catalog if resolve_category(it) == cat]
         # Stage 1: 有圖 + 有購買連結 + 預算內
         pool = [it for it in cat_pool if _has_url(it) and _under_soft_budget(it)]

@@ -117,7 +117,10 @@ def case_c_enrich_soft():
         print(f"    [{it.get('category_en')}] {it.get('name_zh')} brand={it.get('brand')} "
               f"price=NT${it.get('price_twd')} img={'有' if it.get('image_url') else '無'}")
 
-    assert len(soft) >= 2, "soft_furnishing 至少要有 2 件 (pillow / curtain)"
+    assert 2 <= len(soft) <= 5, "soft_furnishing 應依風格挑 2-5 件, 不再固定塞 8 件"
+    if r.get("style") == "modern":
+        assert soft[0].get("category_en") == "lighting", \
+            f"modern 軟裝應優先可進圖的燈具/主視覺品項, got {soft[0].get('category_en')}"
     soft_cat_set = set(soft_cats)
     assert "pillow" in soft_cat_set or "curtain" in soft_cat_set, \
         "soft_furnishing 至少應撈到 pillow 或 curtain"

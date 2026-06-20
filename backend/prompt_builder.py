@@ -48,6 +48,7 @@ SOFT_FURNISHING_EN = {
 
 # Soft furnishing product references:
 # keep this small so product refs improve the render without confusing the main furniture.
+# furniture_match orders soft_furnishing by style fit; prompt refs keep that order.
 SOFT_REFERENCE_CATS = ("curtain", "lighting", "wall_art", "plant", "vase", "pillow")
 MAX_SOFT_REFERENCE_IMAGES = 3
 
@@ -830,20 +831,19 @@ def build_nano_banana_inputs(
             next_idx += 1
 
     # 組 prompt 段落
-    soft_selected: dict[str, dict] = {}
+    soft_candidates: list[dict] = []
+    soft_seen_cats: set[str] = set()
     for item in entry.get("soft_furnishing") or []:
         cat = (item.get("category_en") or "").strip()
         url = (item.get("image_url") or "").strip()
-        if cat in SOFT_REFERENCE_CATS and url.startswith("http") and cat not in soft_selected:
-            soft_selected[cat] = item
+        if cat in SOFT_REFERENCE_CATS and url.startswith("http") and cat not in soft_seen_cats:
+            soft_candidates.append(item)
+            soft_seen_cats.add(cat)
 
-    soft_ref_count = 0
-    for cat in SOFT_REFERENCE_CATS:
-        if cat not in soft_selected:
-            continue
+    for soft_ref_count, it in enumerate(soft_candidates):
         if soft_ref_count >= MAX_SOFT_REFERENCE_IMAGES:
             break
-        it = soft_selected[cat]
+        cat = (it.get("category_en") or "").strip()
         display_role, _ = SOFT_CAT_DISPLAY.get(cat, (cat.upper(), cat))
         reference_map.append({
             "index": next_idx,
@@ -856,7 +856,6 @@ def build_nano_banana_inputs(
         })
         image_urls.append(it.get("image_url"))
         next_idx += 1
-        soft_ref_count += 1
 
     inputs_sec = _build_inputs_section(reference_map)
 
