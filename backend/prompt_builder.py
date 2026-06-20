@@ -17,14 +17,16 @@ Nano Banana Pro multi-image prompt 組裝模組
   budget_tier 寫成預算 guidance（不變動定價與付款流程）
 """
 
-# 主家具品類（必撈，跟 furniture_match.py 一致）
-MUST_HAVE_CATS = ("sofa", "coffee_table", "rug")
+# Primary product reference categories. sofa/coffee_table/rug are must-have;
+# media_console is optional and only appears when furniture_match finds a good product.
+MUST_HAVE_CATS = ("sofa", "coffee_table", "rug", "media_console")
 
 # 品類顯示名稱（給 prompt 用）
 CAT_DISPLAY = {
     "sofa":         ("SOFA",         "sofa"),
     "coffee_table": ("COFFEE TABLE", "coffee table"),
     "rug":          ("RUG",          "area rug"),
+    "media_console": ("MEDIA CONSOLE", "TV cabinet / media console"),
 }
 
 # 軟裝接入 (Step 3B, 2026-06-18): 軟裝 cat → 英文 phrase for prompt text section.
@@ -444,7 +446,9 @@ def _build_product_placement_section(reference_map: list[dict]) -> str:
     # 客廳通則家具擺位
     lines.append(
         "General placement: sofa against the designated sofa wall facing into the room; "
-        "coffee table in front of the sofa; rug anchored under the coffee table within the living zone."
+        "coffee table in front of the sofa; rug anchored under the coffee table within the living zone. "
+        "If a MEDIA CONSOLE product reference is provided, place it as the focal anchor / TV cabinet "
+        "on the focal wall opposite or visually aligned with the sofa."
     )
     return " ".join(lines)
 

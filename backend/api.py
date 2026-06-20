@@ -1299,7 +1299,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
-                "matched_furniture": r.get("matched_furniture", [])[:3],
+                "matched_furniture": r.get("matched_furniture", [])[:4],
                 # 軟裝接入 (2026-06-18): 結果頁獨立區塊顯示, 不併入主總計
                 "soft_furnishing":   r.get("soft_furnishing", []),
                 "validation":        r.get("validation"),

@@ -152,12 +152,54 @@ def case_d_decor_refine():
         assert ok
 
 
+def case_e_media_console_primary_ref():
+    print("\n[Case E] 電視櫃 / media console → optional primary furniture reference")
+    from furniture_match import resolve_category
+    from prompt_builder import build_nano_banana_inputs
+
+    samples = [
+        {"category": "收納", "name_zh": "北歐風簡約木質電視櫃"},
+        {"category": "傢俱", "name_zh": "白色簡約電視櫃"},
+        {"category": "茶几", "name_zh": "極簡現代白色電視櫃"},
+    ]
+    for it in samples:
+        got = resolve_category(it)
+        assert got == "media_console", f"{it} should resolve to media_console, got {got}"
+    print("  PASS  電視櫃名稱會歸類為 media_console")
+
+    entry = {
+        "style": "nordic",
+        "style_label": "北歐清簡",
+        "flux_prompt": "nordic living room",
+        "matched_furniture": [
+            {
+                "id": "tv-1",
+                "category_en": "media_console",
+                "name_zh": "北歐風簡約木質電視櫃",
+                "image_url": "https://example.test/tv-console.jpg",
+            },
+        ],
+    }
+    out = build_nano_banana_inputs(
+        entry=entry,
+        zoning={"confidence": "none"},
+        room_image_url="https://example.test/room.jpg",
+    )
+    refs = [r for r in out["reference_map"] if r.get("cat_en") == "media_console"]
+    assert len(refs) == 1, refs
+    assert refs[0].get("kind") == "PRIMARY", refs
+    assert "MEDIA CONSOLE" in out["prompt"]
+    assert "focal anchor / TV cabinet" in out["prompt"]
+    print("  PASS  media_console 會進 PRIMARY reference_map 與 prompt")
+
+
 def main():
     print("=" * 70)
     print("Step 3 驗收 (位置修正 + 軟裝接入)")
     print("=" * 70)
     case_a_hint_auto_inject()
     case_d_decor_refine()
+    case_e_media_console_primary_ref()
     case_b_soft_section_in_prompt()
     case_c_enrich_soft()
     print("\nALL PASS")

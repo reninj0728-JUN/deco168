@@ -39,9 +39,12 @@ LIVING_MUST_HAVE = ['sofa', 'coffee_table', 'rug']
 
 # 加分（補滿 top_n 用，同類各取 1）
 LIVING_NICE_TO_HAVE = [
+    'media_console',
     'accent_chair', 'lighting', 'curtain',
     'side_table', 'plant', 'mirror', 'chair',
 ]
+
+LIVING_PRIORITY_OPTIONAL = ['media_console']
 
 # 客廳模式排除（不准進主家具清單）
 LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding']
@@ -121,10 +124,18 @@ TABLE_SUBCAT_RULES = [
     ('side_table', ['邊几', '邊桌', '床頭櫃', 'side table', '小茶桌', '角几']),
 ]
 
+MEDIA_CONSOLE_KEYWORDS = [
+    '電視櫃', '電視柜', '電視架', '視聽櫃', '影音櫃',
+    'tv stand', 'tv cabinet', 'media console', 'media cabinet',
+    'low media console', '低櫃', '矮櫃',
+]
+
 
 def refine_subcategory(en_cat: str, name_zh: str) -> str:
     """按品名細分 chair / table / mirror(裝飾雜燴 → 軟裝) / pillow(抱枕套→textile)，其他類別維持原樣"""
     name_lower = (name_zh or '').lower()
+    if any(kw.lower() in name_lower for kw in MEDIA_CONSOLE_KEYWORDS):
+        return 'media_console'
     if en_cat == 'chair':
         for sub, kws in CHAIR_SUBCAT_RULES:
             if any(kw.lower() in name_lower for kw in kws):
@@ -248,6 +259,7 @@ BUDGET_CAT_CAP = {
         'sofa':         25000,
         'coffee_table': 8000,
         'rug':          6000,
+        'media_console': 12000,
         'lighting':     6000,
         'curtain':      8000,
         'accent_chair': 12000,
@@ -258,6 +270,7 @@ BUDGET_CAT_CAP = {
         'sofa':         60000,
         'coffee_table': 20000,
         'rug':          15000,
+        'media_console': 30000,
         'lighting':     15000,
         'curtain':      18000,
         'accent_chair': 30000,
@@ -542,6 +555,18 @@ def match_furniture(
 
     # Stage 1: MUST_HAVE
     for cat in must:
+        best = _pick_best_in_category(cat, style, prompt_keywords, pool,
+                                      is_long_room=is_long_room,
+                                      budget_tier=budget_tier,
+                                      preferred_store=preferred_store)
+        if best is not None:
+            selected_by_cat[cat] = best
+
+    # Stage 1B: priority optional focal anchor. If no good product exists, leave it
+    # out and let the render prompt invent a style-compatible focal cabinet.
+    for cat in LIVING_PRIORITY_OPTIONAL:
+        if cat in selected_by_cat:
+            continue
         best = _pick_best_in_category(cat, style, prompt_keywords, pool,
                                       is_long_room=is_long_room,
                                       budget_tier=budget_tier,
