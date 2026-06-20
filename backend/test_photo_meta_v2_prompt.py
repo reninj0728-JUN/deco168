@@ -393,12 +393,68 @@ def case_sofa_wall_rule_overrides_window_side_depth():
     _assert_contains(prompt, "電視牆可設於右側實牆", "tv_wall text")
 
 
+def case_sofa_wall_text_can_bind_focal_wall_when_tv_wall_empty():
+    """
+    Job 414BE77C regression:
+    Some zoning outputs leave tv_wall empty but put "TV wall + opposite sofa"
+    inside sofa_wall. The render prompt must still bind media console and sofa
+    as a facing pair.
+    """
+    print("\n[case K] tv_wall empty + sofa_wall mentions TV wall -> focal pair binding")
+    entry = _minimal_entry()
+    entry["matched_furniture"] = [
+        {
+            "id": "media-console-test",
+            "category_en": "media_console",
+            "name_zh": "淺色奶油色電視櫃",
+            "image_url": "https://example.test/media-console.jpg",
+        },
+    ]
+    zoning = {
+        "confidence": "high",
+        "_origin": "user_confirmed_v2",
+        "_layout_choice": "A",
+        "zones": {
+            "living_zone": {"where": "第一張照片右前方的寬敞區域，往第二張照片靠窗方向延伸"},
+            "walkway": {"where": "保留左側動線"},
+        },
+        "spatial_synthesis": {
+            "room_shape": "長型矩形格局",
+            "main_window_wall": "空間底端",
+        },
+        "furniture_placement_rules": {
+            "sofa_wall": "右側大白牆適合規劃為電視牆，對側擺放沙發",
+            "tv_wall": "",
+            "coffee_table_position": "in front of the sofa",
+            "rug_anchor": "anchored under the coffee table",
+        },
+    }
+    out = build_nano_banana_inputs(
+        entry=entry,
+        zoning=zoning,
+        room_image_url="https://example.test/room.jpg",
+    )
+    prompt = out.get("prompt") or ""
+    _assert_contains(prompt, "Use the explicit TV/focal wall rule",
+                     "focal wall inferred from sofa_wall text")
+    _assert_contains(prompt, "右側大白牆適合規劃為電視牆，對側擺放沙發",
+                     "overloaded sofa_wall text preserved")
+    _assert_contains(prompt, "SOFA-FOCAL PAIRING",
+                     "sofa/media console facing-pair rule")
+    _assert_contains(prompt, "MUST NOT sit on the same wall",
+                     "no same-wall/same-side focal pairing")
+    _assert_contains(prompt, "MEDIA CONSOLE",
+                     "media console product ref present")
+    _assert_contains(prompt, "directly opposite the sofa",
+                     "media console opposite sofa placement")
+
+
 def case_soft_furnishing_product_refs_limited_to_three():
     """
     Soft furnishings should behave like product references, but only 2-3 per render.
     Full soft_furnishing[] can still feed result URLs; render refs stay capped.
     """
-    print("\n[case K] soft furnishing product refs -> max 3 refs, categorized")
+    print("\n[case L] soft furnishing product refs -> max 3 refs, categorized")
     entry = _minimal_entry()
     entry["soft_furnishing"] = [
         {
@@ -469,6 +525,7 @@ def main():
     case_note_empty_string_skips()
     case_backend_normalize_target_note()
     case_sofa_wall_rule_overrides_window_side_depth()
+    case_sofa_wall_text_can_bind_focal_wall_when_tv_wall_empty()
     case_soft_furnishing_product_refs_limited_to_three()
     print("\nALL PASS")
 

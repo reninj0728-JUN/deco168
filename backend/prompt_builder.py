@@ -201,6 +201,13 @@ def _build_layout_section(zoning: dict) -> str:
 
         explicit_sofa_wall = (rules.get("sofa_wall") or "").strip()
         explicit_tv_wall = (rules.get("tv_wall") or "").strip()
+        sofa_wall_mentions_focal = any(
+            k in explicit_sofa_wall
+            for k in ("電視牆", "電視櫃", "TV", "tv", "focal", "media console")
+        )
+        focal_wall_text = explicit_tv_wall or (
+            explicit_sofa_wall if sofa_wall_mentions_focal else ""
+        )
         sofa_wall_rule = (
             "Use the explicit Sofa wall rule below as the binding sofa back-wall and "
             "facing-direction instruction: "
@@ -216,8 +223,11 @@ def _build_layout_section(zoning: dict) -> str:
         )
         focal_wall_rule = (
             "Use the explicit TV/focal wall rule as the binding focal-anchor wall: "
-            f"'{explicit_tv_wall}'. "
-        ) if explicit_tv_wall else ""
+            f"'{focal_wall_text}'. "
+            "If this text also mentions the sofa, interpret it as one paired rule: "
+            "the TV/focal wall described there gets the media console / TV cabinet, "
+            "and the sofa belongs on the opposite side facing it. "
+        ) if focal_wall_text else ""
 
         parts.append(
             "USER-CONFIRMED LAYOUT (MANDATORY — this is the customer's explicit decision, "
@@ -239,8 +249,13 @@ def _build_layout_section(zoning: dict) -> str:
             "walkway, or entrance zone. "
             "(4) FOCAL WALL ANCHOR — every living-room proposal MUST include one. "
             + focal_wall_rule +
-            "Place a clear focal wall anchor on the wall directly opposite or visually "
-            "aligned with the sofa, from within or adjacent to the living zone. The focal "
+            "SOFA-FOCAL PAIRING: the sofa and focal anchor (TV cabinet / media console / "
+            "sideboard) MUST face each other across the coffee table and rug. They MUST "
+            "NOT sit on the same wall, same side of the room, or side-by-side. If the "
+            "layout text says one wall is the TV wall and the opposite side is the sofa, "
+            "place the media console / TV cabinet on that TV wall and place the sofa on "
+            "the opposite side facing it. Place a clear focal wall anchor on the wall "
+            "directly opposite the sofa, from within or adjacent to the living zone. The focal "
             "wall MUST NOT be left as bare paint or a single small frame on its own. The "
             "anchor MUST be ONE of the following real furniture pieces: a low media "
             "console, a TV cabinet with a TV, a sideboard or low cabinet, a display "
@@ -448,7 +463,9 @@ def _build_product_placement_section(reference_map: list[dict]) -> str:
         "General placement: sofa against the designated sofa wall facing into the room; "
         "coffee table in front of the sofa; rug anchored under the coffee table within the living zone. "
         "If a MEDIA CONSOLE product reference is provided, place it as the focal anchor / TV cabinet "
-        "on the focal wall opposite or visually aligned with the sofa."
+        "on the focal wall directly opposite the sofa. The media console and sofa must face each other "
+        "across the coffee table / rug; do not place the media console beside the sofa, on the same wall, "
+        "or on the same side of the room."
     )
     return " ".join(lines)
 
