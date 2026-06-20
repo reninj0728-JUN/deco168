@@ -348,6 +348,23 @@
     document.getElementById('panelsContainer').innerHTML = panelsHtml;
   }
 
+  // 部分交付：後端把未通過品質檢查的風格從 renders 移除，但會在 validation_summary 留紀錄。
+  // 這裡顯示一條提示，讓用戶知道為何某些風格沒出現，而不是靜默少圖。
+  function showDroppedNotice(vs) {
+    if (!vs || !vs.dropped) return;
+    var dropped = vs.dropped_renders || [];
+    var labels = dropped.map(function(d) { return d.style_label || d.style || '某風格'; });
+    var labelText = labels.length ? labels.join('、') : (vs.dropped + ' 個風格');
+    var box = document.createElement('div');
+    box.className = 'dropped-notice';
+    box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:12px 16px;border:1px solid rgba(212,175,55,.35);'
+      + 'border-radius:8px;background:rgba(212,175,55,.06);color:#d9c7a0;font-size:13px;line-height:1.7;text-align:center;';
+    box.innerHTML = '本次「' + labelText + '」未通過版面品質檢查，已自動為你保留通過的設計。'
+      + '若需要補齊這些風格，請聯絡客服重新生成。';
+    var tabs = document.getElementById('tabsContainer');
+    if (tabs && tabs.parentNode) { tabs.parentNode.insertBefore(box, tabs); }
+  }
+
   function renderPanelContent(group) {
     var idx = _angleIdx[group.style] || 0;
     var r   = group.angles[idx] || {};
@@ -659,6 +676,8 @@
         var renders = data.renders || [];
         if (renders.length) { buildUI(renders); }
         else { document.getElementById('tabsContainer').innerHTML = '<div class="loading-msg">尚無渲染圖</div>'; }
+        // 部分交付提示：有風格未通過品質檢查時，告知用戶（不影響已交付的圖）
+        try { showDroppedNotice(data.validation_summary); } catch (e) { console.warn('dropped notice 失敗', e); }
       })
       .catch(function(e) {
         var msg = e.message || '';

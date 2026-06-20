@@ -636,18 +636,62 @@ CRITICAL_RULES = (
 )
 
 
+# Retry 用：上次 validation 的 high-severity flag → 給 model 的具體修正指令。
+# 對應 api.py HIGH_SEVERITY_FLAGS。措辭硬、肯定句，直接告訴 model 怎麼擺對。
+_RETRY_FLAG_FIX_EN = {
+    "sofa_outside_living_zone":
+        "The sofa was placed OUTSIDE the designated living zone. "
+        "Move the entire sofa group back inside the living zone.",
+    "focal_anchor_misaligned_with_sofa":
+        "The focal anchor (TV cabinet / media console / feature wall) was NOT aligned "
+        "with the sofa. Put it on the wall the sofa directly faces, centered on the sofa.",
+    "sofa_back_against_window":
+        "The sofa back was against the window. Do NOT put the sofa back to the window. "
+        "Place the sofa against a solid wall and keep the window clear behind it.",
+    "sofa_intrudes_walkway":
+        "The sofa intruded into the walkway. Keep the whole sofa clear of the main "
+        "walkway / corridor opening.",
+    "coffee_table_in_walkway":
+        "The coffee table sat in the walkway. Keep the coffee table inside the living "
+        "zone in front of the sofa, fully clear of the walkway.",
+    "furniture_blocks_walkway":
+        "Furniture blocked the walkway. Keep all major furniture clear of the corridor "
+        "opening so the walkway stays fully passable.",
+    "sofa_faces_walkway":
+        "The sofa faced the walkway instead of the focal anchor. Turn the sofa to face "
+        "the TV cabinet / focal wall, not the corridor.",
+}
+
+
 def _build_retry_context_section(retry_context: dict | None) -> str:
-    """C2.3 第二次 retry 用：短、硬、明確帶入上次失敗數據，不要太長。"""
+    """Retry 用：短、硬、明確帶入上次失敗原因，不要太長。
+
+    帶兩類回饋：
+      1) failed_flags — 上次 validation 命中的 high-severity 結構問題，逐條給修正指令。
+      2) sofa_pct / anchor_pct — 深度估計，提醒往窗側端移深。
+    任一存在就輸出；都沒有則回空字串（沿用既有行為）。
+    """
     if not isinstance(retry_context, dict):
         return ""
     sofa_pct = retry_context.get("sofa_pct")
     anchor_pct = retry_context.get("anchor_pct")
+    failed_flags = retry_context.get("failed_flags") or []
+    reason = (retry_context.get("reason") or "").strip()
     has_sofa  = isinstance(sofa_pct, (int, float))
     has_anchor = isinstance(anchor_pct, (int, float))
-    if not (has_sofa or has_anchor):
+    if not (has_sofa or has_anchor or failed_flags or reason):
         return ""
 
-    lines = ["PREVIOUS ATTEMPT FAILED LAYOUT VALIDATION:"]
+    lines = ["PREVIOUS ATTEMPT FAILED LAYOUT VALIDATION — FIX THESE EXACT PROBLEMS:"]
+    seen_fixes = set()
+    for f in failed_flags:
+        fix = _RETRY_FLAG_FIX_EN.get(f)
+        if fix and fix not in seen_fixes:
+            lines.append(f"- {fix}")
+            seen_fixes.add(fix)
+    if not failed_flags and reason:
+        # 沒有結構化 flag 但有文字 reason → 至少把 reason 帶給 model 參考。
+        lines.append(f"- Reviewer note on the previous attempt: {reason}")
     if has_sofa:
         lines.append(
             f"- Sofa depth was estimated at {int(sofa_pct)}%. "

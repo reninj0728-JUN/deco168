@@ -1332,7 +1332,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)
 
         def _build_retry_ctx_from_validation(v: dict) -> dict | None:
-            """從前一次 validation 抽出 sofa_pct / anchor_pct 給 retry prompt。"""
+            """從前一次 validation 抽出完整失敗回饋給 retry prompt。
+
+            不只帶深度數字 (sofa_pct / anchor_pct)，也帶具體 high-severity flag
+            (沙發背窗 / 未貼長牆 / 侵入走道 / 未正對焦點…) 與 validation reason，
+            讓重試 prompt 真的針對上次的錯誤修正，而不是擲骰子重生同一張。
+            """
             if not isinstance(v, dict):
                 return None
             ctx = {}
@@ -1342,6 +1347,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 ctx["sofa_pct"] = sp
             if isinstance(ap, (int, float)) and ap >= 0:
                 ctx["anchor_pct"] = ap
+            failed_flags = [f for f in HIGH_SEVERITY_FLAGS if v.get(f)]
+            if failed_flags:
+                ctx["failed_flags"] = failed_flags
+            reason = (v.get("reason") or "").strip()
+            if reason:
+                ctx["reason"] = reason[:240]
             return ctx or None
 
         if use_nano:
@@ -1371,8 +1382,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     print(f"[pipeline] Z3 retry {attempt_label} render[{idx}] "
                           f"style={r.get('style')} — {retry_reason}")
                     write_status(job_id, job_dir, "rendering", 92, "修正結構問題的設計圖中…")
-                    # 第 2 次 retry：帶入前次失敗的 depth_percent 給 retry prompt
-                    retry_ctx = _build_retry_ctx_from_validation(v) if current_rc >= 1 else None
+                    # 每次 retry 都帶完整失敗回饋 (flag + reason + depth) 給 retry prompt。
+                    # 舊版只在 current_rc>=1 才帶，導致 anchored 訂單 (MAX_RETRY=1) 永遠
+                    # 拿不到任何回饋，重試 prompt 跟初次一字不差 → 救不回失敗圖。
+                    retry_ctx = _build_retry_ctx_from_validation(v)
                     # C2.6 Patch B: Z3 retry 過程中, fal 明確失敗保留原 root cause
                     failed_stage = "z3_retry_generate_renders"
                     try:
@@ -1457,10 +1470,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         }
         print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n} retried={retry_n}")
 
-        # Delivery gate (2026-06-20):
-        # retry 後 validation.ok=False 的 render 不可當正式成果交付。
-        # 若至少還有通過/未驗證明確失敗的圖，先交付可用圖並記錄被移除的 style；
-        # 若全部失敗，讓 job failed，避免 result 頁展示已知錯圖。
+        # Delivery gate (2026-06-21, partial delivery):
+        # retry 後 validation.ok=False 的 render 不當正式成果交付，但**不再因此讓整單失敗**。
+        # 只要還有任何可交付的圖 (通過 / 未明確失敗)，就交付那些，並把被移除的 style + 原因
+        # 記進 result_json 給前端標示「N 個風格未通過品質檢查」。
+        # 只有「全部都失敗」時才讓 job failed，避免 result 頁展示已知錯圖。
         delivery_final = [
             r for r in final
             if (r.get("validation") or {}).get("ok") is not False
@@ -1474,28 +1488,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             v = r.get("validation") or {}
             reason = v.get("reason") or v.get("error") or ""
             dropped_validation_reasons.append({
-                "style": r.get("style"),
-                "reason": str(reason)[:240],
+                "style":       r.get("style"),
+                "style_label": r.get("style_label"),
+                "reason":      str(reason)[:240],
             })
 
-        if dropped_failed_renders:
-            print(
-                "[pipeline] delivery gate failed render(s): "
-                + ",".join(str(r.get("style") or "?") for r in dropped_failed_renders)
-            )
-            failed_stage = "validation_delivery_gate"
-            raise AnchoredValidationFailed(
-                "one or more renders failed validation after retries",
-                extras={
-                    "failed_render_styles": [
-                        r.get("style") for r in dropped_failed_renders if r.get("style")
-                    ],
-                    "validation_reasons": dropped_validation_reasons,
-                    "validation_summary": validation_summary,
-                },
-            )
-
         if not delivery_final:
+            # 全部失敗 → 沒有任何可交付的圖，才讓整單 failed。
             failed_stage = "validation_delivery_gate"
             raise AnchoredValidationFailed(
                 "all renders failed validation after retries",
@@ -1507,6 +1506,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     "validation_summary": validation_summary,
                 },
             )
+
+        if dropped_failed_renders:
+            # 部分交付：交付通過的，被移除的記錄起來給前端 + summary，不讓整單消失。
+            print(
+                "[pipeline] partial delivery — dropped failed render(s): "
+                + ",".join(str(r.get("style") or "?") for r in dropped_failed_renders)
+                + f"; delivering {len(delivery_final)} render(s)"
+            )
+        validation_summary["delivered"]       = len(delivery_final)
+        validation_summary["dropped"]         = len(dropped_failed_renders)
+        validation_summary["dropped_renders"] = dropped_validation_reasons
 
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
@@ -1587,28 +1597,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             top_render_mode = "mixed"
         last_render_mode = top_render_mode or last_render_mode
 
-        # C2.6: anchored 路徑下若仍有 render validation.ok=False, 不可交付
-        if force_anchored:
-            bad_renders = [
-                r for r in final
-                if (r.get("validation") or {}).get("ok") is False
-            ]
-            if bad_renders:
-                failed_styles = [r.get("style") for r in bad_renders if r.get("style")]
-                reasons = []
-                for r in bad_renders:
-                    v = r.get("validation") or {}
-                    reason = v.get("reason") or v.get("error") or ""
-                    if reason:
-                        reasons.append({"style": r.get("style"),
-                                        "reason": str(reason)[:200]})
-                raise AnchoredValidationFailed(
-                    f"anchored validation failed on {len(bad_renders)} render(s) after retries",
-                    extras={
-                        "failed_render_styles": failed_styles,
-                        "validation_reasons":   reasons,
-                    },
-                )
+        # C2.6 → partial delivery (2026-06-21): 上方 delivery gate 已把 validation.ok=False
+        # 的圖從 delivery_final / slim_renders 移除，並在「全部失敗」時 raise。anchored 路徑
+        # 不再額外因「有任一張失敗」整單 raise — 否則一過一不過時整單仍會消失，違背部分交付。
+        # 被移除的 style 由 validation_summary.dropped_renders 帶給前端標示。
 
         result_json_payload = {
             "analysis":           analysis,
