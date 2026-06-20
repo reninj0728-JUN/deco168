@@ -524,6 +524,71 @@ def _note_implies_rear_near_window(note: str | None) -> bool:
     return any(k in s for k in positive_markers)
 
 
+def _note_implies_dining_middle(note: str | None) -> bool:
+    """Common user shorthand: '餐廳中段' means reserve the middle zone for dining."""
+    if not isinstance(note, str):
+        return False
+    s = note.strip().lower()
+    if not s:
+        return False
+    dining_markers = ("餐廳", "用餐", "dining")
+    middle_markers = ("中段", "中間", "中央", "中部", "middle", "center", "centre")
+    return any(k in s for k in dining_markers) and any(k in s for k in middle_markers)
+
+
+def _apply_target_note_layout_constraints(zoning: dict | None,
+                                          target_note: str | None,
+                                          target_zone: str | None,
+                                          location_hint: str | None) -> dict | None:
+    """
+    Turn short natural-language photo notes into the same zoning contract used by
+    render + validation. Customers should not need prompt-engineering wording.
+    """
+    if not isinstance(zoning, dict):
+        return zoning
+    note = (target_note or "").strip()
+    if not note:
+        return zoning
+
+    zones = zoning.setdefault("zones", {})
+    if not isinstance(zones, dict):
+        return zoning
+    rules = zoning.setdefault("furniture_placement_rules", {})
+    if not isinstance(rules, dict):
+        return zoning
+
+    if target_zone == "living" and (
+        location_hint == "rear_near_window" or _note_implies_rear_near_window(note)
+    ):
+        living_zone = zones.setdefault("living_zone", {})
+        if isinstance(living_zone, dict):
+            where = (living_zone.get("where") or "").strip()
+            note_clause = "使用者補充指定：客廳靠窗端／窗邊後段。"
+            if note_clause not in where:
+                living_zone["where"] = (where + " " + note_clause).strip()
+
+    if _note_implies_dining_middle(note):
+        dining_zone = zones.setdefault("dining_zone", {})
+        if isinstance(dining_zone, dict):
+            where = (dining_zone.get("where") or "").strip()
+            note_clause = "使用者補充指定：餐廳位於空間中段。"
+            if note_clause not in where:
+                dining_zone["where"] = (where + " " + note_clause).strip()
+
+        no_go = rules.get("no_large_furniture_zones")
+        if not isinstance(no_go, list):
+            no_go = []
+        no_go_clause = (
+            "空間中段餐廳區需保留給餐桌與通行；沙發、客廳地毯、茶几、電視櫃等"
+            "大型客廳家具不得佔用此中段餐廳區。"
+        )
+        if no_go_clause not in no_go:
+            no_go.append(no_go_clause)
+        rules["no_large_furniture_zones"] = no_go
+
+    return zoning
+
+
 def _select_render_photo_meta(photo_meta_by_key: dict | None,
                               image_paths: list,
                               analysis: dict | None) -> tuple[str | None, str | None, str | None, int | None]:
@@ -1007,6 +1072,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                   f"target_zone={_best_pm_target_zone} "
                   f"target_location_hint={_best_pm_location_hint} "
                   f"target_note={(_best_pm_target_note or '')[:30]!r}")
+        zoning_result = _apply_target_note_layout_constraints(
+            zoning_result,
+            _best_pm_target_note,
+            _best_pm_target_zone,
+            _best_pm_location_hint,
+        )
 
         # Step 3 dropped (2026-06-19): plan A → rear_near_window 的硬 mapping 已移除.
         # 原因: 'A'/'B' 是 zoning-confirm 頁的方案代號, 不代表「靠窗」語意; 客廳不一定有窗;
@@ -1402,8 +1473,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         if dropped_failed_renders:
             print(
-                "[pipeline] delivery gate dropped failed render(s): "
+                "[pipeline] delivery gate failed render(s): "
                 + ",".join(str(r.get("style") or "?") for r in dropped_failed_renders)
+            )
+            failed_stage = "validation_delivery_gate"
+            raise AnchoredValidationFailed(
+                "one or more renders failed validation after retries",
+                extras={
+                    "failed_render_styles": [
+                        r.get("style") for r in dropped_failed_renders if r.get("style")
+                    ],
+                    "validation_reasons": dropped_validation_reasons,
+                    "validation_summary": validation_summary,
+                },
             )
 
         if not delivery_final:
@@ -1530,11 +1612,6 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "validation_summary": validation_summary,
             "customer_inputs":    customer_inputs,            # Phase A
         }
-        if dropped_failed_renders:
-            result_json_payload["dropped_failed_render_styles"] = [
-                r.get("style") for r in dropped_failed_renders if r.get("style")
-            ]
-            result_json_payload["validation_reasons"] = dropped_validation_reasons
         if top_render_mode:
             result_json_payload["render_mode"] = top_render_mode
         if rooms_for_json:

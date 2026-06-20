@@ -172,6 +172,9 @@ def _build_layout_section(zoning: dict) -> str:
     syn = zoning.get("spatial_synthesis", {}) or {}
     zones = zoning.get("zones", {}) or {}
     rules = zoning.get("furniture_placement_rules", {}) or {}
+    no_go = rules.get("no_large_furniture_zones") or []
+    no_go_text = " ".join(str(x) for x in no_go) if isinstance(no_go, list) else str(no_go or "")
+    has_dining_middle_constraint = ("餐廳" in no_go_text and ("中段" in no_go_text or "中間" in no_go_text))
 
     parts = []
 
@@ -286,22 +289,31 @@ def _build_layout_section(zoning: dict) -> str:
 
         # C2.4：depth-percent 硬尺。只在 window-side 時 append，量化「back」這個語意
         if is_window_side:
+            sofa_depth_target = 75 if has_dining_middle_constraint else 65
+            anchor_depth_target = 60 if has_dining_middle_constraint else 50
+            dining_middle_clause = (
+                " Because the user's note reserves the middle zone for dining, the living "
+                "group must be pushed clearly to the window-side end, not parked on the "
+                "boundary between living and dining. "
+            ) if has_dining_middle_constraint else " "
             parts.append(
                 "DEPTH PERCENTAGE TARGETS (hard rule, applies because the confirmed "
                 "living zone is on the window-side / back / deep end): "
                 "Treat the rendered image's depth axis as 0% (closest to camera, front "
                 "of room) to 100% (furthest visible, typically the window). "
-                "- The sofa's visual center MUST be at depth >= 65% (the back 35% of "
+                f"- The sofa's visual center MUST be at depth >= {sofa_depth_target}% (the back "
+                f"{100 - sofa_depth_target}% of "
                 "the room). Sofa at 40-60% is a FAILURE even if the composition looks "
                 "balanced. Do NOT center the sofa around 50%. "
                 "- The focal anchor (TV cabinet / media console / sideboard / etc.) MUST "
-                "be at depth >= 50% (the back half). Focal anchor at <50% breaks the "
+                f"be at depth >= {anchor_depth_target}%. Focal anchor below that breaks the "
                 "living group. "
                 "- Coffee table and rug may sit between sofa and focal anchor but must "
                 "remain within one sofa-length of the sofa — they cannot stretch the "
                 "living group across the room. "
                 "- Push the sofa group deeper toward the window end. Empty front half "
                 "is acceptable; sofa in the middle is not."
+                + dining_middle_clause
             )
 
     parts.append("ROOM LAYOUT (from spatial analysis of the room):")
@@ -345,7 +357,6 @@ def _build_layout_section(zoning: dict) -> str:
     if walkway.get("where"):
         parts.append(f"Walkway (must stay clear): {walkway['where']}.")
 
-    no_go = rules.get("no_large_furniture_zones") or []
     if no_go:
         parts.append("NO-LARGE-FURNITURE zones (must remain unblocked):")
         for z in no_go:

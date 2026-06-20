@@ -376,6 +376,29 @@ def case_backend_normalize_target_note():
     )
     print("  PASS  H5 非 best_photo 的「客廳靠窗」會進 render 並升格靠窗 hint")
 
+    # H6: 客人只寫自然語言「客廳靠窗 中段是餐廳」,
+    # 後端要轉成 zoning contract, 不要求客人寫 prompt-engineering 句子。
+    from api import _apply_target_note_layout_constraints
+    zoning = {
+        "zones": {
+            "living_zone": {"where": "圖 1 中間偏右的木地板區域"},
+            "dining_zone": {"where": ""},
+        },
+        "furniture_placement_rules": {
+            "no_large_furniture_zones": [],
+        },
+    }
+    out = _apply_target_note_layout_constraints(
+        zoning,
+        "客廳靠窗 中段是餐廳",
+        "living",
+        "rear_near_window",
+    )
+    assert "客廳靠窗端" in out["zones"]["living_zone"]["where"]
+    assert "餐廳位於空間中段" in out["zones"]["dining_zone"]["where"]
+    assert any("中段餐廳區" in x for x in out["furniture_placement_rules"]["no_large_furniture_zones"])
+    print("  PASS  H6 自然語言 note 轉成靠窗客廳 + 中段餐廳硬規則")
+
 
 def case_sofa_wall_rule_overrides_window_side_depth():
     """
@@ -479,6 +502,48 @@ def case_sofa_wall_text_can_bind_focal_wall_when_tv_wall_empty():
                      "media console opposite sofa placement")
 
 
+def case_dining_middle_note_tightens_window_side_depth():
+    """
+    Regression: user note "客廳靠窗 中段是餐廳" must not allow the living group
+    to park around the middle boundary.
+    """
+    print("\n[case K2] dining middle note -> stricter window-side depth target")
+    zoning = {
+        "confidence": "high",
+        "_origin": "user_confirmed_v2",
+        "_layout_choice": "A",
+        "zones": {
+            "living_zone": {"where": "使用者補充指定：客廳靠窗端／窗邊後段。"},
+            "dining_zone": {"where": "使用者補充指定：餐廳位於空間中段。"},
+            "walkway": {"where": "保留左側走道"},
+        },
+        "spatial_synthesis": {
+            "room_shape": "長型矩形格局",
+            "main_window_wall": "空間底端",
+        },
+        "furniture_placement_rules": {
+            "sofa_wall": "",
+            "tv_wall": "",
+            "no_large_furniture_zones": [
+                "空間中段餐廳區需保留給餐桌與通行；沙發、客廳地毯、茶几、電視櫃等大型客廳家具不得佔用此中段餐廳區。"
+            ],
+        },
+    }
+    out = build_nano_banana_inputs(
+        entry=_minimal_entry(),
+        zoning=zoning,
+        room_image_url="https://example.test/room.jpg",
+        target_zone="living",
+        target_location_hint="rear_near_window",
+        target_note="客廳靠窗 中段是餐廳",
+    )
+    prompt = out.get("prompt") or ""
+    _assert_contains(prompt, "depth >= 75%", "sofa depth tightened to back 25%")
+    _assert_contains(prompt, "depth >= 60%", "focal anchor depth tightened")
+    _assert_contains(prompt, "middle zone for dining", "dining middle clause")
+    _assert_contains(prompt, "中段餐廳區", "no-large-furniture dining middle zone")
+
+
 def case_soft_furnishing_product_refs_limited_to_three():
     """
     Soft furnishings should behave like product references, but only 2-3 per render.
@@ -556,6 +621,7 @@ def main():
     case_backend_normalize_target_note()
     case_sofa_wall_rule_overrides_window_side_depth()
     case_sofa_wall_text_can_bind_focal_wall_when_tv_wall_empty()
+    case_dining_middle_note_tightens_window_side_depth()
     case_soft_furnishing_product_refs_limited_to_three()
     print("\nALL PASS")
 
