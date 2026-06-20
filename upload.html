@@ -656,17 +656,19 @@
   ];
   var DEFAULT_LABEL_DISPLAY = '客廳／公共空間';
 
-  // PhotoMeta v1 Step 2 (補完 v2 UI): 完整 9 Zone 列表, 對應後端 ZONE_ENUM.
+  // PhotoMeta v1 Step 2 (補完 v2 UI): 前台只露常用設計區域，避免客戶被走道/玄關/廚房/陽台干擾。
   // UI 收斂為 2 個下拉 (主要是 / 也包含), backend payload 仍是 photo_contains[] + target_zone.
   var ZONE_OPTIONS = [
     { value: 'living',   display: '客廳' },
     { value: 'dining',   display: '餐廳' },
-    { value: 'walkway',  display: '走道' },
-    { value: 'entrance', display: '玄關' },
-    { value: 'kitchen',  display: '廚房' },
     { value: 'bedroom',  display: '臥室' },
     { value: 'study',    display: '書房' },
-    { value: 'balcony',  display: '陽台' },
+    { value: 'other',    display: '其他' }
+  ];
+  var SECONDARY_ZONE_OPTIONS = [
+    { value: 'dining',   display: '餐廳' },
+    { value: 'bedroom',  display: '臥室' },
+    { value: 'study',    display: '書房' },
     { value: 'other',    display: '其他' }
   ];
   // PhotoMeta v1 Step 2 (v2 UI v3): target_location_hint 不再開放 UI 控制,
@@ -1227,11 +1229,11 @@
     });
     area.appendChild(selZ);
 
-    // PhotoMeta v1 Step 2 (v2 UI v4): 也包含其他空間 toggle (預設收合)
+    // PhotoMeta v1 Step 2 (v2 UI v4): 也包含其他設計區域 toggle (預設收合)
     var secToggleBtn = document.createElement('button');
     secToggleBtn.type = 'button';
     secToggleBtn.className = 'photo-note-toggle' + (p.secondary_expanded ? ' expanded' : '');
-    secToggleBtn.textContent = p.secondary_expanded ? '− 收合其他空間' : '＋ 也包含其他空間';
+    secToggleBtn.textContent = p.secondary_expanded ? '− 收合其他區域' : '＋ 也包含其他區域';
     secToggleBtn.addEventListener('click', function() {
       toggleSecondaryExpanded(p.id);
     });
@@ -1240,7 +1242,7 @@
     if (p.secondary_expanded) {
       var hintS = document.createElement('div');
       hintS.className = 'photo-label-hint';
-      hintS.textContent = '也包含？（選填）';
+      hintS.textContent = '也包含哪個設計區域？（選填）';
       area.appendChild(hintS);
 
       var selS = document.createElement('select');
@@ -1249,7 +1251,7 @@
       noneOpt.value = SECONDARY_NONE;
       noneOpt.textContent = '不需要';
       selS.appendChild(noneOpt);
-      ZONE_OPTIONS.forEach(function(opt) {
+      SECONDARY_ZONE_OPTIONS.forEach(function(opt) {
         if (opt.value === tz) return; // 排除已選為主要的 zone
         var o = document.createElement('option');
         o.value = opt.value;

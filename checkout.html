@@ -396,6 +396,28 @@
 </main>
 
 <script>
+  var STYLE_LABEL_ZH = {
+    modern: '都會簡約',
+    nordic: '北歐清簡',
+    japanese: '日式侘寂',
+    cream: '奶油暖居',
+    luxury: '現代輕奢',
+    industrial: '工業風格',
+    mediterranean: '地中海風',
+    muji: '無印極簡',
+    'chinese-modern': '新中式美學',
+    'art-deco': 'Art Deco',
+    boho: '波希米亞'
+  };
+  function styleSummaryLabel(raw) {
+    return String(raw || '')
+      .split(',')
+      .map(function(s) { return s.trim(); })
+      .filter(Boolean)
+      .map(function(s) { return STYLE_LABEL_ZH[s] || s; })
+      .join('、');
+  }
+
   // 從 localStorage 讀取前面步驟帶來的資料
   (function loadSummary() {
     try {
@@ -403,7 +425,7 @@
       var style   = localStorage.getItem('deco_style');
       var budget  = localStorage.getItem('deco_budget');
       if (files)  document.getElementById('summaryFiles').textContent  = files + ' 個檔案';
-      if (style)  document.getElementById('summaryStyle').textContent  = style;
+      if (style)  document.getElementById('summaryStyle').textContent  = styleSummaryLabel(style);
       if (budget) document.getElementById('summaryBudget').textContent = budget;
     } catch(e) {}
   })();

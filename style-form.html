@@ -737,16 +737,19 @@
       <button onclick="cancelPairing()" style="margin-top:16px;background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;letter-spacing:1px;">← 重選風格</button>
     </div>
 
-    <!-- Reference photo upload -->
-    <div style="margin-top:24px;">
-      <label class="field-label" style="display:block;margin-bottom:8px;">上傳參考圖片（選填，最多 8 張）</label>
-      <div class="ref-upload" id="refUploadBox">
-        <input type="file" id="refInput" accept="image/*" multiple>
-        <div class="ref-upload-icon">🖼</div>
-        <div class="ref-upload-text"><strong>點擊或拖放參考圖片</strong><br>Pinterest 截圖、雜誌圖、喜歡的設計照片皆可</div>
+    <!-- Reference photo upload: 進階選項，避免主流程干擾 -->
+    <details style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px;">
+      <summary style="cursor:pointer;color:var(--muted);font-size:11px;letter-spacing:1.5px;">進階選項：上傳參考圖片</summary>
+      <div style="margin-top:16px;">
+        <label class="field-label" style="display:block;margin-bottom:8px;">參考圖片（選填，最多 8 張）</label>
+        <div class="ref-upload" id="refUploadBox">
+          <input type="file" id="refInput" accept="image/*" multiple>
+          <div class="ref-upload-icon">🖼</div>
+          <div class="ref-upload-text"><strong>點擊或拖放參考圖片</strong><br>若有指定喜歡的氛圍，再補充即可</div>
+        </div>
+        <div class="ref-preview-grid" id="refPreviews"></div>
       </div>
-      <div class="ref-preview-grid" id="refPreviews"></div>
-    </div>
+    </details>
   </div>
 
   <hr class="section-divider">
