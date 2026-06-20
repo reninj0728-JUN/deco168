@@ -411,6 +411,22 @@ def case_backend_normalize_target_note():
     )
     print("  PASS  H7 zoning_result 建立早於 target_note constraints")
 
+    # H8: 靠窗客廳不等於沙發背靠窗；沙發與電視櫃必須正面相對。
+    from gemini_analyze import _enforce_sofa_focal_orientation
+    orientation = _enforce_sofa_focal_orientation({
+        "ok": True,
+        "reason": "結構與動線皆合理",
+        "sofa_outside_living_zone": False,
+        "focal_anchor_misaligned_with_sofa": False,
+        "sofa_back_against_window": True,
+        "sofa_focal_face_each_other": False,
+    }, has_layout_ctx=True)
+    assert orientation["ok"] is False
+    assert orientation["sofa_outside_living_zone"] is True
+    assert orientation["focal_anchor_misaligned_with_sofa"] is True
+    assert "orientation code-gate" in orientation["reason"]
+    print("  PASS  H8 沙發背靠窗／未面對電視櫃會強制 fail")
+
 
 def case_sofa_wall_rule_overrides_window_side_depth():
     """

@@ -127,10 +127,13 @@ def case_c_enrich_soft():
     for it in soft:
         assert it.get("image_url", "").startswith("http"), \
             f"soft 物件缺 image_url: {it}"
-    # 主家具不該被軟裝亂入
-    forbidden = {"pillow", "curtain", "wall_art", "vase", "plant"}
+    # 主家具不該被軟裝亂入，燈具也只能在軟裝區。
+    forbidden = {"pillow", "curtain", "wall_art", "vase", "plant",
+                 "decor", "textile", "lighting", "mirror"}
     overlap = set(matched_cats) & forbidden
     assert not overlap, f"主家具不該含軟裝 cat: {overlap}"
+    assert "media_console" in set(matched_cats), \
+        f"客廳主家具應優先配到 media_console, got {matched_cats}"
     print("  PASS")
 
 

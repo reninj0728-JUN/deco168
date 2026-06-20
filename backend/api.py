@@ -681,7 +681,8 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     for k in ("walls_changed", "recessed_space_added", "windows_changed",
               "furniture_blocks_walkway", "sofa_faces_walkway",
               "sofa_outside_living_zone",
-              "focal_anchor_misaligned_with_sofa"):
+              "focal_anchor_misaligned_with_sofa",
+              "sofa_back_against_window"):
         if validation.get(k):
             bad_flags.append(k)
 
@@ -1317,6 +1318,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         HIGH_SEVERITY_FLAGS = (
             "sofa_outside_living_zone",
             "focal_anchor_misaligned_with_sofa",
+            "sofa_back_against_window",
             "furniture_blocks_walkway",
             "sofa_faces_walkway",
         )

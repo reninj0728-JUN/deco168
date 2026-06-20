@@ -35,16 +35,12 @@ CATEGORY_ZH_TO_EN = {
 
 # ── 客廳模式品類規則 ──
 # 必撈（fallback 只能在同 category 內換相近風格，不准跨 category 替代）
-LIVING_MUST_HAVE = ['sofa', 'coffee_table', 'rug']
+LIVING_MUST_HAVE = ['sofa', 'coffee_table', 'rug', 'media_console']
 
 # 加分（補滿 top_n 用，同類各取 1）
 LIVING_NICE_TO_HAVE = [
-    'media_console',
-    'accent_chair', 'lighting', 'curtain',
-    'side_table', 'plant', 'mirror', 'chair',
+    'accent_chair', 'side_table',
 ]
-
-LIVING_PRIORITY_OPTIONAL = ['media_console']
 
 # 客廳模式排除（不准進主家具清單）
 LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding']
@@ -576,18 +572,6 @@ def match_furniture(
         if best is not None:
             selected_by_cat[cat] = best
 
-    # Stage 1B: priority optional focal anchor. If no good product exists, leave it
-    # out and let the render prompt invent a style-compatible focal cabinet.
-    for cat in LIVING_PRIORITY_OPTIONAL:
-        if cat in selected_by_cat:
-            continue
-        best = _pick_best_in_category(cat, style, prompt_keywords, pool,
-                                      is_long_room=is_long_room,
-                                      budget_tier=budget_tier,
-                                      preferred_store=preferred_store)
-        if best is not None:
-            selected_by_cat[cat] = best
-
     # Stage 2: NICE_TO_HAVE
     # 對 nice 仍套上 budget cap（保留 fallback：嚴格→1.5×→放寬）
     remaining = top_n - len(selected_by_cat)
@@ -823,12 +807,13 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
     for render in renders:
         style = render.get("style", "")
         flux_prompt = render.get("flux_prompt", "")
-        # 多撈一些供尺寸過濾，再切到 5。但客廳 must_have 已在 stage1 鎖住，不會被擠掉。
-        matched = match_furniture(style, flux_prompt, catalog, top_n=8, mode='living',
+        # 先過濾尺寸再配對，避免唯一的電視櫃在選中後才被刪除。
+        room_catalog = filter_by_dimensions(catalog, max_w)
+        matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode='living',
                                   is_long_room=is_long_room,
                                   budget_tier=budget_tier,
                                   preferred_store=preferred_store)
-        matched = filter_by_dimensions(matched, max_w)[:5]
+        matched = matched[:5]
 
         render_copy = dict(render)
         render_copy["matched_furniture"] = [
