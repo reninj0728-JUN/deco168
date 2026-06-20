@@ -399,6 +399,18 @@ def case_backend_normalize_target_note():
     assert any("中段餐廳區" in x for x in out["furniture_placement_rules"]["no_large_furniture_zones"])
     print("  PASS  H6 自然語言 note 轉成靠窗客廳 + 中段餐廳硬規則")
 
+    # H7: run_pipeline 必須先建立 zoning_result，才能套用 note constraints。
+    # 這個測試防止 UnboundLocalError 再次發生。
+    import inspect
+    from api import run_pipeline
+    source = inspect.getsource(run_pipeline)
+    zoning_init_pos = source.find('zoning_result: dict =')
+    apply_constraints_pos = source.find('zoning_result = _apply_target_note_layout_constraints(')
+    assert zoning_init_pos >= 0 and apply_constraints_pos > zoning_init_pos, (
+        "run_pipeline 必須先建立 zoning_result，再套用 target_note constraints"
+    )
+    print("  PASS  H7 zoning_result 建立早於 target_note constraints")
+
 
 def case_sofa_wall_rule_overrides_window_side_depth():
     """

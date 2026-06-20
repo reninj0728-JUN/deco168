@@ -1072,13 +1072,6 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                   f"target_zone={_best_pm_target_zone} "
                   f"target_location_hint={_best_pm_location_hint} "
                   f"target_note={(_best_pm_target_note or '')[:30]!r}")
-        zoning_result = _apply_target_note_layout_constraints(
-            zoning_result,
-            _best_pm_target_note,
-            _best_pm_target_zone,
-            _best_pm_location_hint,
-        )
-
         # Step 3 dropped (2026-06-19): plan A → rear_near_window 的硬 mapping 已移除.
         # 原因: 'A'/'B' 是 zoning-confirm 頁的方案代號, 不代表「靠窗」語意; 客廳不一定有窗;
         # 硬注入 PHOTO TARGET=BACK/WINDOW-SIDE/DEEP 會在無窗或非靠窗格局誤導 model.
@@ -1200,6 +1193,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     zoning_result = {"error": str(ze)[:300], "confidence": "none"}
         print(f"[pipeline] zoning confidence={zoning_result.get('confidence')} "
               f"error={zoning_result.get('error', '(none)')[:80]}")
+        zoning_result = _apply_target_note_layout_constraints(
+            zoning_result,
+            _best_pm_target_note,
+            _best_pm_target_zone,
+            _best_pm_location_hint,
+        )
 
         failed_stage = "matching"
         last_progress = 45
