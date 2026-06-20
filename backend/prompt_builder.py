@@ -183,6 +183,12 @@ def _build_layout_section(zoning: dict) -> str:
     layout_choice = zoning.get("_layout_choice")
     if living_where and zoning.get("_origin") == "user_confirmed_v2":
         choice_label = layout_choice or "A"
+        room_shape_text = str(syn.get("room_shape") or "")
+        room_shape_lower = room_shape_text.lower()
+        is_long_room_layout = any(
+            k in room_shape_lower
+            for k in ("長條", "狹長", "長型", "long rectangular", "elongated", "long room")
+        )
 
         # C2.1：偵測 living_where 是否描述「靠窗 / 底端 / 後段 / 深處」
         # 若是 → 在 PLACEMENT RULES 內加上明確的 back/window-side 深度位置鐵則
@@ -205,12 +211,18 @@ def _build_layout_section(zoning: dict) -> str:
 
         explicit_sofa_wall = (rules.get("sofa_wall") or "").strip()
         explicit_tv_wall = (rules.get("tv_wall") or "").strip()
+        sofa_wall_is_ambiguous = bool(
+            explicit_sofa_wall
+            and "沙發" in explicit_sofa_wall
+            and any(k in explicit_sofa_wall for k in ("電視牆", "電視櫃", "TV", "tv", "media console"))
+            and any(k in explicit_sofa_wall for k in ("或", "皆可", "二擇一", "either"))
+        )
         sofa_wall_mentions_focal = any(
             k in explicit_sofa_wall
             for k in ("電視牆", "電視櫃", "TV", "tv", "focal", "media console")
         )
         focal_wall_text = explicit_tv_wall or (
-            explicit_sofa_wall if sofa_wall_mentions_focal else ""
+            explicit_sofa_wall if sofa_wall_mentions_focal and not sofa_wall_is_ambiguous else ""
         )
         sofa_wall_rule = (
             "Use the explicit Sofa wall rule below as the binding sofa back-wall and "
@@ -220,7 +232,7 @@ def _build_layout_section(zoning: dict) -> str:
             "not which wall the sofa must back onto. Window-side / back / deep-end wording "
             "MUST NOT be interpreted as 'put the sofa back directly against the window wall' "
             "unless the Sofa wall rule explicitly says the window wall is the sofa wall. "
-        ) if explicit_sofa_wall else (
+        ) if explicit_sofa_wall and not sofa_wall_is_ambiguous else (
             "No explicit Sofa wall rule is provided; choose the nearest solid wall inside "
             "the confirmed living zone, but do NOT place the sofa back directly against "
             "the main window wall unless there is no other solid-wall option. "
@@ -232,6 +244,20 @@ def _build_layout_section(zoning: dict) -> str:
             "the TV/focal wall described there gets the media console / TV cabinet, "
             "and the sofa belongs on the opposite side facing it. "
         ) if focal_wall_text else ""
+        long_room_side_wall_rule = (
+            " LONG-ROOM SIDE-WALL CONTRACT (hard rule): This is a long rectangular room. "
+            "The sofa BACK must be flush and parallel against ONE unobstructed LONG SIDE WALL "
+            "running from the entrance/front toward the window/back. Choose the left or right "
+            "side according to visible doors and openings. The opposite long side wall must hold "
+            "the TV cabinet / media console / focal anchor, facing the sofa. The sofa must not "
+            "float in the room, sit transversely across the room, or back directly against the "
+            "window/end wall. Keep the coffee table and rug between the sofa and focal wall, close "
+            "to the sofa and completely outside the main longitudinal route. Preserve a continuous "
+            "80-90 cm clear route from the entrance to all room doors and the window-side end. "
+            "If a zoning sentence says a long wall may hold either the TV cabinet or sofa, that is "
+            "an unresolved wall-use note, not a binding sofa-wall instruction; resolve it using this "
+            "opposite-side-wall contract. "
+        ) if is_long_room_layout else ""
 
         parts.append(
             "USER-CONFIRMED LAYOUT (MANDATORY — this is the customer's explicit decision, "
@@ -251,6 +277,7 @@ def _build_layout_section(zoning: dict) -> str:
             "Do not change ceiling, walls, or built-in elements to justify their placement. "
             "(3) The sofa, coffee table, and rug MUST NOT be placed in the dining zone, "
             "walkway, or entrance zone. "
+            + long_room_side_wall_rule +
             "(4) FOCAL WALL ANCHOR — every living-room proposal MUST include one. "
             + focal_wall_rule +
             "SOFA-FOCAL PAIRING: the sofa and focal anchor (TV cabinet / media console / "
@@ -343,7 +370,13 @@ def _build_layout_section(zoning: dict) -> str:
         parts.append(f"Living zone: {living['where']}.")
 
     if rules.get("sofa_wall"):
-        parts.append(f"Sofa wall rule: {rules['sofa_wall']}")
+        if living_where and zoning.get("_origin") == "user_confirmed_v2" and sofa_wall_is_ambiguous:
+            parts.append(
+                "Ambiguous wall-use note (not a resolved sofa-wall instruction; apply the "
+                f"long-room side-wall contract): {rules['sofa_wall']}"
+            )
+        else:
+            parts.append(f"Sofa wall rule: {rules['sofa_wall']}")
     if rules.get("tv_wall"):
         parts.append(f"TV/focal wall rule: {rules['tv_wall']}")
     if rules.get("coffee_table_position"):

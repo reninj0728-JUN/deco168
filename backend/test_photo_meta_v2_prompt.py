@@ -634,6 +634,62 @@ def case_soft_furnishing_product_refs_limited_to_three():
                      "soft refs stay secondary to main furniture")
 
 
+def case_long_room_side_wall_contract_and_code_gate():
+    """Long rooms must keep sofa/table out of the longitudinal walkway."""
+    print("\n[case M] long room -> side-wall contract + walkway code gate")
+    zoning = {
+        "confidence": "high",
+        "_origin": "user_confirmed_v2",
+        "_layout_choice": "A",
+        "zones": {
+            "living_zone": {"where": "客廳靠窗端／窗邊後段"},
+            "dining_zone": {"where": "餐廳位於空間中段"},
+            "walkway": {"where": "玄關往室內並通往右側房門"},
+        },
+        "spatial_synthesis": {
+            "room_shape": "長條形開放式格局",
+            "main_window_wall": "房間最深處",
+        },
+        "furniture_placement_rules": {
+            "sofa_wall": "右側完整長牆可配置電視櫃或沙發",
+            "tv_wall": "",
+            "no_large_furniture_zones": ["右側房門前走道", "中段餐廳區"],
+        },
+    }
+    out = build_nano_banana_inputs(
+        entry=_minimal_entry(),
+        zoning=zoning,
+        room_image_url="https://example.test/room.jpg",
+        target_zone="living",
+        target_location_hint="rear_near_window",
+        target_note="客廳靠窗，餐廳中段",
+    )
+    prompt = out.get("prompt") or ""
+    _assert_contains(prompt, "LONG-ROOM SIDE-WALL CONTRACT", "long-room contract")
+    _assert_contains(prompt, "sofa BACK must be flush", "sofa against a long side wall")
+    _assert_contains(prompt, "80-90 cm clear route", "continuous walkway clearance")
+    _assert_contains(prompt, "Ambiguous wall-use note", "ambiguous wall text is not binding")
+    assert "Sofa wall rule: 右側完整長牆可配置電視櫃或沙發" not in prompt
+
+    from gemini_analyze import _enforce_sofa_focal_orientation
+    validation = _enforce_sofa_focal_orientation({
+        "ok": True,
+        "reason": "構圖合理",
+        "sofa_outside_living_zone": False,
+        "focal_anchor_misaligned_with_sofa": False,
+        "sofa_back_against_window": False,
+        "sofa_focal_face_each_other": True,
+        "sofa_against_side_wall": False,
+        "sofa_intrudes_walkway": True,
+        "coffee_table_in_walkway": True,
+    }, has_layout_ctx=True, is_long_room_layout=True)
+    assert validation["ok"] is False
+    assert validation["sofa_outside_living_zone"] is True
+    assert validation["furniture_blocks_walkway"] is True
+    _assert_contains(validation["reason"], "長條房沙發未貼", "side-wall code gate")
+    _assert_contains(validation["reason"], "茶几或地毯侵入主走道", "table walkway gate")
+
+
 def main():
     print("=" * 60)
     print("PhotoMeta v1 Step 2 — prompt 注入測試")
@@ -651,6 +707,7 @@ def main():
     case_sofa_wall_text_can_bind_focal_wall_when_tv_wall_empty()
     case_dining_middle_note_tightens_window_side_depth()
     case_soft_furnishing_product_refs_limited_to_three()
+    case_long_room_side_wall_contract_and_code_gate()
     print("\nALL PASS")
 
 

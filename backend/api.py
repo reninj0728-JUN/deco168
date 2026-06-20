@@ -682,7 +682,9 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
               "furniture_blocks_walkway", "sofa_faces_walkway",
               "sofa_outside_living_zone",
               "focal_anchor_misaligned_with_sofa",
-              "sofa_back_against_window"):
+              "sofa_back_against_window",
+              "sofa_intrudes_walkway",
+              "coffee_table_in_walkway"):
         if validation.get(k):
             bad_flags.append(k)
 
@@ -1278,8 +1280,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 return None
             walkway = (zones.get("walkway") or {}).get("where", "")
             rules = zr.get("furniture_placement_rules") or {}
+            syn = zr.get("spatial_synthesis") or {}
             return {
                 "layout_choice":            zr.get("_layout_choice") or "A",
+                "room_shape":               syn.get("room_shape", ""),
                 "living_where":             living,
                 "sofa_wall_rule":           rules.get("sofa_wall", ""),
                 "walkway":                  walkway,
@@ -1319,6 +1323,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "sofa_outside_living_zone",
             "focal_anchor_misaligned_with_sofa",
             "sofa_back_against_window",
+            "sofa_intrudes_walkway",
+            "coffee_table_in_walkway",
             "furniture_blocks_walkway",
             "sofa_faces_walkway",
         )
