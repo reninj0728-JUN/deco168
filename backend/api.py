@@ -1502,6 +1502,79 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         }
         print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n} retried={retry_n}")
 
+        # ── Phase 2 硬傷補生 (2026-06-21)：只對「硬傷」風格做一次帶完整錯誤原因的補生。
+        # 不重跑已通過 / 軟傷的風格；補生成功就納入交付，仍硬傷則部分交付並記 needs_regen。
+        # 不重構 pipeline，附加在交付閘門之前；非 nano 路徑不動。
+        if use_nano:
+            for idx in range(len(final)):
+                r = final[idx]
+                v = r.get("validation") or {}
+                if not v.get("hard_fail"):
+                    continue
+                if idx >= len(expanded):
+                    continue
+                entry = expanded[idx]
+                retry_ctx = _build_retry_ctx_from_validation(v)
+                print(f"[pipeline] Phase2 硬傷補生 render[{idx}] style={r.get('style')} "
+                      f"— {(v.get('reason') or '')[:120]}")
+                write_status(job_id, job_dir, "rendering", 93, "為未通過的風格再生成一次…")
+                failed_stage = "phase2_hardfix_generate_renders"
+                try:
+                    fix_results = generate_renders(
+                        entry["_base_path"], [entry],
+                        output_dir=str(job_dir),
+                        analysis=analysis, design_mode=design_mode,
+                        zoning=zoning_result,
+                        customer_notes=customer_notes,
+                        budget_tier=budget_tier,
+                        retry_context=retry_ctx,
+                        force_anchored=force_anchored,
+                        job_id=job_id,
+                        upload_id_masked=uid_masked,
+                        attempt=int(r.get("retry_count") or 0) + 2,
+                        stage="phase2_hardfix",
+                        target_zone=_best_pm_target_zone,
+                        target_location_hint=_best_pm_location_hint,
+                        target_note=_best_pm_target_note,
+                    )
+                except (FalGenerationTimeout, FalResultDownloadError):
+                    raise
+                except Exception as fx_e:
+                    print(f"[pipeline] Phase2 補生例外: {fx_e}")
+                    continue
+                if not fix_results:
+                    continue
+                new_r = fix_results[0]
+                if new_r.get("render_path"):
+                    src_p = Path(new_r["render_path"])
+                    new_p = src_p.parent / f"render_{entry.get('style','x')}_{idx:02d}_hardfix{src_p.suffix}"
+                    try:
+                        src_p.rename(new_p)
+                        new_r["render_path"] = str(new_p)
+                    except Exception:
+                        pass
+                try:
+                    from gemini_analyze import validate_render
+                    bpath = entry["_base_path"]
+                    rpath = new_r.get("render_path") or ""
+                    if rpath and Path(bpath).exists() and Path(rpath).exists():
+                        new_v = validate_render(bpath, rpath, entry["_angle_label"],
+                                                layout_context=layout_ctx)
+                    else:
+                        new_v = {"ok": None, "error": "missing path after hardfix"}
+                except Exception as ve:
+                    new_v = {"ok": None, "error": f"revalidate hardfix failed: {str(ve)[:200]}"}
+                new_r["validation"]   = new_v
+                new_r["angle_label"]  = entry["_angle_label"]
+                new_r["retry_count"]  = int(r.get("retry_count") or 0) + 1
+                new_r["retry_reason"] = "phase2 hardfix"
+                # 補生後不再是硬傷才取代；仍硬傷則保留原狀（後續 needs_regen 記錄）
+                if not (new_v or {}).get("hard_fail"):
+                    final[idx] = new_r
+                    print(f"[pipeline] Phase2 補生成功 render[{idx}] style={new_r.get('style')}")
+                else:
+                    print(f"[pipeline] Phase2 補生仍硬傷 render[{idx}] style={r.get('style')}")
+
         # Delivery gate (2026-06-21, partial delivery + 硬傷分級):
         # 只有「硬傷」(hard_fail=結構破壞/動線阻塞/沙發錯邊/跑錯分區/背窗/完全沒對向) 才不交付。
         # 軟傷 (深度小偏差、茶几略偏、軟裝不齊) 照常交付 → 客戶幾乎一定拿到所有風格。
@@ -1643,6 +1716,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             result_json_payload["render_mode"] = top_render_mode
         if rooms_for_json:
             result_json_payload["rooms"] = rooms_for_json     # P2-MVP-0
+        # Phase 2: 補生後仍硬傷的風格 → 記 needs_regen（額度不消失，待人工/後續補件）
+        if dropped_failed_renders:
+            result_json_payload["needs_regen"] = [
+                {"style": r.get("style"), "style_label": r.get("style_label")}
+                for r in dropped_failed_renders if r.get("style")
+            ]
 
         # C2.6: completed DB write 需驗證, 否則不可設 completed_flag
         failed_stage = "result_upsert"

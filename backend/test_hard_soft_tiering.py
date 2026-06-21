@@ -63,8 +63,19 @@ def case_c_delivery_uses_hard_fail():
            '.get("hard_fail")' in src)
 
 
+def case_d_phase2_hardfix():
+    print("[case D] Phase 2 硬傷補生一次 + needs_regen（源碼）")
+    import api
+    src = inspect.getsource(api.run_pipeline)
+    _check("有 Phase2 硬傷補生區塊", "Phase2 硬傷補生" in src or "phase2_hardfix" in src)
+    _check("補生只針對 hard_fail", 'if not v.get("hard_fail"):' in src)
+    _check("補生帶完整原因 retry_ctx", "_build_retry_ctx_from_validation(v)" in src)
+    _check("仍硬傷記 needs_regen", '"needs_regen"' in src)
+
+
 if __name__ == "__main__":
     case_a_hard_fail_flags()
     case_b_retry_only_on_hard()
     case_c_delivery_uses_hard_fail()
+    case_d_phase2_hardfix()
     print("\nALL PASS")
