@@ -1619,6 +1619,21 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         validation_summary["dropped"]         = len(dropped_failed_renders)
         validation_summary["dropped_renders"] = dropped_validation_reasons
 
+        # 客戶清單只顯示「圖中真有的核心家具」(2026-06-21)：
+        # render 只畫 sofa/coffee_table/rug（參考圖）+ media_console（強制 focal anchor）。
+        # 單椅/邊几等 nice-to-have 從不渲染 → 不可出現在「為你搭配的家具」清單，
+        # 否則客戶會看到圖上沒有的家具（且還掛價格）。
+        from furniture_match import LIVING_MUST_HAVE
+        _RENDERED_CORE_CATS = set(LIVING_MUST_HAVE)
+
+        def _rendered_core_only(mf: list) -> list:
+            items = [
+                it for it in (mf or [])
+                if (it.get("category_en") or "") in _RENDERED_CORE_CATS
+            ]
+            # category_en 缺失（舊資料）時退回原前 4，避免整列消失
+            return (items or list(mf or []))[:4]
+
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
         for r in delivery_final:
@@ -1634,7 +1649,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
-                "matched_furniture": r.get("matched_furniture", [])[:4],
+                "matched_furniture": _rendered_core_only(r.get("matched_furniture")),
                 # 軟裝接入 (2026-06-18): 結果頁獨立區塊顯示, 不併入主總計
                 "soft_furnishing":   r.get("soft_furnishing", []),
                 "validation":        r.get("validation"),

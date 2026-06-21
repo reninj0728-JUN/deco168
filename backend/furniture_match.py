@@ -525,6 +525,18 @@ def _pick_best_in_category(
                     print(f"[furniture_match] {budget_tier} {target_cat} 相近風格放寬全價域")
                 return chosen
 
+    # Stage C: must-have 保命 — category 鎖死、風格全放寬（任何風格都行）。
+    # 只給 must-have（沙發/茶几/地毯/電視櫃）：這些圖一定會畫，清單不能缺，
+    # 否則空格會被從不渲染的 nice-to-have（單椅/邊几）遞補成「圖上沒有的家具」。
+    if target_cat in LIVING_MUST_HAVE:
+        any_style = [it for it in catalog if resolve_category(it) == target_cat]
+        if any_style:
+            chosen = (_scored_in_pool(_filter(any_style, cap), match_style=False)
+                      or _scored_in_pool(any_style, match_style=False))
+            if chosen is not None:
+                print(f"[furniture_match] {target_cat} 跨風格保命撈取（同/相近風格無料）")
+                return chosen
+
     return None
 
 
