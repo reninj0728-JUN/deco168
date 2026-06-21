@@ -694,7 +694,16 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     if not isinstance(validation, dict):
         return False, ""
+
+    # 硬傷分級 (2026-06-21)：hard_fail 是交付/重生的單一判準。
+    # 只有硬傷才重生；純軟傷（深度小偏差、茶几略偏、軟裝不齊）照交付、不重生。
+    if validation.get("hard_fail"):
+        reason = (validation.get("reason") or "").strip()
+        return True, (reason or "hard fail (結構/動線/錯邊/錯區)")
+    # hard_fail=False 但 ok=False（僅軟傷）→ 不重生，直接交付
     if validation.get("ok") is not False:
+        return False, ""
+    if "hard_fail" in validation and not validation.get("hard_fail"):
         return False, ""
 
     bad_flags = []
@@ -1493,19 +1502,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         }
         print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n} retried={retry_n}")
 
-        # Delivery gate (2026-06-21, partial delivery):
-        # retry 後 validation.ok=False 的 render 不當正式成果交付，但**不再因此讓整單失敗**。
-        # 只要還有任何可交付的圖 (通過 / 未明確失敗)，就交付那些，並把被移除的 style + 原因
-        # 記進 result_json 給前端標示「N 個風格未通過品質檢查」。
-        # 只有「全部都失敗」時才讓 job failed，避免 result 頁展示已知錯圖。
-        delivery_final = [
-            r for r in final
-            if (r.get("validation") or {}).get("ok") is not False
-        ]
-        dropped_failed_renders = [
-            r for r in final
-            if (r.get("validation") or {}).get("ok") is False
-        ]
+        # Delivery gate (2026-06-21, partial delivery + 硬傷分級):
+        # 只有「硬傷」(hard_fail=結構破壞/動線阻塞/沙發錯邊/跑錯分區/背窗/完全沒對向) 才不交付。
+        # 軟傷 (深度小偏差、茶几略偏、軟裝不齊) 照常交付 → 客戶幾乎一定拿到所有風格。
+        # 部分交付：有任何可交付的就交付，被移除的 style + 原因記進 result_json。
+        # 只有「全部都硬傷」時才讓 job failed，避免 result 頁展示已知壞圖。
+        def _is_hard_fail(r: dict) -> bool:
+            return bool((r.get("validation") or {}).get("hard_fail"))
+        delivery_final = [r for r in final if not _is_hard_fail(r)]
+        dropped_failed_renders = [r for r in final if _is_hard_fail(r)]
         dropped_validation_reasons = []
         for r in dropped_failed_renders:
             v = r.get("validation") or {}
