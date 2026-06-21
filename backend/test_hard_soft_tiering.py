@@ -73,9 +73,47 @@ def case_d_phase2_hardfix():
     _check("仍硬傷記 needs_regen", '"needs_regen"' in src)
 
 
+def case_e_strict_depth_only_on_position_note():
+    print("[case E] 只有位置語意 note 才啟動嚴格深度，非位置 note 不啟動")
+    from gemini_analyze import (
+        _note_has_position_intent, _compute_strict_depth, _depth_classification,
+    )
+
+    # 位置語意偵測
+    _check("『客廳靠窗、餐廳中段』含位置語意",
+           _note_has_position_intent("客廳靠窗、餐廳中段") is True)
+    _check("『喜歡淺木色』非位置語意",
+           _note_has_position_intent("喜歡淺木色") is False)
+    _check("『不要紅色』非位置語意",
+           _note_has_position_intent("不要紅色") is False)
+    _check("空 note 非位置語意", _note_has_position_intent("") is False)
+
+    # strict_depth 啟動條件
+    _check("位置 note → strict",
+           _compute_strict_depth("客廳靠窗、餐廳中段", "unspecified", True) is True)
+    _check("非位置 note 單獨不啟動 strict",
+           _compute_strict_depth("喜歡淺木色", "unspecified", False) is False)
+    _check("rear_near_window hint → strict",
+           _compute_strict_depth("", "rear_near_window", False) is True)
+
+    # 回歸 1：客廳靠窗、餐廳中段 + 深度 65%（門檻 75/80）→ hard
+    _check("客廳靠窗+餐廳中段 深度65% → hard",
+           _depth_classification(65, 75, 80, strict=True, qual_wrong=False) == "hard")
+    # 回歸 2：喜歡淺木色（非位置, strict=False）同樣 65%（門檻 75/80）→ 不因 note 變 hard
+    _check("喜歡淺木色 深度65% → 不 hard（soft）",
+           _depth_classification(65, 75, 80, strict=False, qual_wrong=False) == "soft")
+    # Codex 原始意圖：55 vs 60 小偏差（非嚴格）→ soft
+    _check("55 vs 60 寬鬆 → soft",
+           _depth_classification(55, 60, 65, strict=False, qual_wrong=False) == "soft")
+    # 達標 → ok
+    _check("達標 80% → ok",
+           _depth_classification(82, 75, 80, strict=True, qual_wrong=False) == "ok")
+
+
 if __name__ == "__main__":
     case_a_hard_fail_flags()
     case_b_retry_only_on_hard()
     case_c_delivery_uses_hard_fail()
     case_d_phase2_hardfix()
+    case_e_strict_depth_only_on_position_note()
     print("\nALL PASS")
