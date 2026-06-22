@@ -146,6 +146,16 @@ def refine_subcategory(en_cat: str, name_zh: str) -> str:
     name_lower = (name_zh or '').lower()
     if any(kw.lower() in name_lower for kw in MEDIA_CONSOLE_KEYWORDS):
         return 'media_console'
+    # 沙發墊 / 沙發套 / 坐墊 等是「軟裝紡織」，不是主沙發本體。
+    # 修 bug：catalog 把這類錯標成 category=沙發 時，會被當成主沙發配進來
+    # （例：NT$337「法式優雅冰絲透氣沙發墊」被選為沙發）。歸 textile。
+    if en_cat == 'sofa':
+        for kw in ('沙發墊', '沙發套', '沙發罩', '沙發巾', '沙發蓋毯', '沙發毯',
+                   '坐墊', '椅墊', 'sofa cover', 'sofa cushion', 'seat cushion',
+                   'slipcover', 'couch cover'):
+            if kw.lower() in name_lower:
+                return 'textile'
+        return 'sofa'
     if en_cat == 'chair':
         for sub, kws in CHAIR_SUBCAT_RULES:
             if any(kw.lower() in name_lower for kw in kws):
