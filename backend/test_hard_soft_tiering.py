@@ -113,10 +113,32 @@ def case_e_strict_depth_only_on_position_note():
            _depth_classification(82, 75, 80, strict=True, qual_wrong=False) == "ok")
 
 
+def case_f_grounded_depth_from_bbox():
+    print("[case F] 用 bbox 客觀算深度（取代 Gemini 自述百分比）")
+    from gemini_analyze import _grounded_depth_pct, _depth_classification
+
+    win = [50, 300, 150, 700]            # 窗在上端
+    near = [180, 300, 320, 700]          # 沙發貼窗
+    mid = [480, 300, 620, 700]           # 沙發中段
+    _check("貼窗沙發 → 高深度(>75)", _grounded_depth_pct(near, win) > 75)
+    _check("中段沙發 → 約 50", 45 <= _grounded_depth_pct(mid, win) <= 55)
+    _check("缺窗 → None（退回自述）", _grounded_depth_pct(mid, None) is None)
+
+    # 核心修復：Gemini 自述 72% 靠窗，但 bbox 量到中段 50% → 取較小 → 嚴格模式判 hard
+    narrative = 72
+    grounded = _grounded_depth_pct(mid, win)
+    effective = min(narrative, grounded)
+    _check("自述偏高被客觀量測壓回中段", effective <= 55, f"effective={effective}")
+    # 餐廳在中段 → 硬門檻 75、strict → effective(50) < 70 → hard
+    _check("壓回後 → hard fail（不再默默交付中段沙發）",
+           _depth_classification(effective, 75, 80, strict=True, qual_wrong=False) == "hard")
+
+
 if __name__ == "__main__":
     case_a_hard_fail_flags()
     case_b_retry_only_on_hard()
     case_c_delivery_uses_hard_fail()
     case_d_phase2_hardfix()
     case_e_strict_depth_only_on_position_note()
+    case_f_grounded_depth_from_bbox()
     print("\nALL PASS")
