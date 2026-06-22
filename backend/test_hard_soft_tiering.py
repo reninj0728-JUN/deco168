@@ -61,6 +61,9 @@ def case_c_delivery_uses_hard_fail():
            "_is_hard_fail" in src and "delivery_final = [r for r in final if not _is_hard_fail(r)]" in src)
     _check("hard_fail 來自 validation",
            '.get("hard_fail")' in src)
+    # render 本身失敗（沒產出圖 / 有 error）也不可交付（修「生成中」卡死）
+    _check("render 失敗也判不可交付",
+           'r.get("error")' in src and "render_path" in src)
 
 
 def case_d_phase2_hardfix():

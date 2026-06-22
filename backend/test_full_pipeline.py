@@ -6,7 +6,7 @@
 不需要影片，一張房間照片就能測試完整流程：
   Gemini 看圖分析 → 家具配對 → Flux 生成渲染圖
 """
-import os, sys, json, base64, time, io
+import os, sys, json, base64, time, io, re
 from pathlib import Path
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -691,6 +691,15 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
     return anti_halluc + " ".join(parts)
 
 
+def _extract_failed_image_urls(err_text: str) -> list[str]:
+    """從 fal file_download_error 訊息抽出抓不到的 image URL。
+    例：[{... 'type': 'file_download_error', 'input': 'https://img.pchome.com.tw/...'}]"""
+    if not err_text or "file_download_error" not in err_text:
+        return []
+    urls = re.findall(r"['\"]input['\"]\s*:\s*['\"](https?://[^'\"]+)['\"]", err_text)
+    return list(dict.fromkeys(urls))  # 去重保序
+
+
 def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output",
                      analysis: dict | None = None, design_mode: str = "furnish",
                      zoning: dict | None = None,
@@ -893,34 +902,50 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "resolution":    "1K",
                     "output_format": "png",
                 }
-            try:
-                result, img_bytes = _fal_subscribe_timed(
-                    render_model,
-                    fal_args,
-                    log_ctx=log_ctx,
-                )
-                out_path = os.path.join(output_dir, f"render_{style}.png")
-                with open(out_path, "wb") as f:
-                    f.write(img_bytes)
-                results.append({
-                    **render,
-                    "render_path": out_path,
-                    "reference_map": inputs["reference_map"],
-                    "notes": inputs["notes"],
-                    "unmatched_visual_items": inputs["unmatched_visual_items"],
-                    "pipeline_version": "nano-banana-v1",
-                    "render_mode": "legacy",
-                })
-            except (FalGenerationTimeout, FalResultDownloadError):
-                # C2.6 Patch A: fal 明確例外不吞, 讓 outer except 標訂單 failed.
-                raise
-            except Exception as e:
-                # 失敗：不自動 fallback Flux，直接標記 failed
+            # fal 偶爾抓不到某張參考商品圖（例：PChome 圖）→ file_download_error，整張 render 失敗。
+            # 對策：移除 fal 抓不到的參考圖（保留房間底圖）後重試一次，避免一張外部圖掛掉整個風格。
+            attempt_args = fal_args
+            _last_err = None
+            for _try in range(2):
+                try:
+                    result, img_bytes = _fal_subscribe_timed(
+                        render_model, attempt_args, log_ctx=log_ctx,
+                    )
+                    out_path = os.path.join(output_dir, f"render_{style}.png")
+                    with open(out_path, "wb") as f:
+                        f.write(img_bytes)
+                    results.append({
+                        **render,
+                        "render_path": out_path,
+                        "reference_map": inputs["reference_map"],
+                        "notes": inputs["notes"],
+                        "unmatched_visual_items": inputs["unmatched_visual_items"],
+                        "pipeline_version": "nano-banana-v1",
+                        "render_mode": "legacy",
+                    })
+                    _last_err = None
+                    break
+                except (FalGenerationTimeout, FalResultDownloadError):
+                    # C2.6 Patch A: fal 明確例外不吞, 讓 outer except 標訂單 failed.
+                    raise
+                except Exception as e:
+                    _last_err = e
+                    bad = _extract_failed_image_urls(str(e))
+                    keep = [u for u in attempt_args["image_urls"]
+                            if u == base_image_url or u not in bad]
+                    # 只有「確實移除了抓不到的參考圖、且仍保留房間底圖」才重試
+                    if bad and len(keep) < len(attempt_args["image_urls"]) and base_image_url in keep:
+                        print(f"  [render] fal 無法下載 {len(bad)} 張參考圖，移除後重試")
+                        attempt_args = {**attempt_args, "image_urls": keep}
+                        continue
+                    break
+            if _last_err is not None:
+                # 重試後仍失敗：標記 failed（render_path=None），交付閘門會判為不可交付
                 results.append({
                     **render,
                     "render_path": None,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
+                    "error": str(_last_err),
+                    "error_type": type(_last_err).__name__,
                     "reference_map": inputs.get("reference_map", []),
                     "notes": inputs.get("notes", ""),
                     "unmatched_visual_items": inputs.get("unmatched_visual_items", []),

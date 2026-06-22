@@ -1581,13 +1581,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 部分交付：有任何可交付的就交付，被移除的 style + 原因記進 result_json。
         # 只有「全部都硬傷」時才讓 job failed，避免 result 頁展示已知壞圖。
         def _is_hard_fail(r: dict) -> bool:
-            return bool((r.get("validation") or {}).get("hard_fail"))
+            # 硬傷（驗收）或 render 本身失敗（沒產出圖）都不可交付。
+            # 後者修「奶油暖居 沒圖卻被當已交付 → 前端卡『生成中』」：fal 失敗、
+            # render_path 不存在、或帶 error 的 render，視為不可交付。
+            if (r.get("validation") or {}).get("hard_fail"):
+                return True
+            if r.get("error") or r.get("render_error"):
+                return True
+            rp = r.get("render_path") or ""
+            if not rp or not Path(rp).exists():
+                return True
+            return False
         delivery_final = [r for r in final if not _is_hard_fail(r)]
         dropped_failed_renders = [r for r in final if _is_hard_fail(r)]
         dropped_validation_reasons = []
         for r in dropped_failed_renders:
             v = r.get("validation") or {}
-            reason = v.get("reason") or v.get("error") or ""
+            reason = v.get("reason") or v.get("error") or r.get("error") or "render 未產出"
             dropped_validation_reasons.append({
                 "style":       r.get("style"),
                 "style_label": r.get("style_label"),
