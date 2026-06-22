@@ -700,6 +700,10 @@ def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     if validation.get("hard_fail"):
         reason = (validation.get("reason") or "").strip()
         return True, (reason or "hard fail (結構/動線/錯邊/錯區)")
+    # 明確位置案但 bbox 量不到客觀深度 → 重試嘗試取得 bbox 再驗（不靠自述直接放行）。
+    # 注意：不在 HARD_FAIL_FLAGS，所以持續量不到也不會被交付閘門 drop，只是重試後帶標記交付。
+    if validation.get("sofa_depth_unverified"):
+        return True, "depth unverified (bbox 缺失，重試以取得客觀量測)"
     # hard_fail=False 但 ok=False（僅軟傷）→ 不重生，直接交付
     if validation.get("ok") is not False:
         return False, ""

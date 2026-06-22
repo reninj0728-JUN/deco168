@@ -134,6 +134,21 @@ def case_f_grounded_depth_from_bbox():
            _depth_classification(effective, 75, 80, strict=True, qual_wrong=False) == "hard")
 
 
+def case_g_depth_unverified_retries_not_dropped():
+    print("[case G] 明確位置案 bbox 缺失 → 重試、不靠自述放行、不 drop")
+    import api
+    from gemini_analyze import HARD_FAIL_FLAGS
+    # bbox 缺失但明確位置案 → 需重試
+    should, _ = api.z3_needs_retry({"sofa_depth_unverified": True, "hard_fail": False, "ok": True})
+    _check("depth_unverified → 重試", should is True)
+    # 但 depth_unverified 不是硬傷 → 交付閘門不會 drop（重試後仍量不到就帶標記交付）
+    _check("depth_unverified 不在 HARD_FAIL_FLAGS（不被 drop）",
+           "sofa_depth_unverified" not in HARD_FAIL_FLAGS)
+    # 一般通過、無此旗標 → 不重試
+    should2, _ = api.z3_needs_retry({"hard_fail": False, "ok": True})
+    _check("正常通過 → 不重試", should2 is False)
+
+
 if __name__ == "__main__":
     case_a_hard_fail_flags()
     case_b_retry_only_on_hard()
@@ -141,4 +156,5 @@ if __name__ == "__main__":
     case_d_phase2_hardfix()
     case_e_strict_depth_only_on_position_note()
     case_f_grounded_depth_from_bbox()
+    case_g_depth_unverified_retries_not_dropped()
     print("\nALL PASS")
