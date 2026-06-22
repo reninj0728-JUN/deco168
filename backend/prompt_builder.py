@@ -163,18 +163,25 @@ def _build_inputs_section(reference_map: list[dict]) -> str:
     return " ".join(lines)
 
 
-def _build_layout_section(zoning: dict) -> str:
+def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
     """
     從 zoning 原文組裝 layout 描述（不 parse 牆名）。
     sofa_wall / tv_wall / living_zone.where / walkway / no_large_furniture_zones 全文塞進去。
     若 zoning 帶有 _layout_choice（user-confirmed），加 HARD BINDING rule 在最前面。
+    target_note: 使用者補充說明，用來偵測「中間做餐廳」這類分區意圖（與驗收端同步）。
     """
     syn = zoning.get("spatial_synthesis", {}) or {}
     zones = zoning.get("zones", {}) or {}
     rules = zoning.get("furniture_placement_rules", {}) or {}
     no_go = rules.get("no_large_furniture_zones") or []
     no_go_text = " ".join(str(x) for x in no_go) if isinstance(no_go, list) else str(no_go or "")
-    has_dining_middle_constraint = ("餐廳" in no_go_text and ("中段" in no_go_text or "中間" in no_go_text))
+    # dining-middle 偵測必須同時看「使用者補充說明」與 no_go 區，與 gemini_analyze 驗收端一致。
+    # 過去只看 no_go_text → 使用者寫「中間做餐廳」時生成 prompt 收不到，驗收卻用 80% 嚴判 → 標準不一致。
+    _dm_signal = f"{no_go_text} {target_note or ''} {(zones.get('living_zone') or {}).get('where','')}"
+    has_dining_middle_constraint = (
+        ("餐廳" in _dm_signal or "dining" in _dm_signal.lower())
+        and any(k in _dm_signal for k in ("中段", "中間", "中央", "middle", "center", "centre"))
+    )
 
     parts = []
 
@@ -364,9 +371,15 @@ def _build_layout_section(zoning: dict) -> str:
             sofa_depth_target = 75 if has_dining_middle_constraint else 65
             anchor_depth_target = 60 if has_dining_middle_constraint else 50
             dining_middle_clause = (
-                " Because the user's note reserves the middle zone for dining, the living "
-                "group must be pushed clearly to the window-side end, not parked on the "
-                "boundary between living and dining. "
+                " ZONE SEPARATION (user's explicit note — MANDATORY): the user split this room "
+                "into TWO zones: the WINDOW-SIDE end is the LIVING room, and the MIDDLE of the "
+                "room (toward the kitchen/entrance side) is the DINING area. Place the ENTIRE "
+                "living group — sofa, coffee table, rug, and TV/focal anchor — ONLY in the "
+                "window-side back portion of the room. The MIDDLE third of the room MUST be left "
+                "OPEN for dining: no sofa, no coffee table, no rug, no TV cabinet in the middle. "
+                "If the living furniture sits in the middle of the room, or spreads from the "
+                "window into the middle, that is a FAILURE — the living room has been placed in "
+                "the dining zone. Keep the living group compact and pushed to the window end. "
             ) if has_dining_middle_constraint else " "
             parts.append(
                 "DEPTH PERCENTAGE TARGETS (hard rule, applies because the confirmed "
@@ -997,7 +1010,7 @@ def build_nano_banana_inputs(
     inputs_sec = _build_inputs_section(reference_map)
 
     if _is_zoning_usable(zoning):
-        layout_sec = _build_layout_section(zoning)
+        layout_sec = _build_layout_section(zoning, target_note=target_note)
     else:
         layout_sec = _build_fallback_layout_section()
 

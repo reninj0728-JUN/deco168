@@ -568,7 +568,7 @@ def case_dining_middle_note_tightens_window_side_depth():
     prompt = out.get("prompt") or ""
     _assert_contains(prompt, "depth >= 75%", "sofa depth tightened to back 25%")
     _assert_contains(prompt, "depth >= 60%", "focal anchor depth tightened")
-    _assert_contains(prompt, "middle zone for dining", "dining middle clause")
+    _assert_contains(prompt, "left OPEN for dining", "dining middle zone-separation clause")
     _assert_contains(prompt, "中段餐廳區", "no-large-furniture dining middle zone")
 
 
