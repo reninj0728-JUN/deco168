@@ -189,6 +189,11 @@ def _build_layout_section(zoning: dict) -> str:
             k in room_shape_lower
             for k in ("長條", "狹長", "長型", "long rectangular", "elongated", "long room")
         )
+        # 窄房偵測：室內寬度小 → 沙發+對牆焦點之間的中央走道吃緊，容易擋路。
+        # 用 room_shape 文字（如「長型窄深格局」「狹長」）判斷，narrow + long 才補強。
+        is_narrow_room = is_long_room_layout and any(
+            k in room_shape_lower for k in ("窄", "狹", "narrow")
+        )
 
         # C2.1：偵測 living_where 是否描述「靠窗 / 底端 / 後段 / 深處」
         # 若是 → 在 PLACEMENT RULES 內加上明確的 back/window-side 深度位置鐵則
@@ -275,6 +280,16 @@ def _build_layout_section(zoning: dict) -> str:
             "an unresolved wall-use note, not a binding sofa-wall instruction; resolve it using this "
             "opposite-side-wall contract. "
         ) if is_long_room_layout else ""
+        # 窄房補強：寬度小，沙發+對牆焦點之間容易擠掉走道。限制家具尺寸與佔深，保住中央動線。
+        narrow_room_rule = (
+            " NARROW-ROOM CONSTRAINT (this room is narrow): keep the furniture footprint small so "
+            "a clear central walkway of at least 80 cm remains down the room. Use a shallow, "
+            "compact sofa (2-seater depth, no L-shape / sectional / chaise / daybed that juts into "
+            "the room) placed flush against its long wall; use a small, low coffee table; keep the "
+            "rug within the sofa-to-focal span. The sofa front, coffee table, and rug MUST NOT "
+            "protrude past the middle of the room toward the opposite wall or block the path to the "
+            "window-side end. Prefer leaving floor open over crowding the walkway. "
+        ) if is_narrow_room else ""
 
         parts.append(
             "USER-CONFIRMED LAYOUT (MANDATORY — this is the customer's explicit decision, "
@@ -294,7 +309,8 @@ def _build_layout_section(zoning: dict) -> str:
             "Do not change ceiling, walls, or built-in elements to justify their placement. "
             "(3) The sofa, coffee table, and rug MUST NOT be placed in the dining zone, "
             "walkway, or entrance zone. "
-            + long_room_side_wall_rule +
+            + long_room_side_wall_rule
+            + narrow_room_rule +
             "(4) FOCAL WALL ANCHOR — every living-room proposal MUST include one. "
             + focal_wall_rule +
             "SOFA-FOCAL PAIRING: the sofa and focal anchor (TV cabinet / media console / "

@@ -106,8 +106,29 @@ def case_c_retry_and_severity_wired():
     _check("重試帶錯邊修正", "WRONG side wall" in sec, sec)
 
 
+def case_d_narrow_room_constraint():
+    print("[case D] 窄房才加 NARROW-ROOM CONSTRAINT")
+    import api
+    from prompt_builder import _build_layout_section
+
+    def _z(shape):
+        v2 = _zoning_v2("left", "right")
+        v2["spatial_synthesis"]["room_shape"] = shape
+        return api.flatten_zoning_v2_to_v1(v2, "A")
+
+    s_narrow = _build_layout_section(_z("長型窄深格局"))
+    _check("窄房 → 有窄房限制", "NARROW-ROOM CONSTRAINT" in s_narrow, s_narrow[:0])
+    _check("窄房限制含 80cm 走道 + 淺沙發",
+           "80 cm" in s_narrow and "2-seater" in s_narrow, s_narrow[:0])
+    _check("禁 L 型/貴妃", "L-shape" in s_narrow and "chaise" in s_narrow, s_narrow[:0])
+
+    s_wide = _build_layout_section(_z("方正客廳格局"))
+    _check("非窄房 → 不加窄房限制", "NARROW-ROOM CONSTRAINT" not in s_wide)
+
+
 if __name__ == "__main__":
     case_a_flatten_carries_side()
     case_b_prompt_binds_side()
     case_c_retry_and_severity_wired()
+    case_d_narrow_room_constraint()
     print("\nALL PASS")
