@@ -110,12 +110,14 @@ app.mount("/jobs", StaticFiles(directory=str(JOBS_DIR), html=False), name="jobs"
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
 
-def sb_upsert(data: dict):
+def sb_upsert(data: dict, timeout: int = 8) -> bool:
+    """寫 orders。回傳是否成功（HTTP 2xx）。大 payload（completed result_json）可調高 timeout。"""
     try:
-        _req.post(f"{SUPABASE_URL}/rest/v1/orders", json=data,
-                  headers=_SB_HEADERS, timeout=8)
+        r = _req.post(f"{SUPABASE_URL}/rest/v1/orders", json=data,
+                      headers=_SB_HEADERS, timeout=timeout)
+        return r.status_code in (200, 201, 204)
     except Exception:
-        pass
+        return False
 
 def sb_get(job_id: str) -> dict | None:
     try:
@@ -1752,18 +1754,27 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 for r in dropped_failed_renders if r.get("style")
             ]
 
-        # C2.6: completed DB write 需驗證, 否則不可設 completed_flag
+        # C2.6: completed DB write 需驗證, 否則不可設 completed_flag。
+        # 大 payload（result_json 含 analysis/zoning/renders…）寫入可能 >8s 逾時被吞掉，
+        # 導致狀態沒更新成 completed → 圖明明生好了卻被打成 failed。
+        # 對策：拉長 timeout + 重試多次（寫入→讀回驗證），全部失敗才 raise。
         failed_stage = "result_upsert"
-        sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
-                   "message": "設計方案生成完畢！",
-                   "result_json": result_json_payload})
-        verify_row = sb_get(job_id) or {}
-        if verify_row.get("status") != "completed":
+        completed_payload = {"job_id": job_id, "status": "completed", "progress": 100,
+                             "message": "設計方案生成完畢！",
+                             "result_json": result_json_payload}
+        for _attempt in range(4):
+            sb_upsert(completed_payload, timeout=25)
+            verify_row = sb_get(job_id) or {}
+            if verify_row.get("status") == "completed":
+                completed_flag = True
+                break
+            print(f"[pipeline] completed 寫入未生效（第 {_attempt + 1} 次），狀態="
+                  f"{verify_row.get('status')!r}，重試…")
+        if not completed_flag:
             raise RuntimeError(
-                f"completed DB write verification failed; "
-                f"current status={verify_row.get('status')!r}"
+                "completed DB write verification failed after retries; "
+                f"current status={(sb_get(job_id) or {}).get('status')!r}"
             )
-        completed_flag = True
 
         # 跑完自動清掉 R2 上的影片（隱私 + 省空間）
         for key in r2_keys_to_delete:
