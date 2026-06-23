@@ -682,6 +682,12 @@
 
         var renders = data.renders || [];
         if (renders.length) { buildUI(renders); }
+        else if (data.repairing) {
+          // 全部仍在優化中：顯示友善訊息，不是「失敗」也不是「尚無渲染圖」
+          document.getElementById('tabsContainer').innerHTML =
+            '<div class="loading-msg">你的專屬設計仍在為你優化中，我們會盡快補上。<br>'
+            + '可稍後在「查詢下載」用訂單編號查看，或聯絡客服。</div>';
+        }
         else { document.getElementById('tabsContainer').innerHTML = '<div class="loading-msg">尚無渲染圖</div>'; }
         // 部分交付提示：有風格未通過品質檢查時，告知用戶（不影響已交付的圖）
         try { showDroppedNotice(data.validation_summary); } catch (e) { console.warn('dropped notice 失敗', e); }

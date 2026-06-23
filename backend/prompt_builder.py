@@ -397,7 +397,14 @@ def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
                 "remain within one sofa-length of the sofa — they cannot stretch the "
                 "living group across the room. "
                 "- Push the sofa group deeper toward the window end. Empty front half "
-                "is acceptable; sofa in the middle is not."
+                "is acceptable; sofa in the middle is not. "
+                # 解決「靠窗深處 vs 不背窗」矛盾：深 = 沿側牆往窗端靠，不是把椅背貼到窗。
+                "- IMPORTANT — 'deep / window-side' means the sofa sits at the window END "
+                "of the room with its BACK FLAT AGAINST A SIDE (long) WALL, sliding toward "
+                "the window. It does NOT mean the sofa backs onto the window. NEVER place the "
+                "sofa with its back against the window or window wall to gain depth — a sofa "
+                "backing the window is a FAILURE. Reach the depth by moving the side-wall sofa "
+                "toward the window end, keeping the window clear behind/beside it."
                 + dining_middle_clause
             )
 
@@ -744,7 +751,14 @@ def _build_retry_context_section(retry_context: dict | None) -> str:
     if not (has_sofa or has_anchor or failed_flags or reason):
         return ""
 
-    lines = ["PREVIOUS ATTEMPT FAILED LAYOUT VALIDATION — FIX THESE EXACT PROBLEMS:"]
+    # 修正模式：明講「上一張錯了、這次只准修這些、其他正確的別動」，語氣強制。
+    lines = [
+        "CORRECTION MODE — YOUR PREVIOUS RENDER OF THIS ROOM FAILED LAYOUT REVIEW.",
+        "You MUST regenerate it and FIX exactly the problems listed below. Keep everything "
+        "that was already correct (style, colours, structure, camera) and change ONLY what is "
+        "needed to fix these. Do not introduce new layout errors.",
+        "PROBLEMS TO FIX:",
+    ]
     seen_fixes = set()
     for f in failed_flags:
         fix = _RETRY_FLAG_FIX_EN.get(f)
@@ -756,18 +770,22 @@ def _build_retry_context_section(retry_context: dict | None) -> str:
         lines.append(f"- Reviewer note on the previous attempt: {reason}")
     if has_sofa:
         lines.append(
-            f"- Sofa depth was estimated at {int(sofa_pct)}%. "
-            "Required target is around 65% or deeper."
+            f"- Last time the sofa sat at depth ~{int(sofa_pct)}% (too far forward). Move it "
+            "deeper toward the window END, but keep its BACK against the SIDE wall — do NOT "
+            "back the sofa onto the window."
         )
     if has_anchor:
         lines.append(
-            f"- Focal anchor depth was estimated at {int(anchor_pct)}%. "
-            "It must align with the sofa and stay in the same living zone."
+            f"- Last time the focal anchor sat at depth ~{int(anchor_pct)}% (too far forward). "
+            "Put the TV cabinet / focal anchor on the wall the sofa directly faces, in the same "
+            "window-side living zone, aligned with the sofa."
         )
     lines.extend([
-        "- Move the sofa group deeper toward the window-side end.",
-        "- Keep sofa, rug, coffee table, and focal anchor compact as one living room group.",
-        "- Do not place TV cabinet / media console in the middle, entrance, dining, or walkway zone.",
+        "- Move the whole living group (sofa, rug, coffee table, focal anchor) to the "
+        "window END of the room, kept compact as ONE group.",
+        "- Sofa back flush against a SIDE (long) wall toward the window — never backing the window.",
+        "- Keep the MIDDLE of the room clear of living furniture (it is reserved for dining).",
+        "- Do not place the TV cabinet / media console in the middle, entrance, dining, or walkway.",
     ])
     return " ".join(lines)
 

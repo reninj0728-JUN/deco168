@@ -34,10 +34,10 @@ def case_a_retry_carries_failure_flags():
         "failed_flags": ["sofa_back_against_window", "sofa_intrudes_walkway"],
         "sofa_pct": 40,
     })
-    _check("header 明示要修正", "FIX THESE EXACT PROBLEMS" in s, s)
+    _check("header 為修正模式", "CORRECTION MODE" in s, s)
     _check("帶沙發背窗修正", "sofa back to the window" in s, s)
     _check("帶侵入走道修正", "clear of the main" in s, s)
-    _check("仍帶深度數字", "estimated at 40%" in s, s)
+    _check("仍帶深度數字", "depth ~40%" in s, s)
 
     # 沒有結構化 flag 時, 至少帶 reason
     s2 = _build_retry_context_section({"reason": "沙發未貼長牆"})
@@ -59,10 +59,11 @@ def case_b_delivery_gate_partial():
     import api
     src = inspect.getsource(api.run_pipeline)
 
-    # 全部失敗才 raise
-    _check("全部失敗才 raise",
-           "if not delivery_final:" in src and
-           "all renders failed validation after retries" in src, src[:0])
+    # 全部硬傷 → 不再 raise/failed，改 repairing（客戶不該看到失敗）
+    _check("全部硬傷標 repairing 不 raise",
+           "all_failed_repairing" in src and 'result_json_payload["repairing"] = True' in src)
+    _check("不再因全失敗 raise",
+           "all renders failed validation after retries" not in src)
 
     # 不再有「one or more renders failed → raise」整單失敗
     _check("移除 one-or-more raise",

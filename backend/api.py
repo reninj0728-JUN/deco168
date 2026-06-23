@@ -1610,19 +1610,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "reason":      str(reason)[:240],
             })
 
-        if not delivery_final:
-            # 全部失敗 → 沒有任何可交付的圖，才讓整單 failed。
-            failed_stage = "validation_delivery_gate"
-            raise AnchoredValidationFailed(
-                "all renders failed validation after retries",
-                extras={
-                    "failed_render_styles": [
-                        r.get("style") for r in dropped_failed_renders if r.get("style")
-                    ],
-                    "validation_reasons": dropped_validation_reasons,
-                    "validation_summary": validation_summary,
-                },
-            )
+        # 全部硬傷時：不再打成 failed（客戶不該看到「處理失敗」）。
+        # 改標 repairing：訂單仍 completed，但帶 repairing 旗標 + needs_regen，
+        # result 頁顯示「設計仍在優化中，會盡快補上」，由後續/人工補生交付。
+        all_failed_repairing = (len(delivery_final) == 0)
+        if all_failed_repairing:
+            print("[pipeline] 全部硬傷 → 標 repairing（不打 failed），記 needs_regen 待補生")
 
         if dropped_failed_renders:
             # 部分交付：交付通過的，被移除的記錄起來給前端 + summary，不讓整單消失。
@@ -1753,14 +1746,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 {"style": r.get("style"), "style_label": r.get("style_label")}
                 for r in dropped_failed_renders if r.get("style")
             ]
+        # 全部硬傷 → repairing：訂單仍 completed，但前端顯示「優化中」而非失敗
+        if all_failed_repairing:
+            result_json_payload["repairing"] = True
 
         # C2.6: completed DB write 需驗證, 否則不可設 completed_flag。
         # 大 payload（result_json 含 analysis/zoning/renders…）寫入可能 >8s 逾時被吞掉，
         # 導致狀態沒更新成 completed → 圖明明生好了卻被打成 failed。
         # 對策：拉長 timeout + 重試多次（寫入→讀回驗證），全部失敗才 raise。
         failed_stage = "result_upsert"
+        completed_msg = ("部分設計仍在為你優化中，我們會盡快補上"
+                         if all_failed_repairing else "設計方案生成完畢！")
         completed_payload = {"job_id": job_id, "status": "completed", "progress": 100,
-                             "message": "設計方案生成完畢！",
+                             "message": completed_msg,
                              "result_json": result_json_payload}
         for _attempt in range(4):
             sb_upsert(completed_payload, timeout=25)
