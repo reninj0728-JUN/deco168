@@ -149,6 +149,38 @@ def case_g_depth_unverified_retries_not_dropped():
     _check("正常通過 → 不重試", should2 is False)
 
 
+def case_h_dining_middle_requires_80():
+    print("[case H] 客廳靠窗+餐廳中段 → 沙發/電視櫃須 >=80%，73-77% 直接硬傷不軟交")
+    from gemini_analyze import _depth_classification
+    # 86E3795B 實際數字（dining-middle 明確分區 → no_soft）
+    _check("法式 76.9% → hard",
+           _depth_classification(76.9, 75, 80, strict=True, qual_wrong=False, no_soft=True) == "hard")
+    _check("新中式 73.9% → hard",
+           _depth_classification(73.9, 75, 80, strict=True, qual_wrong=False, no_soft=True) == "hard")
+    _check("達標 82% → ok",
+           _depth_classification(82, 75, 80, strict=True, qual_wrong=False, no_soft=True) == "ok")
+    # 非分區案不受影響（仍有軟傷帶，避免全面過嚴）
+    _check("非分區 76.9% 寬鬆 → ok",
+           _depth_classification(76.9, 60, 65, strict=False, qual_wrong=False, no_soft=False) == "ok")
+    _check("一般 strict 73% 仍 soft（無 no_soft）",
+           _depth_classification(73, 60, 65, strict=True, qual_wrong=False, no_soft=False) == "ok")
+
+
+def case_i_reason_keyword_blocks_delivery():
+    print("[case I] 驗收理由點名電視櫃偏前/佔用餐廳/擋入口 → 強制硬傷（源碼）")
+    import inspect
+    from gemini_analyze import validate_render
+    src = inspect.getsource(validate_render)
+    _check("有理由關鍵字安全網", "_BLOCK_FOCAL_KW" in src and "_BLOCK_WALK_KW" in src)
+    _check("命中焦點關鍵字 → focal_anchor_misaligned",
+           'result["focal_anchor_misaligned_with_sofa"] = True' in src
+           and "_BLOCK_FOCAL_KW" in src)
+    _check("命中走道關鍵字 → furniture_blocks_walkway",
+           'result["furniture_blocks_walkway"] = True' in src and "_BLOCK_WALK_KW" in src)
+    _check("含『佔用餐廳』關鍵字", "佔用餐廳" in src)
+    _check("含『擋入口』關鍵字", "擋入口" in src)
+
+
 if __name__ == "__main__":
     case_a_hard_fail_flags()
     case_b_retry_only_on_hard()
@@ -157,4 +189,6 @@ if __name__ == "__main__":
     case_e_strict_depth_only_on_position_note()
     case_f_grounded_depth_from_bbox()
     case_g_depth_unverified_retries_not_dropped()
+    case_h_dining_middle_requires_80()
+    case_i_reason_keyword_blocks_delivery()
     print("\nALL PASS")
