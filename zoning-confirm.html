@@ -145,6 +145,21 @@
       </label>
     </div>
 
+    <div id="sofaSideBox" class="questions" style="display:none;">
+      <div class="qtitle">沙發靠哪一側長牆？<span id="sofaSideAI" style="color:var(--gold-lt);font-weight:400;"></span></div>
+      <div style="display:flex; gap:12px; margin-top:10px;">
+        <label class="opt side-opt" id="sideLeft" style="flex:1; padding:14px 16px; text-align:center;">
+          <input type="radio" name="sofaside" value="left" style="display:none;">沙發靠左側牆
+        </label>
+        <label class="opt side-opt" id="sideRight" style="flex:1; padding:14px 16px; text-align:center;">
+          <input type="radio" name="sofaside" value="right" style="display:none;">沙發靠右側牆
+        </label>
+      </div>
+      <div style="font-size:12px; color:var(--body); margin-top:8px;">
+        以照片正面視角為準（電視櫃會放在沙發對側）。不確定就用 AI 建議。
+      </div>
+    </div>
+
     <div id="questionsBox" class="questions" style="display:none;">
       <div class="qtitle">需要你補答的細節（之後付款後會再問）</div>
       <ul id="questionsList"></ul>
@@ -168,6 +183,7 @@
 
   var currentZoning = null;
   var currentChoice = 'A';
+  var currentSofaSide = 'right';   // 預設 AI 建議；renderResult 會覆寫成實際 AI 值
 
   function showError(msg) {
     document.getElementById('loadingBox').style.display = 'none';
@@ -214,6 +230,15 @@
     setText('livingB', dining.where || living.alt_option || '（中段做客廳）');
     setText('diningB', living.alt_option || dining.alt_option || '（靠窗做餐廳/書房）');
 
+    // 沙發左右：預設帶 AI 建議值，使用者可改。寫回 zoning 後 flatten 會用它綁定 + 驗收。
+    var aiSide = ((living.sofa_side || '') + '').toLowerCase();
+    if (aiSide !== 'left' && aiSide !== 'right') aiSide = 'right';
+    currentSofaSide = aiSide;
+    setSofaSide(aiSide);
+    document.getElementById('sofaSideAI').textContent =
+      '（AI 建議：' + (aiSide === 'left' ? '靠左' : '靠右') + '）';
+    document.getElementById('sofaSideBox').style.display = 'block';
+
     // needs_user_input
     var nui = zoning.needs_user_input || [];
     if (nui.length) {
@@ -245,6 +270,20 @@
     currentChoice = 'B';
   });
 
+  // 沙發左右選擇
+  function setSofaSide(side) {
+    currentSofaSide = (side === 'left') ? 'left' : 'right';
+    var l = document.getElementById('sideLeft'), r = document.getElementById('sideRight');
+    if (l) l.classList.toggle('selected', currentSofaSide === 'left');
+    if (r) r.classList.toggle('selected', currentSofaSide === 'right');
+    var li = document.querySelector('input[name=sofaside][value=left]');
+    var ri = document.querySelector('input[name=sofaside][value=right]');
+    if (li) li.checked = currentSofaSide === 'left';
+    if (ri) ri.checked = currentSofaSide === 'right';
+  }
+  document.getElementById('sideLeft').addEventListener('click', function(){ setSofaSide('left'); });
+  document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right'); });
+
   // 3. 進入 checkout
   function goNext() {
     var btn = document.getElementById('nextBtn');
@@ -254,6 +293,17 @@
     localStorage.setItem('deco_layout_choice', currentChoice || 'A');
     if (currentZoning) {
       try {
+        // 把使用者選的沙發側寫回 zoning（A 用 sofa_side、B 用 alt_sofa_side；兩者都設，
+        // 確保不論 A/B，flatten_zoning_v2_to_v1 都拿到使用者指定的側）。
+        var oppSide = (currentSofaSide === 'left') ? 'right' : 'left';
+        currentZoning.proposed_zones = currentZoning.proposed_zones || {};
+        currentZoning.proposed_zones.living_zone = currentZoning.proposed_zones.living_zone || {};
+        var lz = currentZoning.proposed_zones.living_zone;
+        lz.sofa_side = currentSofaSide;
+        lz.tv_side = oppSide;
+        lz.alt_sofa_side = currentSofaSide;
+        lz.alt_tv_side = oppSide;
+        lz.sofa_side_confidence = 'high';   // 使用者明確指定 → 視為高信心
         localStorage.setItem('deco_zoning_json', JSON.stringify(currentZoning));
       } catch (e) {
         console.warn('zoning_json 寫入失敗', e);
