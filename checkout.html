@@ -328,7 +328,7 @@
     <!-- Plan A -->
     <div class="plan-card selected" id="planA" onclick="selectPlan('A')">
       <div class="plan-badge">方案一</div>
-      <div class="plan-name" id="planAName">單房風格提案</div>
+      <div class="plan-name" id="planAName">單一空間提案</div>
       <div class="plan-tagline" id="planATagline" style="font-size:11px;color:var(--muted);letter-spacing:1.5px;margin-top:6px;margin-bottom:14px;line-height:1.6;">適合單一空間、租屋族或小坪數快速改造。</div>
       <div class="plan-price"><span id="planAPrice">NT$1,199</span><span>/ 次</span></div>
       <div class="plan-divider"></div>
@@ -368,7 +368,7 @@
   <div class="pay-section">
     <div class="pay-title">付款資訊</div>
     <div class="pay-total-row">
-      <div class="pay-total-label" id="payLabel">方案一 · 單房風格提案</div>
+      <div class="pay-total-label" id="payLabel">單一空間 · 2 種風格</div>
       <div class="pay-total-amount"><em>NT$</em><span id="payAmount">1,199</span></div>
     </div>
 
@@ -439,8 +439,8 @@
   // 舊 9800 設計師審核方案從前台隱藏; backend plan code A/B 對應邏輯不動.
   var PLAN_A_PRICE = 1199;
   var PLAN_B_PRICE = 1799;
-  var PLAN_A_LABEL = '方案一 · 單房風格提案';
-  var PLAN_B_LABEL = '方案二 · 全室空間提案';
+  var PLAN_A_LABEL = '單一空間 · 2 種風格';
+  var PLAN_B_LABEL = '全室空間 · 2 種風格';
 
   function fmt(n) { return n.toLocaleString(); }
   function calcTotal(base) { return base + extraFee; }
