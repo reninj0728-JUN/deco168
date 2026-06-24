@@ -43,7 +43,10 @@ SOFT_FURNISHING_EN = {
     "decor":    "a small decorative accent piece (sculpture / display object / ornament) "
                 "on the coffee table or side table",
     "lighting": "a complementary lamp (table lamp on the side table OR floor lamp "
-                "next to the sofa) consistent with the chosen style",
+                "tucked in the corner right beside the sofa, against the wall) consistent "
+                "with the chosen style. The floor lamp MUST stay beside/behind the sofa in "
+                "the living corner — NEVER standing in the middle of the room or in the "
+                "central walkway/corridor",
 }
 
 # Soft furnishing product references:
@@ -70,8 +73,10 @@ SOFT_REFERENCE_PLACEMENT = {
         "Do not invent a new window."
     ),
     "lighting": (
-        "Place as a table lamp on a side table / console, or as a floor lamp beside the sofa, "
-        "where it naturally supports the living-room group without blocking the walkway."
+        "Place as a table lamp on a side table / console, or as a floor lamp in the corner "
+        "right beside the sofa against the wall. The floor lamp MUST stay within the living "
+        "group by the wall — NEVER in the middle of the room or in the central walkway / "
+        "corridor (a lamp standing in the walkway is a FAILURE)."
     ),
     "wall_art": (
         "Place on a solid wall in or near the living zone, above the sofa or focal console. "
@@ -529,7 +534,16 @@ def _build_soft_furnishing_section(soft_furnishing: list[dict],
     if not ref_lines and not bullets:
         return ""
 
-    sections: list[str] = []
+    # 總則：所有軟裝（燈/植栽/花器/擺件）只能放在客廳組內、靠牆或角落，不可佔用中央走道。
+    WALKWAY_CLEAR_RULE = (
+        "PLACEMENT RULE FOR ALL SOFT ACCENTS: every soft accent (floor/table lamp, potted "
+        "plant, vase, decor) must sit WITHIN the living-room group — beside the sofa, on the "
+        "side table/console, or in a corner against the wall. NONE of them may stand in the "
+        "central walkway, the corridor, or the open middle of the room. Keep the main "
+        "circulation path completely clear of these items."
+    )
+
+    sections: list[str] = [WALKWAY_CLEAR_RULE]
     if ref_lines:
         sections.append(
             "SOFT FURNISHING PRODUCT REFERENCES (real purchasable accessories, max 2-3 per render):\n"

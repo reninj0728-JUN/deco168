@@ -167,14 +167,19 @@
 
     <!-- Stage 1：checkout 併入本頁 → 確認分區即成交，不再跳一頁看摘要 -->
     <div class="pay-block" style="margin-top:28px; border-top:1px solid var(--line); padding-top:22px;">
+      <div style="font-size:12px; color:var(--body); margin-bottom:10px;">選擇方案（每個方案都含 2 種風格）</div>
       <div style="display:flex; gap:12px; margin-bottom:16px;">
         <button type="button" class="opt side-opt selected" id="svcA" onclick="selectPlan('A')"
-                style="flex:1; padding:14px 12px; text-align:center; cursor:pointer;">
-          單房風格提案<br><span style="color:var(--gold-lt);">NT$1,199</span>
+                style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
+          <div style="font-size:15px; color:#fff; letter-spacing:1px;">單一空間</div>
+          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">此空間 · 2 種風格</div>
+          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,199</div>
         </button>
         <button type="button" class="opt side-opt" id="svcB" onclick="selectPlan('B')"
-                style="flex:1; padding:14px 12px; text-align:center; cursor:pointer;">
-          全室空間提案<br><span style="color:var(--gold-lt);">NT$1,799</span>
+                style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
+          <div style="font-size:15px; color:#fff; letter-spacing:1px;">全室空間</div>
+          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">多空間 · 2 種風格</div>
+          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,799</div>
         </button>
       </div>
       <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
