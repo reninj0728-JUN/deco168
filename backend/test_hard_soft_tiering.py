@@ -150,22 +150,22 @@ def case_g_depth_unverified_retries_not_dropped():
 
 
 def case_h_dining_middle_reasonable_floor():
-    print("[case H] 客廳靠窗+餐廳中段 → <72 硬、72-80 軟交、>=80 理想（不死卡 80）")
+    print("[case H] 客廳靠窗+餐廳中段 → >=72 OK、60-72 軟交、<60 硬擋（不為差幾趴掉件）")
     from gemini_analyze import _depth_classification
-    # dining-middle 門檻：sofa_hard_floor=77, soft=80, strict grace=5 → 實際 <72 才硬
-    _check("76.9% → soft（照交付，不再硬擋）",
-           _depth_classification(76.9, 77, 80, strict=True, qual_wrong=False) == "soft")
-    _check("73.9% → soft（照交付）",
-           _depth_classification(73.9, 77, 80, strict=True, qual_wrong=False) == "soft")
-    _check("70% → hard（明顯太靠前）",
-           _depth_classification(70, 77, 80, strict=True, qual_wrong=False) == "hard")
-    _check(">=80% → ok（達理想）",
-           _depth_classification(82, 77, 80, strict=True, qual_wrong=False) == "ok")
-    # 焦點 dining-middle: anchor_hard_floor=70 → 實際 <65 才硬
-    _check("focal 55% → hard（太靠前）",
-           _depth_classification(55, 70, 80, strict=True, qual_wrong=False) == "hard")
-    _check("focal 70% → soft（照交付）",
-           _depth_classification(70, 70, 80, strict=True, qual_wrong=False) == "soft")
+    # dining-middle sofa：hard_floor=65, soft=72, strict grace=5 → 實際 <60 才硬、>=72 即 OK
+    _check("65% → soft（照交付，不再因差幾趴掉件）",
+           _depth_classification(65, 65, 72, strict=True, qual_wrong=False) == "soft")
+    _check("70% → soft（照交付）",
+           _depth_classification(70, 65, 72, strict=True, qual_wrong=False) == "soft")
+    _check("75% → ok（>=72 達標）",
+           _depth_classification(75, 65, 72, strict=True, qual_wrong=False) == "ok")
+    _check("55% → hard（真的跑中前段）",
+           _depth_classification(55, 65, 72, strict=True, qual_wrong=False) == "hard")
+    # 焦點 dining-middle: anchor_hard_floor=60 → 實際 <55 才硬（法式 TV 35% 仍硬擋）
+    _check("focal 35% → hard（TV 跑前段）",
+           _depth_classification(35, 60, 72, strict=True, qual_wrong=False) == "hard")
+    _check("focal 68% → soft（照交付）",
+           _depth_classification(68, 60, 72, strict=True, qual_wrong=False) == "soft")
 
 
 def case_i_reason_keyword_blocks_delivery():
