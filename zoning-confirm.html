@@ -165,9 +165,25 @@
       <ul id="questionsList"></ul>
     </div>
 
-    <div class="actions">
-      <a href="style-form.html" class="btn btn-ghost">← 改回風格</a>
-      <button class="btn btn-primary" id="nextBtn" onclick="goNext()">選擇此配置，繼續 →</button>
+    <!-- Stage 1：checkout 併入本頁 → 確認分區即成交，不再跳一頁看摘要 -->
+    <div class="pay-block" style="margin-top:28px; border-top:1px solid var(--line); padding-top:22px;">
+      <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <button type="button" class="opt side-opt selected" id="svcA" onclick="selectPlan('A')"
+                style="flex:1; padding:14px 12px; text-align:center; cursor:pointer;">
+          單房風格提案<br><span style="color:var(--gold-lt);">NT$1,199</span>
+        </button>
+        <button type="button" class="opt side-opt" id="svcB" onclick="selectPlan('B')"
+                style="flex:1; padding:14px 12px; text-align:center; cursor:pointer;">
+          全室空間提案<br><span style="color:var(--gold-lt);">NT$1,799</span>
+        </button>
+      </div>
+      <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
+              style="width:100%; padding:18px; font-size:15px;">
+        使用此配置 · 以 LINE PAY 付款 NT$<span id="payAmount">1,199</span>
+      </button>
+      <div style="text-align:center; margin-top:12px;">
+        <a href="style-form.html" class="btn btn-ghost" style="border:none; font-size:12px;">← 改回風格</a>
+      </div>
     </div>
   </div>
 </main>
@@ -284,17 +300,29 @@
   document.getElementById('sideLeft').addEventListener('click', function(){ setSofaSide('left'); });
   document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right'); });
 
-  // 3. 進入 checkout
-  function goNext() {
-    var btn = document.getElementById('nextBtn');
-    btn.disabled = true;
-    btn.textContent = '處理中…';
-    // 寫 localStorage 給 checkout 用
+  // 3. 服務方案 + 付款（Stage 1：原 checkout 邏輯併入本頁）
+  var selectedPlan = 'A';
+  var PLAN_A_PRICE = 1199, PLAN_B_PRICE = 1799;
+  var extraStyles = Math.max(0, parseInt(localStorage.getItem('deco_style_count') || '1') - 2);
+  var extraFee = extraStyles * 399;
+  function updatePriceUI() {
+    var base = (selectedPlan === 'A') ? PLAN_A_PRICE : PLAN_B_PRICE;
+    var el = document.getElementById('payAmount');
+    if (el) el.textContent = (base + extraFee).toLocaleString();
+  }
+  function selectPlan(plan) {
+    selectedPlan = (plan === 'B') ? 'B' : 'A';
+    document.getElementById('svcA').classList.toggle('selected', selectedPlan === 'A');
+    document.getElementById('svcB').classList.toggle('selected', selectedPlan === 'B');
+    updatePriceUI();
+  }
+  updatePriceUI();
+
+  // 把使用者選的分區方案 + 沙發側寫進 localStorage（給 /api/job）
+  function persistZoningChoice() {
     localStorage.setItem('deco_layout_choice', currentChoice || 'A');
     if (currentZoning) {
       try {
-        // 把使用者選的沙發側寫回 zoning（A 用 sofa_side、B 用 alt_sofa_side；兩者都設，
-        // 確保不論 A/B，flatten_zoning_v2_to_v1 都拿到使用者指定的側）。
         var oppSide = (currentSofaSide === 'left') ? 'right' : 'left';
         currentZoning.proposed_zones = currentZoning.proposed_zones || {};
         currentZoning.proposed_zones.living_zone = currentZoning.proposed_zones.living_zone || {};
@@ -311,7 +339,95 @@
     } else {
       localStorage.removeItem('deco_zoning_json');
     }
-    window.location.href = 'checkout.html';
+  }
+
+  async function handlePay() {
+    var btn = document.getElementById('payBtn');
+    btn.textContent = '處理中…';
+    btn.disabled = true;
+    persistZoningChoice();
+
+    var uploadId = localStorage.getItem('deco_upload_id');
+    if (!uploadId) {
+      if (!confirm('找不到上傳照片（示範模式）。是否繼續測試流程？')) {
+        btn.innerHTML = '以 LINE PAY 付款'; btn.disabled = false; return;
+      }
+      var demoId = Math.random().toString(36).substr(2, 8).toUpperCase();
+      localStorage.setItem('deco_job_id', demoId);
+      localStorage.setItem('deco_order_id', 'ORD-' + demoId);
+      localStorage.setItem('deco_plan', selectedPlan);
+      localStorage.setItem('deco_order_time', String(Date.now()));
+      setTimeout(function(){ window.location.href = 'generate.html'; }, 800);
+      return;
+    }
+
+    var styles      = localStorage.getItem('deco_style') || '';
+    var spaceType   = localStorage.getItem('deco_space_type') || 'living';
+    var renderAngle = localStorage.getItem('deco_render_angle') || 'multi';
+    var designMode  = localStorage.getItem('deco_design_mode') || 'furnish';
+
+    // rooms_json 嚴格驗證（照搬 checkout，不可偷退 legacy 把多空間混在一起）
+    var roomsRaw = localStorage.getItem('deco_rooms');
+    var roomsJsonForSend = '';
+    var roomsValidationError = '';
+    if (roomsRaw !== null && roomsRaw !== undefined) {
+      try {
+        var parsedRooms = JSON.parse(roomsRaw);
+        if (!Array.isArray(parsedRooms)) {
+          roomsValidationError = 'rooms 不是陣列';
+        } else {
+          var primaries = parsedRooms.filter(function(r){ return r && r.is_primary; });
+          if (primaries.length !== 1) {
+            roomsValidationError = 'rooms 必須有且只有一個主空間，目前 ' + primaries.length + ' 個';
+          } else {
+            var keys = Array.isArray(primaries[0].photo_keys) ? primaries[0].photo_keys : [];
+            var validKeys = keys.filter(function(k){ return typeof k === 'string' && k.length > 0; });
+            if (validKeys.length === 0) roomsValidationError = '主空間沒有有效照片';
+            else roomsJsonForSend = JSON.stringify(parsedRooms);
+          }
+        }
+      } catch (e) { roomsValidationError = 'rooms JSON 解析失敗'; }
+    }
+    if (roomsValidationError) {
+      btn.innerHTML = '以 LINE PAY 付款'; btn.disabled = false;
+      if (confirm('空間照片資料不完整，請返回上傳頁重新確認。\n\n（' + roomsValidationError +
+                  '）\n\n按「確定」返回上傳頁，「取消」留在本頁。')) {
+        window.location.href = 'upload.html';
+      }
+      return;
+    }
+
+    try {
+      var fd = new FormData();
+      fd.append('upload_id',    uploadId);
+      fd.append('styles',       styles);
+      fd.append('plan',         selectedPlan);
+      fd.append('space_type',   spaceType);
+      fd.append('render_angle', renderAngle);
+      fd.append('design_mode',  designMode);
+      fd.append('layout_choice', localStorage.getItem('deco_layout_choice') || '');
+      fd.append('zoning_json',   localStorage.getItem('deco_zoning_json')   || '');
+      fd.append('budget_tier',     localStorage.getItem('deco_budget_tier')     || 'tier2');
+      fd.append('customer_notes',  (localStorage.getItem('deco_customer_notes') || '').slice(0, 300));
+      fd.append('preferred_store', localStorage.getItem('deco_preferred_store') || 'none');
+      fd.append('rooms_json',      roomsJsonForSend);
+
+      var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        var errMsg = 'HTTP ' + resp.status;
+        try { var eb = await resp.json(); if (eb && eb.error) errMsg = eb.error; } catch (e) {}
+        throw new Error(errMsg);
+      }
+      var data = await resp.json();
+      localStorage.setItem('deco_job_id',     data.job_id);
+      localStorage.setItem('deco_order_id',   'ORD-' + data.job_id);
+      localStorage.setItem('deco_plan',       selectedPlan);
+      localStorage.setItem('deco_order_time', String(Date.now()));
+      window.location.href = 'generate.html';
+    } catch (e) {
+      alert('建立任務失敗：' + e.message);
+      btn.innerHTML = '以 LINE PAY 付款'; btn.disabled = false;
+    }
   }
 
   // 4. 呼叫 /api/zoning
