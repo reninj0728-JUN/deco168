@@ -368,8 +368,11 @@ def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
 
         # C2.4：depth-percent 硬尺。只在 window-side 時 append，量化「back」這個語意
         if is_window_side:
-            sofa_depth_target = 75 if has_dining_middle_constraint else 65
-            anchor_depth_target = 60 if has_dining_middle_constraint else 50
+            # 提高 prompt 目標讓模型「擺更深」：實測模型常落在 70–75%（不夠靠窗、還會
+            # 卡在 72% 硬門檻邊緣掉件）。把目標往上拉到 ~85/78，模型通常少給 → 實際落在
+            # 78–82%，同時解決「更靠窗」與「少掉件」。驗收硬門檻仍 72%，不會因此過嚴。
+            sofa_depth_target = 85 if has_dining_middle_constraint else 75
+            anchor_depth_target = 78 if has_dining_middle_constraint else 65
             dining_middle_clause = (
                 " ZONE SEPARATION (user's explicit note — MANDATORY): the user split this room "
                 "into TWO zones: the WINDOW-SIDE end is the LIVING room, and the MIDDLE of the "
