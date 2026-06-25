@@ -160,11 +160,6 @@
       </div>
     </div>
 
-    <div id="questionsBox" class="questions" style="display:none;">
-      <div class="qtitle">需要你補答的細節（之後付款後會再問）</div>
-      <ul id="questionsList"></ul>
-    </div>
-
     <!-- Stage 1：checkout 併入本頁 → 確認分區即成交，不再跳一頁看摘要 -->
     <div class="pay-block" style="margin-top:28px; border-top:1px solid var(--line); padding-top:22px;">
       <div style="font-size:12px; color:var(--body); margin-bottom:10px;">選擇方案（每個方案都含 2 種風格）</div>
@@ -215,9 +210,7 @@
     var content = document.getElementById('contentBox');
     var optsRow = content.querySelector('.options-grid');
     var overlay = content.querySelector('.overlay-card');
-    var questions = document.getElementById('questionsBox');
     if (overlay)  overlay.style.display = 'none';
-    if (questions) questions.style.display = 'none';
     if (optsRow)  optsRow.style.display = 'none';
     content.style.display = 'block';
   }
@@ -259,20 +252,6 @@
     document.getElementById('sofaSideAI').textContent =
       '（AI 建議：' + (aiSide === 'left' ? '靠左' : '靠右') + '）';
     document.getElementById('sofaSideBox').style.display = 'block';
-
-    // needs_user_input
-    var nui = zoning.needs_user_input || [];
-    if (nui.length) {
-      var qb = document.getElementById('questionsBox');
-      var ul = document.getElementById('questionsList');
-      ul.innerHTML = '';
-      nui.forEach(function(q) {
-        var li = document.createElement('li');
-        li.textContent = q;
-        ul.appendChild(li);
-      });
-      qb.style.display = 'block';
-    }
 
     content.style.display = 'block';
   }
