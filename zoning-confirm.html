@@ -125,9 +125,9 @@
         <div class="opt-line"><span class="k">客廳</span><span id="livingA">—</span></div>
         <div class="opt-line"><span class="k">餐廳</span><span id="diningA">—</span></div>
         <ul class="opt-reasons">
-          <li>採光最好，客廳坐起來最舒服</li>
-          <li>走道保留在側邊，動線比較順</li>
-          <li>長型空間視覺往窗邊延伸，更顯開闊</li>
+          <li>採光最佳</li>
+          <li>動線順暢</li>
+          <li>空間更開闊</li>
         </ul>
       </label>
 
@@ -138,9 +138,9 @@
         <div class="opt-line"><span class="k">客廳</span><span id="livingB">—</span></div>
         <div class="opt-line"><span class="k">餐廳</span><span id="diningB">—</span></div>
         <ul class="opt-reasons">
-          <li>適合想在窗邊做餐桌、書桌或閱讀區</li>
-          <li>客廳改放前段，沙發尺寸要更克制</li>
-          <li>適合不需要大沙發、偏多功能使用的人</li>
+          <li>窗邊多功能</li>
+          <li>客廳較精簡</li>
+          <li>適合多元使用</li>
         </ul>
       </label>
     </div>
@@ -156,7 +156,7 @@
         </label>
       </div>
       <div style="font-size:12px; color:var(--body); margin-top:8px;">
-        以照片正面視角為準（電視櫃會放在沙發對側）。不確定就用 AI 建議。
+        以照片正面視角為準（電視櫃會放在沙發對側）。不確定就使用預設值。
       </div>
     </div>
 
@@ -199,7 +199,7 @@
 
   var currentZoning = null;
   var currentChoice = 'A';
-  var currentSofaSide = 'right';   // 預設 AI 建議；renderResult 會覆寫成實際 AI 值
+  var currentSofaSide = 'right';   // 預設值；renderResult 會覆寫成分析建議的值
 
   function showError(msg) {
     document.getElementById('loadingBox').style.display = 'none';
@@ -244,13 +244,13 @@
     setText('livingB', dining.where || living.alt_option || '（中段做客廳）');
     setText('diningB', living.alt_option || dining.alt_option || '（靠窗做餐廳/書房）');
 
-    // 沙發左右：預設帶 AI 建議值，使用者可改。寫回 zoning 後 flatten 會用它綁定 + 驗收。
+    // 沙發左右：預設值來自分析，使用者可改。寫回 zoning 後 flatten 會用它綁定 + 驗收。
     var aiSide = ((living.sofa_side || '') + '').toLowerCase();
     if (aiSide !== 'left' && aiSide !== 'right') aiSide = 'right';
     currentSofaSide = aiSide;
     setSofaSide(aiSide);
     document.getElementById('sofaSideAI').textContent =
-      '（AI 建議：' + (aiSide === 'left' ? '靠左' : '靠右') + '）';
+      '（預設靠' + (aiSide === 'left' ? '左' : '右') + '）';
     document.getElementById('sofaSideBox').style.display = 'block';
 
     content.style.display = 'block';
