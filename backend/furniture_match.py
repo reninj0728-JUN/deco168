@@ -150,9 +150,11 @@ def refine_subcategory(en_cat: str, name_zh: str) -> str:
     # 修 bug：catalog 把這類錯標成 category=沙發 時，會被當成主沙發配進來
     # （例：NT$337「法式優雅冰絲透氣沙發墊」被選為沙發）。歸 textile。
     if en_cat == 'sofa':
+        # 涵蓋各種「沙發布料/套/墊/巾」用語，避免又被當主沙發（蓋布≠蓋毯，先前漏掉）。
         for kw in ('沙發墊', '沙發套', '沙發罩', '沙發巾', '沙發蓋毯', '沙發毯',
+                   '沙發蓋布', '蓋布', '布套', '保護套', '防塵套', '彈性套',
                    '坐墊', '椅墊', 'sofa cover', 'sofa cushion', 'seat cushion',
-                   'slipcover', 'couch cover'):
+                   'slipcover', 'couch cover', 'sofa throw'):
             if kw.lower() in name_lower:
                 return 'textile'
         return 'sofa'
