@@ -808,17 +808,7 @@
       </div>
     </div>
 
-    <div class="select-row col-2">
-      <div class="field-group">
-        <label class="field-label">服務方案</label>
-        <div class="select-wrapper">
-          <select id="plan">
-            <option value="single">單一空間 — 2 種風格設計提案（NT$1,199）· 最推薦</option>
-            <option value="multi">全室規劃 — 2 種風格多空間（NT$1,799）· Beta 優化中</option>
-          </select>
-        </div>
-      </div>
-
+    <div class="select-row">
       <div class="field-group">
         <label class="field-label">交件方式</label>
         <div class="select-wrapper">
@@ -1215,7 +1205,8 @@ function updateSummary() {
   const spaceLabel   = SPACE_LABEL_ZH[spaceTypeVal] || spaceTypeVal;
   const selectedStyle   = document.querySelector('.style-card.selected .style-name');
   const selectedPalette = document.querySelector('.palette-card.selected .palette-label');
-  const plan = document.getElementById('plan').value;
+  // 方案不再獨立選：全室(空間類型=whole) ⟺ multi/1799，其餘單一房型 ⟺ single/1199。
+  const plan = (spaceTypeVal === 'whole') ? 'multi' : 'single';
 
   // 坪數由 Gemini 從照片分析（前端不再蒐集，避免跟模型結果衝突）
   document.getElementById('s-space').textContent = spaceLabel;
@@ -1235,7 +1226,6 @@ function updateSummary() {
 }
 
 document.getElementById('spaceType').addEventListener('change', updateSummary);
-document.getElementById('plan').addEventListener('change', updateSummary);
 
 // ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
 var insightMap = {
@@ -1291,11 +1281,13 @@ function submitForm() {
   localStorage.setItem('deco_style',       styleIds);
   localStorage.setItem('deco_style_count', String(selectedDirections.length));
   localStorage.setItem('deco_directions',  getSelectedDirectionsJson());
-  localStorage.setItem('deco_space_type', document.getElementById('spaceType').value);
-  // 依服務方案決定 render_angle：multi 方案 → 3 角度 6 張；single/full → 精選 1 角度 2 張
-  var planTierVal = (document.getElementById('plan') || {}).value || 'single';
-  localStorage.setItem('deco_plan_tier', planTierVal);
-  localStorage.setItem('deco_render_angle', planTierVal === 'multi' ? 'multi' : 'single');
+  var _spaceTypeVal = document.getElementById('spaceType').value;
+  localStorage.setItem('deco_space_type', _spaceTypeVal);
+  // 方案由空間類型決定（不再獨立選）：全室(whole) → plan B / multi / 6 張；單一房型 → plan A / single。
+  // 最終仍可在分區頁(zoning-confirm)變更，由該頁一次寫齊三訊號。
+  var _isWhole = (_spaceTypeVal === 'whole');
+  localStorage.setItem('deco_plan',         _isWhole ? 'B' : 'A');
+  localStorage.setItem('deco_render_angle', _isWhole ? 'multi' : 'single');
   // designMode = furnish (只動家具) / full (含裝潢)
   localStorage.setItem('deco_design_mode', document.getElementById('designMode').value);
 

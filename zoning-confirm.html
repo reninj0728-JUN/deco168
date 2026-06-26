@@ -306,8 +306,12 @@
   document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right'); });
 
   // 3. 服務方案 + 付款（Stage 1：原 checkout 邏輯併入本頁）
-  var selectedPlan = 'A';
+  // 單一真實來源：全室(plan B) ⟺ space_type=whole ⟺ render_angle=multi；
+  // 單空間(plan A) ⟺ 單一房型 ⟺ single。三個訊號永遠由這裡一次寫齊，避免不同步。
   var PLAN_A_PRICE = 1199, PLAN_B_PRICE = 1799;
+  // 進頁依使用者前面選的空間類型/方案預設（不再固定跳回 1199）。
+  var _initSpace = localStorage.getItem('deco_space_type') || '';
+  var selectedPlan = (_initSpace === 'whole' || localStorage.getItem('deco_plan') === 'B') ? 'B' : 'A';
   var extraStyles = Math.max(0, parseInt(localStorage.getItem('deco_style_count') || '1') - 2);
   var extraFee = extraStyles * 399;
   function updatePriceUI() {
@@ -319,9 +323,19 @@
     selectedPlan = (plan === 'B') ? 'B' : 'A';
     document.getElementById('svcA').classList.toggle('selected', selectedPlan === 'A');
     document.getElementById('svcB').classList.toggle('selected', selectedPlan === 'B');
+    // 方案一次驅動三個訊號，杜絕「選全室卻跑單視角」(render_angle/space_type 與 plan 脫鉤)。
+    localStorage.setItem('deco_plan', selectedPlan);
+    if (selectedPlan === 'B') {
+      localStorage.setItem('deco_space_type', 'whole');
+      localStorage.setItem('deco_render_angle', 'multi');
+    } else {
+      var st = localStorage.getItem('deco_space_type');
+      if (!st || st === 'whole') localStorage.setItem('deco_space_type', 'living'); // 保留單一房型，只有 whole 才退回 living
+      localStorage.setItem('deco_render_angle', 'single');
+    }
     updatePriceUI();
   }
-  updatePriceUI();
+  selectPlan(selectedPlan);   // 進頁同步 UI + 三訊號
 
   // 把使用者選的分區方案 + 沙發側寫進 localStorage（給 /api/job）
   function persistZoningChoice() {
