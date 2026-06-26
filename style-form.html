@@ -557,53 +557,9 @@
       .check-grid { grid-template-columns: 1fr 1fr; }
       .render-options { grid-template-columns: 1fr; }
       .ref-preview-grid { grid-template-columns: repeat(3, 1fr); }
-      .diag-grid { grid-template-columns: 1fr; }
       .budget-pills { flex-direction: column; }
       .budget-pill { font-size: 18px; min-height: 56px; }
     }
-
-    /* DIAGNOSIS PANEL */
-    .diagnosis-panel {
-      display: none;
-      border: 1px solid rgba(201,169,110,0.4);
-      background: rgba(201,169,110,0.03);
-      padding: 32px 36px;
-      margin-bottom: 32px;
-      animation: fadeSlideIn 0.5s ease;
-    }
-    .diagnosis-panel.show { display: block; }
-    @keyframes fadeSlideIn {
-      from { opacity: 0; transform: translateY(14px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .diag-eyebrow {
-      font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--gold); margin-bottom: 20px;
-      display: flex; align-items: center; gap: 12px;
-    }
-    .diag-eyebrow::after { content: ''; flex: 1; height: 1px; background: rgba(201,169,110,0.3); }
-    .diag-grid {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 20px 40px; margin-bottom: 24px;
-    }
-    .diag-item-label {
-      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 6px;
-    }
-    .diag-item-val { font-size: 13px; color: var(--white); line-height: 1.6; }
-    .diag-insight {
-      font-size: 12px; color: var(--body); line-height: 1.9;
-      border-top: 1px solid var(--line); padding-top: 18px; margin-bottom: 24px;
-    }
-    .diag-insight em { color: var(--gold); font-style: normal; }
-    .btn-proceed {
-      width: 100%; background: var(--gold); color: var(--black);
-      border: none; padding: 16px;
-      font-family: 'Inter', sans-serif; font-size: 11px;
-      font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
-      cursor: pointer; transition: background 0.2s;
-    }
-    .btn-proceed:hover { background: var(--gold-lt); }
 
     /* FAB — 查詢下載 */
     .fab-dl {
@@ -847,11 +803,11 @@
     </div>
     <div class="summary-row">
       <span class="summary-key">服務方案</span>
-      <span class="summary-val" id="s-plan">基礎方案</span>
+      <span class="summary-val" id="s-plan">單一空間</span>
     </div>
     <div class="summary-row">
       <span class="summary-key">應付金額</span>
-      <span class="summary-price" id="s-price">NT$ 5,000</span>
+      <span class="summary-price" id="s-price">NT$ 1,199</span>
     </div>
   </div>
 
