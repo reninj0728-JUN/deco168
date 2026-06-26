@@ -1121,20 +1121,26 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         insufficient = analysis.get("insufficient_photos") if isinstance(analysis, dict) else None
         if insufficient and isinstance(insufficient, dict):
             req = insufficient.get("required")
-            found = insufficient.get("found", 0)
+            found = insufficient.get("found", 0) or 0
             rt = insufficient.get("room_type", space_type)
-            msg = insufficient.get("message") or f"本方案需 {req} 張 {rt} 空間照片，目前只有 {found} 張，請補上傳。"
-            print(f"[pipeline] 早期失敗：insufficient_photos required={req} found={found} room_type={rt}")
-            write_status(job_id, job_dir, "failed", 100, msg)
-            sb_upsert({
-                "job_id": job_id, "status": "failed", "message": msg,
-                "result_json": {
-                    "analysis": analysis,
-                    "insufficient_photos": insufficient,
-                    "error_code": "INSUFFICIENT_PHOTOS",
-                },
-            })
-            return
+            # 全室(多房間)優雅降級：找到幾房就生幾房，不整單失敗。
+            # 只有單空間缺對應房型、或完全沒有可用空間 (found<1) 才硬失敗。
+            degrade_ok = (space_type == "whole" or render_angle == "multi") and found >= 1
+            if degrade_ok:
+                print(f"[pipeline] insufficient_photos 全室降級：found={found}/{req}，只生 {found} 個空間（不整單失敗）")
+            else:
+                msg = insufficient.get("message") or f"本方案需 {req} 張 {rt} 空間照片，目前只有 {found} 張，請補上傳。"
+                print(f"[pipeline] 早期失敗：insufficient_photos required={req} found={found} room_type={rt}")
+                write_status(job_id, job_dir, "failed", 100, msg)
+                sb_upsert({
+                    "job_id": job_id, "status": "failed", "message": msg,
+                    "result_json": {
+                        "analysis": analysis,
+                        "insufficient_photos": insufficient,
+                        "error_code": "INSUFFICIENT_PHOTOS",
+                    },
+                })
+                return
 
         # ── 決定 Flux 輸入角度 ──
         # multi：用 Gemini regions[]（全室=不同房間 / 單房=同房不同角度）
@@ -1170,8 +1176,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         if render_angle == "multi":
             regions = analysis.get("regions") or []
-            # Gemini 應該回 3 個；不足就補
-            for i in range(3):
+            # 全室：找到幾房生幾房（不足 3 不硬補重複畫面）；單房 multi 維持 3 角度。
+            n_views = min(3, max(1, len(regions))) if space_type == "whole" else 3
+            for i in range(n_views):
                 region = regions[i] if i < len(regions) else {}
                 path, label = _resolve_region_base(region, i)
                 if path:
