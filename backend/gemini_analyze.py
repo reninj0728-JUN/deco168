@@ -293,7 +293,7 @@ def analyze_space(
   "layout_notes": "格局描述",
   "lighting": "採光條件",
   "current_style": "目前裝潢風格",
-  "owner_requests": "屋主需求（沒說填 '未提及'）",
+  "owner_requests": "屋主需求：若影片有聲音，務必『聽』屋主口述（例如『這裡想做日式』『沙發不要靠這邊』『這面牆留白』『這間當書房』），逐條結構化寫下，並盡量標註對應房間或影片時間點；都沒提就填 '未提及'",
   "design_analysis": "空間分析摘要，繁體中文，80字以內",
   "recommended_styles": ["style_id_1", "style_id_2", "style_id_3"],
   "recommend_reason": "推薦原因，繁體中文，50字以內",
@@ -318,6 +318,7 @@ def analyze_space(
 - 單房模式（其他）：每個 region 對應同一個房間的不同角度。
 - renders 陣列必須恰好 {len(fixed_styles)} 個，順序對應用戶選的風格：{fixed_styles}。
 - flux_prompt 要根據空間實際採光、格局選詞。<15坪加 light reflective surface, open concept, visual expansion。
+- 音訊：影片若有屋主說話，必須一併聆聽並把需求提取進 owner_requests；全室模式下，盡量把每個需求對應到 regions 裡的房間。這是理解屋主真實意圖的重要來源，不可忽略。
 """
 
     response = client.models.generate_content(

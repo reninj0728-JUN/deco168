@@ -751,6 +751,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         return f"data:{mime};base64,{b64}"
 
     img_urls = [_to_data_url(p) for p in image_paths]
+    # 影片口述需求（analysis.owner_requests）併進 customer_notes，一起進 render prompt。
+    # 讓「全案備註 + 每張 target_note + 影片口述」三者都被模型看到，不讓影片優勢斷掉。
+    _owner_req = ((analysis or {}).get("owner_requests") or "").strip()
+    if _owner_req and _owner_req not in ("未提及", "無"):
+        customer_notes = (customer_notes + " 屋主口述需求：" + _owner_req).strip()
     preserve_clause = _build_preserve_clause(analysis, design_mode=design_mode)
     # furnish 模式 guidance_scale 更低（更聽原圖），full 模式稍高
     guidance = 3.0 if design_mode == "furnish" else 4.0
