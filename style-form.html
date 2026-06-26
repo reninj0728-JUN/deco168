@@ -855,36 +855,10 @@
     </div>
   </div>
 
-  <!-- DIAGNOSIS PANEL -->
-  <hr class="section-divider" id="diagDivider" style="display:none;">
-  <div class="diagnosis-panel" id="diagPanel">
-    <div class="diag-eyebrow">✦ 你的設計方向</div>
-    <div class="diag-grid">
-      <div>
-        <div class="diag-item-label">你的空間</div>
-        <div class="diag-item-val" id="diagSpace">—</div>
-      </div>
-      <div>
-        <div class="diag-item-label">最適風格判斷</div>
-        <div class="diag-item-val" id="diagStyles">—</div>
-      </div>
-      <div>
-        <div class="diag-item-label">建議主色調</div>
-        <div class="diag-item-val" id="diagColor">—</div>
-      </div>
-      <div>
-        <div class="diag-item-label">裝修預算參考</div>
-        <div class="diag-item-val" id="diagBudget">—</div>
-      </div>
-    </div>
-    <div class="diag-insight" id="diagInsight">—</div>
-    <button class="btn-proceed" onclick="goCheckout()">下一步：確認空間分區 →</button>
-  </div>
-
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <a href="upload.html" class="btn btn-ghost">← 返回上傳</a>
-    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">查看我的設計方向 →</button>
+    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">下一步：確認空間分區 →</button>
   </div>
 </main>
 
@@ -1227,24 +1201,6 @@ function updateSummary() {
 
 document.getElementById('spaceType').addEventListener('change', updateSummary);
 
-// ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
-var insightMap = {
-  modern:      '你偏好乾淨俐落的線條與機能效率。建議以<em>無主燈設計</em>為基礎，嵌燈搭配局部懸掛燈，讓空間層次豐富而不複雜。選用淺木紋地板搭配深色金屬框架，視覺比例最均衡。',
-  nordic:      '北歐風的核心在於<em>溫暖留白</em>。建議保留大面積淺色基底，透過木質傢俱與織物軟裝製造溫度，避免過多裝飾性元素讓空間看起來太「滿」。',
-  japanese:    '侘寂風最難的是「減法」。建議聚焦在<em>材質觸感</em>（石、木、藤），而非形狀的複雜；窗邊刻意留白比堆砌傢俱更能呈現這種靜謐美學。',
-  industrial:  '工業風需要結構感與溫度的平衡。建議以鐵件骨架搭配裸露管線，再加入皮革或木質軟化比例，避免空間全面偏冷、失去居住感。',
-  luxury:      '輕奢現代靠的是<em>材質等級</em>而非數量。建議在單一焦點（主牆或床頭）放置高質感材料，其餘保持克制——比例感比堆料更重要。',
-  muji:        'MUJI 風的關鍵是<em>系統性一致</em>。建議統一所有把手、門縫、層板厚度與顏色，細節一致才能讓空間看起來是「設計過的」而非單純的簡單。',
-  'art-deco':  'Art Deco 的視覺張力來自<em>幾何對稱與金屬光澤</em>。建議以深色主牆搭配黃銅件，局部使用人字拼地板，控制重點裝飾不超過兩處。',
-  boho:        '波希米亞風貴在<em>層次感</em>而不是雜亂。建議先定一個主色調（大地橘或酒紅），再疊加不同材質的布料與植物，讓空間豐富但不失重心。',
-};
-
-var styleLabels = {
-  modern:'現代簡約', nordic:'北歐 Scandinavian', japanese:'日式侘寂',
-  industrial:'工業風', luxury:'輕奢現代',
-  muji:'無印 MUJI 風', 'art-deco':'Art Deco', boho:'波希米亞 Boho',
-};
-
 function getSelectedStyleId() {
   if (selectedDirections.length > 0)
     return selectedDirections.map(d => d.styleId).join(',');
@@ -1253,27 +1209,6 @@ function getSelectedStyleId() {
 
 function getSelectedDirectionsJson() {
   return JSON.stringify(selectedDirections);
-}
-
-function getSelectedPaletteName() {
-  var el = document.querySelector('.palette-card.selected .palette-name');
-  return el ? el.textContent : '暖白 + 淺木';
-}
-
-function buildDiagnosis() {
-  var spaceType = document.getElementById('spaceType').value;
-  var styleId   = getSelectedStyleId();
-  var insight   = insightMap[styleId]  || insightMap['modern'];
-  var styleName = styleLabels[styleId] || '現代簡約';
-  var palName   = getSelectedPaletteName();
-  // Phase A：以用戶選擇的 budget tier 顯示，避免跟主表預算欄位不一致
-  var tierObj   = BUDGET_TIERS.find(function(t) { return t.id === selectedBudgetTier; }) || BUDGET_TIERS[1];
-
-  document.getElementById('diagSpace').textContent  = (SPACE_LABEL_ZH[spaceType] || spaceType);
-  document.getElementById('diagStyles').textContent = styleName;
-  document.getElementById('diagColor').textContent  = palName;
-  document.getElementById('diagBudget').textContent = tierObj.amount + '｜' + tierObj.name;
-  document.getElementById('diagInsight').innerHTML  = insight;
 }
 
 function submitForm() {
@@ -1301,23 +1236,7 @@ function submitForm() {
   var storeEl = document.getElementById('preferredStore');
   localStorage.setItem('deco_preferred_store', storeEl ? storeEl.value : 'none');
 
-  buildDiagnosis();
-
-  document.getElementById('diagDivider').style.display = 'block';
-  var panel = document.getElementById('diagPanel');
-  panel.classList.add('show');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  var btn = document.getElementById('submitBtn');
-  btn.textContent = '✓ 已整理，請見下方';
-  btn.style.background = 'transparent';
-  btn.style.border = '1px solid rgba(201,169,110,0.5)';
-  btn.style.color = 'var(--gold)';
-  btn.style.pointerEvents = 'none';
-}
-
-function goCheckout() {
-  // Z2: 先進分區確認（在付款前讓使用者確認系統對客廳/餐廳的分區判斷）
+  // 直接進分區確認頁（移除中間「設計方向」重述面板，流程少一步）
   window.location.href = 'zoning-confirm.html';
 }
 
