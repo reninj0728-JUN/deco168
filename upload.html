@@ -385,7 +385,7 @@
     }
     .photos-warning.show { display: block; }
 
-    /* ── 影片 + 建物測量圖 ────────────────────────────────────── */
+    /* ── 影片 ────────────────────────────────────── */
     .upload-box {
       border: 1px dashed var(--line);
       padding: 40px 32px;
@@ -589,26 +589,6 @@
 
   <div class="section-divider"></div>
 
-  <!-- ── 建物測量圖（整戶共用，獨立）─────────────────────────── -->
-  <div class="section-label">建物測量圖（選填）</div>
-  <div class="upload-box" id="plan-box"
-       ondragover="onDragoverPlan(event)"
-       ondragleave="onDragleavePlan()"
-       ondrop="onDropPlan(event)">
-    <input type="file" id="plan-input" accept=".pdf,image/*" multiple onchange="onPickPlan(this)">
-    <div class="upload-icon">📐</div>
-    <div class="upload-title">建物測量圖</div>
-    <div class="upload-hint">地政事務所調閱<br>或建商提供的平面圖</div>
-    <div class="upload-formats">
-      <span class="format-tag">PDF</span>
-      <span class="format-tag">JPG</span>
-      <span class="format-tag">PNG</span>
-    </div>
-  </div>
-  <div class="file-list" id="plan-list"></div>
-
-  <div class="section-divider"></div>
-
   <!-- ── 拍攝提示 ─────────────────────────────────────────────── -->
   <div class="tips-box">
     <div class="tips-title">✦ 拍攝小提示，讓系統理解更準確</div>
@@ -619,7 +599,6 @@
       <li>天花板高度要拍到</li>
       <li>建議至少包含一張能清楚看見主要牆面、門窗與走道的照片</li>
       <li>光線充足比畫質重要</li>
-      <li>建物測量圖請拍清楚全圖</li>
       <li>廣角全景照可直接上傳，不必拆成多張</li>
     </ul>
   </div>
@@ -703,7 +682,6 @@
   var photos = [];
   var _photo_seq = 0;
   var videoFiles = [];
-  var planFiles  = [];
   // 主空間手動切換：null = 套用預設規則
   var manualPrimaryKey = null;
 
@@ -868,7 +846,7 @@
     });
   }
 
-  // ── 影片 / 建物測量圖 drag handlers（沿用 flat） ───────────────────
+  // ── 影片 drag handlers（沿用 flat） ───────────────────
   function onDragoverVideo(e) { e.preventDefault(); document.getElementById('video-box').classList.add('active'); }
   function onDragleaveVideo() { document.getElementById('video-box').classList.remove('active'); }
   function onDropVideo(e) {
@@ -880,19 +858,6 @@
   function onPickVideo(input) {
     Array.from(input.files || []).forEach(function(f) { videoFiles.push(f); });
     renderVideoList();
-  }
-
-  function onDragoverPlan(e) { e.preventDefault(); document.getElementById('plan-box').classList.add('active'); }
-  function onDragleavePlan() { document.getElementById('plan-box').classList.remove('active'); }
-  function onDropPlan(e) {
-    e.preventDefault();
-    document.getElementById('plan-box').classList.remove('active');
-    Array.from(e.dataTransfer.files || []).forEach(function(f) { planFiles.push(f); });
-    renderPlanList();
-  }
-  function onPickPlan(input) {
-    Array.from(input.files || []).forEach(function(f) { planFiles.push(f); });
-    renderPlanList();
   }
 
   function renderFlatItem(file, onRemove) {
@@ -920,17 +885,6 @@
       list.appendChild(renderFlatItem(f, function() {
         videoFiles.splice(i, 1);
         renderVideoList();
-      }));
-    });
-  }
-
-  function renderPlanList() {
-    var list = document.getElementById('plan-list');
-    list.innerHTML = '';
-    planFiles.forEach(function(f, i) {
-      list.appendChild(renderFlatItem(f, function() {
-        planFiles.splice(i, 1);
-        renderPlanList();
       }));
     });
   }
