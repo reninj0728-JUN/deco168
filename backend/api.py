@@ -115,8 +115,16 @@ def sb_upsert(data: dict, timeout: int = 8) -> bool:
     try:
         r = _req.post(f"{SUPABASE_URL}/rest/v1/orders", json=data,
                       headers=_SB_HEADERS, timeout=timeout)
+        if r.status_code not in (200, 201, 204):
+            # 把真正的錯誤印出來（之前被吞掉，全室大 payload 寫失敗時無從得知原因）
+            try:
+                _body = r.text[:400]
+            except Exception:
+                _body = "(no body)"
+            print(f"[sb_upsert] 非 2xx：status={r.status_code} body={_body}")
         return r.status_code in (200, 201, 204)
-    except Exception:
+    except Exception as e:
+        print(f"[sb_upsert] 例外：{type(e).__name__}: {str(e)[:200]}")
         return False
 
 def sb_get(job_id: str) -> dict | None:
@@ -1767,8 +1775,35 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         completed_payload = {"job_id": job_id, "status": "completed", "progress": 100,
                              "message": completed_msg,
                              "result_json": result_json_payload}
+        # 全室等大 payload 可能寫不進去（之前 ED3B66EF 渲染到 92% 卻卡在 result_upsert）。
+        # 對策：前 2 次寫完整版；仍失敗就改寫「精簡版」——只留結果頁必要欄位（渲染圖 URL +
+        # 家具 + 基本空間摘要），捨棄 zoning/逐圖 validation/完整 analysis，確保訂單能完成、圖能交付。
+        slim_result_json = {
+            "renders": [
+                {k: rr.get(k) for k in
+                 ("style", "style_label", "angle_label", "render_url",
+                  "render_filename", "matched_furniture", "soft_furnishing")}
+                for rr in slim_renders
+            ],
+            "analysis": {k: (analysis or {}).get(k) for k in
+                         ("design_analysis", "space_type", "lighting", "layout_notes")},
+            "customer_inputs": customer_inputs,
+            "payload_trimmed": True,
+        }
+        if rooms_for_json:
+            slim_result_json["rooms"] = rooms_for_json
+        if all_failed_repairing:
+            slim_result_json["repairing"] = True
+        if dropped_failed_renders:
+            slim_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
+
         for _attempt in range(4):
-            sb_upsert(completed_payload, timeout=25)
+            use_slim = _attempt >= 2
+            payload = completed_payload if not use_slim else {
+                **completed_payload, "result_json": slim_result_json}
+            if use_slim:
+                print(f"[pipeline] completed 改寫精簡 result_json（第 {_attempt + 1} 次，full payload 寫不進）")
+            sb_upsert(payload, timeout=25)
             verify_row = sb_get(job_id) or {}
             if verify_row.get("status") == "completed":
                 completed_flag = True
