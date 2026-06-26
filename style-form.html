@@ -767,11 +767,7 @@
     <div class="select-row">
       <div class="field-group">
         <label class="field-label">交件方式</label>
-        <div class="select-wrapper">
-          <select id="delivery">
-            <option>線上下載（PDF + JPG）</option>
-          </select>
-        </div>
+        <div style="padding:14px 16px; border:1px solid var(--line); background:rgba(255,255,255,0.02); color:var(--body); font-size:14px;">線上下載（PDF + JPG）</div>
       </div>
     </div>
 
@@ -794,7 +790,7 @@
       <span class="summary-val" id="s-space">客廳 · 20–30 坪</span>
     </div>
     <div class="summary-row">
-      <span class="summary-key">主風格</span>
+      <span class="summary-key">設計風格</span>
       <span class="summary-val" id="s-style">現代簡約</span>
     </div>
     <div class="summary-row">
@@ -1102,7 +1098,7 @@ function buildBudgetPills() {
 // 空間英文 → 中文
 const SPACE_LABEL_ZH = {
   living: '客廳', dining: '餐廳', bedroom: '臥室', kitchen: '廚房',
-  study: '書房', bathroom: '浴室', balcony: '陽台', whole: '全室',
+  study: '書房', bathroom: '浴室', balcony: '陽台', whole: '全室多空間',
 };
 
 // 「你將收到的內容」依方案連動（純前端文案，不影響後端）
@@ -1140,7 +1136,10 @@ function updateSummary() {
 
   // 坪數由 Gemini 從照片分析（前端不再蒐集，避免跟模型結果衝突）
   document.getElementById('s-space').textContent = spaceLabel;
-  if (selectedStyle)   document.getElementById('s-style').textContent  = selectedStyle.textContent;
+  // 顯示「全部已選風格」（方案含 2 種風格），不要只露第一個
+  var _styleNames = (selectedDirections || []).map(function(d){ return d.styleName; }).filter(Boolean);
+  if (_styleNames.length)   document.getElementById('s-style').textContent = _styleNames.join(' + ');
+  else if (selectedStyle)   document.getElementById('s-style').textContent = selectedStyle.textContent;
   if (selectedPalette) document.getElementById('s-color').textContent  = selectedPalette.textContent.replace(' ✦','');
 
   // 方案 → 顯示名 + 價格（張數不再露出）
