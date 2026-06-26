@@ -858,7 +858,7 @@
   <!-- DIAGNOSIS PANEL -->
   <hr class="section-divider" id="diagDivider" style="display:none;">
   <div class="diagnosis-panel" id="diagPanel">
-    <div class="diag-eyebrow">✦ 空間診斷 — 免費預覽</div>
+    <div class="diag-eyebrow">✦ 你的設計方向</div>
     <div class="diag-grid">
       <div>
         <div class="diag-item-label">你的空間</div>
@@ -878,13 +878,13 @@
       </div>
     </div>
     <div class="diag-insight" id="diagInsight">—</div>
-    <button class="btn-proceed" onclick="goCheckout()">確認偏好，前往選擇方案 →</button>
+    <button class="btn-proceed" onclick="goCheckout()">下一步：確認空間分區 →</button>
   </div>
 
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <a href="upload.html" class="btn btn-ghost">← 返回上傳</a>
-    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">查看空間診斷 →</button>
+    <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">查看我的設計方向 →</button>
   </div>
 </main>
 
@@ -1309,7 +1309,7 @@ function submitForm() {
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   var btn = document.getElementById('submitBtn');
-  btn.textContent = '✓ 診斷完成，請見下方';
+  btn.textContent = '✓ 已整理，請見下方';
   btn.style.background = 'transparent';
   btn.style.border = '1px solid rgba(201,169,110,0.5)';
   btn.style.color = 'var(--gold)';
