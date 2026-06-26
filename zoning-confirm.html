@@ -146,7 +146,7 @@
     </div>
 
     <div id="sofaSideBox" class="questions" style="display:none;">
-      <div class="qtitle" style="font-size:15px;">沙發靠哪一側長牆？<span id="sofaSideAI" style="color:var(--gold-lt);font-weight:400;"></span></div>
+      <div class="qtitle" style="font-size:15px;"><span id="sofaSideTitle">沙發靠哪一側長牆？</span><span id="sofaSideAI" style="color:var(--gold-lt);font-weight:400;"></span></div>
       <div id="sofaSideChooser" style="display:flex; gap:12px; margin-top:10px;">
         <label class="opt side-opt" id="sideLeft" style="flex:1; padding:16px; text-align:center; font-size:15px;">
           <input type="radio" name="sofaside" value="left" style="display:none;">沙發靠左側牆
@@ -250,24 +250,24 @@
     if (aiSide !== 'left' && aiSide !== 'right') aiSide = 'right';
     currentSofaSide = aiSide;
     var sideZh = (aiSide === 'left') ? '左' : '右';
-    // 條件顯示：只有「高信心 + 客廳描述有明顯左右/採光不對稱特徵」才讓用戶選左右；
-    // 方正/對稱/低信心房 → 不強迫選，只顯示系統建議（仍綁定 AI 判斷的側）。
-    var conf = ((living.sofa_side_confidence || '') + '').toLowerCase();
-    var whereText = (living.where || '') + '';
-    var asymmetric = /靠窗|窗邊|窗戶|採光|深處|某側|左|右|門|梁/.test(whereText);
-    var showChooser = (conf === 'high') && asymmetric;
-    if (showChooser) {
+    // 條件顯示：沙發左右只有在「長條/狹長房」才是真決策（兩側長牆明顯不同）。
+    // 用 room_shape 判斷（比解析 where 文字 / 信心欄位穩）；方正/其他房型 → 只顯示系統建議。
+    var roomShape = ((zoning.spatial_synthesis || {}).room_shape || '') + '';
+    var isLongRoom = /長條|狹長|長型|長形|long|elongated|rectangular/i.test(roomShape);
+    if (isLongRoom) {
       setSofaSide(aiSide);
+      document.getElementById('sofaSideTitle').textContent = '沙發靠哪一側長牆？';
       document.getElementById('sofaSideAI').textContent = '（建議靠' + sideZh + '，可調整）';
       document.getElementById('sofaSideChooser').style.display = 'flex';
       document.getElementById('sofaSideReadonly').style.display = 'none';
       document.getElementById('sofaSideHint').style.display = 'block';
     } else {
+      document.getElementById('sofaSideTitle').textContent = '沙發位置';
+      document.getElementById('sofaSideAI').textContent = '';
       document.getElementById('sofaSideChooser').style.display = 'none';
       document.getElementById('sofaSideHint').style.display = 'none';
-      document.getElementById('sofaSideAI').textContent = '';
       var ro = document.getElementById('sofaSideReadonly');
-      ro.textContent = '系統建議沙發靠畫面' + sideZh + '側長牆（依實際採光與動線），電視櫃放對側。';
+      ro.textContent = '此房型左右差異不大，系統會依採光與動線安排沙發與電視位置，你不需特別指定。';
       ro.style.display = 'block';
     }
     document.getElementById('sofaSideBox').style.display = 'block';
