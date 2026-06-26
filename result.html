@@ -235,8 +235,6 @@
   <div id="spaceSummary" class="sa-summary"></div>
   <div class="sa-grid">
     <div class="sa-row"><span class="sa-key">空間類型</span><span class="sa-val" id="spaceTypeText">—</span></div>
-    <div class="sa-row"><span class="sa-key">坪數</span><span class="sa-val" id="spaceSize">—</span></div>
-    <div class="sa-row"><span class="sa-key">尺寸</span><span class="sa-val" id="spaceDims">—</span></div>
     <div class="sa-row"><span class="sa-key">採光</span><span class="sa-val" id="spaceLighting">—</span></div>
     <div class="sa-row" id="spaceLayoutRow" style="display:none;"><span class="sa-key">格局註記</span><span class="sa-val" id="spaceLayout">—</span></div>
     <div class="sa-row" id="saBudgetRow" style="display:none;"><span class="sa-key">預算範圍</span><span class="sa-val" id="saBudget">—</span></div>
@@ -259,13 +257,13 @@
     <div class="report-card">
       <div class="report-card-icon">📄</div>
       <div class="report-card-title">風格定位報告</div>
-      <div class="report-card-desc">空間格局分析、色彩系統建議、設計邏輯說明，以及建材與燈光選配方向。</div>
+      <div class="report-card-desc">你的風格方向與家具軟裝搭配建議，附色彩與燈光選配。</div>
       <a class="btn-download" href="#" onclick="handleDownload(event,'style')">↓ &nbsp;下載 PDF 報告</a>
     </div>
     <div class="report-card">
       <div class="report-card-icon">🪵</div>
       <div class="report-card-title">材料建議清單</div>
-      <div class="report-card-desc">依你的坪數與風格偏好，列出建材品牌、型號、價格區間與推薦採購管道。</div>
+      <div class="report-card-desc">可直接購買的家具與軟裝清單，附價格與購買連結。</div>
       <a class="btn-download" href="#" onclick="handleDownload(event,'material')">↓ &nbsp;下載材料清單</a>
     </div>
   </div>
@@ -630,14 +628,7 @@
 
     setText('spaceSummary', a.design_analysis || '');
     setText('spaceTypeText', spaceTypeDisplay);
-    setText('spaceSize', a.estimated_size || '');
-    if (d && (d.length_m || d.width_m || d.height_m)) {
-      var parts = [];
-      if (d.length_m) parts.push(d.length_m + 'm');
-      if (d.width_m)  parts.push(d.width_m + 'm');
-      if (d.height_m) parts.push('H' + d.height_m + 'm');
-      setText('spaceDims', parts.join(' × '));
-    }
+    // 坪數/尺寸為 Gemini 視覺估值、誤差大，移除顯示避免被當官方數據（仍保留底部丈量 disclaimer）。
     setText('spaceLighting', a.lighting || '');
 
     if (a.layout_notes) {
