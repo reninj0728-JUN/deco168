@@ -608,9 +608,8 @@
 
   function fillAnalysis(a) {
     if (!a || typeof a !== 'object') return;
-    var d = a.room_dimensions || {};
-    var hasAnything = a.estimated_size || a.lighting || a.design_analysis || a.space_type
-                      || (d && (d.length_m || d.width_m));
+    // 只看實際還會顯示的欄位（坪數/尺寸已移除，不再用 estimated_size / room_dimensions 當顯示條件）。
+    var hasAnything = a.lighting || a.design_analysis || a.space_type || a.layout_notes;
     if (!hasAnything) return;
 
     var card = document.getElementById('spaceAnalysisCard');
