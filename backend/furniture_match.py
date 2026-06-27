@@ -65,7 +65,7 @@ ROOM_RULES = {
     },
     'dining': {
         'must':     ['dining_table', 'dining_chair'],
-        'nice':     ['rug', 'lighting', 'side_table'],
+        'nice':     ['rug', 'lighting'],   # 不放 side_table：配到的多是小邊桌、渲染常沒畫→清單≠圖
         'excluded': ['sofa', 'bed', 'bedding', 'coffee_table', 'media_console'],
     },
     'study': {
@@ -236,6 +236,13 @@ def refine_subcategory(en_cat: str, name_zh: str) -> str:
         if ('鏡' in (name_zh or '')) or ('mirror' in name_lower):
             return 'mirror'
         return 'decor_unknown'
+    # 廚房瀝水盤/托盤/碗盤架等被目錄錯標成「收納(storage)」→ 改判 decor，
+    # 不讓它被當成衣櫃/收納主家具配進臥室/書房（例：83A9B577 主臥出現「多功能淺色瀝水盤」）。
+    if en_cat == 'storage':
+        for kw in ('瀝水', '碗盤', '碗架', '杯架', '餐具', '置物盤', '托盤',
+                   '水盤', '瀝水架', '瀝水籃', 'dish rack', 'drainer', 'tray'):
+            if kw.lower() in name_lower:
+                return 'decor'
     return en_cat
 
 

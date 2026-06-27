@@ -1689,7 +1689,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         _DISPLAY_CATS_BY_ROOM = {
             "living":  set(LIVING_MUST_HAVE),                       # sofa/coffee_table/rug/media_console
             "bedroom": {"bed", "storage", "side_table", "rug"},     # 床/衣櫃/床頭櫃/地毯
-            "dining":  {"dining_table", "dining_chair", "side_table", "rug"},  # 餐桌/餐椅/餐櫃/地毯
+            "dining":  {"dining_table", "dining_chair", "rug"},  # 餐桌/餐椅/地毯（不含邊桌，渲染常沒畫）
             "study":   {"table", "chair", "storage", "rug"},        # 書桌/椅/書櫃/地毯
         }
 

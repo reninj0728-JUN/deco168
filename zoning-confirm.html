@@ -178,6 +178,17 @@
           <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,799</div>
         </button>
       </div>
+      <!-- 單一空間：就地選要設計哪個房間，不用回上一頁 -->
+      <div id="singleRoomRow" style="display:none; margin-bottom:14px;">
+        <label style="font-size:12px; color:var(--body); display:block; margin-bottom:6px;">要設計哪一個空間？</label>
+        <select id="singleRoomType" onchange="onSingleRoomChange()"
+                style="width:100%; padding:12px 14px; background:var(--card); border:1px solid var(--line); color:#fff; font-size:14px;">
+          <option value="living">客廳</option>
+          <option value="dining">餐廳</option>
+          <option value="bedroom">臥室</option>
+          <option value="study">書房</option>
+        </select>
+      </div>
       <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.6; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:8px 12px;">
         全室 Beta：依實際拍到的房間生圖（附影片會更完整）。
       </div>
@@ -333,18 +344,29 @@
     document.getElementById('svcB').classList.toggle('selected', selectedPlan === 'B');
     var _wn = document.getElementById('wholeNote');
     if (_wn) _wn.style.display = (selectedPlan === 'B') ? 'block' : 'none';
+    var _srr = document.getElementById('singleRoomRow');
+    if (_srr) _srr.style.display = (selectedPlan === 'A') ? 'block' : 'none';
     // 方案一次驅動三個訊號，杜絕「選全室卻跑單視角」(render_angle/space_type 與 plan 脫鉤)。
     localStorage.setItem('deco_plan', selectedPlan);
     if (selectedPlan === 'B') {
       localStorage.setItem('deco_space_type', 'whole');
       localStorage.setItem('deco_render_angle', 'multi');
     } else {
+      // 單一空間：用下拉選房型（不必回上一頁）；下拉預設沿用前面選的單一房型。
       var st = localStorage.getItem('deco_space_type');
-      if (!st || st === 'whole') localStorage.setItem('deco_space_type', 'living'); // 保留單一房型，只有 whole 才退回 living
+      var rt = (st && st !== 'whole') ? st : 'living';
+      var sel = document.getElementById('singleRoomType');
+      if (sel) sel.value = rt;
+      localStorage.setItem('deco_space_type', rt);
       localStorage.setItem('deco_render_angle', 'single');
     }
     updatePriceUI();
     if (typeof applyWholeZoningUI === 'function') applyWholeZoningUI();
+  }
+  // 單一空間下拉改房型 → 即時寫入 deco_space_type（不回上一頁）
+  function onSingleRoomChange() {
+    var sel = document.getElementById('singleRoomType');
+    if (sel && selectedPlan === 'A') localStorage.setItem('deco_space_type', sel.value);
   }
   selectPlan(selectedPlan);   // 進頁同步 UI + 三訊號
 
