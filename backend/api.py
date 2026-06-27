@@ -1782,7 +1782,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "renders": [
                 {k: rr.get(k) for k in
                  ("style", "style_label", "angle_label", "render_url",
-                  "render_filename", "matched_furniture", "soft_furnishing")}
+                  "render_filename", "matched_furniture", "soft_furnishing",
+                  # reference_map：result.html 的「圖中軟裝商品」區靠它顯示，精簡版不可省
+                  "reference_map")}
                 for rr in slim_renders
             ],
             "analysis": {k: (analysis or {}).get(k) for k in
