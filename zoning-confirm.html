@@ -192,6 +192,14 @@
       <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.6; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:8px 12px;">
         全室 Beta：依實際拍到的房間生圖（附影片會更完整）。
       </div>
+
+      <!-- #4/#6：付款前在這裡集中確認「你的選擇 + 會拿到什麼」，取代 style-form 的訂單摘要 -->
+      <div style="margin-bottom:16px; padding:16px 18px; background:rgba(201,169,110,0.04); border:1px solid rgba(201,169,110,0.18);">
+        <div id="payChoiceLine" style="font-size:12px; color:var(--body); margin-bottom:12px; line-height:1.7;"></div>
+        <div style="font-size:10px; letter-spacing:2px; color:var(--gold); margin-bottom:8px;">付款後你會拿到</div>
+        <ul id="payDeliverList" style="list-style:none; padding:0; margin:0; font-size:13px; color:var(--body); line-height:1.95;"></ul>
+      </div>
+
       <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
               style="width:100%; padding:18px; font-size:15px;">
         使用此配置 · 以 LINE PAY 付款 NT$<span id="payAmount">1,199</span>
@@ -361,14 +369,54 @@
       localStorage.setItem('deco_render_angle', 'single');
     }
     updatePriceUI();
+    updatePayInfo();
     if (typeof applyWholeZoningUI === 'function') applyWholeZoningUI();
   }
   // 單一空間下拉改房型 → 即時寫入 deco_space_type（不回上一頁）
   function onSingleRoomChange() {
     var sel = document.getElementById('singleRoomType');
     if (sel && selectedPlan === 'A') localStorage.setItem('deco_space_type', sel.value);
+    updatePayInfo();
   }
-  selectPlan(selectedPlan);   // 進頁同步 UI + 三訊號
+
+  // #4/#6：付款前在本頁集中顯示「你的選擇 + 會拿到什麼」（取代 style-form 訂單摘要）
+  var _ROOM_ZH = { living:'客廳', dining:'餐廳', bedroom:'臥室', study:'書房', whole:'全室多空間' };
+  function updatePayInfo() {
+    try {
+      var st = localStorage.getItem('deco_space_type') || 'living';
+      var isWhole = (selectedPlan === 'B') || (st === 'whole');
+      // 風格 + 色系（從 deco_directions）
+      var names = [];
+      try {
+        (JSON.parse(localStorage.getItem('deco_directions') || '[]')).forEach(function(d) {
+          if (d && d.styleName) names.push(d.styleName + (d.colorName ? '（' + d.colorName + '）' : ''));
+        });
+      } catch (e) {}
+      var spaceZh = isWhole ? '全室多空間' : (_ROOM_ZH[st] || st);
+      var cl = document.getElementById('payChoiceLine');
+      if (cl) {
+        cl.innerHTML = '<b style="color:#fff;">空間</b>　' + spaceZh
+          + '　|　<b style="color:#fff;">風格</b>　' + (names.join('、') || '—');
+      }
+      var dl = document.getElementById('payDeliverList');
+      if (dl) {
+        var items = isWhole
+          ? ['客廳／餐廳／主臥／書房等多空間 × 2 種風格的設計圖',
+             '每個空間的可購買家具清單（附價格與連結）',
+             '空間格局與採光分析（文字）',
+             '可下載的設計手冊 PDF']
+          : ['2 種風格的空間設計圖',
+             '每張圖的可購買家具清單（附價格與連結）',
+             '空間格局與採光分析（文字）',
+             '可下載的設計手冊 PDF'];
+        dl.innerHTML = items.map(function(t) {
+          return '<li>· ' + t + '</li>';
+        }).join('');
+      }
+    } catch (e) { /* 不擋付款 */ }
+  }
+
+  selectPlan(selectedPlan);   // 進頁同步 UI + 三訊號 + 付款資訊
 
   // 把使用者選的分區方案 + 沙發側寫進 localStorage（給 /api/job）
   function persistZoningChoice() {

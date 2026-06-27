@@ -767,29 +767,7 @@
     </div>
   </div>
 
-  <hr class="section-divider">
-
-  <!-- ORDER SUMMARY -->
-  <div class="summary-card">
-    <div class="summary-title">訂單摘要</div>
-    <div class="summary-row">
-      <span class="summary-key">空間</span>
-      <span class="summary-val" id="s-space">客廳 · 20–30 坪</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-key">設計風格</span>
-      <span class="summary-val" id="s-style">現代簡約</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-key">主色調</span>
-      <span class="summary-val" id="s-color">暖白 + 淺木色</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-key">方案費用</span>
-      <span class="summary-price" id="s-price">NT$ 1,199</span>
-    </div>
-    <span id="s-plan" style="display:none;"></span>
-  </div>
+  <!-- 訂單摘要已移除：方案/價格/2方案比較統一在付款頁(zoning-confirm)確認，避免重複與流程混亂(#4/#6) -->
 
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
@@ -1085,30 +1063,9 @@ function updateDeliverables(plan) {
 }
 
 function updateSummary() {
+  // 訂單摘要卡已移除(#4/#6)；這裡只更新「你將收到的內容」(依方案連動)。
   const spaceTypeVal = document.getElementById('spaceType').value;
-  const spaceLabel   = SPACE_LABEL_ZH[spaceTypeVal] || spaceTypeVal;
-  const selectedStyle   = document.querySelector('.style-card.selected .style-name');
-  const selectedPalette = document.querySelector('.palette-card.selected .palette-label');
-  // 方案不再獨立選：全室(空間類型=whole) ⟺ multi/1799，其餘單一房型 ⟺ single/1199。
   const plan = (spaceTypeVal === 'whole') ? 'multi' : 'single';
-
-  // 坪數由 Gemini 從照片分析（前端不再蒐集，避免跟模型結果衝突）
-  document.getElementById('s-space').textContent = spaceLabel;
-  // 顯示「全部已選風格」（方案含 2 種風格），不要只露第一個
-  var _styleNames = (selectedDirections || []).map(function(d){ return d.styleName; }).filter(Boolean);
-  if (_styleNames.length)   document.getElementById('s-style').textContent = _styleNames.join(' + ');
-  else if (selectedStyle)   document.getElementById('s-style').textContent = selectedStyle.textContent;
-  if (selectedPalette) document.getElementById('s-color').textContent  = selectedPalette.textContent.replace(' ✦','');
-
-  // 方案 → 顯示名 + 價格（張數不再露出）
-  if (plan === 'multi') {
-    document.getElementById('s-plan').textContent    = '全室多空間（Beta）';
-    document.getElementById('s-price').textContent   = 'NT$ 1,799';
-  } else { // single
-    document.getElementById('s-plan').textContent    = '單一空間';
-    document.getElementById('s-price').textContent   = spaceTypeVal === 'whole' ? 'NT$ 1,799' : 'NT$ 1,199';
-  }
-
   updateDeliverables(plan);
 }
 
