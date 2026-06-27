@@ -653,11 +653,11 @@
       </div>
 
       <div class="field-group">
-        <label class="field-label">你想要規劃什麼？<span class="preset-badge">系統推薦</span></label>
+        <label class="field-label">設計範圍<span class="preset-badge">系統推薦</span></label>
         <div class="select-wrapper">
           <select id="designMode" onchange="updateDesignHint()">
-            <option value="furnish">傢俱＋軟裝（不動牆壁）</option>
-            <option value="full">裝潢＋傢俱（含隔間／天花板）</option>
+            <option value="furnish">只換家具與軟裝（不動牆面、天花板）</option>
+            <option value="full">牆面與天花板造型建議＋家具（不改變原有格局結構）</option>
           </select>
         </div>
         <div id="designHint" style="margin-top:8px; font-size:11px; color:#666; letter-spacing:0.3px; line-height:1.6; padding-left:2px;"></div>
@@ -1046,8 +1046,8 @@ function renderRefPreviews() {
 
 // ── DESIGN MODE HINT ──────────────────────────────────────────────────────────
 var designHints = {
-  furnish: '只換家具軟裝，不動牆面天花板。',
-  full:    '含家具＋局部裝潢（天花、系統櫃建議）。'
+  furnish: '只換家具與軟裝，不動牆面、天花板。',
+  full:    '加上牆面與天花板的造型建議＋家具；不改變原有格局與結構。'
 };
 function updateDesignHint() {
   var sel = document.getElementById('designMode');
@@ -1099,18 +1099,17 @@ const SPACE_LABEL_ZH = {
 };
 
 // 「你將收到的內容」依方案連動（純前端文案，不影響後端）
+// 只列「真的會交付」的東西，避免廣告不實（PDF 報告尚未提供，不寫）。
 const DELIVERABLES = {
   single: [
-    '2 種風格的設計提案',
-    '為你搭配好的家具清單（可購買連結）',
-    '空間格局與採光分析',
-    '風格與色調建議',
+    '2 種風格的空間設計圖',
+    '每張圖的可購買家具清單（附價格與連結）',
+    '空間格局與採光分析（文字）',
   ],
   multi: [
-    '2 種風格 × 多視角的設計提案',
-    '為你搭配好的家具清單（可購買連結）',
-    '空間格局與採光分析',
-    '風格與色調建議',
+    '客廳／餐廳／主臥等多空間 × 2 種風格的設計圖',
+    '每個空間的可購買家具清單（附價格與連結）',
+    '空間格局與採光分析（文字）',
   ],
 };
 
