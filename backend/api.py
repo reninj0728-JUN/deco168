@@ -1812,13 +1812,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 全室等大 payload 可能寫不進去（之前 ED3B66EF 渲染到 92% 卻卡在 result_upsert）。
         # 對策：前 2 次寫完整版；仍失敗就改寫「精簡版」——只留結果頁必要欄位（渲染圖 URL +
         # 家具 + 基本空間摘要），捨棄 zoning/逐圖 validation/完整 analysis，確保訂單能完成、圖能交付。
+        # 精簡 validation：只留沙發/動線相關關鍵欄位（很小），讓 trimmed 時仍能事後診斷擺位問題。
+        def _tiny_val(v):
+            if not isinstance(v, dict):
+                return None
+            return {kk: v.get(kk) for kk in (
+                "ok", "hard_fail", "room_type", "reason", "soft_issues",
+                "sofa_depth_percent_estimate", "sofa_depth_grounded_pct",
+                "sofa_outside_living_zone", "sofa_on_wrong_side", "sofa_back_against_window",
+                "focal_anchor_misaligned_with_sofa", "furniture_blocks_walkway") if kk in v}
+
         slim_result_json = {
             "renders": [
-                {k: rr.get(k) for k in
-                 ("style", "style_label", "angle_label", "room_type", "render_url",
-                  "render_filename", "matched_furniture", "soft_furnishing",
-                  # reference_map：result.html 的「圖中軟裝商品」區靠它顯示，精簡版不可省
-                  "reference_map")}
+                {**{k: rr.get(k) for k in
+                    ("style", "style_label", "angle_label", "room_type", "render_url",
+                     "render_filename", "matched_furniture", "soft_furnishing", "reference_map")},
+                 "validation": _tiny_val(rr.get("validation"))}
                 for rr in slim_renders
             ],
             "analysis": {k: (analysis or {}).get(k) for k in
@@ -1847,7 +1856,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  "angle_label": rr.get("angle_label"), "room_type": rr.get("room_type", "living"),
                  "render_url": rr.get("render_url"), "render_filename": rr.get("render_filename"),
                  "matched_furniture": _tiny_furn(rr.get("matched_furniture")),
-                 "soft_furnishing": _tiny_furn(rr.get("soft_furnishing"))}
+                 "soft_furnishing": _tiny_furn(rr.get("soft_furnishing")),
+                 "validation": _tiny_val(rr.get("validation"))}
                 for rr in slim_renders
             ],
             "analysis": {"space_type": (analysis or {}).get("space_type")},
