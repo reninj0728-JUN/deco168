@@ -1210,9 +1210,42 @@ function submitForm() {
   window.location.href = 'zoning-confirm.html';
 }
 
+// 回上一頁再回來時，從 localStorage 還原先前選擇，避免被重設成預設(living/modern)
+// → 送出錯方案/風格（修 EF18E882：選全室+新中式，卻跑成單一/客廳/都會簡約）。
+function restoreSelections() {
+  try {
+    var st = localStorage.getItem('deco_space_type');
+    var se = document.getElementById('spaceType');
+    if (st && se) se.value = st;
+    var dm = localStorage.getItem('deco_design_mode');
+    var de = document.getElementById('designMode');
+    if (dm && de) de.value = dm;
+    var dirs = localStorage.getItem('deco_directions');
+    if (dirs) {
+      var arr = JSON.parse(dirs);
+      if (Array.isArray(arr) && arr.length) {
+        selectedDirections = arr.slice(0, 2);
+        updateDirectionChips();
+        updateStyleCounter();
+      }
+    }
+    var bt = localStorage.getItem('deco_budget_tier');
+    if (bt) {
+      selectedBudgetTier = bt;
+      document.querySelectorAll('.budget-pill').forEach(function(p){
+        p.classList.toggle('selected', p.dataset.id === bt);
+      });
+    }
+    var notes = localStorage.getItem('deco_customer_notes');
+    var ne = document.getElementById('customerNotes');
+    if (notes && ne) ne.value = notes;
+  } catch (e) { console.warn('restoreSelections', e); }
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 buildStyleGrid();
 buildBudgetPills();
+restoreSelections();
 updateSummary();
 toggleBudgetForWhole();
 </script>
