@@ -622,14 +622,14 @@
 <main>
   <div class="page-eyebrow">Step 02 / 04</div>
   <h1 class="page-title">確認您的<br><em>設計偏好</em></h1>
-  <p class="page-desc">系統已根據您上傳的影片與描述，預先填入建議選項。您可以直接確認，或依照個人喜好調整各項設定。</p>
+  <p class="page-desc">建議已預填，直接確認或調整即可。</p>
 
   <!-- INSIGHT BANNER -->
   <div class="insight-banner">
     <div class="insight-icon">✦</div>
     <div class="insight-text-block">
       <div class="insight-label">空間分析結果</div>
-      <p class="insight-text">偵測到空間約 <strong>25–30 坪</strong>，光線充足，現有風格傾向<strong>現代簡約</strong>。系統建議主色調選用<strong>暖白 + 淺木色</strong>，並在下方以 <span style="color:var(--gold);">✦</span> 標記推薦選項。您可自由修改任何欄位。</p>
+      <p class="insight-text">系統已分析您的空間與光線。建議選項已預填，您可直接使用或調整。</p>
     </div>
   </div>
 
@@ -752,15 +752,15 @@
     <div class="section-eyebrow">Layer 04</div>
     <div class="section-title">服務方案</div>
 
-    <!-- 家具軟裝預算範圍（橫向 Pills）-->
-    <div class="field-group" style="margin-bottom:32px;">
-      <label class="field-label" style="margin-bottom:14px;font-size:11px;color:#999;">家具軟裝預算範圍</label>
+    <!-- 家具品質級距（每件家具的價位層級，非全室總預算） -->
+    <div class="field-group" style="margin-bottom:32px;" id="budgetGroup">
+      <label class="field-label" style="margin-bottom:14px;font-size:11px;color:#999;">家具品質級距</label>
       <div class="budget-pills" id="budgetPills">
         <!-- injected by JS -->
       </div>
       <div class="budget-pill-desc" id="budgetPillDesc">完整家具搭配＋燈飾窗簾</div>
       <div style="font-size:11px;color:#888;margin-top:10px;letter-spacing:0.5px;line-height:1.6;">
-        系統會在預算內優先挑選可購買的家具與軟裝；若風格契合的品項超出預算太多，會自動放寬避免清單空缺。
+        每件家具的品質層級（非總價）。全室同樣適用。
       </div>
     </div>
 
@@ -1049,8 +1049,8 @@ function renderRefPreviews() {
 
 // ── DESIGN MODE HINT ──────────────────────────────────────────────────────────
 var designHints = {
-  furnish: '我們會依照空間格局、風格方向與預算條件，篩選適合的家具與軟裝，整理成可落地的搭配提案。不動牆壁、天花板與地板，無需動工。',
-  full:    '在家具與軟裝之外，同時規劃木工天花板與系統櫃，提供一套完整的空間改造方向。'
+  furnish: '只換家具軟裝，不動牆面天花板。',
+  full:    '含家具＋局部裝潢（天花、系統櫃建議）。'
 };
 function updateDesignHint() {
   var sel = document.getElementById('designMode');
@@ -1154,7 +1154,26 @@ function updateSummary() {
   updateDeliverables(plan);
 }
 
-document.getElementById('spaceType').addEventListener('change', updateSummary);
+document.getElementById('spaceType').addEventListener('change', function() {
+  updateSummary();
+  toggleBudgetForWhole();
+});
+
+function toggleBudgetForWhole() {
+  var g = document.getElementById('budgetGroup');
+  if (!g) return;
+  var isWhole = document.getElementById('spaceType').value === 'whole';
+  g.style.display = isWhole ? 'none' : '';
+  if (isWhole) {
+    selectedBudgetTier = 'tier2';
+  } else {
+    // 切回單一時，嘗試恢復 pill 視覺
+    var pills = document.querySelectorAll('.budget-pill');
+    pills.forEach(function(p) {
+      p.classList.toggle('selected', p.dataset.id === selectedBudgetTier);
+    });
+  }
+}
 
 function getSelectedStyleId() {
   if (selectedDirections.length > 0)
@@ -1199,6 +1218,7 @@ function submitForm() {
 buildStyleGrid();
 buildBudgetPills();
 updateSummary();
+toggleBudgetForWhole();
 </script>
 
 <a href="download.html" class="fab-dl" title="查詢 / 下載訂單">

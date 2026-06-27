@@ -88,10 +88,7 @@
 
 <main>
   <h1 class="page-title">確認你的<em>空間分區</em></h1>
-  <p class="lede">
-    系統已根據你的照片初步分析空間用途。空屋格局有時不只一種規劃方式，請確認哪一個比較符合你的需求。<br>
-    這一步不收費，目的是讓我們在開始設計前對齊預期，避免把「餐廳」當成「客廳」。
-  </p>
+  <p class="lede">確認空間規劃方式（免費）。這步確保我們理解你的格局。</p>
 
   <div id="loadingBox" class="loading-state">
     <div class="spinner"></div>
@@ -168,7 +165,7 @@
         <button type="button" class="opt side-opt selected" id="svcA" onclick="selectPlan('A')"
                 style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
           <div style="font-size:15px; color:#fff; letter-spacing:1px;">單一空間</div>
-          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">此空間 · 2 風格 · 6 張渲染</div>
+          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">此空間 · 2 風格 · 6 張渲染<br><span style="font-size:10px;opacity:0.8;">（想指定臥室/書房請回上頁選）</span></div>
           <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,199</div>
         </button>
         <button type="button" class="opt side-opt" id="svcB" onclick="selectPlan('B')"
@@ -178,8 +175,8 @@
           <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,799</div>
         </button>
       </div>
-      <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.7; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:10px 14px;">
-        全室為進階 Beta：系統會<b>依影片/照片實際拍到的房間</b>各自產生渲染；若素材只涵蓋部分房間，會自動產生「可生成的房間數」，不會強迫湊滿。建議影片走過每個房間。
+      <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.6; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:8px 12px;">
+        全室 Beta：依實際拍到的房間生圖（影片建議走完整）。
       </div>
       <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
               style="width:100%; padding:18px; font-size:15px;">
