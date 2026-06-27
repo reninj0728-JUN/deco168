@@ -222,9 +222,9 @@
     </div>
   </div>
 
-  <div class="stage-eyebrow">設計師正在整理你的提案</div>
+  <div class="stage-eyebrow">正在整理你的提案</div>
   <h1 class="stage-title">為你打造<em>專屬</em><br>風格提案</h1>
-  <p class="stage-desc">正在生成你的風格提案。<br><b style="color:var(--gold,#C9A96E);">約 5–15 分鐘。複製編號後可關閉視窗，稍後用「查詢下載」取回。</b></p>
+  <p class="stage-desc"><b style="color:var(--gold,#C9A96E);">約 5–15 分鐘，可先關閉視窗，稍後再回來查看。</b></p>
 
   <div class="proc-steps" id="procSteps">
     <div class="proc-step done" id="step1">
@@ -244,19 +244,19 @@
     </div>
     <div class="proc-step" id="step4">
       <div class="proc-step-dot"></div>
-      <div class="proc-step-text">設計提案生成</div>
+      <div class="proc-step-text">設計提案中</div>
       <div class="proc-step-check">✓</div>
     </div>
     <div class="proc-step" id="step5">
       <div class="proc-step-dot"></div>
-      <div class="proc-step-text">家具搭配與材料建議</div>
+      <div class="proc-step-text">家具與軟裝搭配</div>
       <div class="proc-step-check">✓</div>
     </div>
   </div>
 
   <div class="timer-row">
     <div class="timer-dot"></div>
-    <span id="timerText">正在整理你的空間條件與格局方向</span>
+    <span id="timerText">正在解析你的照片與空間格局</span>
   </div>
 
   <div class="email-note">
@@ -315,6 +315,13 @@
     'failed':    2
   };
 
+  // 動態文字跟著「實際當前步驟」走，避免與上方步驟亮點不符（#9）。
+  var STEP_MSG = {
+    2: '正在解析你的照片與空間格局',
+    3: '正在定位風格與配色方向',
+    4: '正在繪製你的設計提案',
+    5: '正在搭配家具與軟裝'
+  };
   function updateSteps(cur) {
     for (var i = 1; i <= 5; i++) {
       var el = document.getElementById('step' + i);
@@ -323,34 +330,15 @@
       else if (i === cur) el.className = 'proc-step active';
       else               el.className = 'proc-step';
     }
+    var tt = document.getElementById('timerText');
+    if (tt && STEP_MSG[cur]) tt.textContent = STEP_MSG[cur];
   }
 
   var pollTimer;
 
-  // ── 服務感輪播文案（純前端，每 6 秒輪一句；backend 回 completed/failed 時停）──
-  var ROTATE_MESSAGES = [
-    '正在整理你的空間條件與格局方向',
-    '正在比對採光、動線與風格搭配',
-    '正在篩選符合預算的家具與軟裝',
-    '正在生成你的專屬風格提案，請稍候'
-  ];
-  var rotateIdx = 0;
-  var rotateTimer = null;
-  var rotateActive = true;
-  function tickRotate() {
-    if (!rotateActive) return;
-    var el = document.getElementById('timerText');
-    if (el) el.textContent = ROTATE_MESSAGES[rotateIdx];
-    rotateIdx = (rotateIdx + 1) % ROTATE_MESSAGES.length;
-  }
-  function startRotate() {
-    tickRotate();
-    rotateTimer = setInterval(tickRotate, 6000);
-  }
-  function stopRotate() {
-    rotateActive = false;
-    if (rotateTimer) clearInterval(rotateTimer);
-  }
+  // timerText 改為跟著實際步驟（updateSteps 設定），不再獨立輪播 → 不會與步驟亮點脫節。
+  function startRotate() {}
+  function stopRotate() {}
 
   function poll() {
     fetch(API_BASE + '/api/job/' + JOB_ID)
