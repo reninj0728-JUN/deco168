@@ -865,7 +865,10 @@ def _build_nonliving_nano_inputs(
     retry_sec = _build_retry_context_section(retry_context)
     soft_sec = (
         "SOFT FURNISHING: add complementary, style-consistent soft items appropriate to this room "
-        "(curtains, a rug, cushions or bedding, a lamp, a plant, wall art) — illustrative only."
+        "(a rug, cushions or bedding, a lamp, a plant, wall art) — illustrative only. "
+        "CURTAINS: only add curtains where the photo shows an ACTUAL window; "
+        "do NOT hang curtains on a solid wall that has no window, and do not invent a new window. "
+        "Keep every existing doorway / passage opening open and unobstructed — do not wall it up."
     )
 
     sections = [inputs_sec, furnish_sec]
