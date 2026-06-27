@@ -481,8 +481,8 @@
       var key = (f.id || '') + '|' + (f.category_en || '') + '|' + (f.name_zh || '');
       return !usedSoftKeys[key];
     });
-    // 退路：若沒有 reference_map（例如精簡存檔），仍把軟裝清單顯示出來，不要整塊消失
-    if (!mainSoft.length && soft.length) { mainSoft = soft.slice(); extraSoft = []; }
+    // 退路：若沒有 reference_map（例如精簡存檔），仍顯示軟裝，但只露前 3 件，其餘收進「更多」。
+    if (!mainSoft.length && soft.length) { mainSoft = soft.slice(0, 3); extraSoft = soft.slice(3); }
 
     function renderSoftItems(items) {
       return items.map(function(f, j) {

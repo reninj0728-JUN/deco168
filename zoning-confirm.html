@@ -281,18 +281,9 @@
     applyWholeZoningUI();
   }
 
-  // 全室：單張照片切「客廳/餐廳」分區、問沙發左右沒有意義（甚至那張可能是臥室照）。
-  // → 隱藏分區圖 / A·B 方案 / 沙發左右，改顯示一句說明；逐房間生成不靠這步。
-  function applyWholeZoningUI() {
-    var isWhole = (localStorage.getItem('deco_space_type') === 'whole')
-               || (localStorage.getItem('deco_plan') === 'B');
-    [['overlayCard', 'block'], ['optionsGrid', 'grid'], ['sofaSideBox', 'block']].forEach(function(p) {
-      var el = document.getElementById(p[0]);
-      if (el) el.style.display = isWhole ? 'none' : p[1];
-    });
-    var note = document.getElementById('wholeZoningNote');
-    if (note) note.style.display = isWhole ? 'block' : 'none';
-  }
+  // （已復原）分區頁的 A/B 方案 + 沙發左右對全室仍保留顯示；不再隱藏。
+  // 全室的「該用哪張照片畫分區」在後端處理（優先取客廳/living region 的照片）。
+  function applyWholeZoningUI() {}
 
   // 2. 綁定 A/B 選擇
   document.getElementById('optA').addEventListener('click', function() {
