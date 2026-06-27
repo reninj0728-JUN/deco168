@@ -752,6 +752,64 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
     return out
 
 
+# (i) 廣角裁單房：把多區廣角底圖裁成「該房聚焦視角」，去掉鄰房的門/雜物。
+# 保守原則：任何不確定 → 回原圖（最壞＝跟現在一樣，不會更差）。只處理 living/dining
+# （會共用廣角合照的房型）；bedroom/study 多為專屬單張，不裁。
+_RT_TO_ZONE_KEY = {"living": "living_zone", "dining": "dining_zone"}
+
+
+def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tuple[str, bool]:
+    """回傳 (要用的底圖路徑, 是否有裁切)。"""
+    zone_key = _RT_TO_ZONE_KEY.get(room_type)
+    if not zone_key or not base_path:
+        return base_path, False
+    try:
+        import cv2
+        from zoning_v2 import compute_zoning_v2
+        img = cv2.imread(base_path)
+        if img is None:
+            return base_path, False
+        H, W = img.shape[:2]
+        # 單張重跑 zoning → bbox 必落在這張上（零跨元件對齊風險）
+        zres = compute_zoning_v2([Path(base_path)], video_keyframes=None)
+        if not isinstance(zres, dict) or zres.get("error"):
+            return base_path, False
+        zones = zres.get("proposed_zones") or {}
+        bbox = (zones.get(zone_key) or {}).get("bbox_on_best_photo")
+        if not bbox or len(bbox) != 4:
+            return base_path, False
+        ymin, xmin, ymax, xmax = [float(v) for v in bbox]
+        fy0, fx0, fy1, fx1 = ymin / 1000.0, xmin / 1000.0, ymax / 1000.0, xmax / 1000.0
+        bw, bh = (fx1 - fx0), (fy1 - fy0)
+        if bw <= 0 or bh <= 0:
+            return base_path, False
+        area = bw * bh
+        if area < 0.25:   # zone 太小＝不可靠，不裁
+            print(f"[pipeline] (i) {room_type} zone 太小 area={area:.2f}，用整張")
+            return base_path, False
+        # 動態外擴：大區小擴(10%)、小區多擴(20%)，保留一點鄰接感又不切到家具
+        margin = 0.10 if area > 0.50 else 0.20
+        fx0 = max(0.0, fx0 - margin); fy0 = max(0.0, fy0 - margin)
+        fx1 = min(1.0, fx1 + margin); fy1 = min(1.0, fy1 + margin)
+        x0, y0, x1, y1 = int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)
+        if (x1 - x0) < W * 0.30 or (y1 - y0) < H * 0.30:
+            return base_path, False
+        aspect = (x1 - x0) / max(1, (y1 - y0))
+        if aspect < 0.45 or aspect > 2.6:   # 比例異常→不裁
+            print(f"[pipeline] (i) {room_type} 裁切比例異常 {aspect:.2f}，用整張")
+            return base_path, False
+        crop = img[y0:y1, x0:x1]
+        out_path = str(Path(job_dir) / f"crop_{room_type}_{idx:02d}.jpg")
+        if not cv2.imwrite(out_path, crop):
+            return base_path, False
+        print(f"[pipeline] (i) {room_type} 裁成單房視角 area={area:.2f} margin={margin} "
+              f"box=({x0},{y0},{x1},{y1})")
+        return out_path, True
+    except Exception as e:
+        print(f"[pipeline] (i) {room_type} 裁切例外，用整張: {e}")
+        return base_path, False
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -1301,7 +1359,24 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if not flux_bases:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
 
-        print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{list(zip(angle_labels, [Path(p).name for p in flux_bases]))}")
+        # (i) 廣角裁單房：全室模式下，若某房(客廳/餐廳)底圖是「多區廣角合照」(photo_contains≥2)，
+        # 裁成該房聚焦視角去掉鄰房門/雜物。保守：不確定就用整張(crop_flags=False)。
+        crop_flags: list[bool] = [False] * len(flux_bases)
+        if space_type == "whole" and render_angle == "multi":
+            for _i in range(len(flux_bases)):
+                _rt = angle_room_types[_i]
+                if _rt not in _RT_TO_ZONE_KEY:
+                    continue
+                _meta = _photo_meta_for_path(flux_bases[_i], photo_meta_by_key_early)
+                _contains = _meta.get("photo_contains") if isinstance(_meta, dict) else None
+                if not (isinstance(_contains, list) and len(_contains) >= 2):
+                    continue   # 專屬單房照片，不裁
+                _new_base, _did = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
+                flux_bases[_i] = _new_base
+                crop_flags[_i] = _did
+
+        print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{list(zip(angle_labels, [Path(p).name for p in flux_bases]))} "
+              f"cropped={crop_flags}")
 
         # ── Gemini zoning（給 Nano Banana prompt 用，失敗不阻斷） ──
         # 規則：best_photo_index 那張一定包含，再補同 upload 其他照片到最多 3 張
