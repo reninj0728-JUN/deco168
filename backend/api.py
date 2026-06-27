@@ -1682,20 +1682,21 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 否則客戶會看到圖上沒有的家具（且還掛價格）。
         from furniture_match import LIVING_MUST_HAVE
         _RENDERED_CORE_CATS = set(LIVING_MUST_HAVE)
+        # 各房型「圖中真的會畫出的主家具」品類 → 清單只顯示這些（與 prompt 參考對齊，原則跟客廳統一）。
+        # 不含 lighting（燈具歸軟裝獨立區，避免主清單與軟裝重複）。
+        _DISPLAY_CATS_BY_ROOM = {
+            "living":  set(LIVING_MUST_HAVE),                       # sofa/coffee_table/rug/media_console
+            "bedroom": {"bed", "storage", "side_table", "rug"},     # 床/衣櫃/床頭櫃/地毯
+            "dining":  {"dining_table", "dining_chair", "side_table", "rug"},  # 餐桌/餐椅/餐櫃/地毯
+            "study":   {"table", "chair", "storage", "rug"},        # 書桌/椅/書櫃/地毯
+        }
 
         def _rendered_core_only(mf: list, room_type: str = "living") -> list:
             mf = mf or []
-            # 非客廳（臥室/餐廳/書房）：matched_furniture 本來就是該房型配到的必備品
-            # （床/衣櫃、餐桌椅、書桌櫃…），全部顯示，不可用客廳清單過濾掉（否則只剩地毯）。
-            if room_type and room_type != "living":
-                return mf[:5]
-            # 客廳：維持原行為——只留圖中真有的核心家具（沙發/茶几/地毯/電視櫃）。
-            items = [
-                it for it in mf
-                if (it.get("category_en") or "") in _RENDERED_CORE_CATS
-            ]
-            # category_en 缺失（舊資料）時退回原前 4，避免整列消失
-            return (items or list(mf))[:4]
+            cats = _DISPLAY_CATS_BY_ROOM.get(room_type, _RENDERED_CORE_CATS)
+            items = [it for it in mf if (it.get("category_en") or "") in cats]
+            # category_en 缺失 / 全空 → 退回原清單前幾件，避免整列消失（defensive）
+            return (items or list(mf))[:5]
 
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
