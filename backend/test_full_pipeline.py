@@ -200,7 +200,8 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
                   render_angle: str = "single",
                   photo_sources: list[str] | None = None,
                   video_path: str | None = None,
-                  photo_meta_list: list | None = None) -> dict:
+                  photo_meta_list: list | None = None,
+                  user_notes: str = "") -> dict:
     """
     image_path   : 主要照片（給渲染基底用）
     extra_photos : 補充角度照片清單（一起送 Gemini 分析）
@@ -264,10 +265,18 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
             "優先選 room_type='living' 的；若沒有 living，依序退而求其次 dining > bedroom > 任意。"
         )
         if render_angle == "multi":
+            _notes_clause = ""
+            if (user_notes or "").strip():
+                _notes_clause = (
+                    f" 【屋主明確指定—最高優先，必須遵守】「{user_notes.strip()[:200]}」："
+                    "屋主說中間/某處是餐廳，就切出獨立『dining』region；說當書房就切『study』，不要併進 living。"
+                )
             regions_rule = (
                 "regions[] 必須恰好 3 個，3 個 room_type 必須**全部不同**（優先 living/dining/bedroom）。"
-                "每個 region 帶 name（中文，例如『客廳主視角』）、best_photo_index、room_type、angle_label（可空）。"
+                "開放式客餐廳要拆成 living + dining 兩個不同 region，不要兩個都標 living。"
+                "每個 region 帶 name（中文，例如『客廳』『餐廳』『主臥室』）、best_photo_index、room_type、angle_label（可空）。"
                 "如果可分類的不同房間少於 3 種，regions 仍輸出可用的（< 3 個也行），不要硬補。"
+                + _notes_clause
             )
             insufficient_rule = (
                 "如果不同 room_type 的照片少於 3 種，必須設 "

@@ -172,6 +172,7 @@ def analyze_space(
     is_uri: bool = False,
     extra_photos: list[str] | None = None,
     space_type: str = "living",
+    user_notes: str = "",
 ) -> dict:
     """
     分析空間影片並生成 Flux prompts。
@@ -234,11 +235,21 @@ def analyze_space(
         if photo_parts else "本次只有影片，沒有額外照片。"
     )
     space_label = SPACE_TYPE_LABELS.get(space_type, "客廳")
+    # 屋主備註（例如「中間是餐廳」）→ 強力影響 region 切分，讓 Gemini 照指定切出對應房間。
+    _notes_clause = ""
+    if (user_notes or "").strip():
+        _notes_clause = (
+            f"\n【屋主明確指定 — 最高優先，必須遵守】「{user_notes.strip()[:200]}」。"
+            "請依此切分 regions：屋主說中間/某處是餐廳，就要切出獨立的『餐廳(dining)』region；"
+            "說某處當書房，就切『書房(study)』。不要把它併進客廳。"
+        )
     if space_type == "whole":
         scope_instruction = (
             "用戶選的是【全室】——識別空間裡幾個主要房間/區域"
-            "（例如：客廳、餐廳、廚房、主臥、書房、玄關）。"
-            "regions 陣列**必須恰好 3 個**：挑最值得渲染的 3 個房間（優先客廳/主臥/餐廳之類核心空間）。"
+            "（例如：客廳、餐廳、主臥、書房）。"
+            "regions 陣列**必須恰好 3 個、且 3 個 room_type 全部不同**（優先 客廳/餐廳/主臥）；"
+            "開放式客餐廳請拆成『客廳』+『餐廳』兩個不同 region，不要給兩個都標客廳。"
+            + _notes_clause
         )
     else:
         scope_instruction = (

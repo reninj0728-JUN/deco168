@@ -1069,7 +1069,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                      space_type=space_type, render_angle=render_angle,
                                      photo_sources=sources,
                                      video_path=video_paths[0],
-                                     photo_meta_list=_build_photo_meta_list(augmented_paths, photo_meta_by_key_early))
+                                     photo_meta_list=_build_photo_meta_list(augmented_paths, photo_meta_by_key_early),
+                                     user_notes=customer_notes)
             # 把 augmented_paths 寫回 image_paths 給後續 _resolve_region_base / zoning_photos 使用
             image_paths = augmented_paths
         elif gemini_uris or video_paths:
@@ -1078,18 +1079,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 write_status(job_id, job_dir, "analyzing", 15, "解析影片與照片，理解整體格局…")
                 analysis = analyze_space(gemini_uris[0], user_styles=styles or None,
                                          is_uri=True, extra_photos=image_paths or None,
-                                         space_type=space_type)
+                                         space_type=space_type, user_notes=customer_notes)
             else:
                 write_status(job_id, job_dir, "analyzing", 10, "正在解析你的空間影片（大檔案需要幾分鐘）…")
                 analysis = analyze_space(video_paths[0], user_styles=styles or None,
                                          extra_photos=image_paths or None,
-                                         space_type=space_type)
+                                         space_type=space_type, user_notes=customer_notes)
         else:
             write_status(job_id, job_dir, "analyzing", 15, "理解空間格局中…")
             extra = image_paths[1:] if len(image_paths) > 1 else None
             analysis = analyze_image(image_paths[0], styles or None, extra_photos=extra,
                                      space_type=space_type, render_angle=render_angle,
-                                     photo_meta_list=_build_photo_meta_list(image_paths, photo_meta_by_key_early))
+                                     photo_meta_list=_build_photo_meta_list(image_paths, photo_meta_by_key_early),
+                                     user_notes=customer_notes)
 
         # PhotoMeta v1 Step 2: 抽 target_zone + target_location_hint + target_note,
         # 給後面 generate_renders → build_nano_banana_inputs 用. 預設沿用 best_photo,
