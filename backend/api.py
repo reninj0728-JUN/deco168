@@ -987,6 +987,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             FalGenerationTimeout, FalResultDownloadError,
         )
         from furniture_match import enrich_renders, normalize_room_type
+        ROOM_DISPLAY_ZH = {"living": "客廳", "dining": "餐廳", "bedroom": "主臥室", "study": "書房"}
 
         # PhotoMeta v1 Step 2: 早期讀回 photo_meta_by_key, 後面 analyze + render
         # 都可消費. 沒檔案 / 空 → 空 dict, 等同現況行為.
@@ -1192,14 +1193,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 path, label = _resolve_region_base(region, i)
                 if path:
                     flux_bases.append(path)
-                    angle_labels.append(label)
-                    # 全室：每個 region 是不同房間 → 取其 room_type/name 正規化；
+                    # 全室：room_type 欄位 + 名稱「合併」判房型（避免 Gemini 把『玄關餐廚區』
+                    # 的 room_type 標成 kitchen/entrance → 被誤判客廳、擺沙發、又被客廳驗收 drop）。
                     # 單房多角度：同一房型（= space_type）。
                     if space_type == "whole":
-                        angle_room_types.append(
-                            normalize_room_type(region.get("room_type") or region.get("name") or space_type))
+                        rt = normalize_room_type(
+                            (str(region.get("room_type") or "") + " " + str(region.get("name") or "")).strip()
+                            or space_type)
+                        # 顯示名統一成乾淨房名（客廳/餐廳/主臥/書房），不秀「玄關餐廚區」這種拼接名
+                        label = ROOM_DISPLAY_ZH.get(rt, label)
                     else:
-                        angle_room_types.append(normalize_room_type(space_type))
+                        rt = normalize_room_type(space_type)
+                    angle_labels.append(label)
+                    angle_room_types.append(rt)
         else:
             # single：Gemini 挑最美 1 張
             if image_paths:
@@ -1697,6 +1703,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "style":             r.get("style"),
                 "style_label":       r.get("style_label"),
                 "angle_label":       r.get("angle_label", "主視角"),
+                "room_type":         r.get("room_type", "living"),   # step-2：結果頁按房間分頁/驗收用
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
@@ -1808,7 +1815,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         slim_result_json = {
             "renders": [
                 {k: rr.get(k) for k in
-                 ("style", "style_label", "angle_label", "render_url",
+                 ("style", "style_label", "angle_label", "room_type", "render_url",
                   "render_filename", "matched_furniture", "soft_furnishing",
                   # reference_map：result.html 的「圖中軟裝商品」區靠它顯示，精簡版不可省
                   "reference_map")}
@@ -1826,11 +1833,21 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if dropped_failed_renders:
             slim_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
 
-        # 極簡 payload（第三層 fallback）：只留結果頁顯示圖必要欄位，保證夠小一定寫得進。
+        # 極簡 payload（第三層 fallback）：留「結果頁必要欄位 + 精簡家具」，仍夠小一定寫得進。
+        # 家具只留顯示必要欄位（去掉 flux_descriptor/dimensions/colors/id 等），確保最小層也有清單。
+        def _tiny_furn(items):
+            return [
+                {kk: it.get(kk) for kk in
+                 ("name_zh", "brand", "price_twd", "category", "category_en", "purchase_url", "image_url")}
+                for it in (items or [])
+            ]
         minimal_result_json = {
             "renders": [
-                {k: rr.get(k) for k in
-                 ("style", "style_label", "angle_label", "render_url", "render_filename", "room_type")}
+                {"style": rr.get("style"), "style_label": rr.get("style_label"),
+                 "angle_label": rr.get("angle_label"), "room_type": rr.get("room_type", "living"),
+                 "render_url": rr.get("render_url"), "render_filename": rr.get("render_filename"),
+                 "matched_furniture": _tiny_furn(rr.get("matched_furniture")),
+                 "soft_furnishing": _tiny_furn(rr.get("soft_furnishing"))}
                 for rr in slim_renders
             ],
             "analysis": {"space_type": (analysis or {}).get("space_type")},
