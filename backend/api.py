@@ -1826,28 +1826,46 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if dropped_failed_renders:
             slim_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
 
-        # 事前估算大小：完整 payload 太大就直接寫精簡版，不浪費前兩次 25s 重試。
+        # 極簡 payload（第三層 fallback）：只留結果頁顯示圖必要欄位，保證夠小一定寫得進。
+        minimal_result_json = {
+            "renders": [
+                {k: rr.get(k) for k in
+                 ("style", "style_label", "angle_label", "render_url", "render_filename", "room_type")}
+                for rr in slim_renders
+            ],
+            "analysis": {"space_type": (analysis or {}).get("space_type")},
+            "customer_inputs": customer_inputs,
+            "payload_trimmed": True,
+        }
+        if all_failed_repairing:
+            minimal_result_json["repairing"] = True
+
+        # 事前估算大小：完整 payload 太大就直接從精簡版起跳。
         try:
             _full_kb = len(json.dumps(result_json_payload, ensure_ascii=False).encode("utf-8")) // 1024
         except Exception:
             _full_kb = 0
-        _slim_first = _full_kb >= 700
-        if _slim_first:
-            print(f"[pipeline] result_json 約 {_full_kb}KB 偏大 → 直接寫精簡版")
+        if _full_kb >= 700:
+            print(f"[pipeline] result_json 約 {_full_kb}KB 偏大 → 從精簡版起跳")
+            _tiers = [slim_result_json, slim_result_json, minimal_result_json, minimal_result_json]
+        else:
+            _tiers = [result_json_payload, result_json_payload, slim_result_json, minimal_result_json]
 
         for _attempt in range(4):
-            use_slim = _slim_first or _attempt >= 2
-            payload = completed_payload if not use_slim else {
-                **completed_payload, "result_json": slim_result_json}
-            if use_slim:
-                print(f"[pipeline] completed 改寫精簡 result_json（第 {_attempt + 1} 次，full payload 寫不進）")
-            sb_upsert(payload, timeout=25)
+            payload = {"job_id": job_id, "status": "completed", "progress": 100,
+                       "message": completed_msg, "result_json": _tiers[_attempt]}
+            # 根因修復：信任 POST 的 2xx 回傳。大 row 的 sb_get 讀回常逾時 → 過去誤判
+            # 「寫入未生效」→ 外層 except 把『其實已完成』的單標成 failed。寫入成功就收工。
+            if sb_upsert(payload, timeout=25):
+                completed_flag = True
+                break
+            # POST 非 2xx（可能逾時卻已寫入）→ 讀回確認一次，仍 completed 就算成功。
             verify_row = sb_get(job_id) or {}
             if verify_row.get("status") == "completed":
                 completed_flag = True
                 break
-            print(f"[pipeline] completed 寫入未生效（第 {_attempt + 1} 次），狀態="
-                  f"{verify_row.get('status')!r}，重試…")
+            print(f"[pipeline] completed 寫入未生效（第 {_attempt + 1} 次，tier{_attempt}），"
+                  f"狀態={verify_row.get('status')!r}，重試…")
         if not completed_flag:
             raise RuntimeError(
                 "completed DB write verification failed after retries; "
