@@ -986,7 +986,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             analyze_image, generate_renders,
             FalGenerationTimeout, FalResultDownloadError,
         )
-        from furniture_match import enrich_renders
+        from furniture_match import enrich_renders, normalize_room_type
 
         # PhotoMeta v1 Step 2: 早期讀回 photo_meta_by_key, 後面 analyze + render
         # 都可消費. 沒檔案 / 空 → 空 dict, 等同現況行為.
@@ -1156,6 +1156,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         base_video = video_paths[0] if video_paths else None
         flux_bases: list[str] = []
         angle_labels: list[str] = []
+        angle_room_types: list[str] = []   # step-2：每個視角對應的標準房型（逐房配家具/prompt用）
 
         def _resolve_region_base(region: dict, idx: int) -> tuple[str | None, str]:
             """從 region 元素挑出一張 Flux 基底，回傳 (path, label)"""
@@ -1192,6 +1193,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if path:
                     flux_bases.append(path)
                     angle_labels.append(label)
+                    # 全室：每個 region 是不同房間 → 取其 room_type/name 正規化；
+                    # 單房多角度：同一房型（= space_type）。
+                    if space_type == "whole":
+                        angle_room_types.append(
+                            normalize_room_type(region.get("room_type") or region.get("name") or space_type))
+                    else:
+                        angle_room_types.append(normalize_room_type(space_type))
         else:
             # single：Gemini 挑最美 1 張
             if image_paths:
@@ -1200,11 +1208,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     best_idx = 0
                 flux_bases.append(image_paths[best_idx])
                 angle_labels.append("主視角")
+                angle_room_types.append(normalize_room_type(space_type))
             elif base_video:
                 frame_path = str(job_dir / "frame_main.jpg")
                 extract_frame(base_video, frame_path, position=0.5)
                 flux_bases.append(frame_path)
                 angle_labels.append("主視角")
+                angle_room_types.append(normalize_room_type(space_type))
 
         if not flux_bases:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
@@ -1256,23 +1266,33 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         failed_stage = "matching"
         last_progress = 45
         write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
-        enriched = enrich_renders(analysis.get("renders", []), analysis=analysis,
-                                  budget_tier=budget_tier,
-                                  preferred_store=preferred_store)
+        # step-2：逐房型各配一次家具（不同房間用不同必備品；客廳/單空間行為不變）。
+        # angle_room_types 已標好每個視角的標準房型；同房型只配一次再複用。
+        renders_in = analysis.get("renders", [])
+        distinct_rts = list(dict.fromkeys(angle_room_types)) or ["living"]
+        enriched_by_rt = {
+            rt: enrich_renders(renders_in, analysis=analysis,
+                               budget_tier=budget_tier,
+                               preferred_store=preferred_store,
+                               room_type=rt)
+            for rt in distinct_rts
+        }
+        n_styles = len(enriched_by_rt[distinct_rts[0]]) if distinct_rts else 0
+        print(f"[pipeline] 逐房型配對 room_types={distinct_rts} styles={n_styles}")
 
-        # ── 2 風格 × N 角度 = 多張渲染 ──
-        # 為每個風格、每個角度產生一個 render entry
+        # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
-        for style_entry in enriched:
-            for base, label in zip(flux_bases, angle_labels):
-                copy = dict(style_entry)
+        for si in range(n_styles):
+            for base, label, rt in zip(flux_bases, angle_labels, angle_room_types):
+                copy = dict(enriched_by_rt[rt][si])
                 copy["_angle_label"] = label
                 copy["_base_path"] = base
+                copy["_room_type"] = rt
                 expanded.append(copy)
 
         total = len(expanded)
         write_status(job_id, job_dir, "rendering", 60,
-                     f"生成 {total} 張設計提案中（{len(enriched)} 風格 × {len(flux_bases)} 視角）…")
+                     f"生成 {total} 張設計提案中（{n_styles} 風格 × {len(flux_bases)} 視角）…")
 
         failed_stage = "render_main"
         last_progress = 60
@@ -1292,10 +1312,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                              stage="initial",
                                              target_zone=_best_pm_target_zone,
                                              target_location_hint=_best_pm_location_hint,
-                                             target_note=_best_pm_target_note)
+                                             target_note=_best_pm_target_note,
+                                             room_type=entry.get("_room_type", "living"))
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
+                r["room_type"] = entry.get("_room_type", "living")
                 # 用 style + angle 區分檔名
                 if r.get("render_path"):
                     src = Path(r["render_path"])
@@ -1458,6 +1480,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             target_zone=_best_pm_target_zone,
                             target_location_hint=_best_pm_location_hint,
                             target_note=_best_pm_target_note,
+                            room_type=entry.get("_room_type", "living"),
                         )
                     except (FalGenerationTimeout, FalResultDownloadError):
                         # C2.6 Patch B: 不被後續 anchored validation collapse 改寫.
@@ -1557,6 +1580,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         target_zone=_best_pm_target_zone,
                         target_location_hint=_best_pm_location_hint,
                         target_note=_best_pm_target_note,
+                        room_type=entry.get("_room_type", "living"),
                     )
                 except (FalGenerationTimeout, FalResultDownloadError):
                     raise

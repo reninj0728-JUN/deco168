@@ -715,7 +715,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      target_zone: str | None = None,
                      target_location_hint: str | None = None,
                      # PhotoMeta v1 Step 2 補完: 使用者自由文字補充說明 (≤100 字, optional)
-                     target_note: str | None = None):
+                     target_note: str | None = None,
+                     # step-2: 此張渲染對應的標準房型（living/bedroom/dining/study）；
+                     # 給 prompt_builder 依房型佈置（臥室擺床不擺沙發）。預設 living = 原行為。
+                     room_type: str = "living"):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
