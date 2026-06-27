@@ -1602,6 +1602,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:200]}"}
                     new_r["validation"]   = new_v
                     new_r["angle_label"]  = entry["_angle_label"]
+                    # 重試換掉 r 時務必補回房型，否則 new_r 帶的是 Gemini 廣角圖的 living，
+                    # 害結果頁用 living 顯示類別濾掉餐桌/床等 → 「圖上有、清單沒有」(job 23EF5810)。
+                    new_r["room_type"]    = entry.get("_room_type", "living")
+                    new_r["_room_type"]   = entry.get("_room_type", "living")
+                    new_r["_base_path"]   = entry.get("_base_path")
                     new_r["retry_count"]  = current_rc + 1
                     new_r["retry_reason"] = retry_reason
                     final[idx] = new_r
@@ -1693,6 +1698,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     new_v = {"ok": None, "error": f"revalidate hardfix failed: {str(ve)[:200]}"}
                 new_r["validation"]   = new_v
                 new_r["angle_label"]  = entry["_angle_label"]
+                # 同 Z3 retry：補回房型，避免結果頁用 living 濾掉該房家具。
+                new_r["room_type"]    = entry.get("_room_type", "living")
+                new_r["_room_type"]   = entry.get("_room_type", "living")
+                new_r["_base_path"]   = entry.get("_base_path")
                 new_r["retry_count"]  = int(r.get("retry_count") or 0) + 1
                 new_r["retry_reason"] = "phase2 hardfix"
                 # 補生後不再是硬傷才取代；仍硬傷則保留原狀（後續 needs_regen 記錄）
