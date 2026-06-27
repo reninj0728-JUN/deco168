@@ -1377,7 +1377,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if bpath and rpath and Path(bpath).exists() and Path(rpath).exists():
                     try:
                         v = validate_render(bpath, rpath, r.get("_angle_label", ""),
-                                            layout_context=layout_ctx)
+                                            layout_context=layout_ctx,
+                                            room_type=r.get("room_type", "living"))
                     except Exception as ve:
                         v = {"ok": None, "error": str(ve)[:200]}
                 else:
@@ -1514,7 +1515,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         rpath = new_r.get("render_path") or ""
                         if rpath and Path(bpath).exists() and Path(rpath).exists():
                             new_v = validate_render(bpath, rpath, entry["_angle_label"],
-                                                    layout_context=layout_ctx)
+                                                    layout_context=layout_ctx,
+                                                    room_type=entry.get("_room_type", "living"))
                         else:
                             new_v = {"ok": None, "error": "missing base or render path after retry"}
                     except Exception as ve:
@@ -1604,7 +1606,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     rpath = new_r.get("render_path") or ""
                     if rpath and Path(bpath).exists() and Path(rpath).exists():
                         new_v = validate_render(bpath, rpath, entry["_angle_label"],
-                                                layout_context=layout_ctx)
+                                                layout_context=layout_ctx,
+                                                room_type=entry.get("_room_type", "living"))
                     else:
                         new_v = {"ok": None, "error": "missing path after hardfix"}
                 except Exception as ve:

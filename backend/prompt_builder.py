@@ -718,6 +718,179 @@ CRITICAL_RULES = (
 )
 
 
+# ── step-2：非客廳房型（臥室/餐廳/書房）的獨立 prompt 配方 ───────────────────
+# living 完全沿用上方既有路徑，不受這裡影響。
+# 每房型用對應的參考圖品類 + 佈置指令；system/critical 拿掉沙發專屬規則、保留結構+走道。
+
+# 每房型要當「家具參考圖」帶進 Nano Banana 的品類（順序＝擺放重要度）
+ROOM_REF_CATS = {
+    "bedroom": ("bed", "storage", "side_table", "rug"),
+    "dining":  ("dining_table", "dining_chair", "rug"),
+    "study":   ("table", "chair", "storage", "rug"),
+}
+
+# 非客廳品類的 prompt 顯示名（(ROLE, human phrase)）
+ROOM_CAT_DISPLAY = {
+    "bed":          ("BED",          "bed"),
+    "storage":      ("STORAGE",      "wardrobe / chest of drawers / storage cabinet"),
+    "side_table":   ("NIGHTSTAND",   "nightstand / bedside table"),
+    "dining_table": ("DINING TABLE", "dining table"),
+    "dining_chair": ("DINING CHAIRS", "dining chairs"),
+    "table":        ("DESK",         "desk / work table"),
+    "chair":        ("CHAIR",        "chair"),
+    "rug":          ("RUG",          "area rug"),
+}
+
+# 每房型的「怎麼佈置」核心指令（取代 living 的 layout/sofa 段）
+ROOM_FURNISH = {
+    "bedroom": (
+        "ROOM TYPE — BEDROOM: Furnish this room as a BEDROOM, NOT a living room. "
+        "Place the BED centered against the main solid wall with the headboard against the wall. "
+        "Add a nightstand beside the bed and a wardrobe / chest of drawers against another wall. "
+        "You may add a rug under or beside the bed, a bedside or floor lamp, soft bedding, "
+        "curtains, and a piece of wall art. "
+        "DO NOT place a sofa, coffee table, TV console, or dining table in this room. "
+        "Keep the walking path around the bed and to the door and window clear (at least 60cm)."
+    ),
+    "dining": (
+        "ROOM TYPE — DINING: Furnish this room as a DINING area. "
+        "Place the DINING TABLE roughly centered in the space with DINING CHAIRS evenly arranged "
+        "around it and tucked in. "
+        "You may add a pendant light above the table, a rug under the table, a sideboard against "
+        "a wall, curtains, and wall art. "
+        "DO NOT place a sofa, bed, or coffee table here. "
+        "Leave at least 60-80cm of clear space around the table so chairs can be pulled out and "
+        "people can walk past."
+    ),
+    "study": (
+        "ROOM TYPE — STUDY / HOME OFFICE: Furnish this room as a workspace. "
+        "Place a DESK against a wall or facing the window for natural light, with a CHAIR at the desk. "
+        "Add bookshelves / storage against a wall; optionally a rug, a task or floor lamp, curtains, "
+        "and wall art. "
+        "DO NOT place a sofa, bed, or dining table here. "
+        "Keep the path to the desk and the door clear."
+    ),
+}
+
+NONLIVING_SYSTEM_PROMPT = (
+    "You are a strict interior staging assistant. Hard rules: "
+    "1) PRESERVE the camera angle, framing, and perspective EXACTLY as in the ROOM reference image. "
+    "2) PRESERVE all walls, the window, ceiling pipes/conduits/fixtures, and floor material EXACTLY. "
+    "3) DO NOT add a kitchen, sink, extra doors, extra windows, wall paneling, dropped ceiling, "
+    "LED strips, or arched openings. "
+    "4) DO NOT fill, block, cover, or remove any existing corridor opening, doorway, or wall opening; "
+    "every existing opening MUST remain visible and unobstructed. "
+    "5) USE PRODUCT REFERENCE IMAGES for furniture appearance — match each product's color, material, "
+    "form, and silhouette as closely as possible. "
+    "6) ONLY add movable furniture, soft furnishings, decor, plants, and artwork — no structural changes. "
+    "7) Furnish STRICTLY according to the ROOM TYPE instruction in the prompt — do not add living-room "
+    "furniture (sofa / coffee table / TV console) to a bedroom, dining, or study room. "
+    "8) Keep walkways physically usable: no large furniture floating in the middle blocking the path; "
+    "keep at least 60cm clear in front of every doorway / opening."
+)
+
+NONLIVING_CRITICAL = (
+    "CRITICAL: "
+    "(a) Do not invent walls, doors, or windows that are not in the ROOM reference. "
+    "(b) Do not transform the space into a kitchen or any other room type than the one stated. "
+    "(c) For each product reference, the corresponding item in the output must match it in color, "
+    "material, and silhouette — do not substitute a different-looking product. "
+    "(d) Every visible corridor opening, doorway, or wall opening in the ROOM reference MUST appear "
+    "in the final image as an open, unobstructed opening. "
+    "(e) Furnish for the STATED ROOM TYPE only. Adding a sofa, coffee table, or TV console to a "
+    "bedroom / dining / study room is forbidden. "
+    "(f) Large, visually prominent furniture and decor should preferably correspond to the provided "
+    "product references; do not fabricate a striking non-referenced hero item that the customer "
+    "cannot buy."
+)
+
+
+def _build_room_product_section(reference_map: list[dict]) -> str:
+    """非客廳：依 reference_map 的 PRIMARY 產品組通用擺放指令（無沙發專屬語句）。"""
+    refs = [r for r in reference_map if r.get("kind") == "PRIMARY"]
+    if not refs:
+        return ""
+    lines = ["FURNITURE PLACEMENT (must match product references for appearance):"]
+    for r in refs:
+        idx = r["index"]
+        role_disp = r.get("role", "")
+        name = r.get("name_zh", "")
+        human = ROOM_CAT_DISPLAY.get(r.get("cat_en"), (role_disp, role_disp.lower()))[1]
+        lines.append(
+            f"- {role_disp}: Place a {human} matching reference image {idx} ({name}); "
+            f"match its color, material, form, and silhouette closely."
+        )
+    return " ".join(lines)
+
+
+def _build_nonliving_nano_inputs(
+    entry: dict, room_image_url: str, room_type: str,
+    customer_notes: str = "", budget_tier: str = "tier3",
+    retry_context: dict | None = None,
+) -> dict:
+    """臥室/餐廳/書房專用 prompt（living 不走這裡）。"""
+    ref_cats = ROOM_REF_CATS.get(room_type, ())
+    matched = entry.get("matched_furniture") or []
+    selected: dict[str, dict] = {}
+    for item in matched:
+        cat = (item.get("category_en") or "").strip()
+        url = (item.get("image_url") or "").strip()
+        if cat in ref_cats and url.startswith("http") and cat not in selected:
+            selected[cat] = item
+
+    reference_map: list[dict] = [{
+        "index": 1, "role": "ROOM", "url": room_image_url,
+        "cat_en": None, "name_zh": None, "id": None, "kind": "ROOM",
+    }]
+    image_urls: list[str] = [room_image_url]
+    next_idx = 2
+    for cat in ref_cats:
+        if cat in selected:
+            it = selected[cat]
+            role_disp = ROOM_CAT_DISPLAY.get(cat, (cat.upper(), cat))[0]
+            reference_map.append({
+                "index": next_idx, "role": role_disp, "url": it.get("image_url"),
+                "cat_en": cat, "name_zh": it.get("name_zh", ""), "id": it.get("id", ""),
+                "kind": "PRIMARY",
+            })
+            image_urls.append(it.get("image_url"))
+            next_idx += 1
+
+    inputs_sec = _build_inputs_section(reference_map)
+    furnish_sec = ROOM_FURNISH.get(room_type, "")
+    product_sec = _build_room_product_section(reference_map)
+    style_sec = _build_style_section(entry)
+    budget_sec = _build_budget_section(budget_tier)
+    customer_sec = _build_customer_notes_section(customer_notes)
+    retry_sec = _build_retry_context_section(retry_context)
+    soft_sec = (
+        "SOFT FURNISHING: add complementary, style-consistent soft items appropriate to this room "
+        "(curtains, a rug, cushions or bedding, a lamp, a plant, wall art) — illustrative only."
+    )
+
+    sections = [inputs_sec, furnish_sec]
+    if product_sec:
+        sections.append(product_sec)
+    sections.append(style_sec)
+    sections.append(soft_sec)
+    if budget_sec:
+        sections.append(budget_sec)
+    if customer_sec:
+        sections.append(customer_sec)
+    if retry_sec:
+        sections.append(retry_sec)
+    sections.extend([NONLIVING_CRITICAL, QUALITY_TAIL])
+
+    return {
+        "image_urls": image_urls,
+        "prompt": "\n\n".join(s for s in sections if s),
+        "system_prompt": NONLIVING_SYSTEM_PROMPT,
+        "reference_map": reference_map,
+        "notes": DEFAULT_NOTES,
+        "unmatched_visual_items": [],
+    }
+
+
 # Retry 用：上次 validation 的 high-severity flag → 給 model 的具體修正指令。
 # 對應 api.py HIGH_SEVERITY_FLAGS。措辭硬、肯定句，直接告訴 model 怎麼擺對。
 _RETRY_FLAG_FIX_EN = {
@@ -957,6 +1130,7 @@ def build_nano_banana_inputs(
     target_zone: str | None = None,
     target_location_hint: str | None = None,
     target_note: str | None = None,
+    room_type: str = "living",
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -976,6 +1150,14 @@ def build_nano_banana_inputs(
             "unmatched_visual_items": [],
         }
     """
+    # step-2：非客廳房型走獨立配方（臥室擺床、餐廳擺餐桌椅、書房擺書桌），living 不受影響。
+    if room_type in ("bedroom", "dining", "study"):
+        return _build_nonliving_nano_inputs(
+            entry, room_image_url, room_type,
+            customer_notes=customer_notes, budget_tier=budget_tier,
+            retry_context=retry_context,
+        )
+
     matched = entry.get("matched_furniture") or []
 
     # 過濾出 must_have 且有 image_url 的商品（順序固定 sofa → coffee_table → rug）
