@@ -746,6 +746,9 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
             "name": _RT_ZH_DISPLAY.get(rt, rt),
             "best_photo_index": idx,
         })
+    # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→主臥→書房；不照上傳順序(#3)。
+    _RT_ORDER = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
+    out.sort(key=lambda r: _RT_ORDER.get(r["room_type"], 9))
     return out
 
 
@@ -2446,8 +2449,24 @@ async def api_zoning(upload_id: str = Form(...),
     tmp_dir = UPLOADS_DIR / upload_id / "zoning_tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+    # #2: 把使用者標「客廳」的照片排到最前面，確保它一定被下載到 —— 否則客廳放第 4 張時
+    # 會被 [:N] 截掉，分區圖只能落在前幾張(餐廳/臥室)。排序後客廳成為 best photo。
+    ordered_urls = list(photo_urls)
+    if photo_meta_json:
+        try:
+            _zmap0 = json.loads(photo_meta_json)
+            if isinstance(_zmap0, dict):
+                def _u_is_living(u: str) -> bool:
+                    bn = (u.rsplit("/", 1)[-1] or "").split("?")[0]
+                    return _zmap0.get(bn) == "living"
+                living_first = [u for u in ordered_urls if _u_is_living(u)]
+                rest = [u for u in ordered_urls if not _u_is_living(u)]
+                ordered_urls = living_first + rest
+        except Exception as _e0:
+            print(f"[/api/zoning] photo 排序解析失敗，忽略: {_e0}")
+
     local_photos: list[Path] = []
-    for i, url in enumerate(photo_urls[:3]):
+    for i, url in enumerate(ordered_urls[:4]):
         fname = (url.rsplit("/", 1)[-1] or f"photo_{i}.jpg")
         dest = tmp_dir / fname
         if not dest.exists() or dest.stat().st_size < 1024:

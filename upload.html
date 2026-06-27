@@ -1436,6 +1436,13 @@
       localStorage.setItem('deco_upload_id', data.upload_id);
       localStorage.setItem('deco_files_count', String(data.count));
 
+      // #1：新上傳＝新訂單 → 清掉上一單殘留的風格/空間/方案選擇，
+      // 讓 style-form 是乾淨表單（restoreSelections 只在同一單來回時才該還原）。
+      ['deco_directions','deco_style','deco_style_count','deco_space_type',
+       'deco_design_mode','deco_budget_tier','deco_customer_notes',
+       'deco_plan','deco_render_angle','deco_layout_choice','deco_zoning_json',
+       'deco_sofa_side'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+
       if (noPhotos && videoKeys.length === 0) {
         if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) {
           btn.textContent = orig;
