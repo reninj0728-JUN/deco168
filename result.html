@@ -91,6 +91,13 @@
     .angle-indicator.solo { padding: 6px 0; }
     .angle-name { display: block; font-size: 13px; color: var(--white); font-weight: 500; letter-spacing: 1px; }
     .angle-pos { display: block; font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-top: 2px; }
+    /* 房間/角度子分頁（客廳/餐廳/主臥 可直接點）*/
+    .room-subtabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .room-subtab { font-family: 'Inter', sans-serif; font-size: 13px; letter-spacing: 1px;
+      padding: 8px 18px; border: 1px solid var(--line); background: transparent; color: var(--body);
+      cursor: pointer; transition: all 0.18s; border-radius: 2px; }
+    .room-subtab:hover { border-color: var(--gold); color: var(--white); }
+    .room-subtab.active { background: var(--gold); border-color: var(--gold); color: var(--black); font-weight: 500; }
 
     /* FURNITURE */
     .furniture-box h3 { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase;
@@ -314,44 +321,24 @@
     document.getElementById('metaDate').textContent    = timeStr || '—';
   })();
 
-  // ── 渲染分組 ──
-  // 全室(出現 >1 種 room_type) → 按「房間」分群，組內切換風格（客廳/餐廳/主臥各自一頁）。
-  // 其餘(單空間) → 維持按「風格」分群，組內切換角度。group.style 當不透明 key 共用既有切換機制。
+  // ── 渲染分組：永遠按「風格」分群（上方 tab = 風格，一次看一個風格）；
+  //    每個風格內，用「房間/角度子分頁」切換（客廳/餐廳/主臥 可直接點，不用左右鍵）。──
   var _groups = [];
   var _angleIdx = {};
-  var _groupByRoom = false;
 
   function buildUI(renders) {
     _groups = [];
     _angleIdx = {};
-    var rtSet = {};
-    renders.forEach(function(r) { if (r.room_type) rtSet[r.room_type] = true; });
-    _groupByRoom = Object.keys(rtSet).length > 1;   // 單空間多角度為同一 room_type，不算
-
-    if (_groupByRoom) {
-      var byRoom = {};
-      renders.forEach(function(r) {
-        var rk = r.angle_label || r.room_type || 'room';
-        if (!byRoom[rk]) {
-          var rkey = 'room' + Object.keys(byRoom).length;
-          byRoom[rk] = { style: rkey, label: rk, angles: [] };
-          _groups.push(byRoom[rk]);
-          _angleIdx[rkey] = 0;
-        }
-        byRoom[rk].angles.push(r);
-      });
-    } else {
-      var byStyle = {};
-      renders.forEach(function(r) {
-        var key = r.style || 'unknown';
-        if (!byStyle[key]) {
-          byStyle[key] = { style: key, label: r.style_label || key, angles: [] };
-          _groups.push(byStyle[key]);
-          _angleIdx[key] = 0;
-        }
-        byStyle[key].angles.push(r);
-      });
-    }
+    var byStyle = {};
+    renders.forEach(function(r) {
+      var key = r.style || 'unknown';
+      if (!byStyle[key]) {
+        byStyle[key] = { style: key, label: r.style_label || key, angles: [] };
+        _groups.push(byStyle[key]);
+        _angleIdx[key] = 0;
+      }
+      byStyle[key].angles.push(r);
+    });
 
     // TABS：每個風格 1 個 tab
     var tabsHtml = _groups.map(function(g, i) {
@@ -399,40 +386,34 @@
     var imgUrl = r.render_url || (r.render_filename && JOB_ID
       ? API_BASE + '/jobs/' + JOB_ID + '/' + r.render_filename : null);
     var label    = group.label;
-    // 房間分群(全室)時 nav 顯示「風格名」；風格分群(單空間)時顯示「角度名」。
-    var angleLbl;
-    if (_groupByRoom) {
-      angleLbl = r.style_label || r.style || ('風格 ' + (idx+1));
-    } else {
-      angleLbl = r.angle_label || ('角度 ' + (idx+1));
-      if (angleLbl === '主視角') angleLbl = '客廳主視角';
-    }
+    var angleLbl = r.angle_label || ('角度 ' + (idx+1));
+    if (angleLbl === '主視角') angleLbl = '客廳主視角';
     var furn     = r.matched_furniture || [];
     var total    = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
     // 軟裝接入 (2026-06-18): 軟裝獨立顯示, 不併入主總計
     var soft     = r.soft_furnishing || [];
     var nAngles  = group.angles.length;
 
-    // 左右切換 + 角度指示
+    // 房間/角度「可點的子分頁」（取代左右鍵）：客廳/餐廳/主臥 直接按；風格不變。
     var navHtml = nAngles > 1
-      ? '<div class="angle-nav">' +
-          '<button class="angle-arrow" onclick="prevAngle(\'' + group.style + '\')">‹</button>' +
-          '<div class="angle-indicator">' +
-            '<span class="angle-name">' + angleLbl + '</span>' +
-            '<span class="angle-pos">' + (idx+1) + ' / ' + nAngles + '</span>' +
-          '</div>' +
-          '<button class="angle-arrow" onclick="nextAngle(\'' + group.style + '\')">›</button>' +
+      ? '<div class="room-subtabs">' +
+          group.angles.map(function(a, i) {
+            var nm = a.angle_label || ('視角 ' + (i+1));
+            if (nm === '主視角') nm = '客廳主視角';
+            return '<button class="room-subtab' + (i === idx ? ' active' : '') +
+                   '" onclick="goAngle(\'' + group.style + '\',' + i + ')">' + nm + '</button>';
+          }).join('') +
         '</div>'
-      : '';   // 單角度時不重複顯示，下方 render-label 已有「風格 · 視角」
+      : '';
 
     var imgSection = imgUrl
-      ? '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
-        navHtml +
+      ? navHtml +
+        '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
         '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' +
         '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載設計圖</button>'
-      : '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
+      : navHtml +
+        '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
         '<div style="font-size:11px;color:var(--muted);letter-spacing:2px;">生成中</div></div>' +
-        navHtml +
         '<div class="render-label">' + label + ' · ' + angleLbl + '</div>';
 
     var furnItems = furn.length
@@ -562,20 +543,11 @@
     if (panel) panel.classList.add('active');
   }
 
-  function prevAngle(style) {
+  // 點房間/角度子分頁 → 切換該風格 panel 顯示的房間（風格不變）。
+  function goAngle(style, i) {
     var g = _groups.find(function(x) { return x.style === style; });
     if (!g) return;
-    var i = (_angleIdx[style] || 0) - 1;
-    if (i < 0) i = g.angles.length - 1;
-    _angleIdx[style] = i;
-    var panel = document.getElementById('panel-' + style);
-    if (panel) panel.innerHTML = renderPanelContent(g);
-  }
-  function nextAngle(style) {
-    var g = _groups.find(function(x) { return x.style === style; });
-    if (!g) return;
-    var i = ((_angleIdx[style] || 0) + 1) % g.angles.length;
-    _angleIdx[style] = i;
+    _angleIdx[style] = Math.max(0, Math.min(i, g.angles.length - 1));
     var panel = document.getElementById('panel-' + style);
     if (panel) panel.innerHTML = renderPanelContent(g);
   }
@@ -651,7 +623,7 @@
     };
     // 空間英文 → 中文
     var SPACE_ZH = { living:'客廳', dining:'餐廳', bedroom:'臥室', kitchen:'廚房',
-                     study:'書房', bathroom:'浴室', balcony:'陽台', whole:'全室' };
+                     study:'書房', bathroom:'浴室', balcony:'陽台', whole:'全室多空間' };
     var spaceTypeRaw = (a.space_type || '').toString().toLowerCase().trim();
     var spaceTypeDisplay = SPACE_ZH[spaceTypeRaw] || a.space_type || '—';
 
