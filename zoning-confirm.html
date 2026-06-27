@@ -487,6 +487,19 @@
     try {
       var fd = new FormData();
       fd.append('upload_id', uploadId);
+      // #1/#5: 告訴後端每張照片的房型，分區圖才能畫在「客廳」那張（不是第一張餐廳）
+      try {
+        var zmap = {};
+        (JSON.parse(localStorage.getItem('deco_rooms') || '[]')).forEach(function(rm) {
+          (rm && rm.photo_meta || []).forEach(function(m) {
+            if (m && m.photo_key) {
+              var bn = String(m.photo_key).split('/').pop().split('?')[0];
+              if (bn) zmap[bn] = m.target_zone || '';
+            }
+          });
+        });
+        if (Object.keys(zmap).length) fd.append('photo_meta_json', JSON.stringify(zmap));
+      } catch (e) { /* 沒標註就走後端預設 */ }
       var resp = await fetch(API_BASE + '/api/zoning', { method: 'POST', body: fd });
       if (!resp.ok) {
         var txt = '';

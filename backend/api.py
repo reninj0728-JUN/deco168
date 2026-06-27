@@ -693,6 +693,62 @@ def _select_render_photo_meta(photo_meta_by_key: dict | None,
     return target_zone, location_hint, target_note, selected_idx
 
 
+# target_zone 是 PhotoMeta 英文 enum；直接映成 step-2 房型，
+# 千萬不要丟進 normalize_room_type（它只認中文，"dining" 會被判成 living）。
+_ZONE_TO_RT: dict[str, str] = {
+    "living": "living", "dining": "dining", "bedroom": "bedroom",
+    "study": "study", "kitchen": "dining",
+}
+_RT_ZH_DISPLAY: dict[str, str] = {
+    "living": "客廳", "dining": "餐廳", "bedroom": "主臥室", "study": "書房",
+}
+
+
+def _photo_meta_for_path(path: str, photo_meta_by_key: dict | None) -> dict:
+    """把（可能是本機 job_dir 的）image path 對到它的 PhotoMeta。
+    先試 canonical / upload-key 直配，再退化用檔名比對（同一 job 內檔名唯一）。"""
+    if not photo_meta_by_key or not isinstance(path, str):
+        return {}
+    ck = canonical_photo_key(path)
+    direct = (photo_meta_by_key.get(ck) or photo_meta_by_key.get(path)
+              or photo_meta_by_key.get(f"uploads/{ck}"))
+    if isinstance(direct, dict):
+        return direct
+    filename = Path(path).name
+    if filename:
+        for key, meta in photo_meta_by_key.items():
+            if not isinstance(meta, dict):
+                continue
+            candidates = [key, meta.get("photo_key", "")]
+            if any(isinstance(c, str) and Path(c.replace("\\", "/")).name == filename
+                   for c in candidates):
+                return meta
+    return {}
+
+
+def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
+    """全室：以使用者『這張照片主要是』(target_zone) 建 regions，一張照片＝一個房間。
+    同房型去重（避免重複客廳）、保留上傳順序。回傳 [] → 沒有可用標註，交回 Gemini regions。
+    這修掉「Gemini 重猜把餐廳當客廳、書房消失、重複客廳」(job 302D6ED2)。"""
+    if not image_paths or not photo_meta_by_key:
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for idx, p in enumerate(image_paths):
+        meta = _photo_meta_for_path(p, photo_meta_by_key)
+        tz = (meta.get("target_zone") or "").strip().lower() if isinstance(meta, dict) else ""
+        rt = _ZONE_TO_RT.get(tz)
+        if not rt or rt in seen:
+            continue
+        seen.add(rt)
+        out.append({
+            "room_type": rt,
+            "name": _RT_ZH_DISPLAY.get(rt, rt),
+            "best_photo_index": idx,
+        })
+    return out
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -1188,21 +1244,36 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         if render_angle == "multi":
             regions = analysis.get("regions") or []
-            # 全室：找到幾房生幾房（不足 3 不硬補重複畫面）；單房 multi 維持 3 角度。
-            n_views = min(3, max(1, len(regions))) if space_type == "whole" else 3
+            # 全室：優先用「使用者每張照片標的房型」(photo_meta target_zone) 建 regions，
+            # 一張照片＝一個房間，不讓 Gemini 重猜（修餐廳/書房消失、重複客廳；job 302D6ED2）。
+            # 沒有可用標註（老 client）→ 退回 Gemini regions（原行為）。
+            if space_type == "whole":
+                user_regions = _build_user_regions_whole(image_paths, photo_meta_by_key_early)
+                if user_regions:
+                    regions = user_regions
+                    print(f"[pipeline] 全室 regions 採用使用者照片標註: "
+                          f"{[r['room_type'] for r in regions]}")
+            # 全室：找到幾房生幾房（房型最多 4 種=客廳/餐廳/主臥/書房，去重後自然封頂）；
+            # 單房 multi 維持 3 角度。
+            n_cap = 4 if space_type == "whole" else 3
+            n_views = min(n_cap, max(1, len(regions))) if space_type == "whole" else 3
             for i in range(n_views):
                 region = regions[i] if i < len(regions) else {}
                 path, label = _resolve_region_base(region, i)
                 if path:
                     flux_bases.append(path)
-                    # 全室：room_type 欄位 + 名稱「合併」判房型（避免 Gemini 把『玄關餐廚區』
-                    # 的 room_type 標成 kitchen/entrance → 被誤判客廳、擺沙發、又被客廳驗收 drop）。
+                    # 全室：user_regions 的 room_type 已是乾淨房型，直接用；
+                    # Gemini regions 才需 room_type+名稱「合併」判房型（避免『玄關餐廚區』被誤判客廳）。
                     # 單房多角度：同一房型（= space_type）。
                     if space_type == "whole":
-                        rt = normalize_room_type(
-                            (str(region.get("room_type") or "") + " " + str(region.get("name") or "")).strip()
-                            or space_type)
-                        # 顯示名統一成乾淨房名（客廳/餐廳/主臥/書房），不秀「玄關餐廚區」這種拼接名
+                        rt_raw = str(region.get("room_type") or "").strip()
+                        if rt_raw in ("living", "dining", "bedroom", "study"):
+                            rt = rt_raw
+                        else:
+                            rt = normalize_room_type(
+                                (rt_raw + " " + str(region.get("name") or "")).strip()
+                                or space_type)
+                        # 顯示名統一成乾淨房名（客廳/餐廳/主臥/書房）
                         label = ROOM_DISPLAY_ZH.get(rt, label)
                     else:
                         rt = normalize_room_type(space_type)
@@ -2347,7 +2418,8 @@ def get_error(job_id: str):
 
 # ── Z2.1: 付款前分區確認用 ────────────────────────────────────────────────
 @app.post("/api/zoning")
-async def api_zoning(upload_id: str = Form(...)):
+async def api_zoning(upload_id: str = Form(...),
+                     photo_meta_json: str = Form(default="")):
     """
     付款前分區確認：讀 upload 紀錄的照片 → Gemini zoning v2 → 產 overlay PNG
     回 v2 zoning JSON + 兩張 overlay public URL，給 zoning-confirm.html 用。
@@ -2401,7 +2473,23 @@ async def api_zoning(upload_id: str = Form(...)):
         return JSONResponse(status_code=500, content={"error": f"gemini zoning failed: {zoning['error']}"})
 
     # 4. 畫 overlay
-    best_idx = zoning.get("best_photo_index", 0)
+    # #1/#5: 分區圖優先畫在使用者標「客廳(living)」那張，不要用第一張(可能是餐廳)。
+    # photo_meta_json: {檔名: target_zone}，由前端從 deco_rooms 帶來。
+    prefer_idx = None
+    if photo_meta_json:
+        try:
+            _zmap = json.loads(photo_meta_json)
+            if isinstance(_zmap, dict):
+                for _i, _ph in enumerate(local_photos):
+                    _z = _zmap.get(_ph.name) or _zmap.get(canonical_photo_key(str(_ph)))
+                    if _z == "living":
+                        prefer_idx = _i
+                        break
+        except Exception as _e:
+            print(f"[/api/zoning] photo_meta_json 解析失敗，忽略: {_e}")
+    best_idx = prefer_idx if prefer_idx is not None else zoning.get("best_photo_index", 0)
+    if prefer_idx is not None:
+        print(f"[/api/zoning] 分區圖採用使用者標的客廳照片 idx={prefer_idx}")
     best_photo = local_photos[best_idx] if 0 <= best_idx < len(local_photos) else local_photos[0]
     existing_path = tmp_dir / "z_overlay_existing.png"
     proposed_path = tmp_dir / "z_overlay_proposed.png"

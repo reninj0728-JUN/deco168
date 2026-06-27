@@ -656,8 +656,8 @@
         <label class="field-label">設計範圍<span class="preset-badge">系統推薦</span></label>
         <div class="select-wrapper">
           <select id="designMode" onchange="updateDesignHint()">
-            <option value="furnish">只換家具與軟裝（不動牆面、天花板）</option>
-            <option value="full">牆面與天花板造型建議＋家具（不改變原有格局結構）</option>
+            <option value="furnish">家具＋軟裝</option>
+            <option value="full">家具＋軟裝＋裝潢（牆面、天花板）</option>
           </select>
         </div>
         <div id="designHint" style="margin-top:8px; font-size:11px; color:#666; letter-spacing:0.3px; line-height:1.6; padding-left:2px;"></div>
@@ -1047,7 +1047,7 @@ function renderRefPreviews() {
 // ── DESIGN MODE HINT ──────────────────────────────────────────────────────────
 var designHints = {
   furnish: '只換家具與軟裝，不動牆面、天花板。',
-  full:    '加上牆面與天花板的造型建議＋家具；不改變原有格局與結構。'
+  full:    '加上牆面與天花板造型建議；不改變原有格局結構。'
 };
 function updateDesignHint() {
   var sel = document.getElementById('designMode');
