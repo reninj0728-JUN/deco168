@@ -686,7 +686,7 @@
     return (items || []).map(function(f) {
       var url = f.purchase_url || '';
       return '<tr><td>' + (f.name_zh || '') + '</td><td>' + (f.brand || '—') + '</td><td>' +
-        _money(f.price_twd) + '</td><td class="lnk">' + (url || '—') + '</td></tr>';
+        _money(f.price_twd) + '</td><td class="lnk">' + (url ? '<a href="' + url + '">點此購買</a>' : '—') + '</td></tr>';
     }).join('');
   }
   function downloadHandbook() {
@@ -701,7 +701,7 @@
       (byStyle[k] = byStyle[k] || { label: r.style_label || k, items: [] }).items.push(r);
     });
     var styleLabels = Object.keys(byStyle).map(function(k) { return byStyle[k].label; });
-    var sections = '', grandTotal = 0;
+    var sections = '', grandTotal = 0, _mainSeen = {}, mainCount = 0;
     Object.keys(byStyle).forEach(function(k) {
       var g = byStyle[k], styleTotal = 0;
       sections += '<section class="style-head"><h2>' + g.label + '</h2></section>';
@@ -709,6 +709,7 @@
         var furn = r.matched_furniture || [];
         var total = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
         styleTotal += total;
+        furn.forEach(function(f) { var key = (f.name_zh || '') + '|' + (f.purchase_url || ''); if (f.name_zh && !_mainSeen[key]) { _mainSeen[key] = 1; mainCount++; } });
         sections += '<section class="room"><h3>' + (r.angle_label || '') + ' · ' + g.label + '</h3>'
           + (r.render_url ? '<img src="' + r.render_url + '">' : '')
           + (furn.length ? '<table><thead><tr><th>家具</th><th>品牌</th><th>價格</th><th>購買連結</th></tr></thead><tbody>' + _furnRows(furn) + '</tbody></table>' : '')
@@ -722,7 +723,7 @@
     var body = '<section class="cover"><div class="brand">DECO168</div>'
       + '<h1>專屬設計手冊</h1><div class="meta">' + spaceZh + ' ｜ ' + date + '</div>'
       + (styleLabels.length ? '<div class="styles">設計風格：' + styleLabels.join('　·　') + '</div>' : '')
-      + (grandTotal ? '<div class="grand">主家具預估總計（不含軟裝）：NT$' + grandTotal.toLocaleString() + '</div>' : '')
+      + (grandTotal ? '<div class="grand">主家具預估總計（不含軟裝）：NT$' + grandTotal.toLocaleString() + (mainCount ? '　·　共 ' + mainCount + ' 件' : '') + '</div>' : '')
       + (a.design_analysis ? '<p class="summary">' + a.design_analysis + '</p>' : '') + '</section>'
       + sections;
     var doc = '<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>DECO168 設計手冊</title><style>'
@@ -740,6 +741,7 @@
       + 'table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0;}'
       + 'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;}td.lnk{word-break:break-all;color:#9a7b3a;font-size:10px;}'
       + 'th{color:#999;font-weight:500;}.total{text-align:right;font-weight:600;color:#9a7b3a;margin-top:4px;}'
+      + 'td.lnk a{color:#9a7b3a;text-decoration:underline;}'
       + 'h3{margin:16px 0 2px;font-weight:500;}h4{margin:12px 0 2px;color:#999;font-size:12px;font-weight:400;}'
       + '</style></head><body>' + body
       + '<' + 'script>window.onload=function(){var i=[].slice.call(document.images),n=i.filter(function(x){return !x.complete;}).length;'
