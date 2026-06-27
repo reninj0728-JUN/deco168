@@ -1683,13 +1683,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         from furniture_match import LIVING_MUST_HAVE
         _RENDERED_CORE_CATS = set(LIVING_MUST_HAVE)
 
-        def _rendered_core_only(mf: list) -> list:
+        def _rendered_core_only(mf: list, room_type: str = "living") -> list:
+            mf = mf or []
+            # 非客廳（臥室/餐廳/書房）：matched_furniture 本來就是該房型配到的必備品
+            # （床/衣櫃、餐桌椅、書桌櫃…），全部顯示，不可用客廳清單過濾掉（否則只剩地毯）。
+            if room_type and room_type != "living":
+                return mf[:5]
+            # 客廳：維持原行為——只留圖中真有的核心家具（沙發/茶几/地毯/電視櫃）。
             items = [
-                it for it in (mf or [])
+                it for it in mf
                 if (it.get("category_en") or "") in _RENDERED_CORE_CATS
             ]
             # category_en 缺失（舊資料）時退回原前 4，避免整列消失
-            return (items or list(mf or []))[:4]
+            return (items or list(mf))[:4]
 
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
@@ -1707,7 +1713,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
-                "matched_furniture": _rendered_core_only(r.get("matched_furniture")),
+                "matched_furniture": _rendered_core_only(r.get("matched_furniture"), r.get("room_type", "living")),
                 # 軟裝接入 (2026-06-18): 結果頁獨立區塊顯示, 不併入主總計
                 "soft_furnishing":   r.get("soft_furnishing", []),
                 "validation":        r.get("validation"),
