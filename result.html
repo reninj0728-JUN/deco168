@@ -295,7 +295,8 @@
   })();
 
   (function fillMeta() {
-    var orderId   = localStorage.getItem('deco_order_id') || (_params.get('job') ? 'ORD-' + _params.get('job') : '—');
+    // #4：顯示純 job id（與 generate 頁、查詢下載頁一致；查詢頁就是用這個純 id 查），不要加 ORD- 前綴造成「編號不一樣」的誤會
+    var orderId   = JOB_ID || (localStorage.getItem('deco_order_id') || '').replace(/^ORD-/, '') || '—';
     var plan      = localStorage.getItem('deco_plan') || 'A';
     var orderTime = localStorage.getItem('deco_order_time');
     var planLabel = plan === 'B' ? '全室空間 · 2 種風格' : '單一空間 · 2 種風格';
