@@ -1797,8 +1797,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if dropped_failed_renders:
             slim_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
 
+        # 事前估算大小：完整 payload 太大就直接寫精簡版，不浪費前兩次 25s 重試。
+        try:
+            _full_kb = len(json.dumps(result_json_payload, ensure_ascii=False).encode("utf-8")) // 1024
+        except Exception:
+            _full_kb = 0
+        _slim_first = _full_kb >= 700
+        if _slim_first:
+            print(f"[pipeline] result_json 約 {_full_kb}KB 偏大 → 直接寫精簡版")
+
         for _attempt in range(4):
-            use_slim = _attempt >= 2
+            use_slim = _slim_first or _attempt >= 2
             payload = completed_payload if not use_slim else {
                 **completed_payload, "result_json": slim_result_json}
             if use_slim:

@@ -178,6 +178,9 @@
           <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,799</div>
         </button>
       </div>
+      <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.7; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:10px 14px;">
+        全室為進階 Beta：系統會<b>依影片/照片實際拍到的房間</b>各自產生渲染；若素材只涵蓋部分房間，會自動產生「可生成的房間數」，不會強迫湊滿。建議影片走過每個房間。
+      </div>
       <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
               style="width:100%; padding:18px; font-size:15px;">
         使用此配置 · 以 LINE PAY 付款 NT$<span id="payAmount">1,199</span>
@@ -323,6 +326,8 @@
     selectedPlan = (plan === 'B') ? 'B' : 'A';
     document.getElementById('svcA').classList.toggle('selected', selectedPlan === 'A');
     document.getElementById('svcB').classList.toggle('selected', selectedPlan === 'B');
+    var _wn = document.getElementById('wholeNote');
+    if (_wn) _wn.style.display = (selectedPlan === 'B') ? 'block' : 'none';
     // 方案一次驅動三個訊號，杜絕「選全室卻跑單視角」(render_angle/space_type 與 plan 脫鉤)。
     localStorage.setItem('deco_plan', selectedPlan);
     if (selectedPlan === 'B') {
