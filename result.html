@@ -255,6 +255,11 @@
 <div id="tabsContainer"><div class="loading-msg">載入設計成果中…</div></div>
 <div id="panelsContainer"></div>
 
+<div style="max-width:720px;margin:28px auto 0;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+  <button class="btn-download" onclick="downloadHandbook()">↓ &nbsp;下載設計手冊（PDF）</button>
+  <button class="btn-download" onclick="copyShoppingList()">⧉ &nbsp;複製購物清單</button>
+</div>
+
 <p class="service-disclaimer">
   本服務提供空間風格視覺化與軟裝氛圍提案，並搭配可購入之實體家具參考。
   實際空間尺寸、精確擺放位置與施工配置，仍建議依現場丈量與專業設計評估為準。
@@ -308,6 +313,7 @@
   //    每個風格內，用「房間/角度子分頁」切換（客廳/餐廳/主臥 可直接點，不用左右鍵）。──
   var _groups = [];
   var _angleIdx = {};
+  var _hb = null;   // 載入的完整 result（給「下載設計手冊 / 複製購物清單」用）
 
   function buildUI(renders) {
     _groups = [];
@@ -650,6 +656,7 @@
         return r.json();
       })
       .then(function(data) {
+        _hb = data;
         // 顯示空間分析（讀現有 result_json.analysis，不打新 API）
         try { fillAnalysis(data.analysis || {}); } catch (e) { console.warn('analysis 顯示失敗', e); }
         // Phase A：顯示客戶輸入（預算 / 需求 / 賣場）
@@ -676,6 +683,87 @@
           buildUI(_demoRenders);
         }
       });
+  }
+
+  // ── 設計手冊 PDF（瀏覽器原生列印；中文OK、不需後端/字型/CORS）──
+  function _money(n) { return n ? 'NT$' + Number(n).toLocaleString() : '—'; }
+  function _furnRows(items) {
+    return (items || []).map(function(f) {
+      var url = f.purchase_url || '';
+      return '<tr><td>' + (f.name_zh || '') + '</td><td>' + (f.brand || '—') + '</td><td>' +
+        _money(f.price_twd) + '</td><td class="lnk">' + (url || '—') + '</td></tr>';
+    }).join('');
+  }
+  function downloadHandbook() {
+    if (!_hb || !((_hb.renders || []).length)) { alert('尚無可下載的設計內容'); return; }
+    var a = _hb.renders ? (_hb.analysis || {}) : {};
+    var SP = { living:'客廳', dining:'餐廳', bedroom:'臥室', study:'書房', whole:'全室多空間' };
+    var spaceZh = SP[a.space_type] || a.space_type || '';
+    var date = new Date().toLocaleDateString('zh-TW');
+    var byStyle = {};
+    (_hb.renders || []).forEach(function(r) {
+      var k = r.style || 'x';
+      (byStyle[k] = byStyle[k] || { label: r.style_label || k, items: [] }).items.push(r);
+    });
+    var body = '<section class="cover"><div class="brand">DECO168</div>'
+      + '<h1>專屬設計手冊</h1><div class="meta">' + spaceZh + ' ｜ ' + date + '</div>'
+      + (a.design_analysis ? '<p class="summary">' + a.design_analysis + '</p>' : '') + '</section>';
+    Object.keys(byStyle).forEach(function(k) {
+      var g = byStyle[k];
+      body += '<section class="style-head"><h2>' + g.label + '</h2></section>';
+      g.items.forEach(function(r) {
+        var furn = r.matched_furniture || [];
+        var total = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
+        body += '<section class="room"><h3>' + (r.angle_label || '') + ' · ' + g.label + '</h3>'
+          + (r.render_url ? '<img src="' + r.render_url + '">' : '')
+          + (furn.length ? '<table><thead><tr><th>家具</th><th>品牌</th><th>價格</th><th>購買連結</th></tr></thead><tbody>' + _furnRows(furn) + '</tbody></table>' : '')
+          + (total ? '<div class="total">主家具小計：NT$' + total.toLocaleString() + '</div>' : '')
+          + ((r.soft_furnishing || []).length ? '<h4>軟裝參考（不併入主總計）</h4><table><tbody>' + _furnRows(r.soft_furnishing) + '</tbody></table>' : '')
+          + '</section>';
+      });
+    });
+    var doc = '<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>DECO168 設計手冊</title><style>'
+      + 'body{font-family:"Microsoft JhengHei","PingFang TC","Heiti TC",sans-serif;color:#222;margin:0;}'
+      + 'section{padding:22px 32px;}'
+      + '.cover{min-height:92vh;display:flex;flex-direction:column;justify-content:center;background:#111;color:#fff;page-break-after:always;}'
+      + '.cover .brand{letter-spacing:6px;color:#C9A96E;font-size:13px;}.cover h1{font-size:38px;margin:10px 0;font-weight:400;}'
+      + '.cover .meta{color:#C9A96E;letter-spacing:2px;}.cover .summary{margin-top:22px;line-height:1.9;max-width:600px;color:#ddd;}'
+      + '.style-head{background:#C9A96E;color:#111;page-break-before:always;}.style-head h2{margin:0;letter-spacing:3px;font-weight:500;}'
+      + '.room{page-break-inside:avoid;border-bottom:1px solid #eee;}'
+      + '.room img{width:100%;max-height:430px;object-fit:contain;background:#f5f5f5;margin:10px 0;}'
+      + 'table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0;}'
+      + 'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;}td.lnk{word-break:break-all;color:#9a7b3a;font-size:10px;}'
+      + 'th{color:#999;font-weight:500;}.total{text-align:right;font-weight:600;color:#9a7b3a;margin-top:4px;}'
+      + 'h3{margin:16px 0 2px;font-weight:500;}h4{margin:12px 0 2px;color:#999;font-size:12px;font-weight:400;}'
+      + '</style></head><body>' + body
+      + '<' + 'script>window.onload=function(){setTimeout(function(){window.print();},500);};<' + '/script></body></html>';
+    var w = window.open('', '_blank');
+    if (!w) { alert('請允許彈出視窗，才能產生設計手冊 PDF'); return; }
+    w.document.write(doc); w.document.close();
+  }
+  function copyShoppingList() {
+    if (!_hb || !((_hb.renders || []).length)) { alert('尚無清單可複製'); return; }
+    var seen = {}, lines = [];
+    (_hb.renders || []).forEach(function(r) {
+      (r.matched_furniture || []).concat(r.soft_furnishing || []).forEach(function(f) {
+        var key = (f.name_zh || '') + '|' + (f.purchase_url || '');
+        if (f.name_zh && !seen[key]) {
+          seen[key] = 1;
+          lines.push('• ' + f.name_zh + '  ' + _money(f.price_twd) + (f.purchase_url ? '  ' + f.purchase_url : ''));
+        }
+      });
+    });
+    var txt = 'DECO168 購物清單\n\n' + lines.join('\n');
+    var done = function() { alert('已複製購物清單，可貼到記事本 / 賣場搜尋'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done, function() {
+        var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (e) {} ta.remove(); done();
+      });
+    } else {
+      var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {} ta.remove(); done();
+    }
   }
 
   loadResult();
