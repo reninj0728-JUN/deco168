@@ -1440,11 +1440,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
-            for base, label, rt in zip(flux_bases, angle_labels, angle_room_types):
+            for base, label, rt, cropped in zip(flux_bases, angle_labels, angle_room_types, crop_flags):
                 copy = dict(enriched_by_rt[rt][si])
                 copy["_angle_label"] = label
                 copy["_base_path"] = base
                 copy["_room_type"] = rt
+                copy["_cropped"] = cropped   # (i) 是否裁成單房視角
                 expanded.append(copy)
 
         total = len(expanded)
@@ -1475,6 +1476,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
                 r["room_type"] = entry.get("_room_type", "living")
+                r["cropped"] = bool(entry.get("_cropped"))   # (i) 標記：此圖底圖已裁成單房視角
                 # 用 style + angle 區分檔名
                 if r.get("render_path"):
                     src = Path(r["render_path"])
@@ -1685,6 +1687,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     new_r["room_type"]    = entry.get("_room_type", "living")
                     new_r["_room_type"]   = entry.get("_room_type", "living")
                     new_r["_base_path"]   = entry.get("_base_path")
+                    new_r["cropped"]      = bool(entry.get("_cropped"))
                     new_r["retry_count"]  = current_rc + 1
                     new_r["retry_reason"] = retry_reason
                     final[idx] = new_r
@@ -1780,6 +1783,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 new_r["room_type"]    = entry.get("_room_type", "living")
                 new_r["_room_type"]   = entry.get("_room_type", "living")
                 new_r["_base_path"]   = entry.get("_base_path")
+                new_r["cropped"]      = bool(entry.get("_cropped"))
                 new_r["retry_count"]  = int(r.get("retry_count") or 0) + 1
                 new_r["retry_reason"] = "phase2 hardfix"
                 # 補生後不再是硬傷才取代；仍硬傷則保留原狀（後續 needs_regen 記錄）
@@ -1871,6 +1875,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "style_label":       r.get("style_label"),
                 "angle_label":       r.get("angle_label", "主視角"),
                 "room_type":         r.get("room_type", "living"),   # step-2：結果頁按房間分頁/驗收用
+                "cropped":           bool(r.get("cropped")),         # (i) 此圖底圖已裁成單房視角
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),
