@@ -98,7 +98,10 @@
   <div id="errorBox" class="err-box" style="display:none;"></div>
 
   <div id="contentBox" style="display:none;">
-    <div class="overlay-card">
+    <div id="wholeZoningNote" style="display:none; border:1px solid rgba(201,169,110,0.25); background:rgba(201,169,110,0.04); padding:16px 20px; margin-bottom:24px; font-size:14px; color:var(--body); line-height:1.8;">
+      全室規劃會<b style="color:var(--gold-lt);">依你各個房間的照片分別生成設計</b>，不需要在這裡用單一張照片切分區。請直接於下方確認方案並付款即可。
+    </div>
+    <div class="overlay-card" id="overlayCard">
       <div class="ohead">
         <span class="otitle">建議的分區規劃</span>
         <span class="ohint">圖例請看下方</span>
@@ -113,7 +116,7 @@
       </div>
     </div>
 
-    <div class="options-grid">
+    <div class="options-grid" id="optionsGrid">
       <label class="opt selected" id="optA">
         <input type="radio" name="layout" value="A" checked>
         <div class="badge">推薦方案</div>
@@ -275,6 +278,20 @@
     document.getElementById('sofaSideBox').style.display = 'block';
 
     content.style.display = 'block';
+    applyWholeZoningUI();
+  }
+
+  // 全室：單張照片切「客廳/餐廳」分區、問沙發左右沒有意義（甚至那張可能是臥室照）。
+  // → 隱藏分區圖 / A·B 方案 / 沙發左右，改顯示一句說明；逐房間生成不靠這步。
+  function applyWholeZoningUI() {
+    var isWhole = (localStorage.getItem('deco_space_type') === 'whole')
+               || (localStorage.getItem('deco_plan') === 'B');
+    [['overlayCard', 'block'], ['optionsGrid', 'grid'], ['sofaSideBox', 'block']].forEach(function(p) {
+      var el = document.getElementById(p[0]);
+      if (el) el.style.display = isWhole ? 'none' : p[1];
+    });
+    var note = document.getElementById('wholeZoningNote');
+    if (note) note.style.display = isWhole ? 'block' : 'none';
   }
 
   // 2. 綁定 A/B 選擇
@@ -336,6 +353,7 @@
       localStorage.setItem('deco_render_angle', 'single');
     }
     updatePriceUI();
+    if (typeof applyWholeZoningUI === 'function') applyWholeZoningUI();
   }
   selectPlan(selectedPlan);   // 進頁同步 UI + 三訊號
 
