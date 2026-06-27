@@ -1132,6 +1132,20 @@ function submitForm() {
 // 回上一頁再回來時，從 localStorage 還原先前選擇，避免被重設成預設(living/modern)
 // → 送出錯方案/風格（修 EF18E882：選全室+新中式，卻跑成單一/客廳/都會簡約）。
 function restoreSelections() {
+  // #1 加固：upload_id 變了＝新訂單 → 清掉舊選擇、不還原（涵蓋刷新 / 從 result 回來再上傳的邊角）。
+  // 同一單來回(zoning→改回風格)時 upload_id 不變 → 正常還原。
+  try {
+    var _uid  = localStorage.getItem('deco_upload_id') || '';
+    var _seen = localStorage.getItem('deco_styleform_uid') || '';
+    if (_uid && _uid !== _seen) {
+      ['deco_directions','deco_style','deco_style_count','deco_space_type',
+       'deco_design_mode','deco_budget_tier','deco_customer_notes',
+       'deco_plan','deco_render_angle','deco_layout_choice','deco_zoning_json','deco_sofa_side']
+        .forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+      localStorage.setItem('deco_styleform_uid', _uid);
+      return;   // 全新表單，不還原
+    }
+  } catch (e) {}
   try {
     var st = localStorage.getItem('deco_space_type');
     var se = document.getElementById('spaceType');
