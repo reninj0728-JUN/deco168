@@ -312,23 +312,44 @@
     document.getElementById('metaDate').textContent    = timeStr || '—';
   })();
 
-  // ── 把所有 renders 依 style 分組（同 style 內為角度陣列）──
-  var _groups = [];     // [{style, label, angles: [render, render, ...]}]
-  var _angleIdx = {};   // 每個 style 目前正在看的角度 index
+  // ── 渲染分組 ──
+  // 全室(出現 >1 種 room_type) → 按「房間」分群，組內切換風格（客廳/餐廳/主臥各自一頁）。
+  // 其餘(單空間) → 維持按「風格」分群，組內切換角度。group.style 當不透明 key 共用既有切換機制。
+  var _groups = [];
+  var _angleIdx = {};
+  var _groupByRoom = false;
 
   function buildUI(renders) {
     _groups = [];
     _angleIdx = {};
-    var byStyle = {};
-    renders.forEach(function(r) {
-      var key = r.style || 'unknown';
-      if (!byStyle[key]) {
-        byStyle[key] = { style: key, label: r.style_label || key, angles: [] };
-        _groups.push(byStyle[key]);
-        _angleIdx[key] = 0;
-      }
-      byStyle[key].angles.push(r);
-    });
+    var rtSet = {};
+    renders.forEach(function(r) { if (r.room_type) rtSet[r.room_type] = true; });
+    _groupByRoom = Object.keys(rtSet).length > 1;   // 單空間多角度為同一 room_type，不算
+
+    if (_groupByRoom) {
+      var byRoom = {};
+      renders.forEach(function(r) {
+        var rk = r.angle_label || r.room_type || 'room';
+        if (!byRoom[rk]) {
+          var rkey = 'room' + Object.keys(byRoom).length;
+          byRoom[rk] = { style: rkey, label: rk, angles: [] };
+          _groups.push(byRoom[rk]);
+          _angleIdx[rkey] = 0;
+        }
+        byRoom[rk].angles.push(r);
+      });
+    } else {
+      var byStyle = {};
+      renders.forEach(function(r) {
+        var key = r.style || 'unknown';
+        if (!byStyle[key]) {
+          byStyle[key] = { style: key, label: r.style_label || key, angles: [] };
+          _groups.push(byStyle[key]);
+          _angleIdx[key] = 0;
+        }
+        byStyle[key].angles.push(r);
+      });
+    }
 
     // TABS：每個風格 1 個 tab
     var tabsHtml = _groups.map(function(g, i) {
@@ -376,9 +397,14 @@
     var imgUrl = r.render_url || (r.render_filename && JOB_ID
       ? API_BASE + '/jobs/' + JOB_ID + '/' + r.render_filename : null);
     var label    = group.label;
-    // 單空間 single 模式：把「主視角」改成更口語的「客廳主視角」（已知空間是 living）
-    var angleLbl = r.angle_label || ('角度 ' + (idx+1));
-    if (angleLbl === '主視角') angleLbl = '客廳主視角';
+    // 房間分群(全室)時 nav 顯示「風格名」；風格分群(單空間)時顯示「角度名」。
+    var angleLbl;
+    if (_groupByRoom) {
+      angleLbl = r.style_label || r.style || ('風格 ' + (idx+1));
+    } else {
+      angleLbl = r.angle_label || ('角度 ' + (idx+1));
+      if (angleLbl === '主視角') angleLbl = '客廳主視角';
+    }
     var furn     = r.matched_furniture || [];
     var total    = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
     // 軟裝接入 (2026-06-18): 軟裝獨立顯示, 不併入主總計
