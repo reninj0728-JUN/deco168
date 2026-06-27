@@ -45,6 +45,54 @@ LIVING_NICE_TO_HAVE = [
 # 客廳模式排除（不准進主家具清單）
 LIVING_EXCLUDED = ['bar_stool', 'dining_chair', 'dining_table', 'bed', 'bedding']
 
+# ── Step-2：全室逐房型配置規則 ───────────────────────────────────────────────
+# 每房型獨立的 必備(must) / 加分(nice) / 排除(excluded)。
+# living 直接沿用上面的常數，行為與單空間客廳完全一致（不可改）。
+# 目錄盤點後微調：side_table(床頭櫃) 只有 13 件、各風格餐桌/書桌深度不均，
+#   故把這些薄品類放 nice、不放 must，避免硬性要求落空（薄格子用跨風格保命補）。
+# dropdown 只有 living/dining/bedroom/study；其他房型(玄關/廚房…)一律退回 living。
+ROOM_RULES = {
+    'living': {
+        'must':     LIVING_MUST_HAVE,
+        'nice':     LIVING_NICE_TO_HAVE,
+        'excluded': LIVING_EXCLUDED,
+    },
+    'bedroom': {
+        'must':     ['bed', 'storage'],
+        'nice':     ['side_table', 'rug', 'lighting'],
+        'excluded': ['sofa', 'coffee_table', 'media_console',
+                     'dining_table', 'dining_chair', 'bar_stool'],
+    },
+    'dining': {
+        'must':     ['dining_table', 'dining_chair'],
+        'nice':     ['rug', 'lighting', 'side_table'],
+        'excluded': ['sofa', 'bed', 'bedding', 'coffee_table', 'media_console'],
+    },
+    'study': {
+        'must':     ['table', 'chair'],
+        'nice':     ['storage', 'rug', 'lighting'],
+        'excluded': ['sofa', 'bed', 'bedding', 'dining_table', 'dining_chair'],
+    },
+}
+
+def normalize_room_type(raw: str) -> str:
+    """把 region name / room_type 正規化成標準房型（單一真實來源）。
+    未知 → 'living'（其他空間退回客廳邏輯）。
+    優先序刻意：臥室 → 書房 → 客廳(含客餐廳/公領域，有沙發) → 餐廳(純餐)。
+    例：『客餐廳公領域』→ living（有沙發）；純『餐廳』→ dining。"""
+    s = (raw or '').strip().lower()
+    zh = raw or ''
+    if any(k in zh for k in ('臥', '寢')) or 'bedroom' in s or 'bed room' in s:
+        return 'bedroom'
+    if any(k in zh for k in ('書房', '工作', '書')) or s in ('study', 'office', 'workspace') or 'study' in s:
+        return 'study'
+    # 客廳 / 客餐廳 / 公領域 / 起居：歸 living（主要公共空間、要有沙發），先於純餐廳判斷
+    if any(k in zh for k in ('客廳', '客餐廳', '起居', '公領域', '客')) or s in ('living', 'living_room') or 'living' in s:
+        return 'living'
+    if any(k in zh for k in ('餐廳', '餐廚', '用餐', '餐區', '餐')) or 'dining' in s:
+        return 'dining'
+    return 'living'
+
 # ── 軟裝接入 (2026-06-18, Step 3B 規則修正後) ────────────────────────────────
 # 軟裝 = 「不算主家具總計、另開獨立區塊建議」的搭配商品.
 # 預算策略採 B 方案: 主家具 (sofa/coffee_table/rug) 算主總計; 軟裝獨立顯示, 不併主總計.
@@ -451,6 +499,7 @@ def _pick_best_in_category(
     is_long_room: bool = False,
     budget_tier: str = "tier3",
     preferred_store: str = "none",
+    must_categories: list[str] | None = None,
 ) -> dict | None:
     """
     在指定 category 中，先撈同風格 → 再 fallback 相近風格 → 否則 None。
@@ -540,7 +589,7 @@ def _pick_best_in_category(
     # Stage C: must-have 保命 — category 鎖死、風格全放寬（任何風格都行）。
     # 只給 must-have（沙發/茶几/地毯/電視櫃）：這些圖一定會畫，清單不能缺，
     # 否則空格會被從不渲染的 nice-to-have（單椅/邊几）遞補成「圖上沒有的家具」。
-    if target_cat in LIVING_MUST_HAVE:
+    if target_cat in (must_categories if must_categories is not None else LIVING_MUST_HAVE):
         any_style = [it for it in catalog if resolve_category(it) == target_cat]
         if any_style:
             chosen = (_scored_in_pool(_filter(any_style, cap), match_style=False)
@@ -575,12 +624,11 @@ def match_furniture(
     """
     prompt_keywords = [kw.strip().lower() for kw in flux_prompt.split(",")]
 
-    if mode != 'living':
-        return _legacy_match(style, prompt_keywords, catalog, top_n)
-
-    must = LIVING_MUST_HAVE
-    nice = LIVING_NICE_TO_HAVE
-    excluded = set(LIVING_EXCLUDED)
+    # mode 即標準 room_type（living/bedroom/dining/study）；未知房型退回客廳規則。
+    rule = ROOM_RULES.get(mode, ROOM_RULES['living'])
+    must = rule['must']
+    nice = rule['nice']
+    excluded = set(rule['excluded'])
 
     # 先剔除 EXCLUDED 品類
     pool = [it for it in catalog if resolve_category(it) not in excluded]
@@ -592,7 +640,8 @@ def match_furniture(
         best = _pick_best_in_category(cat, style, prompt_keywords, pool,
                                       is_long_room=is_long_room,
                                       budget_tier=budget_tier,
-                                      preferred_store=preferred_store)
+                                      preferred_store=preferred_store,
+                                      must_categories=must)
         if best is not None:
             selected_by_cat[cat] = best
 
@@ -794,7 +843,8 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
 
 def enrich_renders(renders: list[dict], analysis: dict | None = None,
                    budget_tier: str = "tier3",
-                   preferred_store: str = "none") -> list[dict]:
+                   preferred_store: str = "none",
+                   room_type: str = "living") -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -833,7 +883,7 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
         flux_prompt = render.get("flux_prompt", "")
         # 先過濾尺寸再配對，避免唯一的電視櫃在選中後才被刪除。
         room_catalog = filter_by_dimensions(catalog, max_w)
-        matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode='living',
+        matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode=room_type,
                                   is_long_room=is_long_room,
                                   budget_tier=budget_tier,
                                   preferred_store=preferred_store)
