@@ -862,7 +862,7 @@ def _build_nonliving_nano_inputs(
     style_sec = _build_style_section(entry)
     budget_sec = _build_budget_section(budget_tier)
     customer_sec = _build_customer_notes_section(customer_notes)
-    retry_sec = _build_retry_context_section(retry_context)
+    retry_sec = _build_retry_context_section(retry_context, room_type)
     soft_sec = (
         "SOFT FURNISHING: add complementary, style-consistent soft items appropriate to this room "
         "(a rug, cushions or bedding, a lamp, a plant, wall art) — illustrative only. "
@@ -925,7 +925,7 @@ _RETRY_FLAG_FIX_EN = {
 }
 
 
-def _build_retry_context_section(retry_context: dict | None) -> str:
+def _build_retry_context_section(retry_context: dict | None, room_type: str = "living") -> str:
     """Retry 用：短、硬、明確帶入上次失敗原因，不要太長。
 
     帶兩類回饋：
@@ -961,25 +961,29 @@ def _build_retry_context_section(retry_context: dict | None) -> str:
     if not failed_flags and reason:
         # 沒有結構化 flag 但有文字 reason → 至少把 reason 帶給 model 參考。
         lines.append(f"- Reviewer note on the previous attempt: {reason}")
-    if has_sofa:
+    # 沙發/電視櫃/living group 的修正指令只對客廳有意義；餐廳/主臥/書房若因結構或
+    # 走道觸發重試，餵這些會把沙發塞進非客廳房間(Grok 指出的生成側洩漏)。
+    is_living = (room_type or "living") == "living"
+    if is_living and has_sofa:
         lines.append(
             f"- Last time the sofa sat at depth ~{int(sofa_pct)}% (too far forward). Move it "
             "deeper toward the window END, but keep its BACK against the SIDE wall — do NOT "
             "back the sofa onto the window."
         )
-    if has_anchor:
+    if is_living and has_anchor:
         lines.append(
             f"- Last time the focal anchor sat at depth ~{int(anchor_pct)}% (too far forward). "
             "Put the TV cabinet / focal anchor on the wall the sofa directly faces, in the same "
             "window-side living zone, aligned with the sofa."
         )
-    lines.extend([
-        "- Move the whole living group (sofa, rug, coffee table, focal anchor) to the "
-        "window END of the room, kept compact as ONE group.",
-        "- Sofa back flush against a SIDE (long) wall toward the window — never backing the window.",
-        "- Keep the MIDDLE of the room clear of living furniture (it is reserved for dining).",
-        "- Do not place the TV cabinet / media console in the middle, entrance, dining, or walkway.",
-    ])
+    if is_living:
+        lines.extend([
+            "- Move the whole living group (sofa, rug, coffee table, focal anchor) to the "
+            "window END of the room, kept compact as ONE group.",
+            "- Sofa back flush against a SIDE (long) wall toward the window — never backing the window.",
+            "- Keep the MIDDLE of the room clear of living furniture (it is reserved for dining).",
+            "- Do not place the TV cabinet / media console in the middle, entrance, dining, or walkway.",
+        ])
     return " ".join(lines)
 
 
@@ -1238,7 +1242,7 @@ def build_nano_banana_inputs(
     style_sec = _build_style_section(entry)
     budget_sec = _build_budget_section(budget_tier)
     customer_sec = _build_customer_notes_section(customer_notes)
-    retry_sec = _build_retry_context_section(retry_context)
+    retry_sec = _build_retry_context_section(retry_context, room_type)
 
     # PhotoMeta v1 Step 2: 使用者明確指定 target_zone + target_location_hint
     # → 注入在 inputs 之後 / layout 之前. 兩個值任一缺/unspecified → 空字串.
