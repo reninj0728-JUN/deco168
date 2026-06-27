@@ -554,11 +554,6 @@
       .catch(function() { window.open(url, '_blank'); });
   }
 
-  function handleDownload(e, type) {
-    e.preventDefault();
-    alert(type === 'style' ? '風格報告將在生成完整後提供下載。' : '材料清單將在生成完整後提供下載。');
-  }
-
   // Step 3B preview fixture: demo fallback 加 soft_furnishing 8 件 (+ matched_furniture
   // 一小份) 讓使用者打開 preview 時可直接看到「軟裝搭配建議」UI. 這份資料只在 JOB_ID
   // 缺席 / API fetch 失敗時用 (見 loadResult). 真實 job path 不受影響.
@@ -705,30 +700,41 @@
       var k = r.style || 'x';
       (byStyle[k] = byStyle[k] || { label: r.style_label || k, items: [] }).items.push(r);
     });
-    var body = '<section class="cover"><div class="brand">DECO168</div>'
-      + '<h1>專屬設計手冊</h1><div class="meta">' + spaceZh + ' ｜ ' + date + '</div>'
-      + (a.design_analysis ? '<p class="summary">' + a.design_analysis + '</p>' : '') + '</section>';
+    var styleLabels = Object.keys(byStyle).map(function(k) { return byStyle[k].label; });
+    var sections = '', grandTotal = 0;
     Object.keys(byStyle).forEach(function(k) {
-      var g = byStyle[k];
-      body += '<section class="style-head"><h2>' + g.label + '</h2></section>';
+      var g = byStyle[k], styleTotal = 0;
+      sections += '<section class="style-head"><h2>' + g.label + '</h2></section>';
       g.items.forEach(function(r) {
         var furn = r.matched_furniture || [];
         var total = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
-        body += '<section class="room"><h3>' + (r.angle_label || '') + ' · ' + g.label + '</h3>'
+        styleTotal += total;
+        sections += '<section class="room"><h3>' + (r.angle_label || '') + ' · ' + g.label + '</h3>'
           + (r.render_url ? '<img src="' + r.render_url + '">' : '')
           + (furn.length ? '<table><thead><tr><th>家具</th><th>品牌</th><th>價格</th><th>購買連結</th></tr></thead><tbody>' + _furnRows(furn) + '</tbody></table>' : '')
           + (total ? '<div class="total">主家具小計：NT$' + total.toLocaleString() + '</div>' : '')
-          + ((r.soft_furnishing || []).length ? '<h4>軟裝參考（不併入主總計）</h4><table><tbody>' + _furnRows(r.soft_furnishing) + '</tbody></table>' : '')
+          + ((r.soft_furnishing || []).length ? '<h4>軟裝參考（不併入主總計）</h4><table><tbody>' + _furnRows(r.soft_furnishing) + '</tbody></table><div class="softnote">軟裝可依預算彈性選購。</div>' : '')
           + '</section>';
       });
+      grandTotal += styleTotal;
+      if (styleTotal) sections += '<section class="style-total">「' + g.label + '」主家具預估總計：NT$' + styleTotal.toLocaleString() + '</section>';
     });
+    var body = '<section class="cover"><div class="brand">DECO168</div>'
+      + '<h1>專屬設計手冊</h1><div class="meta">' + spaceZh + ' ｜ ' + date + '</div>'
+      + (styleLabels.length ? '<div class="styles">設計風格：' + styleLabels.join('　·　') + '</div>' : '')
+      + (grandTotal ? '<div class="grand">主家具預估總計（不含軟裝）：NT$' + grandTotal.toLocaleString() + '</div>' : '')
+      + (a.design_analysis ? '<p class="summary">' + a.design_analysis + '</p>' : '') + '</section>'
+      + sections;
     var doc = '<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>DECO168 設計手冊</title><style>'
       + 'body{font-family:"Microsoft JhengHei","PingFang TC","Heiti TC",sans-serif;color:#222;margin:0;}'
       + 'section{padding:22px 32px;}'
       + '.cover{min-height:92vh;display:flex;flex-direction:column;justify-content:center;background:#111;color:#fff;page-break-after:always;}'
       + '.cover .brand{letter-spacing:6px;color:#C9A96E;font-size:13px;}.cover h1{font-size:38px;margin:10px 0;font-weight:400;}'
       + '.cover .meta{color:#C9A96E;letter-spacing:2px;}.cover .summary{margin-top:22px;line-height:1.9;max-width:600px;color:#ddd;}'
+      + '.cover .styles{margin-top:18px;color:#fff;letter-spacing:1px;}.cover .grand{margin-top:8px;color:#C9A96E;font-weight:600;}'
       + '.style-head{background:#C9A96E;color:#111;page-break-before:always;}.style-head h2{margin:0;letter-spacing:3px;font-weight:500;}'
+      + '.style-total{text-align:right;font-weight:600;color:#9a7b3a;border-top:2px solid #C9A96E;padding-top:10px;}'
+      + '.softnote{font-size:10px;color:#aaa;margin-top:2px;}'
       + '.room{page-break-inside:avoid;border-bottom:1px solid #eee;}'
       + '.room img{width:100%;max-height:430px;object-fit:contain;background:#f5f5f5;margin:10px 0;}'
       + 'table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0;}'
@@ -736,7 +742,10 @@
       + 'th{color:#999;font-weight:500;}.total{text-align:right;font-weight:600;color:#9a7b3a;margin-top:4px;}'
       + 'h3{margin:16px 0 2px;font-weight:500;}h4{margin:12px 0 2px;color:#999;font-size:12px;font-weight:400;}'
       + '</style></head><body>' + body
-      + '<' + 'script>window.onload=function(){setTimeout(function(){window.print();},500);};<' + '/script></body></html>';
+      + '<' + 'script>window.onload=function(){var i=[].slice.call(document.images),n=i.filter(function(x){return !x.complete;}).length;'
+      + 'function go(){window.print();}if(!n){return go();}'
+      + 'i.forEach(function(x){if(!x.complete){x.onload=x.onerror=function(){if(--n<=0)go();};}});'
+      + 'setTimeout(go,6000);};<' + '/script></body></html>';
     var w = window.open('', '_blank');
     if (!w) { alert('請允許彈出視窗，才能產生設計手冊 PDF'); return; }
     w.document.write(doc); w.document.close();
