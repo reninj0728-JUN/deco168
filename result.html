@@ -81,10 +81,12 @@
     /* ANGLE NAVIGATION */
     .angle-nav { display: flex; align-items: center; justify-content: space-between;
       margin-top: 10px; padding: 6px 0; }
-    .angle-arrow { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line);
-      background: transparent; color: var(--gold); font-size: 22px; line-height: 1; cursor: pointer;
-      transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
-    .angle-arrow:hover { background: rgba(201,169,110,0.1); border-color: var(--gold); }
+    .angle-arrow { width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--gold);
+      background: rgba(201,169,110,0.10); color: var(--gold-lt); font-size: 28px; line-height: 1; cursor: pointer;
+      transition: all 0.18s; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3); flex-shrink: 0; }
+    .angle-arrow:hover { background: var(--gold); color: var(--black); transform: scale(1.08); }
+    .angle-arrow:active { transform: scale(0.96); }
     .angle-indicator { flex: 1; text-align: center; }
     .angle-indicator.solo { padding: 6px 0; }
     .angle-name { display: block; font-size: 13px; color: var(--white); font-weight: 500; letter-spacing: 1px; }
@@ -427,7 +429,7 @@
       ? '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
         navHtml +
         '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' +
-        '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載此渲染圖</button>'
+        '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載設計圖</button>'
       : '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
         '<div style="font-size:11px;color:var(--muted);letter-spacing:2px;">生成中</div></div>' +
         navHtml +
