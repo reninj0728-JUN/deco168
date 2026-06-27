@@ -1535,8 +1535,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 rpath = r.get("render_path") or ""
                 if bpath and rpath and Path(bpath).exists() and Path(rpath).exists():
                     try:
+                        # 非客廳房型不傳 living 的 layout_context（sofa_side/living_where），
+                        # 否則 judge 會被問沙發 → 餐廳/書房 reason 冒沙發語言 → 髒重試(Grok 根治)。
+                        _lc = layout_ctx if (r.get("room_type") or "living") == "living" else None
                         v = validate_render(bpath, rpath, r.get("_angle_label", ""),
-                                            layout_context=layout_ctx,
+                                            layout_context=_lc,
                                             room_type=r.get("room_type", "living"))
                     except Exception as ve:
                         v = {"ok": None, "error": str(ve)[:200]}
@@ -1673,8 +1676,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         bpath = entry["_base_path"]
                         rpath = new_r.get("render_path") or ""
                         if rpath and Path(bpath).exists() and Path(rpath).exists():
+                            _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
                             new_v = validate_render(bpath, rpath, entry["_angle_label"],
-                                                    layout_context=layout_ctx,
+                                                    layout_context=_lc,
                                                     room_type=entry.get("_room_type", "living"))
                         else:
                             new_v = {"ok": None, "error": "missing base or render path after retry"}
@@ -1770,8 +1774,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     bpath = entry["_base_path"]
                     rpath = new_r.get("render_path") or ""
                     if rpath and Path(bpath).exists() and Path(rpath).exists():
+                        _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
                         new_v = validate_render(bpath, rpath, entry["_angle_label"],
-                                                layout_context=layout_ctx,
+                                                layout_context=_lc,
                                                 room_type=entry.get("_room_type", "living"))
                     else:
                         new_v = {"ok": None, "error": "missing path after hardfix"}
