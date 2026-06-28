@@ -811,15 +811,21 @@ NONLIVING_CRITICAL = (
 # design_mode="full"（家具＋軟裝＋裝潢）才追加：允許「可實作、不浮誇」的牆面/天花表面處理。
 # 預設 furnish 完全不碰，stable 路徑零影響。
 FULL_MODE_FINISHES = (
-    " | RENOVATION (裝潢) MODE — SURFACE FINISHES ALLOWED (this OVERRIDES the earlier rules about "
-    "preserving wall/ceiling FINISH and not adding paint/wallpaper/ceiling lighting — FINISH ONLY): "
-    "You MAY repaint the walls in a style-appropriate colour, add AT MOST ONE simple accent wall "
-    "(flat paint or simple wallpaper), and give the ceiling a SIMPLE finish (a flush ceiling light, "
-    "or a shallow perimeter cove with recessed downlights). "
-    "STILL STRICTLY FORBIDDEN: moving / adding / removing any wall or partition; changing wall "
-    "POSITIONS, room size or proportions; changing window or door POSITIONS; changing floor material; "
-    "fake structural beams; elaborate or multi-level dropped ceilings; glossy over-the-top luxury "
-    "treatments — nothing unbuildable or 浮誇. Keep it simple, realistic and buildable."
+    " | RENOVATION (裝潢) MODE — THIS IS A PAID RENOVATION, NOT A FURNITURE-ONLY RESTAGE. "
+    "The output MUST look visibly RENOVATED and clearly DIFFERENT from the bare original walls/ceiling. "
+    "This OVERRIDES every earlier rule about preserving wall/ceiling FINISH. "
+    "REQUIRED CHANGES (you must do all of these): "
+    "(1) REPAINT the walls in the style's signature colour — the wall colour MUST visibly change from "
+    "the plain original; do not leave the walls the same bare white. "
+    "(2) Give ONE feature/TV wall a clear accent treatment (a deeper paint colour, OR simple wallpaper, "
+    "OR — only where the style calls for it — a light slatted-wood or panelled finish). "
+    "(3) Finish the CEILING simply but visibly: a clean flush ceiling, with a shallow perimeter cove + "
+    "warm recessed downlights, or simple downlights — clearly tidier than the bare original ceiling. "
+    "STRICTLY FORBIDDEN (do NOT cross these lines): moving / adding / removing any wall or partition; "
+    "changing wall POSITIONS, room size or proportions; changing window or door POSITIONS; changing the "
+    "floor material; fake structural beams; heavy multi-level dropped ceilings; glossy over-the-top "
+    "luxury — nothing unbuildable or 浮誇. Keep every finish simple, realistic and buildable, but make "
+    "the renovation CLEARLY VISIBLE."
 )
 _FULL_STYLE_FINISH = {
     "chinese-modern": "牆面暖米或淺木色、可一面簡化木格柵造型牆；天花平頂＋暖光崁燈。",

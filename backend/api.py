@@ -1978,6 +1978,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 被移除的 style 由 validation_summary.dropped_renders 帶給前端標示。
 
         result_json_payload = {
+            "build_tag":          "fullmode-rewrite-v2",      # 部署版本標記（確認最新碼有跑）
             "analysis":           analysis,
             "zoning":             zoning_result,
             "zoning_v2":          user_zoning_v2,             # Z2: 保留原始 v2（未轉換）
@@ -2024,9 +2025,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "focal_anchor_misaligned_with_sofa", "furniture_blocks_walkway") if kk in v}
 
         slim_result_json = {
+            "build_tag": "fullmode-rewrite-v2",
             "renders": [
                 {**{k: rr.get(k) for k in
-                    ("style", "style_label", "angle_label", "room_type", "render_url",
+                    ("style", "style_label", "angle_label", "room_type", "cropped", "render_url",
                      "render_filename", "matched_furniture", "soft_furnishing", "reference_map")},
                  "validation": _tiny_val(rr.get("validation"))}
                 for rr in slim_renders
@@ -2055,14 +2057,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "renders": [
                 {"style": rr.get("style"), "style_label": rr.get("style_label"),
                  "angle_label": rr.get("angle_label"), "room_type": rr.get("room_type", "living"),
+                 "cropped": bool(rr.get("cropped")),
                  "render_url": rr.get("render_url"), "render_filename": rr.get("render_filename"),
                  "matched_furniture": _tiny_furn(rr.get("matched_furniture")),
                  "soft_furnishing": _tiny_furn(rr.get("soft_furnishing")),
                  "validation": _tiny_val(rr.get("validation"))}
                 for rr in slim_renders
             ],
-            "analysis": {"space_type": (analysis or {}).get("space_type")},
+            # debug 欄位也留在最小 payload，避免「裁切/保底/版本」看不到而一直靠猜
+            "analysis": {"space_type": (analysis or {}).get("space_type"),
+                         "design_analysis_source": (analysis or {}).get("design_analysis_source")},
             "customer_inputs": customer_inputs,
+            "build_tag": "fullmode-rewrite-v2",
             "payload_trimmed": True,
         }
         if all_failed_repairing:
