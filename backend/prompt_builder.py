@@ -805,6 +805,41 @@ NONLIVING_CRITICAL = (
 )
 
 
+# design_mode="full"（家具＋軟裝＋裝潢）才追加：允許「可實作、不浮誇」的牆面/天花表面處理。
+# 預設 furnish 完全不碰，stable 路徑零影響。
+FULL_MODE_FINISHES = (
+    " | RENOVATION (裝潢) MODE — SURFACE FINISHES ALLOWED (this OVERRIDES the earlier rules about "
+    "preserving wall/ceiling FINISH and not adding paint/wallpaper/ceiling lighting — FINISH ONLY): "
+    "You MAY repaint the walls in a style-appropriate colour, add AT MOST ONE simple accent wall "
+    "(flat paint or simple wallpaper), and give the ceiling a SIMPLE finish (a flush ceiling light, "
+    "or a shallow perimeter cove with recessed downlights). "
+    "STILL STRICTLY FORBIDDEN: moving / adding / removing any wall or partition; changing wall "
+    "POSITIONS, room size or proportions; changing window or door POSITIONS; changing floor material; "
+    "fake structural beams; elaborate or multi-level dropped ceilings; glossy over-the-top luxury "
+    "treatments — nothing unbuildable or 浮誇. Keep it simple, realistic and buildable."
+)
+_FULL_STYLE_FINISH = {
+    "chinese-modern": "牆面暖米或淺木色、可一面簡化木格柵造型牆；天花平頂＋暖光崁燈。",
+    "cream":          "牆面奶油白／淺杏色；天花平頂＋柔和間接光或吸頂燈。",
+    "muji":           "牆面純白或淺木；天花乾淨平頂＋簡單吸頂燈。",
+    "french":         "牆面淺灰白、可一面簡化線板牆；天花平頂＋簡約燈具。",
+    "luxury":         "牆面低彩度高級灰或暖白；天花淺溝縫＋間接光。",
+    "nordic":         "牆面白＋可一面淺木／淺藍；天花平頂、自然光感。",
+    "industrial":     "牆面水泥粉光感（以油漆模擬）；天花維持管線＋簡單軌道燈。",
+    "boho":           "牆面暖陶土／米色；天花簡單＋溫暖燈光。",
+    "mediterranean":  "牆面灰白／淺藍；天花平頂＋柔光。",
+    "modern":         "牆面乾淨中性色；天花平頂崁燈＋間接光。",
+}
+
+
+def _full_mode_system(base_system: str, design_mode: str, style: str) -> str:
+    """full 模式才在系統 prompt 後追加可實作的牆/天花指令 + 該風格表現；furnish 原樣回傳。"""
+    if (design_mode or "furnish") != "full":
+        return base_system
+    cue = _FULL_STYLE_FINISH.get(style or "", "")
+    return base_system + FULL_MODE_FINISHES + (f" 風格表現參考：{cue}" if cue else "")
+
+
 def _build_room_product_section(reference_map: list[dict]) -> str:
     """非客廳：依 reference_map 的 PRIMARY 產品組通用擺放指令（無沙發專屬語句）。"""
     refs = [r for r in reference_map if r.get("kind") == "PRIMARY"]
@@ -826,7 +861,7 @@ def _build_room_product_section(reference_map: list[dict]) -> str:
 def _build_nonliving_nano_inputs(
     entry: dict, room_image_url: str, room_type: str,
     customer_notes: str = "", budget_tier: str = "tier3",
-    retry_context: dict | None = None,
+    retry_context: dict | None = None, design_mode: str = "furnish",
 ) -> dict:
     """臥室/餐廳/書房專用 prompt（living 不走這裡）。"""
     ref_cats = ROOM_REF_CATS.get(room_type, ())
@@ -892,7 +927,7 @@ def _build_nonliving_nano_inputs(
     return {
         "image_urls": image_urls,
         "prompt": "\n\n".join(s for s in sections if s),
-        "system_prompt": NONLIVING_SYSTEM_PROMPT,
+        "system_prompt": _full_mode_system(NONLIVING_SYSTEM_PROMPT, design_mode, entry.get("style", "")),
         "reference_map": reference_map,
         "notes": DEFAULT_NOTES,
         "unmatched_visual_items": [],
@@ -1143,6 +1178,7 @@ def build_nano_banana_inputs(
     target_location_hint: str | None = None,
     target_note: str | None = None,
     room_type: str = "living",
+    design_mode: str = "furnish",
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -1167,7 +1203,7 @@ def build_nano_banana_inputs(
         return _build_nonliving_nano_inputs(
             entry, room_image_url, room_type,
             customer_notes=customer_notes, budget_tier=budget_tier,
-            retry_context=retry_context,
+            retry_context=retry_context, design_mode=design_mode,
         )
 
     matched = entry.get("matched_furniture") or []
@@ -1297,7 +1333,7 @@ def build_nano_banana_inputs(
     return {
         "image_urls": image_urls,
         "prompt": prompt,
-        "system_prompt": SYSTEM_PROMPT,
+        "system_prompt": _full_mode_system(SYSTEM_PROMPT, design_mode, entry.get("style", "")),
         "reference_map": reference_map,
         "notes": DEFAULT_NOTES,
         "unmatched_visual_items": [],
