@@ -246,6 +246,7 @@
     <div class="sa-row"><span class="sa-key">空間類型</span><span class="sa-val" id="spaceTypeText">—</span></div>
     <div class="sa-row"><span class="sa-key">採光</span><span class="sa-val" id="spaceLighting">—</span></div>
     <div class="sa-row" id="spaceLayoutRow" style="display:none;"><span class="sa-key">格局註記</span><span class="sa-val" id="spaceLayout">—</span></div>
+    <div class="sa-row" id="saDesignModeRow" style="display:none;"><span class="sa-key">設計範圍</span><span class="sa-val" id="saDesignMode">—</span></div>
     <div class="sa-row" id="saBudgetRow" style="display:none;"><span class="sa-key">預算範圍</span><span class="sa-val" id="saBudget">—</span></div>
     <div class="sa-row" id="saNotesRow" style="display:none;"><span class="sa-key">你的需求</span><span class="sa-val" id="saNotes">—</span></div>
     <div class="sa-row" id="saStoreRow" style="display:none;"><span class="sa-key">賣場偏好</span><span class="sa-val" id="saStore">—</span></div>
@@ -641,6 +642,9 @@
       if (row) row.style.display = '';
       if (val) val.textContent = value;
     };
+    var _dmZh = ci.design_mode === 'full' ? '家具＋軟裝＋裝潢（牆面 / 天花）'
+              : ci.design_mode === 'furnish' ? '家具＋軟裝' : '';
+    setRow('saDesignModeRow', 'saDesignMode', _dmZh);
     setRow('saBudgetRow', 'saBudget', ci.budget_label_zh || '');
     setRow('saNotesRow',  'saNotes',  ci.customer_notes || '');
     setRow('saStoreRow',  'saStore',  ci.preferred_store_label_zh || '');
