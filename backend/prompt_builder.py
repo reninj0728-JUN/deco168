@@ -836,11 +836,31 @@ _FULL_STYLE_FINISH = {
 
 
 def _full_mode_system(base_system: str, design_mode: str, style: str) -> str:
-    """full 模式才在系統 prompt 後追加可實作的牆/天花指令 + 該風格表現；furnish 原樣回傳。"""
+    """full 模式：先「改寫」系統 prompt 裡禁止改牆/天花的硬規則（否則模型只聽前面的 preserve
+    而無視後面的 override → 裝潢空轉，job 2B7D4007），再接可實作的牆/天花指令 + 風格表現。
+    furnish 原樣回傳，stable 路徑零影響。"""
     if (design_mode or "furnish") != "full":
         return base_system
+    s = base_system
+    # 1) 鬆綁「牆/天花一律 EXACTLY 保留」→ 保留位置/結構，允許表面飾材
+    s = s.replace(
+        "PRESERVE all walls, the window, ceiling pipes/conduits/fixtures, and floor material EXACTLY.",
+        "PRESERVE the POSITIONS of all walls, the window, the doors and the floor LAYOUT; you MAY update "
+        "wall paint / wallpaper FINISH and apply a SIMPLE ceiling finish (renovation mode — see below).")
+    # 2) 從「禁止新增」清單拿掉牆面/天花飾材項（仍禁止動結構/門窗）
+    s = s.replace(
+        "wall paneling, marble walls, dropped ceiling, cove lights, LED strips, or arched openings",
+        "extra structural walls or arched openings")
+    s = s.replace(
+        "wall paneling, dropped ceiling, LED strips, or arched openings",
+        "extra structural walls or arched openings")
+    # 3) rule 6「只准家具、無結構變更」→ 允許表面飾材（仍無結構變更）
+    s = s.replace(
+        "ONLY add movable furniture, soft furnishings, decor, plants, and artwork — no structural changes.",
+        "Add movable furniture, soft furnishings, decor, plants, artwork, AND style-appropriate wall / ceiling "
+        "FINISHES (paint, simple wallpaper, simple ceiling lighting) — but make NO structural changes.")
     cue = _FULL_STYLE_FINISH.get(style or "", "")
-    return base_system + FULL_MODE_FINISHES + (f" 風格表現參考：{cue}" if cue else "")
+    return s + FULL_MODE_FINISHES + (f" 風格表現參考：{cue}" if cue else "")
 
 
 def _build_room_product_section(reference_map: list[dict]) -> str:
