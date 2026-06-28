@@ -1832,10 +1832,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         dropped_validation_reasons = []
         for r in dropped_failed_renders:
             v = r.get("validation") or {}
+            _is_timeout = (r.get("error_type") in ("FalGenerationTimeout", "FalResultDownloadError")) \
+                          or ("exceeded" in str(r.get("error") or "").lower())
             reason = v.get("reason") or v.get("error") or r.get("error") or "render 未產出"
             dropped_validation_reasons.append({
                 "style":       r.get("style"),
                 "style_label": r.get("style_label"),
+                "angle_label": r.get("angle_label"),     # 哪個房間/視角失敗
+                "room_type":   r.get("room_type"),
+                "timeout":     bool(_is_timeout),         # 前端可顯示友善「生成逾時」文案
                 "reason":      str(reason)[:240],
             })
 

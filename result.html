@@ -364,9 +364,17 @@
     box.className = 'dropped-notice';
     box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:12px 16px;border:1px solid rgba(212,175,55,.35);'
       + 'border-radius:8px;background:rgba(212,175,55,.06);color:#d9c7a0;font-size:13px;line-height:1.7;text-align:center;';
-    box.innerHTML = firstClause
-      + droppedNoun + '「' + droppedText + '」的版面我們還在為你細修，完成後會補上。'
-      + '需要加快請聯絡客服，免費重出。';
+    var anyTimeout = dropped.some(function(d) { return d.timeout; });
+    if (anyTimeout) {
+      // fal 生成逾時 → 友善說明（部分交付），不要露技術錯誤字串
+      box.innerHTML = firstClause
+        + '部分視角生成逾時，我們已先把成功完成的設計圖交付給你；其餘會盡快補上。'
+        + '需要加快請聯絡客服，免費重出。';
+    } else {
+      box.innerHTML = firstClause
+        + droppedNoun + '「' + droppedText + '」的版面我們還在為你細修，完成後會補上。'
+        + '需要加快請聯絡客服，免費重出。';
+    }
     var tabs = document.getElementById('tabsContainer');
     if (tabs && tabs.parentNode) { tabs.parentNode.insertBefore(box, tabs); }
   }
