@@ -911,9 +911,12 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "Preserve existing ceiling pipes, lights, wall openings, doorways, windows, "
                     "wall seams, floor direction, and room proportions."
                 )
+                # gpt-image-2/edit 沒有獨立 system_prompt 欄位 → 把 system_prompt 併進 prompt，
+                # 否則所有硬規則（含 full 模式的「強制裝潢牆/天花」指令）都到不了模型。
+                _sys = (inputs.get("system_prompt") or "").strip()
                 fal_args = {
                     "image_urls":    inputs["image_urls"],
-                    "prompt":        camera_constraints + " " + inputs["prompt"],
+                    "prompt":        camera_constraints + " " + (_sys + " " if _sys else "") + inputs["prompt"],
                     "quality":       os.environ.get("GPT_IMAGE_2_QUALITY", "medium").strip(),
                     "output_format": "png",
                     "image_size":    "auto",
