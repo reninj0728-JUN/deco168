@@ -869,6 +869,27 @@ def _full_mode_system(base_system: str, design_mode: str, style: str) -> str:
     return s + FULL_MODE_FINISHES + (f" 風格表現參考：{cue}" if cue else "")
 
 
+def _full_mode_scrub_prompt(prompt: str, design_mode: str) -> str:
+    """full 模式：清掉 USER prompt 裡殘留的『不要改牆/天花』furnish 禁令。
+    系統 prompt 已由 _full_mode_system 鬆綁，但 user prompt 若還有這種句子，
+    img2img 仍會照做、把裝潢壓回家具模式 (GPT 指出的殘留衝突)。furnish 原樣不動。"""
+    if (design_mode or "furnish") != "full":
+        return prompt
+    p = prompt
+    p = p.replace(
+        "Do not change ceiling, walls, or built-in elements to justify their placement. ",
+        "Do not move walls or change the room LAYOUT to justify furniture placement "
+        "(wall paint/finish and a simple ceiling finish MAY still be redesigned — renovation mode). ")
+    p = p.replace(
+        "Ceiling features (must preserve):",
+        "Visible structural ceiling beams/pipes to KEEP (their finish may be updated):")
+    # 保險：任何殘留「只准家具、無結構變更」字樣
+    p = p.replace(
+        "ONLY add movable furniture, soft furnishings, decor, plants, and artwork — no structural changes.",
+        "Add furniture, soft furnishings, decor, AND style wall/ceiling finishes — but no structural changes.")
+    return p
+
+
 def _build_room_product_section(reference_map: list[dict]) -> str:
     """非客廳：依 reference_map 的 PRIMARY 產品組通用擺放指令（無沙發專屬語句）。"""
     refs = [r for r in reference_map if r.get("kind") == "PRIMARY"]
@@ -956,7 +977,7 @@ def _build_nonliving_nano_inputs(
 
     return {
         "image_urls": image_urls,
-        "prompt": "\n\n".join(s for s in sections if s),
+        "prompt": _full_mode_scrub_prompt("\n\n".join(s for s in sections if s), design_mode),
         "system_prompt": _full_mode_system(NONLIVING_SYSTEM_PROMPT, design_mode, entry.get("style", "")),
         "reference_map": reference_map,
         "notes": DEFAULT_NOTES,
@@ -1362,7 +1383,7 @@ def build_nano_banana_inputs(
 
     return {
         "image_urls": image_urls,
-        "prompt": prompt,
+        "prompt": _full_mode_scrub_prompt(prompt, design_mode),
         "system_prompt": _full_mode_system(SYSTEM_PROMPT, design_mode, entry.get("style", "")),
         "reference_map": reference_map,
         "notes": DEFAULT_NOTES,
