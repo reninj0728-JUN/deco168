@@ -1552,7 +1552,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         _lc = layout_ctx if (r.get("room_type") or "living") == "living" else None
                         v = validate_render(bpath, rpath, r.get("_angle_label", ""),
                                             layout_context=_lc,
-                                            room_type=r.get("room_type", "living"))
+                                            room_type=r.get("room_type", "living"),
+                                            design_mode=design_mode)
                     except Exception as ve:
                         v = {"ok": None, "error": str(ve)[:200]}
                 else:
@@ -1691,7 +1692,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
                             new_v = validate_render(bpath, rpath, entry["_angle_label"],
                                                     layout_context=_lc,
-                                                    room_type=entry.get("_room_type", "living"))
+                                                    room_type=entry.get("_room_type", "living"),
+                                                    design_mode=design_mode)
                         else:
                             new_v = {"ok": None, "error": "missing base or render path after retry"}
                     except Exception as ve:
@@ -1789,7 +1791,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
                         new_v = validate_render(bpath, rpath, entry["_angle_label"],
                                                 layout_context=_lc,
-                                                room_type=entry.get("_room_type", "living"))
+                                                room_type=entry.get("_room_type", "living"),
+                                                design_mode=design_mode)
                     else:
                         new_v = {"ok": None, "error": "missing path after hardfix"}
                 except Exception as ve:
