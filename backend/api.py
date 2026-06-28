@@ -2047,7 +2047,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "renders": [
                 {**{k: rr.get(k) for k in
                     ("style", "style_label", "angle_label", "room_type", "cropped", "render_url",
-                     "render_filename", "matched_furniture", "soft_furnishing", "reference_map")},
+                     "render_filename", "matched_furniture", "soft_furnishing", "reference_map",
+                     "render_model")},
                  "validation": _tiny_val(rr.get("validation"))}
                 for rr in slim_renders
             ],
@@ -2075,7 +2076,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "renders": [
                 {"style": rr.get("style"), "style_label": rr.get("style_label"),
                  "angle_label": rr.get("angle_label"), "room_type": rr.get("room_type", "living"),
-                 "cropped": bool(rr.get("cropped")),
+                 "cropped": bool(rr.get("cropped")), "render_model": rr.get("render_model"),
                  "render_url": rr.get("render_url"), "render_filename": rr.get("render_filename"),
                  "matched_furniture": _tiny_furn(rr.get("matched_furniture")),
                  "soft_furnishing": _tiny_furn(rr.get("soft_furnishing")),
