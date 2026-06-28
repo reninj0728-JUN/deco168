@@ -1457,7 +1457,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
         for idx, entry in enumerate(expanded):
-            single_result = generate_renders(entry["_base_path"], [entry],
+            try:
+                single_result = generate_renders(entry["_base_path"], [entry],
                                              output_dir=str(job_dir),
                                              analysis=analysis, design_mode=design_mode,
                                              zoning=zoning_result,
@@ -1472,6 +1473,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                              target_location_hint=_best_pm_location_hint,
                                              target_note=_best_pm_target_note,
                                              room_type=entry.get("_room_type", "living"))
+            except (FalGenerationTimeout, FalResultDownloadError) as _fe:
+                # 單張 fal 超時/下載失敗 → 只丟這張，其餘照常交付（部分交付）。
+                # 以前這裡沒接，一張掛掉整單 8 張全失敗（job 65BDC60C）。
+                print(f"[pipeline] render[{idx}] style={entry.get('style')} fal 失敗，跳過該張: "
+                      f"{type(_fe).__name__}")
+                final.append({**entry, "render_path": None,
+                              "error": str(_fe)[:200], "error_type": type(_fe).__name__,
+                              "angle_label": entry.get("_angle_label", "主視角"),
+                              "room_type": entry.get("_room_type", "living"),
+                              "cropped": bool(entry.get("_cropped"))})
+                continue
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
