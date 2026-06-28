@@ -1834,7 +1834,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             v = r.get("validation") or {}
             _is_timeout = (r.get("error_type") in ("FalGenerationTimeout", "FalResultDownloadError")) \
                           or ("exceeded" in str(r.get("error") or "").lower())
-            reason = v.get("reason") or v.get("error") or r.get("error") or "render 未產出"
+            # 真實 render/fal 錯誤優先（r.error），別被驗證的 "missing base" 蓋住 → 才查得出根因
+            reason = r.get("error") or v.get("reason") or v.get("error") or "render 未產出"
             dropped_validation_reasons.append({
                 "style":       r.get("style"),
                 "style_label": r.get("style_label"),
