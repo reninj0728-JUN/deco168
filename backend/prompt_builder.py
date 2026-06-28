@@ -73,10 +73,13 @@ SOFT_REFERENCE_PLACEMENT = {
         "Do not invent a new window."
     ),
     "lighting": (
-        "Place as a table lamp on a side table / console, or as a floor lamp in the corner "
-        "right beside the sofa against the wall. The floor lamp MUST stay within the living "
-        "group by the wall — NEVER in the middle of the room or in the central walkway / "
-        "corridor (a lamp standing in the walkway is a FAILURE)."
+        "Place as a table lamp on a side table / console, or as a floor lamp tucked into the "
+        "corner beside the sofa against the wall. The lamp must FIT into existing free corner "
+        "space and MUST NOT push, shift, or rotate the sofa toward the walkway — the sofa stays "
+        "flush on its wall and the walkway stays fully clear. The floor lamp MUST stay within the "
+        "living group by the wall — NEVER in the middle of the room or in the central walkway / "
+        "corridor (a lamp standing in the walkway is a FAILURE). If there is no safe corner, omit "
+        "the floor lamp rather than crowd the walkway."
     ),
     "wall_art": (
         "Place on a solid wall in or near the living zone, above the sofa or focal console. "
@@ -906,9 +909,9 @@ def _build_nonliving_nano_inputs(
         "wall, next to a doorway, or anywhere without a real window, and never invent a new window. "
         "If a wall has no window, leave it bare or use wall art instead. "
         "DOORS: keep every existing doorway / passage OPENING open and unobstructed — do not wall it up. "
-        "But if a hinged door LEAF (door panel) is shown standing open in the photo, you MAY render that "
-        "leaf gently closed for a cleaner, more finished composition — without removing or blocking the "
-        "doorway opening itself."
+        "But if a hinged door LEAF (door panel) is shown standing open in the photo, PREFER to render that "
+        "leaf in a naturally CLOSED position for a cleaner, more finished composition — without removing or "
+        "blocking the doorway opening itself, and without inventing a door where there is only an opening."
     )
 
     sections = [inputs_sec, furnish_sec]

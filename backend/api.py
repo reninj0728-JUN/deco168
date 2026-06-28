@@ -1948,6 +1948,26 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             top_render_mode = "mixed"
         last_render_mode = top_render_mode or last_render_mode
 
+        # 空間分析保底：design_analysis 是前端「你會拿到」承諾的項目，但 Gemini 偶爾回空。
+        # 空的話用 space_type + lighting + zoning 湊一段安全文字，避免「承諾了卻沒拿到」(Grok #1)。
+        try:
+            if isinstance(analysis, dict) and not (analysis.get("design_analysis") or "").strip():
+                _sp = {"living": "客廳", "dining": "餐廳", "bedroom": "主臥室",
+                       "study": "書房", "whole": "全室多空間"}.get(analysis.get("space_type") or "", "此空間")
+                _lt = (analysis.get("lighting") or "").strip()
+                _zc = ""
+                if isinstance(zoning_result, dict):
+                    _zc = ((zoning_result.get("spatial_synthesis") or {}).get("room_shape")
+                           or zoning_result.get("summary") or "")
+                _parts = [f"已依照片為{_sp}規劃家具與動線配置"]
+                if _zc:
+                    _parts.append(str(_zc)[:40])
+                _parts.append(_lt if _lt else "並依採光條件安排明亮度與燈光氛圍")
+                analysis["design_analysis"] = "；".join(p for p in _parts if p) + "。"
+                print("[pipeline] design_analysis 空 → 已套用保底文字")
+        except Exception as _ae:
+            print(f"[pipeline] design_analysis 保底失敗，忽略: {_ae}")
+
         # C2.6 → partial delivery (2026-06-21): 上方 delivery gate 已把 validation.ok=False
         # 的圖從 delivery_final / slim_renders 移除，並在「全部失敗」時 raise。anchored 路徑
         # 不再額外因「有任一張失敗」整單 raise — 否則一過一不過時整單仍會消失，違背部分交付。
