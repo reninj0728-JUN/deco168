@@ -397,9 +397,14 @@
       var dmZh = (dm === 'full') ? '家具＋軟裝＋裝潢（牆面 / 天花）' : '家具＋軟裝';
       var cl = document.getElementById('payChoiceLine');
       if (cl) {
-        cl.innerHTML = '<b style="color:#fff;">空間</b>　' + spaceZh
-          + '　|　<b style="color:#fff;">風格</b>　' + (names.join('、') || '—')
-          + '<br><b style="color:#fff;">設計範圍</b>　' + dmZh;
+        var _row = function(k, v) {
+          return '<div style="display:flex; gap:10px;">' +
+                 '<span style="flex:0 0 56px; color:var(--muted);">' + k + '</span>' +
+                 '<span style="color:#fff;">' + (v || '—') + '</span></div>';
+        };
+        cl.innerHTML = '<div style="display:flex; flex-direction:column; gap:6px;">' +
+          _row('空間', spaceZh) + _row('風格', names.join('、')) + _row('設計範圍', dmZh) +
+          '</div>';
       }
       var dl = document.getElementById('payDeliverList');
       if (dl) {
