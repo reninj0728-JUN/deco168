@@ -1438,8 +1438,9 @@
 
       // #1：新上傳＝新訂單 → 清掉上一單殘留的風格/空間/方案選擇，
       // 讓 style-form 是乾淨表單（restoreSelections 只在同一單來回時才該還原）。
+      // 注意：deco_design_mode 不清（設計範圍是偏好、要 sticky，避免使用者以為選了裝潢卻被重設成 furnish）
       ['deco_directions','deco_style','deco_style_count','deco_space_type',
-       'deco_design_mode','deco_budget_tier','deco_customer_notes',
+       'deco_budget_tier','deco_customer_notes',
        'deco_plan','deco_render_angle','deco_layout_choice','deco_zoning_json',
        'deco_sofa_side'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
 

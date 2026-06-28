@@ -1132,18 +1132,26 @@ function submitForm() {
 // 回上一頁再回來時，從 localStorage 還原先前選擇，避免被重設成預設(living/modern)
 // → 送出錯方案/風格（修 EF18E882：選全室+新中式，卻跑成單一/客廳/都會簡約）。
 function restoreSelections() {
+  // 設計範圍(furnish/full) 是「偏好」不是訂單專屬 → 永遠 sticky，不隨新上傳被清(Grok)。
+  // 先套用，確保即使是新訂單，下拉也反映上次選的範圍、submit 不會被洗回 furnish。
+  try {
+    var _dm0 = localStorage.getItem('deco_design_mode');
+    var _de0 = document.getElementById('designMode');
+    if (_dm0 && _de0) _de0.value = _dm0;
+  } catch (e) {}
   // #1 加固：upload_id 變了＝新訂單 → 清掉舊選擇、不還原（涵蓋刷新 / 從 result 回來再上傳的邊角）。
   // 同一單來回(zoning→改回風格)時 upload_id 不變 → 正常還原。
+  // 注意：deco_design_mode 不在清除清單（要保留偏好）。
   try {
     var _uid  = localStorage.getItem('deco_upload_id') || '';
     var _seen = localStorage.getItem('deco_styleform_uid') || '';
     if (_uid && _uid !== _seen) {
       ['deco_directions','deco_style','deco_style_count','deco_space_type',
-       'deco_design_mode','deco_budget_tier','deco_customer_notes',
+       'deco_budget_tier','deco_customer_notes',
        'deco_plan','deco_render_angle','deco_layout_choice','deco_zoning_json','deco_sofa_side']
         .forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
       localStorage.setItem('deco_styleform_uid', _uid);
-      return;   // 全新表單，不還原
+      return;   // 全新表單，不還原（但設計範圍偏好已於上方套用）
     }
   } catch (e) {}
   try {
