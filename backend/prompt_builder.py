@@ -866,9 +866,14 @@ def _build_nonliving_nano_inputs(
     soft_sec = (
         "SOFT FURNISHING: add complementary, style-consistent soft items appropriate to this room "
         "(a rug, cushions or bedding, a lamp, a plant, wall art) — illustrative only. "
-        "CURTAINS: only add curtains where the photo shows an ACTUAL window; "
-        "do NOT hang curtains on a solid wall that has no window, and do not invent a new window. "
-        "Keep every existing doorway / passage opening open and unobstructed — do not wall it up."
+        "CURTAINS — STRICT: curtains/drapes/blinds belong ONLY on an ACTUAL window that is clearly "
+        "visible in the photo. NEVER hang curtains, drapes, or any fabric window treatment on a solid "
+        "wall, next to a doorway, or anywhere without a real window, and never invent a new window. "
+        "If a wall has no window, leave it bare or use wall art instead. "
+        "DOORS: keep every existing doorway / passage OPENING open and unobstructed — do not wall it up. "
+        "But if a hinged door LEAF (door panel) is shown standing open in the photo, you MAY render that "
+        "leaf gently closed for a cleaner, more finished composition — without removing or blocking the "
+        "doorway opening itself."
     )
 
     sections = [inputs_sec, furnish_sec]

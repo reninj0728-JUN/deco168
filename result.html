@@ -396,10 +396,13 @@
         '</div>'
       : '';
 
+    var cropNote = r.cropped
+      ? '<div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:4px;">＊此房視角已從原始廣角優化為獨立視角，實際空間以您上傳照片為準</div>'
+      : '';
     var imgSection = imgUrl
       ? navHtml +
         '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
-        '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' +
+        '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' + cropNote +
         '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載設計圖</button>'
       : navHtml +
         '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
