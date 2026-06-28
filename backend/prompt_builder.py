@@ -908,10 +908,11 @@ def _build_nonliving_nano_inputs(
         "visible in the photo. NEVER hang curtains, drapes, or any fabric window treatment on a solid "
         "wall, next to a doorway, or anywhere without a real window, and never invent a new window. "
         "If a wall has no window, leave it bare or use wall art instead. "
-        "DOORS: keep every existing doorway / passage OPENING open and unobstructed — do not wall it up. "
-        "But if a hinged door LEAF (door panel) is shown standing open in the photo, PREFER to render that "
-        "leaf in a naturally CLOSED position for a cleaner, more finished composition — without removing or "
-        "blocking the doorway opening itself, and without inventing a door where there is only an opening."
+        "DOORS: if the photo shows a hinged door with a visible door LEAF/panel standing open, render that "
+        "SAME door as gently CLOSED — KEEP the door panel in place and simply show it shut, for a cleaner, "
+        "more finished composition. Do NOT delete the door or turn it into an empty hole / open doorway. "
+        "For a plain pass-through OPENING that has NO door leaf (e.g. corridor/passage opening), leave it "
+        "open and unobstructed — do not wall it up and do not invent a new door there."
     )
 
     sections = [inputs_sec, furnish_sec]

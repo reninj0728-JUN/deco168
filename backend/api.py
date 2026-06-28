@@ -1906,6 +1906,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "customer_notes":           (customer_notes or "")[:300],
             "preferred_store":          preferred_store,
             "preferred_store_label_zh": STORE_LABEL_ZH.get(preferred_store, ""),
+            "design_mode":              design_mode,   # furnish / full：方便驗證 full 有沒有真的傳到
         }
 
         # ── P2-MVP-0: 把 /api/job 傳過來的 rooms_meta.json 補進 result_json ──

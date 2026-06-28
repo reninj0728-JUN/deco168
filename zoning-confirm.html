@@ -196,7 +196,7 @@
       <!-- #4/#6：付款前在這裡集中確認「你的選擇 + 會拿到什麼」，取代 style-form 的訂單摘要 -->
       <div style="margin-bottom:16px; padding:16px 18px; background:rgba(201,169,110,0.07); border:1px solid rgba(201,169,110,0.30);">
         <div id="payChoiceLine" style="font-size:13px; color:#fff; margin-bottom:12px; line-height:1.7;"></div>
-        <div style="font-size:12px; letter-spacing:2px; color:var(--gold); margin-bottom:8px; font-weight:600;">付款後你會拿到</div>
+        <div style="font-size:13px; letter-spacing:2px; color:var(--gold); margin-bottom:8px; font-weight:600;">方案內容</div>
         <ul id="payDeliverList" style="list-style:none; padding:0; margin:0; font-size:13px; color:#e8e2d6; line-height:2;"></ul>
       </div>
 
@@ -393,10 +393,13 @@
         });
       } catch (e) {}
       var spaceZh = isWhole ? '全室多空間' : (_ROOM_ZH[st] || st);
+      var dm = localStorage.getItem('deco_design_mode') || 'furnish';
+      var dmZh = (dm === 'full') ? '家具＋軟裝＋裝潢（牆面 / 天花）' : '家具＋軟裝';
       var cl = document.getElementById('payChoiceLine');
       if (cl) {
         cl.innerHTML = '<b style="color:#fff;">空間</b>　' + spaceZh
-          + '　|　<b style="color:#fff;">風格</b>　' + (names.join('、') || '—');
+          + '　|　<b style="color:#fff;">風格</b>　' + (names.join('、') || '—')
+          + '<br><b style="color:#fff;">設計範圍</b>　' + dmZh;
       }
       var dl = document.getElementById('payDeliverList');
       if (dl) {
