@@ -4,10 +4,32 @@ Step 1 — Gemini 3.1 Flash-Lite 分析影片
 輸出：dict（空間描述 + 3 個 Flux prompt，風格由用戶指定或 AI 推薦）
 """
 import os
+import io
 import json
 import time
 from google import genai
 from google.genai import types
+
+
+def _downscale_for_vision(data: bytes, orig_mime: str,
+                          max_side: int = 1536, quality: int = 85) -> tuple[bytes, str]:
+    """縮小「送進 Gemini」的圖片以省視覺 token（成本主要吃解析度，不是品質）。
+    最長邊 > max_side 才縮；已夠小則原樣回傳。格局/結構/驗收判斷在 1536px 完全足夠，
+    品質不受影響。任何失敗 → 回原圖。回傳 (bytes, mime)。"""
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(data))
+        w, h = im.size
+        if max(w, h) <= max_side:
+            return data, orig_mime          # 已經夠小，不動（避免無謂重壓）
+        scale = max_side / float(max(w, h))
+        im = im.convert("RGB").resize(
+            (max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=quality)
+        return buf.getvalue(), "image/jpeg"
+    except Exception as _e:
+        return data, orig_mime              # 失敗就用原圖，永不擋流程
 
 
 SYSTEM_PROMPT = """
@@ -223,9 +245,8 @@ def analyze_space(
                 ext = os.path.splitext(p)[1].lower()
                 mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
                 with open(p, "rb") as f:
-                    photo_parts.append(types.Part.from_bytes(
-                        data=f.read(), mime_type=mime
-                    ))
+                    _d, _m = _downscale_for_vision(f.read(), mime)
+                    photo_parts.append(types.Part.from_bytes(data=_d, mime_type=_m))
             except Exception as _e:
                 print(f"[Gemini] 無法讀照片 {p}: {_e}")
 
@@ -534,7 +555,8 @@ def validate_render(
         ext = os.path.splitext(path)[1].lower()
         mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
         with open(path, "rb") as f:
-            return types.Part.from_bytes(data=f.read(), mime_type=mime)
+            _d, _m = _downscale_for_vision(f.read(), mime)
+            return types.Part.from_bytes(data=_d, mime_type=_m)
 
     original_part = _read_part(original_path)
     render_part   = _read_part(render_path)

@@ -167,13 +167,20 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) ->
 
     client = genai.Client(api_key=GEMINI_KEY)
 
+    # 縮圖省 Gemini 視覺 token（分區 bbox 用 0–1000 normalized，跟解析度無關 → 品質不受影響）
+    try:
+        from gemini_analyze import _downscale_for_vision
+    except Exception:
+        def _downscale_for_vision(d, m, **kw): return d, m
     parts: list = []
     for path in valid_photos:
         with open(path, "rb") as f:
-            parts.append(types.Part.from_bytes(data=f.read(), mime_type=_resolve_mime(path)))
+            _d, _m = _downscale_for_vision(f.read(), _resolve_mime(path))
+            parts.append(types.Part.from_bytes(data=_d, mime_type=_m))
     for path in valid_videos:
         with open(path, "rb") as f:
-            parts.append(types.Part.from_bytes(data=f.read(), mime_type=_resolve_mime(path)))
+            _d, _m = _downscale_for_vision(f.read(), _resolve_mime(path))
+            parts.append(types.Part.from_bytes(data=_d, mime_type=_m))
 
     video_note = (
         f"，外加 {len(valid_videos)} 張影片擷取畫面（給你看更全面動線）"
