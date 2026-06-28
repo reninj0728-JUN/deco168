@@ -54,7 +54,12 @@ class FalResultDownloadError(Exception):
     pass
 
 
-DEFAULT_FAL_TIMEOUT = 180  # 秒, 涵蓋 queue + 生成 + image download
+# 秒, 涵蓋 queue + 生成 + image download。Nano Banana Pro 在尖峰常 >180s，
+# 全室一次打 8 張時逾時機率被放大→整批掉圖。拉高到 300 並可用環境變數 FAL_TIMEOUT 覆蓋。
+try:
+    DEFAULT_FAL_TIMEOUT = int(os.environ.get("FAL_TIMEOUT", "300"))
+except (TypeError, ValueError):
+    DEFAULT_FAL_TIMEOUT = 300
 
 
 def _mask_uid_for_log(uid: str) -> str:
