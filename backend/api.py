@@ -1951,6 +1951,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 空間分析保底：design_analysis 是前端「你會拿到」承諾的項目，但 Gemini 偶爾回空。
         # 空的話用 space_type + lighting + zoning 湊一段安全文字，避免「承諾了卻沒拿到」(Grok #1)。
         try:
+            if isinstance(analysis, dict):
+                analysis["design_analysis_source"] = (
+                    "gemini" if (analysis.get("design_analysis") or "").strip() else "fallback")
             if isinstance(analysis, dict) and not (analysis.get("design_analysis") or "").strip():
                 _sp = {"living": "客廳", "dining": "餐廳", "bedroom": "主臥室",
                        "study": "書房", "whole": "全室多空間"}.get(analysis.get("space_type") or "", "此空間")
@@ -2028,7 +2031,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 for rr in slim_renders
             ],
             "analysis": {k: (analysis or {}).get(k) for k in
-                         ("design_analysis", "space_type", "lighting", "layout_notes")},
+                         ("design_analysis", "design_analysis_source", "space_type", "lighting", "layout_notes")},
             "customer_inputs": customer_inputs,
             "payload_trimmed": True,
         }
