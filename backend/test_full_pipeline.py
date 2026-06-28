@@ -900,12 +900,21 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 # gpt-image-2 傾向 auto zoom-in / 重構成 staged 室內攝影棚.
                 # 補硬性 camera constraints 鎖原圖視角 + 廣角縱深 + 前景地板.
                 # image_size=auto 明確設定 (即便目前已是預設, 防未來預設變動).
+                _is_full = (design_mode or "furnish") == "full"
                 camera_constraints = (
                     "Preserve the exact original camera position, wide-angle field of view, "
                     "framing, perspective, and foreground floor depth from the source photo. "
                     "Do not zoom in, crop, reframe, straighten into a staged interior photo, "
                     "or move the camera forward. "
                     "Keep the same amount of empty foreground floor visible as in the source image. "
+                ) + (
+                    # full：允許牆面/天花「表面飾材」改造，但結構/開口/比例不變（不要與裝潢指令打架）
+                    "You MAY refinish the wall surfaces (paint / simple wallpaper) and the ceiling "
+                    "finish as instructed below, but keep the SAME room structure: wall positions, "
+                    "ceiling pipes/beams, wall openings, doorways, windows, floor direction and room "
+                    "proportions unchanged. Do not rebuild it into a different room."
+                    if _is_full else
+                    # furnish：維持嚴格保留（只擺家具、不動任何表面）
                     "Add furniture into the existing room only; do not rebuild the room as a new "
                     "interior photoshoot. "
                     "Preserve existing ceiling pipes, lights, wall openings, doorways, windows, "
@@ -948,6 +957,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "notes": inputs["notes"],
                         "unmatched_visual_items": inputs["unmatched_visual_items"],
                         "pipeline_version": "nano-banana-v1",
+                        "render_model": render_model,   # 實際用的模型（banana / gpt-image-2），方便 debug
                         "render_mode": "legacy",
                     })
                     _last_err = None
@@ -977,6 +987,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "notes": inputs.get("notes", ""),
                     "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
                     "pipeline_version": "nano-banana-v1",
+                    "render_model": render_model,
                     "render_mode": "legacy",
                 })
             continue   # 跳過底下的 Flux 分支
