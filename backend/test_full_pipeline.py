@@ -908,10 +908,13 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "or move the camera forward. "
                     "Keep the same amount of empty foreground floor visible as in the source image. "
                 ) + (
-                    # full：允許牆面/天花「表面飾材」改造，但結構/開口/比例不變（不要與裝潢指令打架）
+                    # full：允許牆面/天花「表面飾材」改造，且可把外露消防/管線包進天花（裝潢常見），
+                    # 但結構/開口/比例不變（不要與裝潢指令打架）
                     "You MAY refinish the wall surfaces (paint / simple wallpaper) and the ceiling "
-                    "finish as instructed below, but keep the SAME room structure: wall positions, "
-                    "ceiling pipes/beams, wall openings, doorways, windows, floor direction and room "
+                    "finish as instructed below, and you MAY conceal or box-in exposed ceiling "
+                    "pipes / sprinkler conduits / surface wiring within the new ceiling treatment "
+                    "(keep sprinkler heads visible if present). Keep the SAME room structure: wall "
+                    "positions, wall openings, doorways, windows, floor direction and room "
                     "proportions unchanged. Do not rebuild it into a different room."
                     if _is_full else
                     # furnish：維持嚴格保留（只擺家具、不動任何表面）

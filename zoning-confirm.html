@@ -510,6 +510,14 @@
       var fd = new FormData();
       fd.append('upload_id',    uploadId);
       fd.append('styles',       styles);
+      // 把每個風格選的色系一起送（之前只送風格 id、色系被丟掉 → 選色沒作用）
+      try {
+        var _pal = {};
+        (JSON.parse(localStorage.getItem('deco_directions') || '[]')).forEach(function(d) {
+          if (d && d.styleId && d.colorName) _pal[d.styleId] = d.colorName;
+        });
+        if (Object.keys(_pal).length) fd.append('palettes_json', JSON.stringify(_pal));
+      } catch (e) { /* 沒色系就算了 */ }
       fd.append('plan',         selectedPlan);
       fd.append('space_type',   spaceType);
       fd.append('render_angle', renderAngle);

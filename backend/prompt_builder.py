@@ -821,6 +821,8 @@ FULL_MODE_FINISHES = (
     "OR — only where the style calls for it — a light slatted-wood or panelled finish). "
     "(3) Finish the CEILING simply but visibly: a clean flush ceiling, with a shallow perimeter cove + "
     "warm recessed downlights, or simple downlights — clearly tidier than the bare original ceiling. "
+    "You MAY conceal / box-in exposed ceiling pipes, sprinkler conduits or surface wiring within this "
+    "ceiling treatment (keep sprinkler heads if present) for a finished look. "
     "STRICTLY FORBIDDEN (do NOT cross these lines): moving / adding / removing any wall or partition; "
     "changing wall POSITIONS, room size or proportions; changing window or door POSITIONS; changing the "
     "floor material; fake structural beams; heavy multi-level dropped ceilings; glossy over-the-top "
@@ -888,6 +890,19 @@ def _full_mode_scrub_prompt(prompt: str, design_mode: str) -> str:
         "ONLY add movable furniture, soft furnishings, decor, plants, and artwork — no structural changes.",
         "Add furniture, soft furnishings, decor, AND style wall/ceiling finishes — but no structural changes.")
     return p
+
+
+def _palette_clause(entry: dict) -> str:
+    """使用者在前端選的『色系』(莫蘭迪粉 / 灰調＋石材…)。之前只送風格 id、色系被丟掉，
+    這裡把它變成明確的色調指令注入 prompt，讓選色真的影響成品。空 → 不加。"""
+    pal = (entry.get("_palette") or "").strip()
+    if not pal:
+        return ""
+    return (
+        f"COLOUR PALETTE — 整體配色以「{pal}」為主調：牆面、窗簾/地毯等軟裝、以及主要家具的顏色，"
+        f"都要明顯朝「{pal}」這個色系靠攏，形成一眼可辨識的『{pal}』氛圍（與原本空白牆面有明顯但自然的差異）。"
+        f"這是使用者指定的色系，請務必體現，不要只用中性白。"
+    )
 
 
 def _build_room_product_section(reference_map: list[dict]) -> str:
@@ -975,9 +990,11 @@ def _build_nonliving_nano_inputs(
         sections.append(retry_sec)
     sections.extend([NONLIVING_CRITICAL, QUALITY_TAIL])
 
+    _pal = _palette_clause(entry)
     return {
         "image_urls": image_urls,
-        "prompt": _full_mode_scrub_prompt("\n\n".join(s for s in sections if s), design_mode),
+        "prompt": _full_mode_scrub_prompt("\n\n".join(s for s in sections if s), design_mode)
+                  + (("\n\n" + _pal) if _pal else ""),
         "system_prompt": _full_mode_system(NONLIVING_SYSTEM_PROMPT, design_mode, entry.get("style", "")),
         "reference_map": reference_map,
         "notes": DEFAULT_NOTES,
@@ -1381,9 +1398,10 @@ def build_nano_banana_inputs(
 
     prompt = "\n\n".join(sections)
 
+    _pal = _palette_clause(entry)
     return {
         "image_urls": image_urls,
-        "prompt": _full_mode_scrub_prompt(prompt, design_mode),
+        "prompt": _full_mode_scrub_prompt(prompt, design_mode) + (("\n\n" + _pal) if _pal else ""),
         "system_prompt": _full_mode_system(SYSTEM_PROMPT, design_mode, entry.get("style", "")),
         "reference_map": reference_map,
         "notes": DEFAULT_NOTES,

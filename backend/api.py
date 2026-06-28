@@ -1085,8 +1085,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  budget_tier: str = "tier3",
                  customer_notes: str = "",
                  preferred_store: str = "none",
-                 upload_id: str = ""):
+                 upload_id: str = "",
+                 palettes: dict | None = None):
     job_dir = JOBS_DIR / job_id
+    palettes = palettes or {}   # {style_id: 色系中文名}；使用者選的色盤，注入生成 prompt
     os.chdir(str(BASE_DIR))
 
     # C2.6 失敗收尾追蹤狀態
@@ -1446,6 +1448,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_base_path"] = base
                 copy["_room_type"] = rt
                 copy["_cropped"] = cropped   # (i) 是否裁成單房視角
+                copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 expanded.append(copy)
 
         total = len(expanded)
@@ -1928,6 +1931,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "preferred_store":          preferred_store,
             "preferred_store_label_zh": STORE_LABEL_ZH.get(preferred_store, ""),
             "design_mode":              design_mode,   # furnish / full：方便驗證 full 有沒有真的傳到
+            "palettes":                 palettes,      # 使用者選的色系 {style:色系}，驗證有沒有送到
         }
 
         # ── P2-MVP-0: 把 /api/job 傳過來的 rooms_meta.json 補進 result_json ──
@@ -2287,6 +2291,7 @@ async def create_job(
     customer_notes: str    = Form(default=""),       # Phase A: 客戶補充需求（後端硬截 300）
     preferred_store: str   = Form(default="none"),   # Phase A: none/momo/ikea/hola/trplus
     rooms_json: str        = Form(default=""),       # P2-MVP-0: 多空間 metadata（前端 localStorage 帶回）
+    palettes_json: str     = Form(default=""),       # 使用者每個風格選的色系 {style_id: 色系中文名}
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -2507,11 +2512,21 @@ async def create_job(
             print(f"[/api/job] zoning_json parse 失敗, 忽略: {je}")
 
     write_status(job_id, job_dir, "queued", 5, "訂單已成立，即將開始解析空間…")
+    # 解析使用者選的色系 {style_id: 色系中文名}（前端從 deco_directions 帶來）
+    _palettes: dict = {}
+    if palettes_json.strip():
+        try:
+            _p = json.loads(palettes_json)
+            if isinstance(_p, dict):
+                _palettes = {str(k): str(v)[:40] for k, v in _p.items() if v}
+        except Exception as _pe:
+            print(f"[/api/job] palettes_json 解析失敗，忽略: {_pe}")
+
     background_tasks.add_task(run_pipeline, job_id, new_paths, styles_list, plan,
                               space_type, render_angle, design_mode,
                               user_zoning_v2, layout_choice,
                               budget_tier, customer_notes, preferred_store,
-                              upload_id)
+                              upload_id, palettes=_palettes)
 
     return {"job_id": job_id}
 
