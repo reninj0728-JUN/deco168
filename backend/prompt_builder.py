@@ -495,7 +495,8 @@ def _build_fallback_layout_section() -> str:
 
 
 def _build_soft_furnishing_section(soft_furnishing: list[dict],
-                                   reference_map: list[dict] | None = None) -> str:
+                                   reference_map: list[dict] | None = None,
+                                   narrow_mode: bool = False) -> str:
     """
     軟裝接入: SOFT FURNISHING SUGGESTIONS + optional product references.
 
@@ -542,7 +543,15 @@ def _build_soft_furnishing_section(soft_furnishing: list[dict],
     if not ref_lines and not bullets:
         return ""
 
-    # 總則：所有軟裝（燈/植栽/花器/擺件）只能放在客廳組內、靠牆或角落，不可佔用中央走道。
+    # 沙發/走道優先於任何軟裝：寧可少一個花盆，也不能讓沙發被擠或走道變窄。
+    SOFA_PRIORITY_RULE = (
+        "SOFA & WALKWAY HAVE ABSOLUTE PRIORITY OVER DECOR: never move, shift, rotate or shrink "
+        "the sofa, and never narrow the walking path, in order to fit a plant, lamp, vase or any "
+        "accent. If there is no genuinely empty floor spot that keeps the sofa and the walkway "
+        "fully clear, simply OMIT that accent — a missing plant or lamp is far better than a "
+        "crowded sofa or a blocked path."
+    )
+    # 總則：所有軟裝只能放在客廳組內、靠牆或角落，不可佔用中央走道。
     WALKWAY_CLEAR_RULE = (
         "PLACEMENT RULE FOR ALL SOFT ACCENTS: every soft accent (floor/table lamp, potted "
         "plant, vase, decor) must sit WITHIN the living-room group — beside the sofa, on the "
@@ -550,8 +559,18 @@ def _build_soft_furnishing_section(soft_furnishing: list[dict],
         "central walkway, the corridor, or the open middle of the room. Keep the main "
         "circulation path completely clear of these items."
     )
+    # 窄/長房保守軟裝：地面不放大型獨立擺飾，改用牆面/桌面/天花，避免把沙發擠去走道。
+    NARROW_SOFT_RULE = (
+        "NARROW / LONG ROOM — MINIMAL FLOOR DECOR: this room is narrow or long, so do NOT add any "
+        "floor-standing plant, floor lamp, or floor-standing side table next to the sofa. Use only "
+        "wall art, sofa cushions, curtains, a small table lamp on the existing side table/console, "
+        "and ceiling / wall lighting. Keep the floor around the sofa and the walkway empty."
+    )
 
-    sections: list[str] = [WALKWAY_CLEAR_RULE]
+    sections: list[str] = [SOFA_PRIORITY_RULE]
+    if narrow_mode:
+        sections.append(NARROW_SOFT_RULE)
+    sections.append(WALKWAY_CLEAR_RULE)
     if ref_lines:
         sections.append(
             "SOFT FURNISHING PRODUCT REFERENCES (real purchasable accessories, max 2-3 per render):\n"
@@ -1375,9 +1394,17 @@ def build_nano_banana_inputs(
     # 軟裝接入 (2026-06-18): 從 entry 讀 soft_furnishing[] (furniture_match.enrich_renders
     # 已寫入), 組「SOFT FURNISHING SUGGESTIONS」文字段提示 model 順手畫上 pillow/curtain/
     # wall_art/vase/plant. 沒撈到任何軟裝 → 空字串, 跟現況一致.
+    # 窄/長房 → 軟裝保守模式（不放落地花盆/立燈/邊几，避免把沙發擠去走道）。
+    # 從 zoning 的 room_shape 就地判斷（is_narrow/long 在 _build_layout_section 內、這裡取不到）。
+    _rs = ""
+    if isinstance(zoning, dict):
+        _rs = str((zoning.get("spatial_synthesis") or {}).get("room_shape") or "").lower()
+    _narrow_long = any(k in _rs for k in
+                       ("長條", "狹長", "長型", "窄", "狹", "long", "elongated", "narrow"))
     soft_furnishing_sec = _build_soft_furnishing_section(
         entry.get("soft_furnishing") or [],
         reference_map=reference_map,
+        narrow_mode=_narrow_long,
     )
 
     # 順序：硬規則（layout/product）在前，預算/客戶偏好在後，最後 CRITICAL_RULES + QUALITY_TAIL
