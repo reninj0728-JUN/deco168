@@ -816,8 +816,10 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         if area < 0.25:   # zone 太小＝不可靠，不裁
             print(f"[pipeline] (i) {room_type} zone 太小 area={area:.2f}，用整張")
             return base_path, False
-        # 動態外擴：大區小擴(10%)、小區多擴(20%)，保留一點鄰接感又不切到家具
-        margin = 0.10 if area > 0.50 else 0.20
+        # 動態外擴：大區小擴(6%)、小區多擴(12%)，保留一點鄰接感又不切到家具。
+        # 63B7B5C9 回饋：原本 10%/20% 裁完還剩大半張，客戶感覺不到「特寫」——
+        # 收緊外擴讓單房聚焦真的看得出來；面積/比例守門不變，不確定仍回原圖。
+        margin = 0.06 if area > 0.50 else 0.12
         fx0 = max(0.0, fx0 - margin); fy0 = max(0.0, fy0 - margin)
         fx1 = min(1.0, fx1 + margin); fy1 = min(1.0, fy1 + margin)
         x0, y0, x1, y1 = int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)

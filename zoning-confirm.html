@@ -116,19 +116,13 @@
       </div>
     </div>
 
-    <!-- 商業化版：AI 建議一句話摘要 + 收合式進階調整（客戶不想讀分區報告） -->
+    <!-- 商業化版：擺位摘要（客戶 3 秒看懂，不讀分區報告；沙發左右選擇照常顯示在下方） -->
     <div id="aiSummaryCard" style="display:none; border:1px solid rgba(201,169,110,0.35); background:var(--card); padding:22px 24px; margin-bottom:20px;">
-      <div style="font-size:13px; letter-spacing:2px; color:var(--gold); margin-bottom:12px; font-weight:600;">AI 建議這樣安排</div>
-      <ul id="aiSummaryList" style="list-style:none; padding:0; margin:0 0 16px; font-size:14px; color:#fff; line-height:2.1;"></ul>
-      <div style="display:flex; gap:12px;">
-        <button type="button" class="btn btn-primary" onclick="confirmSummary()"
-                style="flex:2; padding:14px; font-size:14px;">✓ 沒問題，繼續</button>
-        <button type="button" class="btn btn-ghost" id="adjustBtn" onclick="toggleAdvanced()"
-                style="flex:1; padding:14px; font-size:13px;">✎ 我想調整</button>
-      </div>
+      <div style="font-size:13px; letter-spacing:2px; color:var(--gold); margin-bottom:12px; font-weight:600;">建議這樣安排</div>
+      <ul id="aiSummaryList" style="list-style:none; padding:0; margin:0; font-size:14px; color:#fff; line-height:2.1;"></ul>
     </div>
 
-    <div id="advancedAdjust" style="display:none;">
+    <div id="advancedAdjust">
     <div class="options-grid" id="optionsGrid">
       <label class="opt selected" id="optA">
         <input type="radio" name="layout" value="A" checked>
@@ -360,19 +354,6 @@
     document.querySelector('input[value=B]').checked = true;
     currentChoice = 'B';
   });
-
-  // AI 摘要卡：沒問題 → 直接捲到付款；我想調整 → 展開 A/B + 沙發左右
-  function confirmSummary() {
-    var pay = document.querySelector('.pay-block');
-    if (pay) pay.scrollIntoView({ behavior: 'smooth' });
-  }
-  function toggleAdvanced() {
-    var adv = document.getElementById('advancedAdjust');
-    var btn = document.getElementById('adjustBtn');
-    var open = adv.style.display !== 'none';
-    adv.style.display = open ? 'none' : 'block';
-    if (btn) btn.textContent = open ? '✎ 我想調整' : '收合調整';
-  }
 
   // 沙發左右選擇
   function setSofaSide(side) {

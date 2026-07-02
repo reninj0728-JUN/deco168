@@ -1406,12 +1406,17 @@ def build_nano_banana_inputs(
     # 已寫入), 組「SOFT FURNISHING SUGGESTIONS」文字段提示 model 順手畫上 pillow/curtain/
     # wall_art/vase/plant. 沒撈到任何軟裝 → 空字串, 跟現況一致.
     # 窄/長房 → 軟裝保守模式（不放落地花盆/立燈/邊几，避免把沙發擠去走道）。
-    # 從 zoning 的 room_shape 就地判斷（is_narrow/long 在 _build_layout_section 內、這裡取不到）。
+    # 雙信號（63B7B5C9 抓漏：深長型房 zoning 只寫「長方形」，關鍵字全 miss，
+    # 落地花盆照放、沙發被擠向走道）：
+    #   1. zoning room_shape 關鍵字（補「深長」）
+    #   2. entry._is_long_room —— enrich_renders 用 room_dimensions 長寬比 >= 2.0
+    #      算出的數值信號，不受 Gemini 用詞飄移影響
     _rs = ""
     if isinstance(zoning, dict):
         _rs = str((zoning.get("spatial_synthesis") or {}).get("room_shape") or "").lower()
     _narrow_long = any(k in _rs for k in
-                       ("長條", "狹長", "長型", "窄", "狹", "long", "elongated", "narrow"))
+                       ("長條", "狹長", "深長", "長型", "窄", "狹", "long", "elongated", "narrow")) \
+                   or bool(entry.get("_is_long_room"))
     soft_furnishing_sec = _build_soft_furnishing_section(
         entry.get("soft_furnishing") or [],
         reference_map=reference_map,

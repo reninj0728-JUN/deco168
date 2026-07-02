@@ -1029,6 +1029,10 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
         matched = matched[:5]
 
         render_copy = dict(render)
+        # 數值版長條房信號給 prompt_builder 用：zoning 的 room_shape 用詞不可靠
+        # （63B7B5C9 深長型房被寫成「長方形」→ 窄房保守軟裝模式沒觸發，
+        # 落地花盆把沙發擠向走道）。長寬比 >= 2.0 是穩定的數值判斷。
+        render_copy["_is_long_room"] = bool(is_long_room)
         render_copy["matched_furniture"] = [
             {
                 "id": item.get("id", ""),
