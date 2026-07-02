@@ -104,6 +104,19 @@
       margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
     .f-item { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
     .f-item:last-of-type { border-bottom: none; }
+    /* 商品縮圖：固定 56px 方形；載入失敗由 onerror 整顆隱藏（該列退回純文字，不留破圖/灰框） */
+    .f-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px;
+               border: 1px solid var(--line); background: #16161a; flex-shrink: 0; }
+    /* 渲染圖 lightbox：點圖放大全螢幕 */
+    .render-box > img { cursor: zoom-in; }
+    #lightbox { display: none; position: fixed; inset: 0; z-index: 999;
+                background: rgba(10,10,12,0.94); cursor: zoom-out;
+                align-items: center; justify-content: center; padding: 4vh 4vw; }
+    #lightbox.open { display: flex; }
+    #lightbox img { max-width: 100%; max-height: 100%; object-fit: contain;
+                    border-radius: 4px; box-shadow: 0 8px 60px rgba(0,0,0,0.7); }
+    #lightbox .lb-hint { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center;
+                         font-size: 11px; color: var(--muted); letter-spacing: 2px; }
     .f-num { width: 24px; height: 24px; background: var(--gold); color: #111;
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
       font-size: 10px; flex-shrink: 0; font-weight: 500; }
@@ -379,6 +392,30 @@
     if (tabs && tabs.parentNode) { tabs.parentNode.insertBefore(box, tabs); }
   }
 
+  // 商品縮圖：只收 http 圖；onerror 整顆隱藏（退回純文字列，不留破圖）
+  function _thumbHtml(url) {
+    if (!url || url.indexOf('http') !== 0) return '';
+    return '<img class="f-thumb" src="' + url.replace(/"/g, '&quot;') + '" alt="" ' +
+           'loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">';
+  }
+
+  // 渲染圖 lightbox
+  function openLightbox(src) {
+    var lb = document.getElementById('lightbox');
+    lb.querySelector('img').src = src;
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    var lb = document.getElementById('lightbox');
+    lb.classList.remove('open');
+    lb.querySelector('img').src = '';
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
   function renderPanelContent(group) {
     var idx = _angleIdx[group.style] || 0;
     var r   = group.angles[idx] || {};
@@ -410,7 +447,7 @@
       : '';
     var imgSection = imgUrl
       ? navHtml +
-        '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy">' +
+        '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy" onclick="openLightbox(this.src)">' +
         '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' + cropNote +
         '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載設計圖</button>'
       : navHtml +
@@ -440,6 +477,7 @@
             : '';
           return '<div class="f-item">' +
             '<div class="f-num">' + (j+1) + '</div>' +
+            _thumbHtml(f.image_url) +
             '<div class="f-info">' +
               '<div class="f-name">' + (f.name_zh || f.name || '') + '</div>' +
               '<div class="f-meta">' + catLbl + (f.color ? ' · ' + f.color : '') + '</div>' +
@@ -509,6 +547,7 @@
         var catLbl = SOFT_CAT_LABEL[f.category_en] || (f.category || '軟裝');
         return '<div class="f-item">' +
           '<div class="f-num">' + (j+1) + '</div>' +
+          _thumbHtml(f.image_url) +
           '<div class="f-info">' +
             '<div class="f-name">' + (f.name_zh || '') + '</div>' +
             '<div class="f-meta">' + catLbl + '</div>' +
@@ -804,5 +843,9 @@
 
   loadResult();
 </script>
+<div id="lightbox" onclick="closeLightbox()">
+  <img src="" alt="設計圖放大檢視">
+  <div class="lb-hint">點擊任意處關閉</div>
+</div>
 </body>
 </html>
