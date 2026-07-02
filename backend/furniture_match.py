@@ -328,6 +328,20 @@ OVERSIZED_SOFA_KW = [
 ]
 
 
+# ── tier3 高預算方案的「質感底線」（4C3560A2 回饋：20 萬方案配 NT$549 茶几、
+#   NT$1,440 地毯，客戶信任感直接掉）。低於底線的不進主家具——但軟性：
+#   該類別過濾後空了就回退原池，保證 must-have 永不缺。──────────────────
+TIER3_PRICE_FLOOR = {
+    "coffee_table":  3000,
+    "rug":           2500,
+    "media_console": 4000,
+}
+# 奢華系風格 × 日式/無印/北歐 命名 → 降權（「日式簡約實木電視櫃」配 luxury 很出戲）
+LUXURY_MISMATCH_STYLES  = ("luxury", "french", "art-deco")
+LUXURY_MISMATCH_KW      = ["日式", "無印", "北歐", "和風", "muji"]
+LUXURY_MISMATCH_PENALTY = -3.0
+
+
 # ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
 #
 # budget_tier: 'tier1' / 'tier2' / 'tier3'  (前端三段下拉)
@@ -531,6 +545,12 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     # 小空間/尺寸不明沙發體積降權
     score += _oversized_sofa_penalty(item, is_small_room)
 
+    # 奢華系風格 × 日式/無印/北歐命名 → 降權（不硬排除）
+    if style in LUXURY_MISMATCH_STYLES:
+        _nm = (item.get("name_zh") or "")
+        if any(kw in _nm for kw in LUXURY_MISMATCH_KW):
+            score += LUXURY_MISMATCH_PENALTY
+
     # 賣場偏好加分
     score += _store_bonus(item, preferred_store)
 
@@ -561,6 +581,24 @@ def _pick_best_in_category(
     """
     cap = _budget_cap_for(budget_tier, target_cat)
 
+    # tier3 質感底線：太便宜的茶几/地毯/電視櫃不進高預算主家具；
+    # 底線篩完空了就回退原池（保證 must-have 永不缺）
+    def _apply_tier3_floor(pool: list[dict]) -> list[dict]:
+        if budget_tier != "tier3":
+            return pool
+        floor = TIER3_PRICE_FLOOR.get(target_cat)
+        if not floor:
+            return pool
+        floored = []
+        for it in pool:
+            try:
+                price = int(it.get("price_twd") or 0)
+            except (TypeError, ValueError):
+                price = 0
+            if price <= 0 or price >= floor:   # 沒標價的不硬砍
+                floored.append(it)
+        return floored or pool
+
     def _scored_in_pool(pool: list[dict], match_style: bool) -> dict | None:
         if not pool:
             return None
@@ -584,11 +622,11 @@ def _pick_best_in_category(
         return [it for it in items if _under_budget(it, cap_to_use)]
 
     # Stage A: 嚴格同風格
-    primary = [
+    primary = _apply_tier3_floor([
         it for it in catalog
         if resolve_category(it) == target_cat
         and style in it.get("style_tags", [])
-    ]
+    ])
     if primary:
         # 1. 嚴格預算
         chosen = _scored_in_pool(_filter(primary, cap), match_style=True)
@@ -611,11 +649,11 @@ def _pick_best_in_category(
     # Stage B: fallback 到相近風格（同 category）
     related = _get_related_styles(style)
     if related:
-        fallback = [
+        fallback = _apply_tier3_floor([
             it for it in catalog
             if resolve_category(it) == target_cat
             and any(s in it.get("style_tags", []) for s in related)
-        ]
+        ])
         if fallback:
             # 1. 嚴格預算
             chosen = _scored_in_pool(_filter(fallback, cap), match_style=False)

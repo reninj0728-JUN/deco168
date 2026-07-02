@@ -116,6 +116,19 @@
       </div>
     </div>
 
+    <!-- 商業化版：AI 建議一句話摘要 + 收合式進階調整（客戶不想讀分區報告） -->
+    <div id="aiSummaryCard" style="display:none; border:1px solid rgba(201,169,110,0.35); background:var(--card); padding:22px 24px; margin-bottom:20px;">
+      <div style="font-size:13px; letter-spacing:2px; color:var(--gold); margin-bottom:12px; font-weight:600;">AI 建議這樣安排</div>
+      <ul id="aiSummaryList" style="list-style:none; padding:0; margin:0 0 16px; font-size:14px; color:#fff; line-height:2.1;"></ul>
+      <div style="display:flex; gap:12px;">
+        <button type="button" class="btn btn-primary" onclick="confirmSummary()"
+                style="flex:2; padding:14px; font-size:14px;">✓ 沒問題，繼續</button>
+        <button type="button" class="btn btn-ghost" id="adjustBtn" onclick="toggleAdvanced()"
+                style="flex:1; padding:14px; font-size:13px;">✎ 我想調整</button>
+      </div>
+    </div>
+
+    <div id="advancedAdjust" style="display:none;">
     <div class="options-grid" id="optionsGrid">
       <label class="opt selected" id="optA">
         <input type="radio" name="layout" value="A" checked>
@@ -158,6 +171,7 @@
         以照片正面視角為準（電視櫃會放在沙發對側）。不確定就使用預設值。
       </div>
     </div>
+    </div><!-- /advancedAdjust -->
 
     <!-- Stage 1：checkout 併入本頁 → 確認分區即成交，不再跳一頁看摘要 -->
     <div class="pay-block" style="margin-top:28px; border-top:1px solid var(--line); padding-top:22px;">
@@ -337,6 +351,23 @@
     }
     document.getElementById('sofaSideBox').style.display = 'block';
 
+    // ── AI 建議摘要卡（主呈現）：客戶 3 秒看懂，不用讀 A/B 分區報告 ──
+    var sumEl = document.getElementById('aiSummaryList');
+    if (sumEl) {
+      var items = [];
+      items.push('✓ 客廳｜' + zoneLine(living.where, '依照片自動安排'));
+      if ((dining.where || '').trim()) items.push('✓ 餐廳｜' + zoneLine(dining.where));
+      if (isLongRoom) items.push('✓ 沙發靠' + sideZh + '側長牆，電視牆在對側');
+      items.push('✓ 中間走道保留淨空，不放大型家具');
+      sumEl.innerHTML = '';
+      items.forEach(function(t) {
+        var li = document.createElement('li');
+        li.textContent = t;
+        sumEl.appendChild(li);
+      });
+      document.getElementById('aiSummaryCard').style.display = 'block';
+    }
+
     content.style.display = 'block';
     applyWholeZoningUI();
   }
@@ -358,6 +389,19 @@
     document.querySelector('input[value=B]').checked = true;
     currentChoice = 'B';
   });
+
+  // AI 摘要卡：沒問題 → 直接捲到付款；我想調整 → 展開 A/B + 沙發左右
+  function confirmSummary() {
+    var pay = document.querySelector('.pay-block');
+    if (pay) pay.scrollIntoView({ behavior: 'smooth' });
+  }
+  function toggleAdvanced() {
+    var adv = document.getElementById('advancedAdjust');
+    var btn = document.getElementById('adjustBtn');
+    var open = adv.style.display !== 'none';
+    adv.style.display = open ? 'none' : 'block';
+    if (btn) btn.textContent = open ? '✎ 我想調整' : '收合調整';
+  }
 
   // 沙發左右選擇
   function setSofaSide(side) {

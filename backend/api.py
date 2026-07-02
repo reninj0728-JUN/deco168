@@ -1392,10 +1392,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if not flux_bases:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
 
-        # (i) 廣角裁單房：全室模式下，若某房(客廳/餐廳)底圖是「多區廣角合照」(photo_contains≥2)，
+        # (i) 廣角裁單房：若某房(客廳/餐廳)底圖是「多區廣角合照」(photo_contains≥2)，
         # 裁成該房聚焦視角去掉鄰房門/雜物。保守：不確定就用整張(crop_flags=False)。
+        # 適用：全室多視角 + 單一空間(客廳/餐廳)。單一空間尤其重要——客戶付錢買
+        # 「客廳設計」，給的是客餐廳廣角照，成品必須是客廳特寫，不是原封不動的
+        # 廣角照（4C3560A2 回饋：拿到跟上傳一樣的視角會覺得受騙）。
         crop_flags: list[bool] = [False] * len(flux_bases)
-        if space_type == "whole" and render_angle == "multi":
+        _crop_eligible = (
+            (space_type == "whole" and render_angle == "multi")
+            or normalize_room_type(space_type) in _RT_TO_ZONE_KEY   # 單一空間: living/dining
+        )
+        if _crop_eligible:
             for _i in range(len(flux_bases)):
                 _rt = angle_room_types[_i]
                 if _rt not in _RT_TO_ZONE_KEY:
