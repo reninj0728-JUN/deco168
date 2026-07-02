@@ -286,41 +286,12 @@
     setText('livingA', zoneLine(living.where, '建議的客廳位置'));
     setText('diningA', zoneLine(dining.where, '建議的餐廳位置'));
 
-    // 替代擺法只在 AI 真的有給 alt_option 時才顯示；沒有就不要用「中段做客廳」
-    // 「靠窗做餐廳」這種硬寫死的猜測文字誤導使用者（尤其你已經在上傳階段
-    // 逐張標過 target_zone / target_note 時，這類猜測常常直接矛盾）。
-    var hasAltOption = !!((living.alt_option || '').trim() || (dining.alt_option || '').trim());
-    var optBEl = document.getElementById('optB');
+    // 替代擺法(方案 B)已整個移除（8BEAE3AD 回饋：對客戶是廢話，沙發靠哪邊才是真決策）。
+    // A/B grid 永遠隱藏；layout_choice 固定送 'A'（後端相容機制不動）；
+    // 唯一保留的擺位決策 = 下方「沙發靠哪一側長牆」。
     var optionsGridEl = document.getElementById('optionsGrid');
-    if (hasAltOption) {
-      // 方案 B 語意 = 客廳/餐廳位置對調（與後端 flatten_zoning_v2_to_v1 一致）。
-      // alt_option 是「沙發如何改靠另一面牆」的技術說明，之前被當成餐廳位置
-      // 直接塞進「餐廳:」欄位 → 76 字說明書，客戶看得很燒（4C3560A2 回饋）。
-      setText('livingB', zoneLine(dining.where || living.alt_option));
-      setText('diningB', zoneLine(living.where || dining.alt_option));
-      var altNote = (living.alt_option || dining.alt_option || '').trim();
-      var reasonsEl = document.getElementById('optBReasons');
-      if (reasonsEl && altNote) {
-        reasonsEl.innerHTML = '';
-        var li = document.createElement('li');
-        li.textContent = altNote.length > 56 ? altNote.slice(0, 56) + '…' : altNote;
-        reasonsEl.appendChild(li);
-      }
-      optBEl.style.display = '';
-      if (optionsGridEl) optionsGridEl.style.gridTemplateColumns = '';
-    } else {
-      optBEl.style.display = 'none';
-      if (currentChoice === 'B') currentChoice = 'A';
-      if (optionsGridEl) optionsGridEl.style.gridTemplateColumns = '1fr';
-      // 清乾淨 B 的殘留狀態（selected class / radio checked），
-      // 避免返回頁面或重新渲染時撿回被隱藏的 B
-      optBEl.classList.remove('selected');
-      document.getElementById('optA').classList.add('selected');
-      var inA = document.querySelector('input[name=layout][value=A]');
-      var inB = document.querySelector('input[name=layout][value=B]');
-      if (inA) inA.checked = true;
-      if (inB) inB.checked = false;
-    }
+    if (optionsGridEl) optionsGridEl.style.display = 'none';
+    currentChoice = 'A';
 
     // 沙發左右：預設值來自分析，使用者可改。寫回 zoning 後 flatten 會用它綁定 + 驗收。
     var aiSide = ((living.sofa_side || '') + '').toLowerCase();

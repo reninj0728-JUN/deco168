@@ -1398,6 +1398,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 「客廳設計」，給的是客餐廳廣角照，成品必須是客廳特寫，不是原封不動的
         # 廣角照（4C3560A2 回饋：拿到跟上傳一樣的視角會覺得受騙）。
         crop_flags: list[bool] = [False] * len(flux_bases)
+        # 裁切決策軌跡：沒裁時記下「為什麼」，不然只看 cropped=false 無從診斷
+        # （8BEAE3AD 查了半天才發現是部署沒跟上，不是守門擋掉）
+        crop_notes: list[str] = [""] * len(flux_bases)
         _crop_eligible = (
             (space_type == "whole" and render_angle == "multi")
             or normalize_room_type(space_type) in _RT_TO_ZONE_KEY   # 單一空間: living/dining
@@ -1406,17 +1409,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             for _i in range(len(flux_bases)):
                 _rt = angle_room_types[_i]
                 if _rt not in _RT_TO_ZONE_KEY:
+                    crop_notes[_i] = f"room_type={_rt} 不在裁切適用房型"
                     continue
                 _meta = _photo_meta_for_path(flux_bases[_i], photo_meta_by_key_early)
                 _contains = _meta.get("photo_contains") if isinstance(_meta, dict) else None
                 if not (isinstance(_contains, list) and len(_contains) >= 2):
+                    crop_notes[_i] = f"photo_contains={_contains} 非多區廣角照"
                     continue   # 專屬單房照片，不裁
                 _new_base, _did = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
                 flux_bases[_i] = _new_base
                 crop_flags[_i] = _did
+                if not _did:
+                    crop_notes[_i] = "zoning bbox 守門未過（面積/比例/zone 缺失，詳見 log）"
+        else:
+            crop_notes = [f"space_type={space_type} 不適用裁切"] * len(flux_bases)
 
         print(f"[pipeline] 渲染基底 {len(flux_bases)} 張：{list(zip(angle_labels, [Path(p).name for p in flux_bases]))} "
-              f"cropped={crop_flags}")
+              f"cropped={crop_flags} notes={crop_notes}")
 
         # ── Gemini zoning（給 Nano Banana prompt 用，失敗不阻斷） ──
         # 規則：best_photo_index 那張一定包含，再補同 upload 其他照片到最多 3 張
@@ -1480,12 +1489,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
-            for base, label, rt, cropped in zip(flux_bases, angle_labels, angle_room_types, crop_flags):
+            for base, label, rt, cropped, cnote in zip(flux_bases, angle_labels, angle_room_types,
+                                                       crop_flags, crop_notes):
                 copy = dict(enriched_by_rt[rt][si])
                 copy["_angle_label"] = label
                 copy["_base_path"] = base
                 copy["_room_type"] = rt
                 copy["_cropped"] = cropped   # (i) 是否裁成單房視角
+                copy["_crop_note"] = cnote   # 沒裁時的原因（診斷用）
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 expanded.append(copy)
 
@@ -1530,6 +1541,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 r["angle_label"] = entry["_angle_label"]
                 r["room_type"] = entry.get("_room_type", "living")
                 r["cropped"] = bool(entry.get("_cropped"))   # (i) 標記：此圖底圖已裁成單房視角
+                r["crop_note"] = entry.get("_crop_note") or None   # 沒裁的原因（診斷）
                 # 用 style + angle 區分檔名
                 if r.get("render_path"):
                     src = Path(r["render_path"])
@@ -1960,6 +1972,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "angle_label":       r.get("angle_label", "主視角"),
                 "room_type":         r.get("room_type", "living"),   # step-2：結果頁按房間分頁/驗收用
                 "cropped":           bool(r.get("cropped")),         # (i) 此圖底圖已裁成單房視角
+                "crop_note":         r.get("crop_note"),             # 沒裁的原因（診斷）
                 "render_model":      r.get("render_model"),          # debug：banana / gpt-image-2
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,

@@ -916,16 +916,27 @@ def _full_mode_scrub_prompt(prompt: str, design_mode: str) -> str:
     return p
 
 
-def _palette_clause(entry: dict) -> str:
+def _palette_clause(entry: dict, design_mode: str = "furnish") -> str:
     """使用者在前端選的『色系』(莫蘭迪粉 / 灰調＋石材…)。之前只送風格 id、色系被丟掉，
-    這裡把它變成明確的色調指令注入 prompt，讓選色真的影響成品。空 → 不加。"""
+    這裡把它變成明確的色調指令注入 prompt，讓選色真的影響成品。空 → 不加。
+
+    design_mode-aware（job 8BEAE3AD 抓漏）：舊版不分模式都寫「牆面…朝色系靠攏、
+    與原本空白牆面有明顯差異」——furnish（家具+軟裝）付的是不動牆的方案，
+    深色系一選牆就被整面改色。furnish 版色系只作用在家具/軟裝，明文禁動牆/天花。"""
     pal = (entry.get("_palette") or "").strip()
     if not pal:
         return ""
+    if (design_mode or "furnish") == "full":
+        return (
+            f"COLOUR PALETTE — 整體配色以「{pal}」為主調：牆面、窗簾/地毯等軟裝、以及主要家具的顏色，"
+            f"都要明顯朝「{pal}」這個色系靠攏，形成一眼可辨識的『{pal}』氛圍（與原本空白牆面有明顯但自然的差異）。"
+            f"這是使用者指定的色系，請務必體現，不要只用中性白。"
+        )
     return (
-        f"COLOUR PALETTE — 整體配色以「{pal}」為主調：牆面、窗簾/地毯等軟裝、以及主要家具的顏色，"
-        f"都要明顯朝「{pal}」這個色系靠攏，形成一眼可辨識的『{pal}』氛圍（與原本空白牆面有明顯但自然的差異）。"
-        f"這是使用者指定的色系，請務必體現，不要只用中性白。"
+        f"COLOUR PALETTE — 配色以「{pal}」為主調，但【只作用在家具與軟裝】：沙發、窗簾、地毯、"
+        f"抱枕、燈具等的顏色朝「{pal}」靠攏，形成『{pal}』氛圍。"
+        f"【牆面與天花板必須保持照片原樣的顏色與材質，一律不得重新粉刷、貼皮或改色】——"
+        f"本方案為家具＋軟裝，不含任何牆面/天花板工程。"
     )
 
 
@@ -1014,7 +1025,7 @@ def _build_nonliving_nano_inputs(
         sections.append(retry_sec)
     sections.extend([NONLIVING_CRITICAL, QUALITY_TAIL])
 
-    _pal = _palette_clause(entry)
+    _pal = _palette_clause(entry, design_mode)
     return {
         "image_urls": image_urls,
         "prompt": _full_mode_scrub_prompt("\n\n".join(s for s in sections if s), design_mode)
@@ -1430,7 +1441,7 @@ def build_nano_banana_inputs(
 
     prompt = "\n\n".join(sections)
 
-    _pal = _palette_clause(entry)
+    _pal = _palette_clause(entry, design_mode)
     return {
         "image_urls": image_urls,
         "prompt": _full_mode_scrub_prompt(prompt, design_mode) + (("\n\n" + _pal) if _pal else ""),
