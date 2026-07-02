@@ -100,7 +100,9 @@ print(f"[startup] R2 bucket set: {bool(os.environ.get('CF_R2_BUCKET') or os.envi
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://deco168.vercel.app",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -2742,30 +2744,19 @@ async def api_zoning(upload_id: str = Form(...),
 
 @app.get("/health")
 def health():
+    """公開端點（無驗證，任何人可打）。只回布林狀態，絕不回 key 片段/長度等
+    可縮小暴力猜測範圍的資訊（商業化前資安清理）。"""
     ak, sk, ep, bucket = _r2_cfg()
 
-    # 診斷：實際讀到的 Gemini key 來源與前後碼（不洩漏中間內容）
     g_env = (os.environ.get("GEMINI_API_KEY") or "").strip()
     ga_env = (os.environ.get("GOOGLE_AI_KEY") or "").strip()
     used_key = g_env or ga_env
     used_source = "GEMINI_API_KEY" if g_env else ("GOOGLE_AI_KEY" if ga_env else None)
-    if used_key and len(used_key) >= 10:
-        key_prefix = used_key[:6]
-        key_suffix = used_key[-4:]
-        key_len = len(used_key)
-    else:
-        key_prefix = None
-        key_suffix = None
-        key_len = len(used_key) if used_key else 0
 
     return {
         "status": "ok",
-        "base_dir": str(BASE_DIR),
         "gemini_key": "set" if used_key else "MISSING",
         "gemini_key_source": used_source,
-        "gemini_key_prefix": key_prefix,
-        "gemini_key_suffix": key_suffix,
-        "gemini_key_len":    key_len,
         "fal_key":    "set" if os.environ.get("FAL_KEY") else "MISSING",
         "r2_access_key": "set" if ak else "MISSING",
         "r2_secret":     "set" if sk else "MISSING",
