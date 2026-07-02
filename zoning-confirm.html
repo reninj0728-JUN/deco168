@@ -120,7 +120,7 @@
       <label class="opt selected" id="optA">
         <input type="radio" name="layout" value="A" checked>
         <div class="badge">推薦方案</div>
-        <div class="opt-label">方案 A</div>
+        <div class="opt-label">建議擺法</div>
         <div class="opt-name">靠窗做客廳</div>
         <div class="opt-line"><span class="k">客廳</span><span id="livingA">—</span></div>
         <div class="opt-line"><span class="k">餐廳</span><span id="diningA">—</span></div>
@@ -131,16 +131,14 @@
         </ul>
       </label>
 
-      <label class="opt" id="optB">
+      <label class="opt" id="optB" style="display:none;">
         <input type="radio" name="layout" value="B">
-        <div class="opt-label">方案 B</div>
-        <div class="opt-name">靠窗做餐廳/書房</div>
+        <div class="opt-label">替代擺法</div>
+        <div class="opt-name">系統提供的另一種配置</div>
         <div class="opt-line"><span class="k">客廳</span><span id="livingB">—</span></div>
         <div class="opt-line"><span class="k">餐廳</span><span id="diningB">—</span></div>
-        <ul class="opt-reasons">
-          <li>窗邊多功能</li>
-          <li>客廳較精簡</li>
-          <li>適合多元使用</li>
+        <ul class="opt-reasons" id="optBReasons">
+          <li>依你的照片與格局判斷的另一種可行配置</li>
         </ul>
       </label>
     </div>
@@ -258,14 +256,29 @@
       document.querySelector('.overlay-card').style.display = 'none';
     }
 
-    // 方案 A / B 的文字
+    // 建議擺法 / 替代擺法 的文字
     var pz = zoning.proposed_zones || {};
     var living = pz.living_zone || {};
     var dining = pz.dining_zone || {};
     setText('livingA', living.where || '建議的客廳位置');
     setText('diningA', dining.where || '建議的餐廳位置');
-    setText('livingB', dining.where || living.alt_option || '（中段做客廳）');
-    setText('diningB', living.alt_option || dining.alt_option || '（靠窗做餐廳/書房）');
+
+    // 替代擺法只在 AI 真的有給 alt_option 時才顯示；沒有就不要用「中段做客廳」
+    // 「靠窗做餐廳」這種硬寫死的猜測文字誤導使用者（尤其你已經在上傳階段
+    // 逐張標過 target_zone / target_note 時，這類猜測常常直接矛盾）。
+    var hasAltOption = !!((living.alt_option || '').trim() || (dining.alt_option || '').trim());
+    var optBEl = document.getElementById('optB');
+    var optionsGridEl = document.getElementById('optionsGrid');
+    if (hasAltOption) {
+      setText('livingB', dining.where || living.alt_option || '—');
+      setText('diningB', living.alt_option || dining.alt_option || '—');
+      optBEl.style.display = '';
+      if (optionsGridEl) optionsGridEl.style.gridTemplateColumns = '';
+    } else {
+      optBEl.style.display = 'none';
+      if (currentChoice === 'B') currentChoice = 'A';
+      if (optionsGridEl) optionsGridEl.style.gridTemplateColumns = '1fr';
+    }
 
     // 沙發左右：預設值來自分析，使用者可改。寫回 zoning 後 flatten 會用它綁定 + 驗收。
     var aiSide = ((living.sofa_side || '') + '').toLowerCase();
