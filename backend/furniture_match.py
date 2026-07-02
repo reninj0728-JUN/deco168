@@ -853,18 +853,31 @@ def _get_related_styles(style: str) -> list[str]:
     return []
 
 
+def _width_cap_for_short_side(short_side_m: float) -> int:
+    """短邊（米）→ 沙發寬度上限（cm），分段而非線性比例。
+    舊版 short_side*0.55 對 3m 寬的正常長條客廳只給 165cm——沙發會迷你到像套房，
+    質感反而下降（GPT 抓漏）。真實室內尺度：3m 寬客廳放 220cm 沙發沿長牆完全正常，
+    擋不擋走道主要看「深度/形狀/位置」，那由 L/U/貴妃降權 + prompt 走道規則管。"""
+    if short_side_m < 2.6:
+        return 200
+    if short_side_m < 3.2:
+        return 220
+    if short_side_m < 3.8:
+        return 240
+    return 300   # 大空間：≥280 時 filter_by_dimensions 不過濾（與舊行為一致）
+
+
 def parse_max_width_cm(estimated_size: str, room_dims: dict | None = None) -> int:
     """
     根據坪數或實際尺寸，返回家具最大允許寬度（cm）。
-    避免 8 坪小空間配到 W210cm 大沙發。
+    避免 8 坪小空間配到 W270cm 大沙發，也避免過度保守選到迷你沙發。
     """
     if room_dims:
         width_m = room_dims.get("width_m", 0)
         length_m = room_dims.get("length_m", 0)
         short_side = min(width_m, length_m) if width_m and length_m else 0
         if short_side > 0:
-            # 家具寬度最多不超過短邊 55%
-            return int(short_side * 100 * 0.55)
+            return _width_cap_for_short_side(short_side)
 
     # 從坪數字串提取數字範圍的下限
     nums = re.findall(r'\d+', str(estimated_size))
@@ -872,37 +885,43 @@ def parse_max_width_cm(estimated_size: str, room_dims: dict | None = None) -> in
         sqping = int(nums[0])  # 取下限
         sqm = sqping * 3.305
         short_side_est = (sqm ** 0.5) * 0.85  # 估算短邊
-        return int(short_side_est * 100 * 0.55)
+        return _width_cap_for_short_side(short_side_est)
     # 完全無法判斷空間大小：真實目錄（momo/pchome）99% 商品沒填 dimensions，
-    # 數值過濾本身幾乎不會生效，這個預設主要靠下面的關鍵字降權把關。
+    # 數值過濾本身幾乎不會生效，這個預設主要靠關鍵字降權把關。
     # 寧可保守（可能誤降權中型沙發）也不要放任特大件（GPT+Grok 共識）。
     return SMALL_ROOM_MAX_WIDTH_DEFAULT
 
 
-def _extract_width_cm(dims: str) -> int | None:
+def _extract_width_cm(dims: str, allow_bare: bool = False) -> int | None:
     """從 dimensions 字串抓寬度（cm）。真實目錄（momo/pchome 爬蟲）格式很雜，
     只認 'W270' 會漏掉大多數真實商品（例：'-270cm-'）。依序嘗試：
-      1. 'W270' / 'W 270' 標準格式
-      2. 裸數字+cm（'-270cm-' 這類單一尺寸描述，電商常只標最長邊/寬度）
-    抓不到回 None（不過濾，維持原行為，不誤判深度/高度當寬度）。"""
+      1. 'W270' / 'W 270' / '寬270' 標準格式（所有品類）
+      2. allow_bare=True 時才收裸數字+cm（'-270cm-' / '長270cm'）——只給 sofa 用，
+         否則 '高180cm' 的燈具、'深90cm' 的櫃子會被誤當成超寬家具砍掉（GPT 抓漏）。
+         裸數字前面若是 高/深/H/D 一律不當寬度。
+    抓不到回 None（不過濾，維持原行為）。"""
     if not dims:
         return None
-    w_match = re.search(r'W\s*(\d+)', dims)
+    w_match = re.search(r'[W寬]\s*(\d+)', dims)
     if w_match:
         return int(w_match.group(1))
-    bare_match = re.search(r'(\d+)\s*cm', dims)
-    if bare_match:
-        return int(bare_match.group(1))
+    if allow_bare:
+        bare_match = re.search(r'(?<![高深hHdD])(\d+)\s*cm', dims)
+        if bare_match:
+            return int(bare_match.group(1))
     return None
 
 
 def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
-    """過濾掉寬度超過 max_width_cm 的家具"""
+    """過濾掉寬度超過 max_width_cm 的家具。
+    裸 'NNNcm' 格式只對 sofa 當寬度（電商沙發常只標總長=寬度；
+    其他品類的單一數字常是高度/直徑/深度，照抓會誤殺窗簾/燈具/櫃子）。"""
     if max_width_cm >= 280:  # 大空間不過濾
         return items
     result = []
     for item in items:
-        w = _extract_width_cm(item.get("dimensions", ""))
+        allow_bare = resolve_category(item) == "sofa"
+        w = _extract_width_cm(item.get("dimensions", ""), allow_bare=allow_bare)
         if w is not None and w > max_width_cm:
             continue  # 家具太大，跳過
         result.append(item)

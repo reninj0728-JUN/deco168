@@ -98,11 +98,16 @@ print(f"[startup] R2 secret set: {bool(os.environ.get('CF_R2_SECRET_ACCESS_KEY')
 print(f"[startup] R2 endpoint set: {bool(os.environ.get('CF_R2_ENDPOINT') or os.environ.get('R2_ENDPOINT'))}")
 print(f"[startup] R2 bucket set: {bool(os.environ.get('CF_R2_BUCKET') or os.environ.get('R2_BUCKET'))}")
 
+# CORS：預設只允許正式前端；未來接自訂網域時在 Railway 設
+# ALLOWED_ORIGINS=https://deco168.vercel.app,https://deco168.com（逗號分隔）即可，不用改 code
+_allowed_origins = [
+    o.strip() for o in
+    (os.environ.get("ALLOWED_ORIGINS") or "https://deco168.vercel.app").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://deco168.vercel.app",
-    ],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -2344,6 +2349,9 @@ async def create_job(
                 }, timeout=30)
                 if r.ok:
                     dest.write_bytes(r.content)
+                    # Railway ephemeral storage 蒸發後的恢復路徑也要轉正 EXIF，
+                    # 否則直拍照片只有「新單」正常、「恢復單」方向全錯（GPT 抓漏）
+                    _normalize_photo_orientation(str(dest))
                     recovered.append(str(dest))
             except Exception:
                 pass
@@ -2655,6 +2663,8 @@ async def api_zoning(upload_id: str = Form(...),
                 )
                 if r.ok:
                     dest.write_bytes(r.content)
+                    # zoning overlay / bbox 都以這份檔案為準，直拍不轉正 → 分區圖方向全錯
+                    _normalize_photo_orientation(str(dest))
                 else:
                     print(f"[/api/zoning] 下載 {url} 失敗 HTTP {r.status_code}")
                     continue
@@ -2744,10 +2754,20 @@ async def api_zoning(upload_id: str = Form(...),
 
 @app.get("/health")
 def health():
-    """公開端點（無驗證，任何人可打）。只回布林狀態，絕不回 key 片段/長度等
-    可縮小暴力猜測範圍的資訊（商業化前資安清理）。"""
-    ak, sk, ep, bucket = _r2_cfg()
+    """公開端點（無驗證，任何人可打）。商業化收斂：只回 status，
+    不回任何 env 名稱/bucket/key 是否設定等部署細節。診斷走 /debug-health。"""
+    return {"status": "ok"}
 
+
+@app.get("/debug-health")
+def debug_health(token: str = ""):
+    """內部診斷端點。需要 Railway 設 HEALTH_DEBUG_TOKEN 且帶 ?token=<值> 才回內容；
+    沒設 env 時一律 404（公開網路上等同不存在）。"""
+    expected = (os.environ.get("HEALTH_DEBUG_TOKEN") or "").strip()
+    if not expected or token != expected:
+        return JSONResponse(status_code=404, content={"error": "not found"})
+
+    ak, sk, ep, bucket = _r2_cfg()
     g_env = (os.environ.get("GEMINI_API_KEY") or "").strip()
     ga_env = (os.environ.get("GOOGLE_AI_KEY") or "").strip()
     used_key = g_env or ga_env
@@ -2761,5 +2781,5 @@ def health():
         "r2_access_key": "set" if ak else "MISSING",
         "r2_secret":     "set" if sk else "MISSING",
         "r2_endpoint":   "set" if ep else "MISSING",
-        "r2_bucket":     bucket or "MISSING",  # bucket 名稱本來就在 R2 可見，不算 secret
+        "r2_bucket":     bucket or "MISSING",
     }

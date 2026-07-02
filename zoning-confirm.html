@@ -278,6 +278,14 @@
       optBEl.style.display = 'none';
       if (currentChoice === 'B') currentChoice = 'A';
       if (optionsGridEl) optionsGridEl.style.gridTemplateColumns = '1fr';
+      // 清乾淨 B 的殘留狀態（selected class / radio checked），
+      // 避免返回頁面或重新渲染時撿回被隱藏的 B
+      optBEl.classList.remove('selected');
+      document.getElementById('optA').classList.add('selected');
+      var inA = document.querySelector('input[name=layout][value=A]');
+      var inB = document.querySelector('input[name=layout][value=B]');
+      if (inA) inA.checked = true;
+      if (inB) inB.checked = false;
     }
 
     // 沙發左右：預設值來自分析，使用者可改。寫回 zoning 後 flatten 會用它綁定 + 驗收。
