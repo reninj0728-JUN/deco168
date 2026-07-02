@@ -892,13 +892,19 @@ def parse_max_width_cm(estimated_size: str, room_dims: dict | None = None) -> in
     return SMALL_ROOM_MAX_WIDTH_DEFAULT
 
 
+# 裸 cm 匹配：(?<!\d) 禁止從數字中間起匹配（否則 '高180cm' 會從 '80cm' 配到 80）
+_BARE_CM_RE = re.compile(r'(?<!\d)(\d+)\s*cm', re.IGNORECASE)
+# 數字前綴若是高/深/直徑類標記 → 不是寬度
+_NON_WIDTH_PREFIX_RE = re.compile(r'(?:高|深|直徑|dia|ø|[hd])\s*$', re.IGNORECASE)
+
+
 def _extract_width_cm(dims: str, allow_bare: bool = False) -> int | None:
     """從 dimensions 字串抓寬度（cm）。真實目錄（momo/pchome 爬蟲）格式很雜，
     只認 'W270' 會漏掉大多數真實商品（例：'-270cm-'）。依序嘗試：
       1. 'W270' / 'W 270' / '寬270' 標準格式（所有品類）
       2. allow_bare=True 時才收裸數字+cm（'-270cm-' / '長270cm'）——只給 sofa 用，
-         否則 '高180cm' 的燈具、'深90cm' 的櫃子會被誤當成超寬家具砍掉（GPT 抓漏）。
-         裸數字前面若是 高/深/H/D 一律不當寬度。
+         且數字必須完整（不能從 '高180cm' 中段配出 80，GPT round-3 抓漏）、
+         前綴是 高/深/H/D/Dia/直徑 一律不當寬度。
     抓不到回 None（不過濾，維持原行為）。"""
     if not dims:
         return None
@@ -906,9 +912,10 @@ def _extract_width_cm(dims: str, allow_bare: bool = False) -> int | None:
     if w_match:
         return int(w_match.group(1))
     if allow_bare:
-        bare_match = re.search(r'(?<![高深hHdD])(\d+)\s*cm', dims)
-        if bare_match:
-            return int(bare_match.group(1))
+        for m in _BARE_CM_RE.finditer(dims):
+            if _NON_WIDTH_PREFIX_RE.search(dims[:m.start(1)]):
+                continue   # 高180cm / D90cm / Dia40cm：非寬度標記，跳過
+            return int(m.group(1))
     return None
 
 
