@@ -236,7 +236,9 @@ def sb_upload_render(job_id: str, file_path: Path) -> str | None:
         headers = {
             "apikey":        SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type":  "image/jpeg",
+            # render 都是 .png（generate_renders 寫 render_*.png），標錯成 jpeg
+            # 瀏覽器會 sniff 救回來，但下載/分享時副檔名與 MIME 不一致
+            "Content-Type":  "image/png" if file_path.suffix.lower() == ".png" else "image/jpeg",
         }
         r = _req.post(
             f"{SUPABASE_URL}/storage/v1/object/renders/{storage_path}",
@@ -1920,6 +1922,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             # category_en 缺失 / 全空 → 退回原清單前幾件，避免整列消失（defensive）
             return (items or list(mf))[:5]
 
+        # reference_map 進 DB 前去掉 base64 data URL：
+        # 房間底圖是以 data:image/jpeg;base64 形式進 reference_map 的，一張 render
+        # 可以塞 4MB+（C15719C5 實測 result_json 高達 8.6MB）——這正是單房訂單也
+        # 觸發 payload_trimmed、完整 zoning/validation 被裁掉、結果頁要下載 8.6MB
+        # 的根因。result.html 只讀 kind/id/cat_en/name_zh，從不讀 url；pipeline
+        # 內部（Z3 重試/Phase2）用的是記憶體中的原始 dict，不經過這裡。
+        def _slim_refmap(refs):
+            out = []
+            for ref in (refs or []):
+                if not isinstance(ref, dict):
+                    continue
+                ref2 = dict(ref)
+                if str(ref2.get("url") or "").startswith("data:"):
+                    ref2["url"] = None   # http 商品圖 URL 很小，保留；base64 一律去掉
+                out.append(ref2)
+            return out
+
         # 上傳渲染圖到 Supabase Storage
         slim_renders = []
         for r in delivery_final:
@@ -1944,7 +1963,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "validation":        r.get("validation"),
                 # ── T4 新增：Nano Banana 路徑會帶；Flux 路徑用預設值 ──
                 "pipeline_version":      r.get("pipeline_version", "flux-v1"),
-                "reference_map":         r.get("reference_map", []),
+                "reference_map":         _slim_refmap(r.get("reference_map")),
                 "notes":                 r.get("notes", ""),
                 "unmatched_visual_items": r.get("unmatched_visual_items", []),
                 # ── Z3 新增 ──
