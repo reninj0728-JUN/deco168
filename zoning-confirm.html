@@ -260,8 +260,17 @@
     var pz = zoning.proposed_zones || {};
     var living = pz.living_zone || {};
     var dining = pz.dining_zone || {};
-    setText('livingA', living.where || '建議的客廳位置');
-    setText('diningA', dining.where || '建議的餐廳位置');
+
+    // 位置描述只取第一個主句、截 24 字——客戶要 1 秒看懂，不是讀說明書。
+    // 完整文字後端 prompt 照用不受影響（這裡純顯示層）。
+    function zoneLine(t, fallback) {
+      t = (t || '').trim();
+      if (!t) return fallback || '—';
+      t = t.split(/[。；;]/)[0];
+      return t.length > 24 ? t.slice(0, 24) + '…' : t;
+    }
+    setText('livingA', zoneLine(living.where, '建議的客廳位置'));
+    setText('diningA', zoneLine(dining.where, '建議的餐廳位置'));
 
     // 替代擺法只在 AI 真的有給 alt_option 時才顯示；沒有就不要用「中段做客廳」
     // 「靠窗做餐廳」這種硬寫死的猜測文字誤導使用者（尤其你已經在上傳階段
@@ -270,8 +279,19 @@
     var optBEl = document.getElementById('optB');
     var optionsGridEl = document.getElementById('optionsGrid');
     if (hasAltOption) {
-      setText('livingB', dining.where || living.alt_option || '—');
-      setText('diningB', living.alt_option || dining.alt_option || '—');
+      // 方案 B 語意 = 客廳/餐廳位置對調（與後端 flatten_zoning_v2_to_v1 一致）。
+      // alt_option 是「沙發如何改靠另一面牆」的技術說明，之前被當成餐廳位置
+      // 直接塞進「餐廳:」欄位 → 76 字說明書，客戶看得很燒（4C3560A2 回饋）。
+      setText('livingB', zoneLine(dining.where || living.alt_option));
+      setText('diningB', zoneLine(living.where || dining.alt_option));
+      var altNote = (living.alt_option || dining.alt_option || '').trim();
+      var reasonsEl = document.getElementById('optBReasons');
+      if (reasonsEl && altNote) {
+        reasonsEl.innerHTML = '';
+        var li = document.createElement('li');
+        li.textContent = altNote.length > 56 ? altNote.slice(0, 56) + '…' : altNote;
+        reasonsEl.appendChild(li);
+      }
       optBEl.style.display = '';
       if (optionsGridEl) optionsGridEl.style.gridTemplateColumns = '';
     } else {
