@@ -169,6 +169,26 @@ def sb_save_upload(upload_id: str, photo_urls: list, video_uri: str = "", video_
         pass
 
 
+def _normalize_photo_orientation(path: str) -> None:
+    """手機直拍照片常帶 EXIF Orientation（物理像素仍是橫的，靠 tag 標記要轉正）。
+    Gemini vision 縮圖 (_downscale_for_vision) 與 fal 渲染輸入都是從這個本機檔案
+    讀出後再處理/重新編碼，若不在下載當下轉正，後續 resize/重新編碼會把 tag 弄丟、
+    永久留下「橫躺」像素 —— 直拍照片會被誤判方向（沙發左右、分區 bbox 全反）。
+    只處理圖片副檔名；失敗（非圖片/PIL 缺席/檔案壞）一律忽略，不擋下載流程。"""
+    if Path(path).suffix.lower() in VIDEO_EXTS:
+        return
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(path) as im:
+            orientation = im.getexif().get(0x0112, 1)
+            if orientation in (1, None):
+                return   # 已經是正的，不用重新編碼
+            fixed = ImageOps.exif_transpose(im)
+        fixed.convert("RGB").save(path, quality=95)
+    except Exception as e:
+        print(f"[normalize_orientation] {path} 略過: {type(e).__name__}: {e}")
+
+
 def sb_download_object(key: str, dest: Path) -> str | None:
     """從 Supabase Storage 下載物件到本機（key 格式：bucket/obj/path）"""
     try:
@@ -1145,6 +1165,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
                 local = r2_download_object(key, dest)
                 if local:
+                    _normalize_photo_orientation(local)
                     resolved_paths.append(local)
                     r2_keys_to_delete.append(key)
                 else:
@@ -1157,6 +1178,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 write_status(job_id, job_dir, "downloading", 8, "正在讀取你的空間影片…")
                 local = sb_download_object(key, dest)
                 if local:
+                    _normalize_photo_orientation(local)
                     resolved_paths.append(local)
                 else:
                     print(f"[pipeline] Supabase 影片 {key} 下載失敗，跳過")
@@ -1905,6 +1927,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "angle_label":       r.get("angle_label", "主視角"),
                 "room_type":         r.get("room_type", "living"),   # step-2：結果頁按房間分頁/驗收用
                 "cropped":           bool(r.get("cropped")),         # (i) 此圖底圖已裁成單房視角
+                "render_model":      r.get("render_model"),          # debug：banana / gpt-image-2
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
                 "render_error":      r.get("error"),

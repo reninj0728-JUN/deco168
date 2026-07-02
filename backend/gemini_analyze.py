@@ -17,16 +17,22 @@ def _downscale_for_vision(data: bytes, orig_mime: str,
     最長邊 > max_side 才縮；已夠小則原樣回傳。格局/結構/驗收判斷在 1536px 完全足夠，
     品質不受影響。任何失敗 → 回原圖。回傳 (bytes, mime)。"""
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
         im = Image.open(io.BytesIO(data))
+        # 手機直拍照片常帶 EXIF Orientation；resize/重新編碼若不先轉正，
+        # 輸出會永久丟失方向資訊（PIL save() 預設不帶 exif）→ Gemini 看到橫躺的房間。
+        # api.py 下載階段已轉正大部分照片，這裡是第二道防線（涵蓋其他呼叫路徑）。
+        orientation = im.getexif().get(0x0112, 1)
+        if orientation not in (1, None):
+            im = ImageOps.exif_transpose(im)
         w, h = im.size
-        if max(w, h) <= max_side:
-            return data, orig_mime          # 已經夠小，不動（避免無謂重壓）
-        scale = max_side / float(max(w, h))
-        im = im.convert("RGB").resize(
-            (max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+        if max(w, h) <= max_side and orientation in (1, None):
+            return data, orig_mime          # 已經夠小且方向正常，不動（避免無謂重壓）
+        if max(w, h) > max_side:
+            scale = max_side / float(max(w, h))
+            im = im.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
         buf = io.BytesIO()
-        im.save(buf, format="JPEG", quality=quality)
+        im.convert("RGB").save(buf, format="JPEG", quality=quality)
         return buf.getvalue(), "image/jpeg"
     except Exception as _e:
         return data, orig_mime              # 失敗就用原圖，永不擋流程
