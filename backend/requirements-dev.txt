@@ -1,0 +1,3 @@
+# 開發/測試用依賴，不進 Railway production（production 只吃 requirements.txt）
+-r requirements.txt
+pytest>=8.0.0
