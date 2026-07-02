@@ -244,6 +244,13 @@ def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path):
     raw = best_photo.read_bytes()
     arr = np.frombuffer(raw, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    # overlay 是給手機/網頁看的確認圖，原尺寸 12MP PNG 高達 17MB——
+    # 上傳慢、前端載入更慢。縮到長邊 1600px（bbox 是 0-1000 正規化，不受影響）。
+    H0, W0 = img.shape[:2]
+    _max_side = 1600
+    if max(H0, W0) > _max_side:
+        _sc = _max_side / max(H0, W0)
+        img = cv2.resize(img, (int(W0 * _sc), int(H0 * _sc)), interpolation=cv2.INTER_AREA)
     H, W = img.shape[:2]
 
     overlay = img.copy()

@@ -2762,9 +2762,10 @@ async def api_zoning(upload_id: str = Form(...),
     # 5. 上傳 overlay 到 Supabase Storage（renders bucket — 已是 public，回 public URL）
     #    （uploads bucket 不允許 anon SELECT，所以前端 <img> 會 400；改用 renders bucket 就 OK）
     def _upload_overlay(local: Path, name: str) -> str | None:
+        storage_path = f"zoning/{upload_id}/{name}"
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/renders/{storage_path}"
         try:
             data = local.read_bytes()
-            storage_path = f"zoning/{upload_id}/{name}"
             r = _req.post(
                 f"{SUPABASE_URL}/storage/v1/object/renders/{storage_path}",
                 data=data,
@@ -2777,12 +2778,22 @@ async def api_zoning(upload_id: str = Form(...),
                 timeout=30,
             )
             if r.status_code in (200, 201):
-                return f"{SUPABASE_URL}/storage/v1/object/public/renders/{storage_path}"
+                return public_url
             print(f"[/api/zoning] overlay 上傳 {name} 失敗 HTTP {r.status_code}: {r.text[:200]}")
-            return None
         except Exception as e:
             print(f"[/api/zoning] overlay 上傳 {name} 例外: {e}")
-            return None
+        # 上傳失敗最常見原因：renders bucket 的 RLS 只允許 anon INSERT、不允許 UPDATE，
+        # 而 /api/zoning 每次頁面載入都會重打 → 同 upload_id 第二次起 upsert 一律 403，
+        # 分區圖就「消失」（3ACB0DF4 抓漏）。既有檔案還在的話直接回舊 URL——
+        # 同一 upload 的照片沒變，第一次畫的 overlay 依然正確。
+        try:
+            chk = _req.head(public_url, timeout=8)
+            if chk.status_code == 200:
+                print(f"[/api/zoning] overlay {name} 覆蓋被拒但舊檔存在 → 沿用舊 URL")
+                return public_url
+        except Exception:
+            pass
+        return None
 
     overlay_existing_url = _upload_overlay(existing_path, "zoning_overlay_existing.png")
     overlay_proposed_url = _upload_overlay(proposed_path, "zoning_overlay_proposed.png")

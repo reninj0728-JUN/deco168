@@ -685,7 +685,11 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
     if feats.get("kitchen") and feats["kitchen"] != "無":
         parts.append(f"kitchen: {feats['kitchen']};")
     if feats.get("ceiling"):
-        parts.append(f"ceiling: {feats['ceiling']} — keep pipes/sprinklers/beams visible if present;")
+        # 「keep pipes」曾被模型過度發揮成「多畫一堆管子」（3ACB0DF4 北歐客廳天花憑空
+        # 多出成排管線）——明確講清楚：同樣數量、同樣位置，不准新增。
+        parts.append(f"ceiling: {feats['ceiling']} — keep the EXACT SAME pipes/sprinklers/beams "
+                     "as the source photo (same count, same positions); do NOT add, duplicate or "
+                     "invent any extra pipes, conduits or tracks;")
     if feats.get("floor"):
         parts.append(f"floor: {feats['floor']};")
     if feats.get("walls"):
@@ -921,7 +925,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "Add furniture into the existing room only; do not rebuild the room as a new "
                     "interior photoshoot. "
                     "Preserve existing ceiling pipes, lights, wall openings, doorways, windows, "
-                    "wall seams, floor direction, and room proportions."
+                    "wall seams, floor direction, and room proportions. Keep the SAME number and "
+                    "layout of ceiling pipes/conduits as the source photo — never add or duplicate pipes."
                 )
                 # gpt-image-2/edit 沒有獨立 system_prompt 欄位 → 把 system_prompt 併進 prompt，
                 # 否則所有硬規則（含 full 模式的「強制裝潢牆/天花」指令）都到不了模型。
