@@ -313,6 +313,21 @@ LONG_ROOM_BAD_SHAPE_KW = [
 ]
 
 
+# ── 小空間 / 尺寸不明：體積過大沙發降權（root-cause fix for C15719C5 —
+#   270cm 法式電動沙發把客廳擠得比實際小）──────────────────────────────
+# 真實目錄（momo/pchome）99%+ 商品沒填 dimensions，數值過濾 (filter_by_dimensions)
+# 幾乎不會生效；這裡用商品名關鍵字當第二道防線，跟長條房的「形狀」降權互補
+# （這條抓的是「體積/座位數」，不是「形狀」）。降權不硬排除，避免某風格選無可選。
+SMALL_ROOM_MAX_WIDTH_DEFAULT = 240    # parse_max_width_cm 抓不到房間尺寸時的保守預設
+SMALL_ROOM_OVERSIZED_PENALTY = -4.0
+OVERSIZED_SOFA_KW = [
+    "電動", "electric recliner", "power recliner",
+    "三人座", "三人位", "三人沙發", "3人座",
+    "加大", "特大", "超大", "加寬",
+    "貴妃", "chaise",  # 與 LONG_ROOM_BAD_SHAPE_KW 重疊，兩種情境都該降權
+]
+
+
 # ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
 #
 # budget_tier: 'tier1' / 'tier2' / 'tier3'  (前端三段下拉)
@@ -449,8 +464,28 @@ def _long_room_sofa_penalty(item: dict, is_long_room: bool) -> float:
     return 0.0
 
 
+def _oversized_sofa_penalty(item: dict, is_small_room: bool) -> float:
+    """
+    小空間 / 房間尺寸不明時，對「體積偏大」沙發（電動/三人座/加大…）降權。
+    跟 _long_room_sofa_penalty 互補：那個抓形狀（L/U/貴妃），這個抓體積/座位數。
+    回 0 或 SMALL_ROOM_OVERSIZED_PENALTY。
+    """
+    if not is_small_room:
+        return 0.0
+    if resolve_category(item) != "sofa":
+        return 0.0
+    name = (item.get("name_zh") or "").lower()
+    descriptor = (item.get("flux_descriptor") or "").lower()
+    blob = name + " " + descriptor
+    for kw in OVERSIZED_SOFA_KW:
+        if kw in blob:
+            return SMALL_ROOM_OVERSIZED_PENALTY
+    return 0.0
+
+
 def score_item(item: dict, style: str, prompt_keywords: list[str],
                match_style: bool = True, is_long_room: bool = False,
+               is_small_room: bool = False,
                preferred_store: str = "none") -> float:
     """
     評分一件家具（不含類別加分，類別由外層篩選控制）
@@ -460,6 +495,7 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     - 顏色命中 +0.5/個
     - 有圖片 +1，有購買連結 +0.5
     - 長條型客廳 + L/U/沙發床 → -5（避免 Nano Banana 跟著 ref 圖做 L 形擋走道）
+    - 小空間/尺寸不明 + 電動/三人座/加大沙發 → -4（避免大件把客廳擠得比實際小）
     - preferred_store 符合 → +2（風格 3 > 賣場 2 > 顏色 0.5；非硬篩）
     """
     score = 0.0
@@ -492,6 +528,9 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     # 長條型客廳沙發形狀降權
     score += _long_room_sofa_penalty(item, is_long_room)
 
+    # 小空間/尺寸不明沙發體積降權
+    score += _oversized_sofa_penalty(item, is_small_room)
+
     # 賣場偏好加分
     score += _store_bonus(item, preferred_store)
 
@@ -504,6 +543,7 @@ def _pick_best_in_category(
     prompt_keywords: list[str],
     catalog: list[dict],
     is_long_room: bool = False,
+    is_small_room: bool = False,
     budget_tier: str = "tier3",
     preferred_store: str = "none",
     must_categories: list[str] | None = None,
@@ -512,6 +552,7 @@ def _pick_best_in_category(
     在指定 category 中，先撈同風格 → 再 fallback 相近風格 → 否則 None。
     Fallback 只放寬風格，category 鎖死（不准用 chair 替代 sofa）。
     is_long_room=True 時，sofa 撈取會對 L/U/沙發床降權（降權不硬排除，保命撈直線）。
+    is_small_room=True 時，sofa 撈取會對電動/三人座/加大等體積偏大款降權。
 
     Phase A 預算 fallback 三段（在「同風格」與「相近風格」各自內部都跑）：
       strict   : 嚴格符合 BUDGET_CAT_CAP
@@ -528,6 +569,7 @@ def _pick_best_in_category(
                 score_item(it, style, prompt_keywords,
                            match_style=match_style,
                            is_long_room=is_long_room,
+                           is_small_room=is_small_room,
                            preferred_store=preferred_store),
                 it,
             )
@@ -615,6 +657,7 @@ def match_furniture(
     top_n: int = 5,
     mode: str = 'living',
     is_long_room: bool = False,
+    is_small_room: bool = False,
     budget_tier: str = "tier3",
     preferred_store: str = "none",
 ) -> list[dict]:
@@ -625,6 +668,7 @@ def match_furniture(
       全程排除 LIVING_EXCLUDED
 
     is_long_room=True 時，sofa 撈取會避開 L/U/沙發床（跨所有風格）
+    is_small_room=True 時，sofa 撈取會避開電動/三人座/加大等體積偏大款
     budget_tier / preferred_store：Phase A 加入，影響評分與品類預算上限
 
     其他 mode 暫沿用「全分類混評分 + 每類 1 件」舊邏輯（未來再擴）
@@ -646,6 +690,7 @@ def match_furniture(
     for cat in must:
         best = _pick_best_in_category(cat, style, prompt_keywords, pool,
                                       is_long_room=is_long_room,
+                                      is_small_room=is_small_room,
                                       budget_tier=budget_tier,
                                       preferred_store=preferred_store,
                                       must_categories=must)
@@ -680,6 +725,7 @@ def match_furniture(
         scored = [
             (score_item(it, style, prompt_keywords,
                         is_long_room=is_long_room,
+                        is_small_room=is_small_room,
                         preferred_store=preferred_store), it)
             for it in chosen_pool
         ]
@@ -821,14 +867,33 @@ def parse_max_width_cm(estimated_size: str, room_dims: dict | None = None) -> in
             return int(short_side * 100 * 0.55)
 
     # 從坪數字串提取數字範圍的下限
-    import re
     nums = re.findall(r'\d+', str(estimated_size))
     if nums:
         sqping = int(nums[0])  # 取下限
         sqm = sqping * 3.305
         short_side_est = (sqm ** 0.5) * 0.85  # 估算短邊
         return int(short_side_est * 100 * 0.55)
-    return 300  # 無法判斷時不過濾
+    # 完全無法判斷空間大小：真實目錄（momo/pchome）99% 商品沒填 dimensions，
+    # 數值過濾本身幾乎不會生效，這個預設主要靠下面的關鍵字降權把關。
+    # 寧可保守（可能誤降權中型沙發）也不要放任特大件（GPT+Grok 共識）。
+    return SMALL_ROOM_MAX_WIDTH_DEFAULT
+
+
+def _extract_width_cm(dims: str) -> int | None:
+    """從 dimensions 字串抓寬度（cm）。真實目錄（momo/pchome 爬蟲）格式很雜，
+    只認 'W270' 會漏掉大多數真實商品（例：'-270cm-'）。依序嘗試：
+      1. 'W270' / 'W 270' 標準格式
+      2. 裸數字+cm（'-270cm-' 這類單一尺寸描述，電商常只標最長邊/寬度）
+    抓不到回 None（不過濾，維持原行為，不誤判深度/高度當寬度）。"""
+    if not dims:
+        return None
+    w_match = re.search(r'W\s*(\d+)', dims)
+    if w_match:
+        return int(w_match.group(1))
+    bare_match = re.search(r'(\d+)\s*cm', dims)
+    if bare_match:
+        return int(bare_match.group(1))
+    return None
 
 
 def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
@@ -837,13 +902,9 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
         return items
     result = []
     for item in items:
-        dims = item.get("dimensions", "")
-        import re
-        w_match = re.search(r'W(\d+)', dims)
-        if w_match:
-            w = int(w_match.group(1))
-            if w > max_width_cm:
-                continue  # 家具太大，跳過
+        w = _extract_width_cm(item.get("dimensions", ""))
+        if w is not None and w > max_width_cm:
+            continue  # 家具太大，跳過
         result.append(item)
     return result
 
@@ -882,6 +943,12 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
         print(f"[furniture_match] 客廳長寬比={aspect:.2f}  is_long_room={is_long_room}"
               + (f"  → L/U/沙發床 降權 {LONG_ROOM_SHAPE_PENALTY}" if is_long_room else ""))
 
+    # 小空間 / 尺寸不明判定（root cause fix for C15719C5 — 270cm 法式沙發把客廳擠小）
+    is_small_room = max_w <= SMALL_ROOM_MAX_WIDTH_DEFAULT
+    if is_small_room:
+        print(f"[furniture_match] 空間偏小或尺寸不明 (上限={max_w}cm) "
+              f"→ 電動/三人座/加大沙發降權 {SMALL_ROOM_OVERSIZED_PENALTY}")
+
     print(f"[furniture_match] budget_tier={budget_tier} preferred_store={preferred_store}")
 
     enriched = []
@@ -892,6 +959,7 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
         room_catalog = filter_by_dimensions(catalog, max_w)
         matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode=room_type,
                                   is_long_room=is_long_room,
+                                  is_small_room=is_small_room,
                                   budget_tier=budget_tier,
                                   preferred_store=preferred_store)
         matched = matched[:5]
