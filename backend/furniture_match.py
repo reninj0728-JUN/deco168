@@ -296,6 +296,7 @@ def extract_categories_from_prompt(flux_prompt: str) -> list[str]:
 # aspect_ratio = max(L,W) / min(L,W)
 # 跨所有風格，不只 nordic
 LONG_ROOM_ASPECT_THRESHOLD = 2.0      # >= 2.0 才觸發
+LONG_ROOM_ABS_LENGTH_M     = 6.0      # 或長邊 >= 6m（66784D97: 7.5×3.8 比例 1.97 差點漏掉）
 LONG_ROOM_SHAPE_PENALTY    = -5.0     # 大降權但不硬排除（catalog 無直線替代時仍可保命）
 LONG_ROOM_BAD_SHAPE_KW = [
     # L 型
@@ -340,6 +341,11 @@ TIER3_PRICE_FLOOR = {
 LUXURY_MISMATCH_STYLES  = ("luxury", "french", "art-deco")
 LUXURY_MISMATCH_KW      = ["日式", "無印", "北歐", "和風", "muji"]
 LUXURY_MISMATCH_PENALTY = -3.0
+
+# 「地毯」類的功能性雜項（浴室墊/門墊/防滑墊/巧拼）不該當客廳主地毯
+# （66784D97：都會簡約 20 萬方案主清單出現「防滑橡膠地墊 NT$899」）。降權不硬排除。
+RUG_JUNK_KW      = ["地墊", "防滑", "門墊", "腳踏墊", "巧拼", "浴室", "止滑"]
+RUG_JUNK_PENALTY = -4.0
 
 
 # ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
@@ -550,6 +556,12 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
         _nm = (item.get("name_zh") or "")
         if any(kw in _nm for kw in LUXURY_MISMATCH_KW):
             score += LUXURY_MISMATCH_PENALTY
+
+    # 地毯類的功能性雜項（地墊/防滑墊/門墊）降權 — 不該當主地毯
+    if resolve_category(item) == "rug":
+        _nm2 = (item.get("name_zh") or "")
+        if any(kw in _nm2 for kw in RUG_JUNK_KW):
+            score += RUG_JUNK_PENALTY
 
     # 賣場偏好加分
     score += _store_bonus(item, preferred_store)
@@ -1001,10 +1013,20 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
     print(f"[furniture_match] 空間: {estimated_size} → 傢俱寬度上限: {max_w}cm")
 
     # 長條型客廳判定（root cause fix for L sofa-in-narrow-room）
+    # 66784D97 抓漏：7.5×3.8m 房長寬比 1.97 差 0.03 沒過門檻 → L 沙發照配。
+    # 縱深 >= 6m 的房不管比例都是長房（沙發沿長牆、走道縱貫），補絕對深度條件。
     aspect = compute_room_aspect_ratio(room_dims)
-    is_long_room = aspect >= LONG_ROOM_ASPECT_THRESHOLD
+    _long_side = 0.0
+    if isinstance(room_dims, dict):
+        try:
+            _long_side = max(float(room_dims.get("length_m") or 0),
+                             float(room_dims.get("width_m") or 0))
+        except (TypeError, ValueError):
+            _long_side = 0.0
+    is_long_room = (aspect >= LONG_ROOM_ASPECT_THRESHOLD) or (_long_side >= LONG_ROOM_ABS_LENGTH_M)
     if aspect > 0:
-        print(f"[furniture_match] 客廳長寬比={aspect:.2f}  is_long_room={is_long_room}"
+        print(f"[furniture_match] 客廳長寬比={aspect:.2f} 長邊={_long_side:.1f}m "
+              f"is_long_room={is_long_room}"
               + (f"  → L/U/沙發床 降權 {LONG_ROOM_SHAPE_PENALTY}" if is_long_room else ""))
 
     # 小空間 / 尺寸不明判定（root cause fix for C15719C5 — 270cm 法式沙發把客廳擠小）

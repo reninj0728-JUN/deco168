@@ -787,35 +787,35 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
 _RT_TO_ZONE_KEY = {"living": "living_zone", "dining": "dining_zone"}
 
 
-def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tuple[str, bool]:
-    """回傳 (要用的底圖路徑, 是否有裁切)。"""
+def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tuple[str, bool, str]:
+    """回傳 (要用的底圖路徑, 是否有裁切, 沒裁時的具體原因)。"""
     zone_key = _RT_TO_ZONE_KEY.get(room_type)
     if not zone_key or not base_path:
-        return base_path, False
+        return base_path, False, "房型不適用或缺底圖"
     try:
         import cv2
         from zoning_v2 import compute_zoning_v2
         img = cv2.imread(base_path)
         if img is None:
-            return base_path, False
+            return base_path, False, "底圖讀取失敗"
         H, W = img.shape[:2]
         # 單張重跑 zoning → bbox 必落在這張上（零跨元件對齊風險）
         zres = compute_zoning_v2([Path(base_path)], video_keyframes=None)
         if not isinstance(zres, dict) or zres.get("error"):
-            return base_path, False
+            return base_path, False, f"zoning 失敗: {str((zres or {}).get('error'))[:60]}"
         zones = zres.get("proposed_zones") or {}
         bbox = (zones.get(zone_key) or {}).get("bbox_on_best_photo")
         if not bbox or len(bbox) != 4:
-            return base_path, False
+            return base_path, False, f"{zone_key} 無 bbox"
         ymin, xmin, ymax, xmax = [float(v) for v in bbox]
         fy0, fx0, fy1, fx1 = ymin / 1000.0, xmin / 1000.0, ymax / 1000.0, xmax / 1000.0
         bw, bh = (fx1 - fx0), (fy1 - fy0)
         if bw <= 0 or bh <= 0:
-            return base_path, False
+            return base_path, False, f"bbox 退化 ({bw:.2f}x{bh:.2f})"
         area = bw * bh
         if area < 0.25:   # zone 太小＝不可靠，不裁
             print(f"[pipeline] (i) {room_type} zone 太小 area={area:.2f}，用整張")
-            return base_path, False
+            return base_path, False, f"zone 面積 {area:.2f} < 0.25"
         # 動態外擴：大區小擴(6%)、小區多擴(12%)，保留一點鄰接感又不切到家具。
         # 63B7B5C9 回饋：原本 10%/20% 裁完還剩大半張，客戶感覺不到「特寫」——
         # 收緊外擴讓單房聚焦真的看得出來；面積/比例守門不變，不確定仍回原圖。
@@ -824,21 +824,21 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         fx1 = min(1.0, fx1 + margin); fy1 = min(1.0, fy1 + margin)
         x0, y0, x1, y1 = int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)
         if (x1 - x0) < W * 0.30 or (y1 - y0) < H * 0.30:
-            return base_path, False
+            return base_path, False, f"裁切框過小 ({x1-x0}x{y1-y0} on {W}x{H})"
         aspect = (x1 - x0) / max(1, (y1 - y0))
         if aspect < 0.45 or aspect > 2.6:   # 比例異常→不裁
             print(f"[pipeline] (i) {room_type} 裁切比例異常 {aspect:.2f}，用整張")
-            return base_path, False
+            return base_path, False, f"裁切比例異常 {aspect:.2f}"
         crop = img[y0:y1, x0:x1]
         out_path = str(Path(job_dir) / f"crop_{room_type}_{idx:02d}.jpg")
         if not cv2.imwrite(out_path, crop):
-            return base_path, False
+            return base_path, False, "裁切檔寫入失敗"
         print(f"[pipeline] (i) {room_type} 裁成單房視角 area={area:.2f} margin={margin} "
               f"box=({x0},{y0},{x1},{y1})")
-        return out_path, True
+        return out_path, True, ""
     except Exception as e:
         print(f"[pipeline] (i) {room_type} 裁切例外，用整張: {e}")
-        return base_path, False
+        return base_path, False, f"例外: {type(e).__name__}"
 
 
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
@@ -1418,11 +1418,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if not (isinstance(_contains, list) and len(_contains) >= 2):
                     crop_notes[_i] = f"photo_contains={_contains} 非多區廣角照"
                     continue   # 專屬單房照片，不裁
-                _new_base, _did = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
+                _new_base, _did, _why = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
                 flux_bases[_i] = _new_base
                 crop_flags[_i] = _did
                 if not _did:
-                    crop_notes[_i] = "zoning bbox 守門未過（面積/比例/zone 缺失，詳見 log）"
+                    crop_notes[_i] = _why or "守門未過"
         else:
             crop_notes = [f"space_type={space_type} 不適用裁切"] * len(flux_bases)
 
@@ -1761,6 +1761,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     new_r["_room_type"]   = entry.get("_room_type", "living")
                     new_r["_base_path"]   = entry.get("_base_path")
                     new_r["cropped"]      = bool(entry.get("_cropped"))
+                    new_r["crop_note"]    = entry.get("_crop_note") or None
                     new_r["retry_count"]  = current_rc + 1
                     new_r["retry_reason"] = retry_reason
                     final[idx] = new_r
@@ -1859,6 +1860,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 new_r["_room_type"]   = entry.get("_room_type", "living")
                 new_r["_base_path"]   = entry.get("_base_path")
                 new_r["cropped"]      = bool(entry.get("_cropped"))
+                new_r["crop_note"]    = entry.get("_crop_note") or None
                 new_r["retry_count"]  = int(r.get("retry_count") or 0) + 1
                 new_r["retry_reason"] = "phase2 hardfix"
                 # 補生後不再是硬傷才取代；仍硬傷則保留原狀（後續 needs_regen 記錄）
