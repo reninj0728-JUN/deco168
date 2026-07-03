@@ -347,6 +347,12 @@ LUXURY_MISMATCH_PENALTY = -3.0
 RUG_JUNK_KW      = ["地墊", "防滑", "門墊", "腳踏墊", "巧拼", "浴室", "止滑"]
 RUG_JUNK_PENALTY = -4.0
 
+# 電競系商品（碳纖維電競桌/RGB/電競椅）只適合 modern/industrial 調性——
+# 343FFAE7 奶油暖居書房被配到「碳纖維紋理電競桌」，跟奶油風完全不搭。降權不硬排除。
+GAMING_KW              = ["電競", "carbon fiber", "碳纖維", "rgb"]
+GAMING_ALLOWED_STYLES  = ("modern", "industrial")
+GAMING_MISMATCH_PENALTY = -4.0
+
 
 # ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
 #
@@ -562,6 +568,12 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
         _nm2 = (item.get("name_zh") or "")
         if any(kw in _nm2 for kw in RUG_JUNK_KW):
             score += RUG_JUNK_PENALTY
+
+    # 電競系商品配到非 modern/industrial 風格 → 降權（奶油風書房不該出現電競桌）
+    if style not in GAMING_ALLOWED_STYLES:
+        _nm3 = ((item.get("name_zh") or "") + " " + (item.get("flux_descriptor") or "")).lower()
+        if any(kw in _nm3 for kw in GAMING_KW):
+            score += GAMING_MISMATCH_PENALTY
 
     # 賣場偏好加分
     score += _store_bonus(item, preferred_store)

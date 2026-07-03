@@ -777,6 +777,10 @@ ROOM_FURNISH = {
     "bedroom": (
         "ROOM TYPE — BEDROOM: Furnish this room as a BEDROOM, NOT a living room. "
         "Place the BED centered against the main solid wall with the headboard against the wall. "
+        "HEADBOARD WALL PRIORITY: the headboard must go against a SOLID wall — NEVER under or "
+        "against a window, and never blocking a window or balcony door, as long as any solid "
+        "wall in the room can fit the bed. If the room is large, do not push the bed into the "
+        "window end; keep it on the solid-wall side with clear space around it. "
         "Add a nightstand beside the bed and a wardrobe / chest of drawers against another wall. "
         "You may add a rug under or beside the bed, a bedside or floor lamp, soft bedding, "
         "curtains, and a piece of wall art. "
