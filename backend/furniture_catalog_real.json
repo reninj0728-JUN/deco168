@@ -18846,7 +18846,10 @@
     "brand": "IKEA",
     "category": "窗簾",
     "style_tags": [
-      "nordic"
+      "nordic",
+      "muji",
+      "japanese",
+      "wood"
     ],
     "keywords": [
       "IKEA",
@@ -34636,7 +34639,8 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "nordic"
+      "nordic",
+      "wood"
     ],
     "colors": [
       "淺灰",
@@ -34744,7 +34748,9 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "nordic"
+      "nordic",
+      "muji",
+      "japanese"
     ],
     "colors": [
       "米白色"
@@ -34868,7 +34874,8 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "modern"
+      "modern",
+      "chinese-modern"
     ],
     "colors": [
       "淺灰色",
@@ -34904,7 +34911,8 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "nordic"
+      "nordic",
+      "wood"
     ],
     "colors": [
       "米白",
@@ -35030,7 +35038,10 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "nordic"
+      "nordic",
+      "muji",
+      "japanese",
+      "wood"
     ],
     "colors": [
       "白色"
@@ -35280,7 +35291,9 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "cream"
+      "cream",
+      "french",
+      "wood"
     ],
     "colors": [
       "米白",
@@ -35333,7 +35346,8 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "modern"
+      "modern",
+      "chinese-modern"
     ],
     "colors": [
       "白色",
@@ -35387,7 +35401,9 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "modern"
+      "modern",
+      "muji",
+      "japanese"
     ],
     "colors": [
       "white",
@@ -35459,7 +35475,9 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "cream"
+      "cream",
+      "french",
+      "muji"
     ],
     "colors": [
       "米白色",
@@ -35495,7 +35513,9 @@
     "source": "hola",
     "category": "窗簾",
     "style_tags": [
-      "modern"
+      "modern",
+      "chinese-modern",
+      "industrial"
     ],
     "colors": [
       "灰色",
