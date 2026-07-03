@@ -127,6 +127,11 @@ SOFT_STYLE_CAT_PRIORITY = {
     'wood': ['plant', 'curtain', 'lighting', 'wall_art', 'vase', 'textile', 'pillow', 'decor'],
 }
 
+# 紗簾延伸購買項目：厚窗簾+紗簾是常見的雙層窗簾組合，渲染圖常見這個層次，
+# 但軟裝配對每類目只選 1 件，紗簾原本完全沒被獨立列出來（用戶回饋：
+# 圖上有紗窗，清單卻只有厚窗簾，資料庫其實有 91 件窗簾裡 11 件是紗簾）。
+SHEER_CURTAIN_KW = ["紗簾", "紗窗", "薄紗", "紗質", "voile", "sheer"]
+
 # 軟裝單件預算上限 (不算主總計, 但仍隨 tier 控制單件不要太貴)
 SOFT_FURNISHING_CAP = {
     'tier1': 3000,
@@ -894,6 +899,28 @@ def match_soft_furnishing(
         ]
         scored.sort(key=lambda x: -x[0])
         selected.append(scored[0][1])
+
+    # 紗簾延伸項目：主窗簾若不是紗質款，額外配一件紗簾當「延伸購買品項」——
+    # 不佔前面 5 件主配額（append 在迴圈外，len(selected) 上限檢查管不到這裡），
+    # 也不會被拿去當生成參考圖（prompt_builder 每類目只取第 1 件當視覺參考，
+    # 這件排第二，自動只進購物清單、不影響渲染畫面）。
+    curtain_pick = next((it for it in selected if resolve_category(it) == "curtain"), None)
+    if curtain_pick and not any(kw in (curtain_pick.get("name_zh") or "") for kw in SHEER_CURTAIN_KW):
+        sheer_pool = [
+            it for it in catalog
+            if resolve_category(it) == "curtain"
+            and any(kw in (it.get("name_zh") or "") for kw in SHEER_CURTAIN_KW)
+            and _has_url(it)
+            and it.get("id") != curtain_pick.get("id")
+        ]
+        if sheer_pool:
+            scored_sheer = [
+                (score_item(it, style, [], match_style=True, preferred_store=preferred_store), it)
+                for it in sheer_pool
+            ]
+            scored_sheer.sort(key=lambda x: -x[0])
+            selected.append(scored_sheer[0][1])
+
     return selected
 
 
