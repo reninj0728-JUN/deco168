@@ -1101,6 +1101,17 @@ function getSelectedDirectionsJson() {
 }
 
 function submitForm() {
+  // 方案含 2 種風格——只選 1 個時提醒（客戶測試 67ADA338：只選 1 風格付了含 2 風格的方案，
+  // 拿到一半成品還以為是系統問題）。不硬擋：有人就是只要 1 種。
+  if (selectedDirections.length === 0) {
+    alert('請至少選擇 1 個設計方向');
+    return;
+  }
+  if (selectedDirections.length === 1 &&
+      !confirm('你的方案包含 2 種風格，目前只選了 1 個設計方向。\n\n' +
+               '按「確定」→ 只出 1 種風格\n按「取消」→ 回去加選第 2 種（不加價）')) {
+    return;
+  }
   var styleIds = getSelectedStyleId();
   localStorage.setItem('deco_style',       styleIds);
   localStorage.setItem('deco_style_count', String(selectedDirections.length));

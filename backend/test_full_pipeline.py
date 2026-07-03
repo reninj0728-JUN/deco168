@@ -705,9 +705,10 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
             "lights or moldings, KEEP them unchanged; if it does not, do NOT add any. "
             "ONLY change movable furniture, soft furnishings (rugs, curtains, cushions), decor objects, "
             "and lighting mood — any NEW light source must be a PORTABLE fixture (table lamp, floor lamp, "
-            "plug-in pendant); never build new recessed lights, LED strips or lighting troughs. "
-            "No under-furniture / under-bed glow. Furniture must stand on legs on the floor — no "
-            "floating furniture."
+            "plug-in pendant); never build new recessed lights, LED strips or lighting troughs into the "
+            "room itself. Do NOT invent floating furniture or under-furniture glow — UNLESS a referenced "
+            "catalog product is designed that way (e.g. a floating bed frame with built-in light strip): "
+            "then render that product faithfully as its product image shows."
         )
     else:
         parts.append(
