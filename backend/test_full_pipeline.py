@@ -696,15 +696,18 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
         parts.append(f"walls: {feats['walls']};")
 
     if design_mode == "furnish":
-        # 「lighting mood」曾被模型發揮成整圈 cove 間接照明＋懸浮床底燈帶（67ADA338，
-        # furnish 單被做出裝潢等級的天花板工程）——講死：燈光只能來自「擺得上去的燈具」。
+        # 天花板「照原樣」雙向講清楚：原照有 cove/嵌燈 → 原封保留（不是拆掉）；
+        # 原照沒有 → 不准新增。新加的燈光只能來自「擺得上去的燈具」。
+        # 另：家具必須腳著地（曾出現懸浮床＋床底燈帶的物理不可能家具）。
         parts.append(
-            "MODE: furniture-only restyle. DO NOT modify walls, ceiling, doors, windows, floor finish. "
+            "MODE: furniture-only restyle. DO NOT modify walls, ceiling, doors, windows, floor finish — "
+            "keep them EXACTLY as the source photo: if the photo already has cove lighting, recessed "
+            "lights or moldings, KEEP them unchanged; if it does not, do NOT add any. "
             "ONLY change movable furniture, soft furnishings (rugs, curtains, cushions), decor objects, "
-            "and lighting mood — where lighting means PORTABLE fixtures only (table lamps, floor lamps, "
-            "a plug-in pendant). STRICTLY FORBIDDEN: recessed downlights, LED strips, cove / indirect "
-            "lighting troughs, under-furniture or under-bed glow, or ANY change to the ceiling surface. "
-            "Furniture must stand on legs on the floor — no floating furniture."
+            "and lighting mood — any NEW light source must be a PORTABLE fixture (table lamp, floor lamp, "
+            "plug-in pendant); never build new recessed lights, LED strips or lighting troughs. "
+            "No under-furniture / under-bed glow. Furniture must stand on legs on the floor — no "
+            "floating furniture."
         )
     else:
         parts.append(
