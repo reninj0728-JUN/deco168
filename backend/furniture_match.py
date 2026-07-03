@@ -919,7 +919,12 @@ def match_soft_furnishing(
                 for it in sheer_pool
             ]
             scored_sheer.sort(key=lambda x: -x[0])
-            selected.append(scored_sheer[0][1])
+            # 紗簾目錄只標了 nordic/modern/cream 三種風格（用戶查證抓到：11 件裡
+            # 7 種風格完全沒標籤）。沒標籤的風格會讓所有候選同分，排序退化成
+            # 純目錄順序——與其挑一件不對版的充數，寧可不加。base 分數只有
+            # image(+1)+purchase_url(+0.5)=1.5，>1.5 代表真的吃到風格加分。
+            if scored_sheer[0][0] > 1.5:
+                selected.append(scored_sheer[0][1])
 
     return selected
 
