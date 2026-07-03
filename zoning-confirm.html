@@ -442,7 +442,9 @@
           if (d && d.styleName) names.push(d.styleName + (d.colorName ? '（' + d.colorName + '）' : ''));
         });
       } catch (e) {}
-      var spaceZh = isWhole ? '全室多空間' : (_ROOM_ZH[st] || st);
+      // 「空間」直接標風格數，不用另外一行重複講（用戶回饋：訂單摘要跟下面清單重複敘述）
+      var _snForSpace = _styleCount();
+      var spaceZh = (isWhole ? '全室多空間' : (_ROOM_ZH[st] || st)) + '，含 ' + _snForSpace + ' 種風格';
       var dm = localStorage.getItem('deco_design_mode') || 'furnish';
       var dmZh = (dm === 'full') ? '家具＋軟裝＋裝潢（牆面 / 天花）' : '家具＋軟裝';
       var cl = document.getElementById('payChoiceLine');
@@ -464,15 +466,15 @@
           _row('空間', spaceZh) + _row('風格', names.join('、')) + _feeRow + _row('設計範圍', dmZh, true) +
           '</div>';
       }
+      // 「此方案包含」只列實際交付項目，空間/風格數已在上面「空間」那行講過，這裡不重複
       var dl = document.getElementById('payDeliverList');
       if (dl) {
-        var _sn = _styleCount();
         var items = isWhole
-          ? ['客廳／餐廳／主臥／書房等多空間 × ' + _sn + ' 種風格的設計圖',
+          ? ['每個空間的設計渲染圖',
              '每個空間的可購買家具清單（附價格與連結）',
              '空間格局與採光分析（文字）',
              '可下載的設計手冊 PDF']
-          : ['2 種風格的空間設計圖',
+          : ['每種風格的設計渲染圖',
              '每張圖的可購買家具清單（附價格與連結）',
              '空間格局與採光分析（文字）',
              '可下載的設計手冊 PDF'];

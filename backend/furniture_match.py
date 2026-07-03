@@ -353,6 +353,13 @@ GAMING_KW              = ["電競", "carbon fiber", "碳纖維", "rgb"]
 GAMING_ALLOWED_STYLES  = ("modern", "industrial")
 GAMING_MISMATCH_PENALTY = -4.0
 
+# 多件商品合照（B4174D56：「深色木製方桌、長條桌、座椅套組」被當單一書桌參考圖，
+# 畫面裡同時有方桌+長凳+邊櫃三種家具，AI 參考混亂，渲染出走樣的桌子）。
+# 精準比對「名詞、名詞…套組/組合/件套」——只抓真的用頓號/「與」明確列出
+# 多樣家具的商品名，不誤傷「組合式書桌」這種單件家具的複合命名。
+_MULTI_PIECE_BUNDLE_RE = re.compile(r'.+[、與].+(套組|組合|件套|全套)$')
+MULTI_PIECE_BUNDLE_PENALTY = -5.0
+
 
 # ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
 #
@@ -575,6 +582,10 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
         if any(kw in _nm3 for kw in GAMING_KW):
             score += GAMING_MISMATCH_PENALTY
 
+    # 多件商品合照（一張圖裡有 2+ 種不同家具）當單一家具參考會誤導渲染，降權
+    if _MULTI_PIECE_BUNDLE_RE.search((item.get("name_zh") or "").strip()):
+        score += MULTI_PIECE_BUNDLE_PENALTY
+
     # 賣場偏好加分
     score += _store_bonus(item, preferred_store)
 
@@ -604,6 +615,18 @@ def _pick_best_in_category(
       open     : 完全放寬（不過濾預算）— 保證 must_have 永不空
     """
     cap = _budget_cap_for(budget_tier, target_cat)
+
+    # 多件商品合照優先排除（B4174D56：某風格的該品類只有 1 件目錄商品、還是多件套時，
+    # 純降權分數贏不了「沒有對手」——同風格/相近風格池要直接排掉，篩完空了才退回原池。
+    # Stage C（must-have 保命，跨所有風格）不套用，保證極端情況下 must-have 仍不會空。
+    def _prefer_non_bundle(pool: list[dict]) -> list[dict]:
+        # 刻意不做「篩完空了退回原池」——這裡要的就是「同風格只剩多件套」時
+        # 讓 Stage A/B 判定成沒有可用商品，逼它掉到 Stage C 跨風格找單件商品。
+        # Stage C 本身沒套這個過濾，仍保證 must-have 極端狀況下不會空。
+        return [
+            it for it in pool
+            if not _MULTI_PIECE_BUNDLE_RE.search((it.get("name_zh") or "").strip())
+        ]
 
     # tier3 質感底線：太便宜的茶几/地毯/電視櫃不進高預算主家具；
     # 底線篩完空了就回退原池（保證 must-have 永不缺）
@@ -646,11 +669,11 @@ def _pick_best_in_category(
         return [it for it in items if _under_budget(it, cap_to_use)]
 
     # Stage A: 嚴格同風格
-    primary = _apply_tier3_floor([
+    primary = _apply_tier3_floor(_prefer_non_bundle([
         it for it in catalog
         if resolve_category(it) == target_cat
         and style in it.get("style_tags", [])
-    ])
+    ]))
     if primary:
         # 1. 嚴格預算
         chosen = _scored_in_pool(_filter(primary, cap), match_style=True)
@@ -673,11 +696,11 @@ def _pick_best_in_category(
     # Stage B: fallback 到相近風格（同 category）
     related = _get_related_styles(style)
     if related:
-        fallback = _apply_tier3_floor([
+        fallback = _apply_tier3_floor(_prefer_non_bundle([
             it for it in catalog
             if resolve_category(it) == target_cat
             and any(s in it.get("style_tags", []) for s in related)
-        ])
+        ]))
         if fallback:
             # 1. 嚴格預算
             chosen = _scored_in_pool(_filter(fallback, cap), match_style=False)

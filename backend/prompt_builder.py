@@ -1060,7 +1060,16 @@ def _build_nonliving_nano_inputs(
         sections.append(customer_sec)
     if retry_sec:
         sections.append(retry_sec)
-    sections.extend([NONLIVING_CRITICAL, QUALITY_TAIL])
+    # 跨房一致性的重點提醒放進 CRITICAL 段再講一次——這段是 prompt 最後讀到的部分，
+    # 長 prompt 裡越後面的鐵則越容易被模型當真（跟其他 CRITICAL 子句同一套邏輯）。
+    _critical = NONLIVING_CRITICAL
+    if consistency_sec:
+        _critical = _critical + (
+            " (g) If the already-designed living area (the extra reference image) is visible "
+            "in this photo's background, its wall colour/finish and furniture MUST match that "
+            "reference exactly — this is as important as the room-type rule above."
+        )
+    sections.extend([_critical, QUALITY_TAIL])
 
     _pal = _palette_clause(entry, design_mode)
     return {

@@ -671,7 +671,8 @@
   <div class="form-section">
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">設計方向</div>
-    <p style="font-size:13px;color:#999;margin-bottom:16px;line-height:1.7;">選擇 <strong style="color:var(--gold)">2 種</strong>風格方向，我們會為每種風格各做一張設計提案。</p>
+    <p id="styleIntro" style="font-size:13px;color:#999;margin-bottom:6px;line-height:1.7;">選擇 <strong style="color:var(--gold)">2 種</strong>風格方向，我們會為每種風格各做一張設計提案。</p>
+    <p id="wholeAddonNote" style="display:none;font-size:12px;color:var(--gold);margin-bottom:16px;line-height:1.7;">全室方案基本含 1 種風格；想再加風格可加選，第 2 種 +NT$500、第 3 種再 +NT$500。</p>
 
     <!-- 已選方向 chips -->
     <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
@@ -859,10 +860,15 @@ function maxDirections() {
 function updateStyleCounter() {
   var st = document.getElementById('spaceType');
   var isWhole = st && st.value === 'whole';
-  var extra = isWhole && selectedDirections.length >= 1
-    ? '（全室方案含 1 種風格，第 2、3 種每種 +NT$500）' : '';
+  // 加購說明獨立一行常駐顯示（不塞進計數器文字裡），選之前就先讓客戶知道規則
+  var intro = document.getElementById('styleIntro');
+  var addonNote = document.getElementById('wholeAddonNote');
+  if (intro) intro.innerHTML = isWhole
+    ? '全室方案<strong style="color:var(--gold)">基本含 1 種</strong>風格，最多可加選到 <strong style="color:var(--gold)">3 種</strong>。'
+    : '選擇 <strong style="color:var(--gold)">2 種</strong>風格方向，我們會為每種風格各做一張設計提案。';
+  if (addonNote) addonNote.style.display = isWhole ? 'block' : 'none';
   document.getElementById('styleCounter').textContent =
-    '已選 ' + selectedDirections.length + ' / ' + maxDirections() + ' 個方向' + extra;
+    '已選 ' + selectedDirections.length + ' / ' + maxDirections() + ' 個方向';
 }
 
 function buildStyleGrid() {
