@@ -127,6 +127,24 @@
         document.getElementById('statusText').textContent = '✓ 設計完成';
         document.getElementById('statusText').className = 'status-value done';
         document.getElementById('processingNote').style.display = 'none';
+        // 完整成品頁入口：家具清單/軟裝建議/設計手冊 PDF/購物清單都在成品頁，
+        // 這裡只放快速下載圖——之前只有圖沒有入口，客戶以為成品只有圖片
+        var openBox = document.getElementById('openResultBox');
+        if (!openBox) {
+          openBox = document.createElement('div');
+          openBox.id = 'openResultBox';
+          openBox.style.cssText = 'margin:14px 0 4px;';
+          openBox.innerHTML =
+            '<a href="result.html?job=' + encodeURIComponent(jobId) + '" ' +
+            'style="display:block;text-align:center;padding:16px;background:var(--gold,#C9A96E);color:#111;' +
+            'text-decoration:none;font-size:14px;letter-spacing:2px;">查看完整成品頁（含家具清單 · 設計手冊 PDF · 購物清單）→</a>' +
+            '<div style="font-size:11px;color:var(--muted,#888);margin-top:8px;text-align:center;">下方按鈕可單獨下載各張設計圖</div>';
+          var rs = document.getElementById('resultSection');
+          rs.insertBefore(openBox, document.getElementById('renderList'));
+        } else {
+          openBox.querySelector('a').href = 'result.html?job=' + encodeURIComponent(jobId);
+          openBox.style.display = 'block';
+        }
         loadResult(jobId);
       } else if (status.status === 'failed') {
         document.getElementById('statusText').textContent = '處理失敗，請聯絡客服';

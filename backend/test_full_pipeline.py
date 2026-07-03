@@ -696,9 +696,15 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
         parts.append(f"walls: {feats['walls']};")
 
     if design_mode == "furnish":
+        # 「lighting mood」曾被模型發揮成整圈 cove 間接照明＋懸浮床底燈帶（67ADA338，
+        # furnish 單被做出裝潢等級的天花板工程）——講死：燈光只能來自「擺得上去的燈具」。
         parts.append(
             "MODE: furniture-only restyle. DO NOT modify walls, ceiling, doors, windows, floor finish. "
-            "ONLY change movable furniture, soft furnishings (rugs, curtains, cushions), decor objects, and lighting mood."
+            "ONLY change movable furniture, soft furnishings (rugs, curtains, cushions), decor objects, "
+            "and lighting mood — where lighting means PORTABLE fixtures only (table lamps, floor lamps, "
+            "a plug-in pendant). STRICTLY FORBIDDEN: recessed downlights, LED strips, cove / indirect "
+            "lighting troughs, under-furniture or under-bed glow, or ANY change to the ceiling surface. "
+            "Furniture must stand on legs on the floor — no floating furniture."
         )
     else:
         parts.append(

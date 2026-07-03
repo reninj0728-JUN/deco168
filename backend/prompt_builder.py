@@ -339,6 +339,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
             "directly across from the sofa and horizontally aligned with the sofa's centre — a "
             "centred, face-to-face pair. Do NOT push it toward the window end, into a corner, or "
             "offset down the length of the room; its centre should line up with the sofa's centre. "
+            "ENTRANCE DOOR: the sofa must NEVER directly face the apartment's main entrance door. "
+            "If the wall opposite the sofa contains the entry door, slide the sofa + focal pair "
+            "along their walls so the sofa faces the SOLID section of that wall (away from the "
+            "door), keeping the door swing and its approach completely clear. "
             "The focal "
             "wall MUST NOT be left as bare paint or a single small frame on its own. The "
             "anchor MUST be ONE of the following real furniture pieces: a low media "
@@ -935,8 +939,8 @@ def _palette_clause(entry: dict, design_mode: str = "furnish") -> str:
     return (
         f"COLOUR PALETTE — 配色以「{pal}」為主調，但【只作用在家具與軟裝】：沙發、窗簾、地毯、"
         f"抱枕、燈具等的顏色朝「{pal}」靠攏，形成『{pal}』氛圍。"
-        f"【牆面與天花板必須保持照片原樣的顏色與材質，一律不得重新粉刷、貼皮或改色】——"
-        f"本方案為家具＋軟裝，不含任何牆面/天花板工程。"
+        f"【牆面、天花板與門窗必須保持照片原樣的顏色與材質，一律不得重新粉刷、貼皮或改色】——"
+        f"本方案為家具＋軟裝，不含任何牆面/天花板/門窗工程。"
     )
 
 
