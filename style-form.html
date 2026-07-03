@@ -851,9 +851,18 @@ var selectedBudgetTier = 'tier2';
 var selectedDirections = []; // [{styleId, styleName, colorId, colorName}]
 var pendingStyle = null;
 
+// 新定價：單一空間 999 含 2 風格；全室 1,199 含 1 風格、第 2/3 種每種 +500（輕鬆標註不推銷）
+function maxDirections() {
+  var st = document.getElementById('spaceType');
+  return (st && st.value === 'whole') ? 3 : 2;
+}
 function updateStyleCounter() {
+  var st = document.getElementById('spaceType');
+  var isWhole = st && st.value === 'whole';
+  var extra = isWhole && selectedDirections.length >= 1
+    ? '（全室方案含 1 種風格，第 2、3 種每種 +NT$500）' : '';
   document.getElementById('styleCounter').textContent =
-    '已選 ' + selectedDirections.length + ' / 2 個方向';
+    '已選 ' + selectedDirections.length + ' / ' + maxDirections() + ' 個方向' + extra;
 }
 
 function buildStyleGrid() {
@@ -869,7 +878,9 @@ function buildStyleGrid() {
       <div class="style-hint">${s.hint}</div>
     `;
     card.addEventListener('click', () => {
-      if (selectedDirections.length >= 2) { alert('最多 2 個設計方向'); return; }
+      if (selectedDirections.length >= maxDirections()) {
+        alert('最多 ' + maxDirections() + ' 個設計方向'); return;
+      }
       pendingStyle = s;
       document.querySelectorAll('.style-card').forEach(c => c.classList.remove('pending'));
       card.classList.add('pending');
@@ -1072,6 +1083,13 @@ function updateSummary() {
 document.getElementById('spaceType').addEventListener('change', function() {
   updateSummary();
   toggleBudgetForWhole();
+  // 全室(上限3)切回單一(上限2)時，超出的方向移除並提示
+  if (selectedDirections.length > maxDirections()) {
+    selectedDirections = selectedDirections.slice(0, maxDirections());
+    updateDirectionChips();
+    alert('單一空間方案含 2 種風格，已保留前 2 個設計方向');
+  }
+  updateStyleCounter();
 });
 
 function toggleBudgetForWhole() {
@@ -1107,7 +1125,9 @@ function submitForm() {
     alert('請至少選擇 1 個設計方向');
     return;
   }
-  if (selectedDirections.length === 1 &&
+  // 單一空間含 2 風格：只選 1 個時提醒可免費加選；全室含 1 風格：不用提醒
+  var _isWholeNow = document.getElementById('spaceType').value === 'whole';
+  if (!_isWholeNow && selectedDirections.length === 1 &&
       !confirm('你的方案包含 2 種風格，目前只選了 1 個設計方向。\n\n' +
                '按「確定」→ 只出 1 種風格\n按「取消」→ 回去加選第 2 種（不加價）')) {
     return;

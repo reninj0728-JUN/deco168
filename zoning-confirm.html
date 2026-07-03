@@ -169,19 +169,19 @@
 
     <!-- Stage 1：checkout 併入本頁 → 確認分區即成交，不再跳一頁看摘要 -->
     <div class="pay-block" style="margin-top:28px; border-top:1px solid var(--line); padding-top:22px;">
-      <div style="font-size:12px; color:var(--body); margin-bottom:10px;">選擇方案（每個方案都含 2 種風格）</div>
+      <div style="font-size:12px; color:var(--body); margin-bottom:10px;">選擇方案</div>
       <div style="display:flex; gap:12px; margin-bottom:16px;">
         <button type="button" class="opt side-opt selected" id="svcA" onclick="selectPlan('A')"
                 style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
           <div style="font-size:15px; color:#fff; letter-spacing:1px;">單一空間</div>
-          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">此空間 · 2 風格 · 6 張渲染<br><span style="font-size:10px;opacity:0.8;">（想指定臥室/書房請回上頁選）</span></div>
-          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,199</div>
+          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">此空間 · 含 2 種風格<br><span style="font-size:10px;opacity:0.8;">（想指定臥室/書房請回上頁選）</span></div>
+          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$999</div>
         </button>
         <button type="button" class="opt side-opt" id="svcB" onclick="selectPlan('B')"
                 style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
           <div style="font-size:15px; color:#fff; letter-spacing:1px;">全室空間 <span style="font-size:10px; color:var(--gold); border:1px solid var(--gold); padding:1px 5px; border-radius:3px; letter-spacing:1px;">Beta</span></div>
-          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">多空間（優化中）· 附影片會更好</div>
-          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,799</div>
+          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">多空間 · 含 1 種風格<br><span style="font-size:10px;opacity:0.8;">第 2、3 種風格每種 +NT$500</span></div>
+          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,199 起</div>
         </button>
       </div>
       <!-- 單一空間：就地選要設計哪個房間，不用回上一頁 -->
@@ -208,7 +208,7 @@
 
       <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
               style="width:100%; padding:18px; font-size:15px;">
-        使用此配置 · 以 LINE PAY 付款 NT$<span id="payAmount">1,199</span>
+        使用此配置 · 以 LINE PAY 付款 NT$<span id="payAmount">999</span>
       </button>
       <div style="text-align:center; margin-top:12px;">
         <a href="style-form.html" class="btn btn-ghost" style="border:none; font-size:12px;">← 改回風格</a>
@@ -372,16 +372,26 @@
   // 3. 服務方案 + 付款（Stage 1：原 checkout 邏輯併入本頁）
   // 單一真實來源：全室(plan B) ⟺ space_type=whole ⟺ render_angle=multi；
   // 單空間(plan A) ⟺ 單一房型 ⟺ single。三個訊號永遠由這裡一次寫齊，避免不同步。
-  var PLAN_A_PRICE = 1199, PLAN_B_PRICE = 1799;
-  // 進頁依使用者前面選的空間類型/方案預設（不再固定跳回 1199）。
+  // 新定價：單一空間 999（含 2 風格）；全室 1,199（含 1 風格，第 2/3 種每種 +500）
+  var PLAN_A_PRICE = 999, PLAN_B_PRICE = 1199, WHOLE_STYLE_ADDON = 500;
+  // 進頁依使用者前面選的空間類型/方案預設。
   var _initSpace = localStorage.getItem('deco_space_type') || '';
   var selectedPlan = (_initSpace === 'whole' || localStorage.getItem('deco_plan') === 'B') ? 'B' : 'A';
-  var extraStyles = Math.max(0, parseInt(localStorage.getItem('deco_style_count') || '1') - 2);
-  var extraFee = extraStyles * 399;
+  function _styleCount() {
+    try {
+      var n = (JSON.parse(localStorage.getItem('deco_directions') || '[]')).length;
+      if (n > 0) return n;
+    } catch (e) {}
+    return Math.max(1, parseInt(localStorage.getItem('deco_style_count') || '1'));
+  }
+  function _totalPrice() {
+    if (selectedPlan === 'A') return PLAN_A_PRICE;
+    var addons = Math.max(0, Math.min(_styleCount(), 3) - 1);
+    return PLAN_B_PRICE + addons * WHOLE_STYLE_ADDON;
+  }
   function updatePriceUI() {
-    var base = (selectedPlan === 'A') ? PLAN_A_PRICE : PLAN_B_PRICE;
     var el = document.getElementById('payAmount');
-    if (el) el.textContent = (base + extraFee).toLocaleString();
+    if (el) el.textContent = _totalPrice().toLocaleString();
   }
   function selectPlan(plan) {
     selectedPlan = (plan === 'B') ? 'B' : 'A';
@@ -440,14 +450,22 @@
                  '<span style="color:' + (hl ? 'var(--gold)' : '#fff') + '; font-weight:' + (hl ? '600' : '400') + ';">' +
                  (v || '—') + '</span></div>';
         };
+        // 全室加購風格 → 輕鬆標註費用組成（不推銷，只透明）
+        var _n = _styleCount();
+        var _feeRow = '';
+        if (isWhole && _n > 1) {
+          var _addons = Math.min(_n, 3) - 1;
+          _feeRow = _row('費用', 'NT$1,199 ＋ 加購 ' + _addons + ' 種風格 NT$' + (_addons * 500).toLocaleString(), true);
+        }
         cl.innerHTML = '<div style="display:flex; flex-direction:column; gap:6px;">' +
-          _row('空間', spaceZh) + _row('風格', names.join('、')) + _row('設計範圍', dmZh, true) +
+          _row('空間', spaceZh) + _row('風格', names.join('、')) + _feeRow + _row('設計範圍', dmZh, true) +
           '</div>';
       }
       var dl = document.getElementById('payDeliverList');
       if (dl) {
+        var _sn = _styleCount();
         var items = isWhole
-          ? ['客廳／餐廳／主臥／書房等多空間 × 2 種風格的設計圖',
+          ? ['客廳／餐廳／主臥／書房等多空間 × ' + _sn + ' 種風格的設計圖',
              '每個空間的可購買家具清單（附價格與連結）',
              '空間格局與採光分析（文字）',
              '可下載的設計手冊 PDF']
