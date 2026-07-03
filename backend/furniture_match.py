@@ -352,6 +352,13 @@ LUXURY_MISMATCH_PENALTY = -3.0
 RUG_JUNK_KW      = ["地墊", "防滑", "門墊", "腳踏墊", "巧拼", "浴室", "止滑"]
 RUG_JUNK_PENALTY = -4.0
 
+# 「桌子」類的功能性雜項（桌布/餐桌墊/桌旗/玻璃墊）不該當書桌/餐桌本體——
+# 這些是保護布/裝飾巾，商品照裡通常沒有桌子實體。同一種問題的第二個案例
+# （luxury 爬蟲批次抓到 30+ 件「新中式桌布/餐桌墊」被 category 規則誤當桌子），
+# 這次直接在配對層加降權，比每次資料更新後人工挑掉更持久。
+TABLE_JUNK_KW      = ["桌布", "桌墊", "桌旗", "玻璃墊", "餐墊", "防燙墊"]
+TABLE_JUNK_PENALTY = -4.0
+
 # 電競系商品（碳纖維電競桌/RGB/電競椅）只適合 modern/industrial 調性——
 # 343FFAE7 奶油暖居書房被配到「碳纖維紋理電競桌」，跟奶油風完全不搭。降權不硬排除。
 GAMING_KW              = ["電競", "carbon fiber", "碳纖維", "rgb"]
@@ -580,6 +587,12 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
         _nm2 = (item.get("name_zh") or "")
         if any(kw in _nm2 for kw in RUG_JUNK_KW):
             score += RUG_JUNK_PENALTY
+
+    # 桌子類的功能性雜項（桌布/餐桌墊/桌旗）降權 — 不該當書桌/餐桌本體
+    if resolve_category(item) in ("table", "coffee_table"):
+        _nm4 = (item.get("name_zh") or "")
+        if any(kw in _nm4 for kw in TABLE_JUNK_KW):
+            score += TABLE_JUNK_PENALTY
 
     # 電競系商品配到非 modern/industrial 風格 → 降權（奶油風書房不該出現電競桌）
     if style not in GAMING_ALLOWED_STYLES:
