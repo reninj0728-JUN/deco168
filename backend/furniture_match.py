@@ -362,7 +362,7 @@ GAMING_MISMATCH_PENALTY = -4.0
 # 畫面裡同時有方桌+長凳+邊櫃三種家具，AI 參考混亂，渲染出走樣的桌子）。
 # 精準比對「名詞、名詞…套組/組合/件套」——只抓真的用頓號/「與」明確列出
 # 多樣家具的商品名，不誤傷「組合式書桌」這種單件家具的複合命名。
-_MULTI_PIECE_BUNDLE_RE = re.compile(r'.+[、與].+(套組|組合|件套|全套)$')
+_MULTI_PIECE_BUNDLE_RE = re.compile(r'.+[、與+].+(套組|組合|件套|全套)$')
 MULTI_PIECE_BUNDLE_PENALTY = -5.0
 
 

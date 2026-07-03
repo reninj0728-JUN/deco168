@@ -5205,29 +5205,6 @@
     "source": "ikea"
   },
   {
-    "id": "ikea-nor-0235",
-    "name_zh": "灰色編織布藝沙發坐墊",
-    "brand": "IKEA",
-    "category": "沙發",
-    "style_tags": [
-      "modern"
-    ],
-    "keywords": [
-      "IKEA",
-      "EKOLSUND"
-    ],
-    "colors": [
-      "灰色",
-      "白色"
-    ],
-    "price_twd": 1799,
-    "image_url": "https://www.ikea.com.tw/dairyfarm/tw/images/098/0709885_PE727145_S4.webp",
-    "purchase_url": "https://www.ikea.com.tw/zh/products/armchairs-footstool-and-sofa-tables/armchairs/ekolsund-art-20442653",
-    "dimensions": "",
-    "flux_descriptor": "a close-up shot of a dark grey upholstered sofa fabric with a tight weave texture, high quality textile, modern minimalist style, neutral tone",
-    "source": "ikea"
-  },
-  {
     "id": "ikea-nor-0236",
     "name_zh": "金屬框架帆布折疊椅",
     "brand": "IKEA",
@@ -39566,23 +39543,6 @@
     "flux_descriptor": "gray fabric floor chair, adjustable backrest, minimalist design, suitable for small spaces"
   },
   {
-    "id": "nitori_2113300031501s",
-    "name_zh": "NITORI抗菌涼感沙發套",
-    "price_twd": 1790,
-    "image_url": "https://nitorimain.blob.core.windows.net/products/21/2113300031501_01.jpg",
-    "purchase_url": "https://www.nitori-net.tw/product/2113300031501s",
-    "source": "nitori",
-    "category": "沙發",
-    "style_tags": [
-      "modern"
-    ],
-    "colors": [
-      "gray"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "modern gray sofa cover, textured fabric, clean lines, minimalistic"
-  },
-  {
     "id": "nitori_3020742s",
     "name_zh": "多色混搭電視櫃",
     "price_twd": 5990,
@@ -47728,24 +47688,6 @@
     "flux_descriptor": "Creamy white textured blanket with black rose embroidery, soft plush fabric, subtle woven details."
   },
   {
-    "id": "pchome_DEAZFZ-A900HB3CD",
-    "name_zh": "法式奶油雪花絨沙發墊",
-    "price_twd": 525,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZFZA900HB3CD/yt000001_1710385617.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZFZ-A900HB3CD",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "米白色",
-      "淺米色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Cream colored bouclé fabric sofa cushion with soft texture and rounded shapes, evoking a gentle and cozy atmosphere."
-  },
-  {
     "id": "pchome_DQCD0A-A900JHI2F",
     "name_zh": "日式木框和紙屏風",
     "price_twd": 17299,
@@ -47854,24 +47796,6 @@
     "flux_descriptor": "Cream-colored round rug with a scalloped edge, textured fabric, neutral tones, soft and inviting."
   },
   {
-    "id": "pchome_DEAZG4-A900JENY7",
-    "name_zh": "綠色花卉圖騰沙發蓋布",
-    "price_twd": 1747,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900JENY7/000001_1761967178.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900JENY7",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "chinese-modern"
-    ],
-    "colors": [
-      "綠色",
-      "米白"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Light green sofa cover with a subtle floral pattern, featuring earthy tones and a soft, comforting texture."
-  },
-  {
     "id": "pchome_DQCD0A-A900JHI2B",
     "name_zh": "四折原木花紋屏風",
     "price_twd": 14599,
@@ -47962,24 +47886,6 @@
     "flux_descriptor": "Beige and light brown woven textured rug with a subtle border, suitable for a natural and minimalist interior."
   },
   {
-    "id": "pchome_DEAZG4-A900K27OP",
-    "name_zh": "田園風荷葉邊條紋沙發套",
-    "price_twd": 4669,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900K27OP/000001_1780037546.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900K27OP",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "米白",
-      "淺藍"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Cream and light blue striped sofa cover with ruffles, soft fabric, comfortable and elegant"
-  },
-  {
     "id": "pchome_DEAZZ1-A900K0PJ6",
     "name_zh": "日式綠色漸層紋理長毛地毯",
     "price_twd": 7999,
@@ -48014,42 +47920,6 @@
     ],
     "dimensions": "",
     "flux_descriptor": "Round decorative rug with a cream base, black and beige striped border, and a black floral pattern. Soft, gentle texture."
-  },
-  {
-    "id": "pchome_DEAZG4-A900K27VX",
-    "name_zh": "法式奶油風褶皺蕾絲沙發墊",
-    "price_twd": 3799,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900K27VX/000001_1780039736.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900K27VX",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "米白",
-      "米黃"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Cream-colored sofa cover with delicate lace trim and floral embroidery, featuring a ruffled skirt and plush texture. Elegant and soft."
-  },
-  {
-    "id": "pchome_DEAZG4-A900K27WP",
-    "name_zh": "法式蝴蝶結蕾絲裝飾沙發巾",
-    "price_twd": 3899,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900K27WP/000001_1780039946.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900K27WP",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "米白",
-      "淺棕"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "A creamy beige sofa towel with a delicate lace trim and a black butterfly pattern, offering a soft and romantic texture."
   },
   {
     "id": "pchome_DEAZAQ-A900K1VQ0",
@@ -48196,42 +48066,6 @@
     "flux_descriptor": "Houndstooth pattern cushion, cream and khaki colors, soft texture, decorative accent pillow."
   },
   {
-    "id": "pchome_DEAZG4-A900K27Y3",
-    "name_zh": "蝴蝶結蕾絲荷葉邊沙發墊",
-    "price_twd": 3339,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900K27Y3/000001_1780040308.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900K27Y3",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "luxury"
-    ],
-    "colors": [
-      "灰色",
-      "米白色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Elegant grey sofa cover with cream lace trim and butterfly accents, soft textured fabric, luxurious and romantic feel."
-  },
-  {
-    "id": "pchome_DEAZG4-A900K27XN",
-    "name_zh": "奢華蝴蝶結荷葉邊沙發墊",
-    "price_twd": 3699,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900K27XN/000001_1780040156.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900K27XN",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "luxury"
-    ],
-    "colors": [
-      "綠色",
-      "米白色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Green corduroy sofa cover with black butterfly trim and ivory ruffled skirt, elegant and luxurious feel."
-  },
-  {
     "id": "pchome_DEAZZ1-A900K0PIW",
     "name_zh": "綠意盎然菱格紋地毯",
     "price_twd": 9999,
@@ -48303,24 +48137,6 @@
     ],
     "dimensions": "",
     "flux_descriptor": "Luxury brown leather two-seater sofa with tufted details and ornate dark wood accents."
-  },
-  {
-    "id": "pchome_DEAZFZ-A900I17TK",
-    "name_zh": "法式優雅冰絲透氣沙發墊",
-    "price_twd": 337,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZFZA900I17TK/000001_1730280118.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZFZ-A900I17TK",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "french"
-    ],
-    "colors": [
-      "米白",
-      "淺棕"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "French elegant ice silk breathable sofa cushion, beige and light brown herringbone pattern, with a scalloped edge, creating a soft and inviting texture."
   },
   {
     "id": "pchome_DEAZ1O-A900JLWR4",
@@ -49919,24 +49735,6 @@
     "flux_descriptor": "Dark wood, traditional Chinese design, square table, benches, console table with drawers, ornate details, oriental rug."
   },
   {
-    "id": "pchome_DEAZFZ-A900JNN8T",
-    "name_zh": "新中式刺繡沙發墊",
-    "price_twd": 2377,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZFZA900JNN8T/000001_1768804016.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZFZ-A900JNN8T",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "chinese-modern"
-    ],
-    "colors": [
-      "米白",
-      "金色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Chinese-modern style sofa cushion, beige fabric with intricate gold and blue floral embroidery, providing a luxurious and traditional aesthetic."
-  },
-  {
     "id": "pchome_DQCD0A-A900JHI2J",
     "name_zh": "日式禪意竹影隔斷屏風",
     "price_twd": 7599,
@@ -49971,24 +49769,6 @@
     ],
     "dimensions": "",
     "flux_descriptor": "Dark wood finish shelving unit with frosted glass panel featuring a painted bamboo and moon design. Includes decorative items."
-  },
-  {
-    "id": "pchome_DEAZ7G-A900JOE51",
-    "name_zh": "新中式刺繡布藝沙發墊",
-    "price_twd": 1277,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZ7GA900JOE51/000001_1769410519.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZ7G-A900JOE51",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "chinese-modern"
-    ],
-    "colors": [
-      "棕色",
-      "白色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Brown fabric sofa cushions with embroidered floral motifs in circular frames, featuring a classic Chinese modern design."
   },
   {
     "id": "pchome_DEAZ7G-A900JOE5R",
@@ -50315,24 +50095,6 @@
     ],
     "dimensions": "",
     "flux_descriptor": "Chinese-modern art print, peonies, goldfish, ink wash painting style, golden frame, wall decor."
-  },
-  {
-    "id": "pchome_DEAZ7G-A900JOEX5",
-    "name_zh": "新中式實木沙發坐墊椅背墊",
-    "price_twd": 4700,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZ7GA900JOEX5/000001_1769421363.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZ7G-A900JOEX5",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "chinese-modern"
-    ],
-    "colors": [
-      "深藍色",
-      "木色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Dark wood frame sofa with navy blue cushions featuring embroidered floral circular motifs, Chinese modern style."
   },
   {
     "id": "pchome_DQCD01-A900JI6EH",
@@ -53527,24 +53289,6 @@
     "flux_descriptor": "modern blue and white storage cabinet with three doors, clean lines, metal handles"
   },
   {
-    "id": "pchome_DEAZG4-A900JBNJC",
-    "name_zh": "親膚玉米粒防水防抓沙發墊",
-    "price_twd": 600,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900JBNJC/000001_1759830238.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900JBNJC",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "muji"
-    ],
-    "colors": [
-      "淺灰色",
-      "米白色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "light gray textured fabric sofa cushion, waterproof, with subtle woven patterns, featuring water splashes."
-  },
-  {
     "id": "pchome_DQCD3U-A900ID3GA",
     "name_zh": "三層抽屜床頭櫃",
     "price_twd": 3299,
@@ -53671,24 +53415,6 @@
     "flux_descriptor": "Cream boucle fabric cat-shaped stool with black dot details, curved legs, and a soft, plush texture."
   },
   {
-    "id": "pchome_DEAZG4-A900K27FR",
-    "name_zh": "簡約素雅提花沙發墊",
-    "price_twd": 3999,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900K27FR/000001_1780035161.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900K27FR",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "nordic"
-    ],
-    "colors": [
-      "白色",
-      "灰色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Neutral textured sofa cover in light grey and white, with a subtle geometric pattern, providing a soft and inviting feel for a modern living space."
-  },
-  {
     "id": "pchome_DQCD3U-A900IDRPF",
     "name_zh": "簡約圓弧邊角白色雙抽屜床頭櫃",
     "price_twd": 1999,
@@ -53705,24 +53431,6 @@
     ],
     "dimensions": "30 CM",
     "flux_descriptor": "Modern minimalist white nightstand with rounded edges and two drawers, featuring natural wood interior and a simple form factor, ideal for bedrooms."
-  },
-  {
-    "id": "pchome_DEAZG4-A900J8WDW",
-    "name_zh": "舒柔絨毛防滑抗靜電沙發墊",
-    "price_twd": 503,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900J8WDW/yt000001_1757642774.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900J8WDW",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "米白",
-      "淺棕色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Cream-colored and light brown plush sofa cushion with corduroy texture, anti-slip, anti-static, soft and warm."
   },
   {
     "id": "pchome_DEAZ7G-A900K0GUS",
@@ -53851,24 +53559,6 @@
     "flux_descriptor": "Creamy white adjustable floor lamp with two dome-shaped shades and a silver metal pole and base, in a soft, modern aesthetic."
   },
   {
-    "id": "pchome_DEAZG4-A900JBNHP",
-    "name_zh": "防潑水極簡奶油風沙發墊",
-    "price_twd": 299,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZG4A900JBNHP/000001_1759830078.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZG4-A900JBNHP",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "淺灰色",
-      "米白色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "light gray sofa cushion, waterproof, textured fabric, minimalist design, light brown and cream accents"
-  },
-  {
     "id": "pchome_DQCE0N-A900JXYSW",
     "name_zh": "奶油色雙人沙發床，附贈抱枕",
     "price_twd": 9800,
@@ -53956,24 +53646,6 @@
     ],
     "dimensions": "",
     "flux_descriptor": "cream-colored sofa cover with a subtle abstract geometric pattern and a wave-like border, made of textured fabric, offering a gentle and cozy aesthetic."
-  },
-  {
-    "id": "pchome_DEAZFZ-A900HB3BZ",
-    "name_zh": "法式奶油雪花絨沙發墊",
-    "price_twd": 459,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZFZA900HB3BZ/yt000001_1710385554.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZFZ-A900HB3BZ",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "米白色",
-      "燕麥色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Cream-colored boucle fabric sofa cover, soft texture, curved design, modern and minimalist style."
   },
   {
     "id": "pchome_DQCBEY-A900HLDE1",
@@ -54081,24 +53753,6 @@
     ],
     "dimensions": "",
     "flux_descriptor": "Cream and tan abstract floral painting with thick impasto texture, featuring white and orange petals and a golden center. Framed in a thin gold border."
-  },
-  {
-    "id": "pchome_DEAZ5N-A900JBNH6",
-    "name_zh": "極簡奶油風防水防抓沙發墊",
-    "price_twd": 187,
-    "image_url": "https://img.pchome.com.tw/cs/items/DEAZ5NA900JBNH6/000001_1759829825.jpg",
-    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZ5N-A900JBNH6",
-    "source": "pchome",
-    "category": "沙發",
-    "style_tags": [
-      "cream"
-    ],
-    "colors": [
-      "淺灰色",
-      "米色"
-    ],
-    "dimensions": "",
-    "flux_descriptor": "Light gray textured fabric sofa cushion, with water splash effect, minimalist, cream-colored elements, and neutral tones."
   },
   {
     "id": "pchome_DQCBB8-A900JDDPL",
@@ -54810,5 +54464,4040 @@
     ],
     "dimensions": "",
     "flux_descriptor": "Solid light brown wood side table with one drawer and an open shelf, natural wood grain, minimalist design."
+  },
+  {
+    "id": "pchome_DEAZZ1-A900JU7Q8",
+    "name_zh": "【匠心】卡薩特法式圓形地毯 異形客廳沙發地墊 加密圈絨可水洗 家用臥室床邊毯 1",
+    "price_twd": 5391,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZZ1A900JU7Q8/000001_1774080834.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZZ1-A900JU7Q8",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAKZ-A900A42B6",
+    "name_zh": "ASSARI -法式費黛里單人座半牛皮沙發",
+    "price_twd": 13320,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAKZA900A42B6/000001_1561688717.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAKZ-A900A42B6",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5XPX",
+    "name_zh": "掛畫 裝飾畫 壁畫 牆面畫 客廳掛畫 玄關掛畫 沙發背景牆掛畫 法式奶油風掛畫",
+    "price_twd": 4999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5XPX/000001_1782811923.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5XPX",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC0Q-A900HL73U",
+    "name_zh": "IHouse 愛屋家具 台灣製法式古典高背 進口半牛皮獨立筒沙發   1+3人座",
+    "price_twd": 33077,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC0QA900HL73U/000007_1731482515.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC0Q-A900HL73U",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5XQL",
+    "name_zh": "掛畫 壁畫 裝飾畫 牆面畫 客廳掛畫 玄關掛畫 沙發背景牆壁畫 奶油風壁畫 法式",
+    "price_twd": 5999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5XQL/000001_1782812197.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5XQL",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAKZ-A900A42D7",
+    "name_zh": "ASSARI -法式費黛里三人座半牛皮沙發",
+    "price_twd": 26642,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAKZA900A42D7/000001_1561689385.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAKZ-A900A42D7",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAKZ-A900A42CO",
+    "name_zh": "ASSARI -法式費黛里雙人座半牛皮沙發",
+    "price_twd": 19932,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAKZA900A42CO/000001_1561689096.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAKZ-A900A42CO",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1B-A900K5V64",
+    "name_zh": "法式復古風單人沙發 沙發椅 休閒椅 靠背椅 實木扶手椅 一人沙發 人體工學椅 棉",
+    "price_twd": 4388,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1BA900K5V64/000001_1782786161.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1B-A900K5V64",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZ1O-A900K5JY7",
+    "name_zh": "抱枕 法式奶油風抱枕 客廳沙發靠枕 飄窗抱枕 清新風靠墊 臥室床頭靠背枕 可拆洗",
+    "price_twd": 1801,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZ1OA900K5JY7/000001_1782457241.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZ1O-A900K5JY7",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5XQC",
+    "name_zh": "掛畫 裝飾畫 牆面畫 壁畫 客廳掛畫 玄關掛畫 法式奶油風裝飾畫 綠植壁畫 沙發",
+    "price_twd": 7899,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5XQC/000001_1782812492.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5XQC",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5SHF",
+    "name_zh": "40*60cm 客廳掛畫 掛畫 裝飾畫 壁畫 牆面畫 玄關掛畫 中古風掛畫 法式",
+    "price_twd": 3853,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5SHF/000001_1782727183.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5SHF",
+    "source": "pchome",
+    "category": "裝飾",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5SRH",
+    "name_zh": "60*80cm 裝飾畫 壁畫 掛畫 客廳掛畫 牆面畫 玄關掛畫 中古風裝飾畫 法",
+    "price_twd": 6391,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5SRH/000001_1782731802.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5SRH",
+    "source": "pchome",
+    "category": "裝飾",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5SQX",
+    "name_zh": "50*70cm 掛畫 裝飾畫 客廳掛畫 壁畫 牆面畫 玄關掛畫 法式裝飾畫 中古",
+    "price_twd": 4699,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5SQX/000001_1782731698.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5SQX",
+    "source": "pchome",
+    "category": "裝飾",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC0W-A900HL72P",
+    "name_zh": "IHouse 愛屋家具 台灣製法式古典高背 進口半牛皮獨立筒沙發   1+2+3",
+    "price_twd": 45620,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC0WA900HL72P/000007_1731482225.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC0W-A900HL72P",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAK8J-A900K5RWB",
+    "name_zh": "【暢麥】 貓抓板 三面互動實木弧形貓抓板 劍麻斜面耐磨 護沙發磨爪台 底部鏤空",
+    "price_twd": 1950,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAK8JA900K5RWB/000007_1782721137.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAK8J-A900K5RWB",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAKZI-A900K5NFZ",
+    "name_zh": "【暢麥】61CM貓抓沙發窩 劍麻透氣貓床 加高腳離地貓窩 貓沙發 弧形靠背支撐貓",
+    "price_twd": 1599,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAKZIA900K5NFZ/000007_1782538651.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAKZI-A900K5NFZ",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZC3-A900K4Y5J",
+    "name_zh": "淺藍蝴蝶型記憶棉護腰靠墊 人體工學弧形貼合腰窩  辦公汽車沙發通用上班族腰枕",
+    "price_twd": 1190,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZC3A900K4Y5J/000001_1782113069.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZC3-A900K4Y5J",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAK8W-A900K6BZX",
+    "name_zh": "【暢麥】貓咪兩用椅 劍麻立式抓板架 可抓可睡一體貓台 居家小型貓休憩窩 弧形靠背",
+    "price_twd": 1950,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAK8WA900K6BZX/000007_1782971881.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAK8W-A900K6BZX",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE28-A900JHLY7",
+    "name_zh": "ZHIBUNIAO 織佈鳥 藤椅搖搖椅躺椅 單人懶人藤編搖椅休閑沙發 手工藤椅+",
+    "price_twd": 6399,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE28A900JHLY7/000001_1763982137.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE28-A900JHLY7",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY1J-A900K5RVA",
+    "name_zh": "hoi! 好好生活 YW西斯卡復古藤編扶手電腦椅 棕黃色 S03138",
+    "price_twd": 4256,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY1JA900K5RVA/000001_1782720895.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY1J-A900K5RVA",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1F-A900JI6BU",
+    "name_zh": "【木洸】復古陽臺休閒靠背椅子 摺疊椅 藤編餐椅 簡易家用可摺疊椅 透氣辦公椅",
+    "price_twd": 2536,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1FA900JI6BU/000001_1764487928.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1F-A900JI6BU",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE2L-A900IJGWS",
+    "name_zh": "【易搜】日式藤編靠背椅 休閒折疊椅 家用餐椅 （咖啡廳/民宿/簡約復古）",
+    "price_twd": 2855,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE2LA900IJGWS/000001_1744263139.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE2L-A900IJGWS",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1D-A900JHLTV",
+    "name_zh": "ZHIBUNIAO 織佈鳥 搖搖椅躺椅 藤編竹椅老人靠背逍遙椅 升級款-藤編搖椅",
+    "price_twd": 8119,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1DA900JHLTV/000001_1763979076.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1D-A900JHLTV",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900JYA2D",
+    "name_zh": "實木藤編收納茶桌椅組 可堆疊收納 小戶型陽台必備 禪意風兩件式桌椅",
+    "price_twd": 15743,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900JYA2D/000001_1777189346.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900JYA2D",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1D-A900JF1CS",
+    "name_zh": "ZHIBUNIAO 織佈鳥 躺椅午休折疊藤椅 坐睡靠背兩用 強支撐好收納椅 特粗",
+    "price_twd": 3639,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1DA900JF1CS/000001_1762251394.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1D-A900JF1CS",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU6W-A900K532D",
+    "name_zh": "FANGE 方格 折疊床 藤編單人床 193*60*30cm午休折疊床 單人躺椅",
+    "price_twd": 7299,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU6WA900K532D/000001_1782201203.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU6W-A900K532D",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1D-A900K1B89",
+    "name_zh": "夏天 躺椅 摺疊 午休 坐睡兩用 老人 椅子  家用 休閒 陽臺 竹椅 藤編 承",
+    "price_twd": 3749,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1DA900K1B89/000001_1779356938.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1D-A900K1B89",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE28-A900JS2LV",
+    "name_zh": "YIMI 依米 藤編陽臺藤椅 搖椅 躺椅 露臺懶人椅休閑搖搖椅 原木色檀花搖椅+",
+    "price_twd": 7175,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE28A900JS2LV/000001_1772533238.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE28-A900JS2LV",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU6W-A900K535E",
+    "name_zh": "FANGE 方格 折疊床 藤編單人床 193*80*30cm午休折疊床 單人躺椅",
+    "price_twd": 9799,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU6WA900K535E/000001_1782201998.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU6W-A900K535E",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1D-A900K167Z",
+    "name_zh": "YIMI 依米 三折藤編椅躺椅涼椅 九檔調節+自帶腳托 特粗方管藤椅 可折疊收納",
+    "price_twd": 4259,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1DA900K167Z/000001_1779274070.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1D-A900K167Z",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE28-A900JHLRX",
+    "name_zh": "ZHIBUNIAO 織佈鳥 搖搖椅躺椅成人可睡覺藤編搖椅 懶人庭院戶外椅  搖椅",
+    "price_twd": 9889,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE28A900JHLRX/000001_1763978297.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE28-A900JHLRX",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1L-A900I8CPW",
+    "name_zh": "居家家 大號日式折疊藤編椅 實木高腳凳 折疊高腳椅 吧台凳 餐椅 吧台椅 酒吧高",
+    "price_twd": 2346,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1LA900I8CPW/000001_1763883812.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1L-A900I8CPW",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE27-A900HHY36",
+    "name_zh": "Bernice -米爾頓簡約塑膠休閒椅/PP材質藤編造型椅/扶手餐椅/商業椅/洽",
+    "price_twd": 3190,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE27A900HHY36/000007_1716349476.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE27-A900HHY36",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0L-A900K2K5L",
+    "name_zh": "OSLE 歐適樂 北歐中古風索耐特藤編椅子實木餐椅復古民宿咖啡廳餐桌椅靠背椅凳",
+    "price_twd": 2599,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0LA900K2K5L/000001_1780390336.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0L-A900K2K5L",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0L-A900JAC76",
+    "name_zh": "Birdie -亞可白色休閒扶手餐椅/陽台塑膠藤編造型椅/戶外庭院椅/洽談椅/單",
+    "price_twd": 1870,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0LA900JAC76/000007_1758872417.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0L-A900JAC76",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE27-A900HOKJE",
+    "name_zh": "Bernice -薩納簡約藤編造型皮革實木餐椅/休閒椅/洽談椅/商業椅/單椅",
+    "price_twd": 3740,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE27A900HOKJE/000007_1721727958.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE27-A900HOKJE",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1F-A900JVJ89",
+    "name_zh": "侘寂風藤編椅子家用帶扶手折疊椅網紅休閒靠背椅書桌椅餐廳吃飯椅",
+    "price_twd": 4488,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1FA900JVJ89/000001_1775195421.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1F-A900JVJ89",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0L-A900K2KKZ",
+    "name_zh": "OSLE 歐適樂 卡曼復古藤編椅子商用餐飲奶茶店民宿休閑實木椅子昌迪加爾卡曼椅",
+    "price_twd": 3559,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0LA900K2KKZ/000001_1780392643.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0L-A900K2KKZ",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1Q-A900JL6UI",
+    "name_zh": "臻彩 搖椅 躺椅 藤編椅 懶人椅 單人椅 逍遙椅 100×75×85cm 定製款",
+    "price_twd": 8445,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1QA900JL6UI/000001_1766632666.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1Q-A900JL6UI",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1Q-A900JZEUP",
+    "name_zh": "吊籃椅室內鞦韆陽台雙人藤編搖搖椅鳥巢吊椅庭院戶外休閒家用成人140*156*19",
+    "price_twd": 19150,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1QA900JZEUP/000001_1778051304.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1Q-A900JZEUP",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1L-A900J4VBI",
+    "name_zh": "金德恩 藤編豉椅一入 小圓凳 手工編製 小椅凳 藤椅 矮椅 圓凳 木凳 矮凳 藤",
+    "price_twd": 1699,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1LA900J4VBI/000001_1755160407.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1L-A900J4VBI",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1G-A900K48LV",
+    "name_zh": "巧可 搖搖椅 懶人休閒椅 戶外座椅 藤編椅 藤編搖椅 成人休閒椅 陽台躺椅 庭院",
+    "price_twd": 8942,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1GA900K48LV/000001_1781512470.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1G-A900K48LV",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0L-A900K3W0I",
+    "name_zh": "OSLE 歐適樂 中古風藤編椅復古侘寂風仿藤編餐椅網紅ins實木靠背軟包家用椅子",
+    "price_twd": 6699,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0LA900K3W0I/000001_1781262625.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0L-A900K3W0I",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XPA",
+    "name_zh": "餐桌墊 法式復古桌布  防水防油 輕奢高級感桌布 防燙桌布 茶幾桌面保護墊子 美",
+    "price_twd": 2988,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XPA/000001_1780713100.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XPA",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB69-A900K4W22",
+    "name_zh": "沙發 邊幾 實木 小桌子 客廳 小茶几 圓桌 床頭桌 邊桌 邊櫃 法式 陽臺 小",
+    "price_twd": 2699,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB69A900K4W22/000001_1782028044.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB69-A900K4W22",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XOR",
+    "name_zh": "桌布 輕奢高級感桌布 中古風桌布 餐桌墊 防水防油防燙 皮革桌布 法式復古桌布",
+    "price_twd": 2320,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XOR/000001_1780710384.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XOR",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XUH",
+    "name_zh": "桌布 輕奢高級感餐桌布 防水防油桌布 免洗桌布 法式長方形桌布 茶幾臺布 PU桌",
+    "price_twd": 1775,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XUH/000001_1780725666.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XUH",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XPJ",
+    "name_zh": "法式復古桌布 餐桌墊 防水防油 輕奢高級感桌布 防燙桌布 茶幾桌面保護墊子 美式",
+    "price_twd": 2659,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XPJ/000001_1780712933.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XPJ",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XOY",
+    "name_zh": "輕奢高級感桌布 中古風桌布 餐桌墊 防水防油防燙 皮革桌布 法式復古桌布 免洗茶",
+    "price_twd": 2988,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XOY/000001_1780710565.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XOY",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XUI",
+    "name_zh": "輕奢高級感餐桌布 防水防油桌布 免洗桌布 法式長方形桌布 茶幾臺布 PU桌布 防",
+    "price_twd": 1991,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XUI/000001_1780725816.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XUI",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "french"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZC3-A900K38I9",
+    "name_zh": "沙發靠枕 辦公室腰靠枕 全新中式靠枕 座椅護腰靠墊 久坐腰靠 創意靠山抱枕 腰靠",
+    "price_twd": 1660,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZC3A900K38I9/000001_1780902300.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZC3-A900K38I9",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCF0S-A900GHFL2",
+    "name_zh": "H&D 東稻家居 艾廉日式清新雙層床架組102CM-3件式(雙層床 松木 床架",
+    "price_twd": 17880,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCF0SA900GHFL2/000007_1694404943.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCF0S-A900GHFL2",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCI0D-A900HAVNJ",
+    "name_zh": "NITORI 宜得利家居 單人床座 床架 N-ZIO-T BOX MBR 附充電",
+    "price_twd": 10900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCI0DA900HAVNJ/000001_1710231387.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCI0D-A900HAVNJ",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU0Q-A900GTNAT",
+    "name_zh": "空間特工 雙人上下舖【台灣製造】上下床架 雙層鐵床架 雙人加大床 架高床 子母床",
+    "price_twd": 30750,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU0QA900GTNAT/yt000001_1768446892.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU0Q-A900GTNAT",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU0O-A900IUI1I",
+    "name_zh": "YUDA 生活美學 3尺單人日式簡約床架 全新加強半封床底 三分木心板3分H24",
+    "price_twd": 1440,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU0OA900IUI1I/000001_1782715081.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU0O-A900IUI1I",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU0Q-A900GTN8R",
+    "name_zh": "空間特工 雙人雙層床_標準5尺/免螺絲角鋼床/上下舖/宿舍床/樓梯床 架高床 高",
+    "price_twd": 26200,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU0QA900GTN8R/yt000001_1768445811.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU0Q-A900GTN8R",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCI0D-A900GXN4A",
+    "name_zh": "NITORI 宜得利家居 實木雙人床座 床架 VIK F-2 NA",
+    "price_twd": 15000,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCI0DA900GXN4A/000007_1703471778.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCI0D-A900GXN4A",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAA0-A90090KP9",
+    "name_zh": "H&D 東稻家居 伯奈爾系列工業風單人步梯設計雙層鐵床架/高腳床(DIY自行組裝",
+    "price_twd": 8699,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAA0A90090KP9/000007_1688117731.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAA0-A90090KP9",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU62-A900IUN04",
+    "name_zh": "YUDA 生活美學 雙人5尺日式簡約半封床底/床架 全新加強三分木心板 免組裝",
+    "price_twd": 1800,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU62A900IUN04/000001_1748249988.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU62-A900IUN04",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU9C-A900HOAUV",
+    "name_zh": "IHouse 愛屋家具 水管工業風3.5尺鐵床/床台/床架/雙層床(可拆單大*2",
+    "price_twd": 7279,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU9CA900HOAUV/000007_1721381274.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU9C-A900HOAUV",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU0Q-A900GTN9V",
+    "name_zh": "空間特工 免運 雙人雙層床 免螺絲角鋼床/上下舖/宿舍床/樓梯床 床鋪 架高床",
+    "price_twd": 28220,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU0QA900GTN9V/yt000001_1768446986.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU0Q-A900GTN9V",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU6G-A900JTZO7",
+    "name_zh": "【Secaii設彩品牌店】床架 鐵床架 免安裝簡易折疊床90cm*190cm 折",
+    "price_twd": 4469,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU6GA900JTZO7/000001_1773915707.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU6G-A900JTZO7",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCI0D-A900I0N9X",
+    "name_zh": "NITORI 宜得利家居 ◎實木單人床座 床架 T SPIETH2 LBR 松木",
+    "price_twd": 5990,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCI0DA900I0N9X/000001_1729824856.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCI0D-A900I0N9X",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCI0D-A900IOI8L",
+    "name_zh": "NITORI 宜得利家居 ◎單人床座 床架 NS-003 LBR 抽屜款 附充電",
+    "price_twd": 11900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCI0DA900IOI8L/000001_1745820638.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCI0D-A900IOI8L",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU0Q-A900GTN75",
+    "name_zh": "空間特工 雙人架高床_加大6尺_床板加厚/免螺絲角鋼床/高架床/高腳床/床架/樓",
+    "price_twd": 23140,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU0QA900GTN75/yt000001_1768447025.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU0Q-A900GTN75",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU9C-A900JGYRE",
+    "name_zh": "IHouse 愛屋家具 台灣製 強化型單大3.5尺內縮全封底/6分木心板床架/床",
+    "price_twd": 3980,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU9CA900JGYRE/000007_1763631886.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU9C-A900JGYRE",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB8A-A900FO1BZ",
+    "name_zh": "ASSARI -奧納斯全實木床底/床架(雙人5尺)",
+    "price_twd": 4548,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB8AA900FO1BZ/000001_1666173134.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB8A-A900FO1BZ",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU4T-A900JULIY",
+    "name_zh": "E-home Cozy舒活系多功能收納掀床架-雙人5尺-原木色",
+    "price_twd": 13000,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU4TA900JULIY/000001_1774425257.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU4T-A900JULIY",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBUAW-A900J4UPN",
+    "name_zh": "IDEA 白楊木實木雙層單人上下舖床架",
+    "price_twd": 14999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBUAWA900J4UPN/000001_1755156787.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBUAW-A900J4UPN",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCI0D-A900K57W1",
+    "name_zh": "NITORI 宜得利家居 ◎雙人床座 床架 N-ZIO-C DP BOX LBR",
+    "price_twd": 17900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCI0DA900K57W1/000001_1782268087.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCI0D-A900K57W1",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB8D-A900BNX0S",
+    "name_zh": "Boden -威森3.5尺單人松木實木高架床/高層床架",
+    "price_twd": 12810,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB8DA900BNX0S/000007_1628840229.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB8D-A900BNX0S",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAA91-A900ACN2B",
+    "name_zh": "Boden -貝爾3.5尺單人高層床架(床架+樓梯收納櫃)(不含床墊)",
+    "price_twd": 32330,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAA91A900ACN2B/000001_1573709921.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAA91-A900ACN2B",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU2Y-A900GZ6YB",
+    "name_zh": "藤原傢俬 雙USB附插座/燈二件式掀床組單人加大3.5尺(床頭+掀床架)",
+    "price_twd": 11700,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU2YA900GZ6YB/000001_1782721970.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU2Y-A900GZ6YB",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU0Q-A900GTJCD",
+    "name_zh": "空間特工 免螺絲角鋼床｜台灣製造 單人床加大 加大3.5尺 單人床組 床架組 床",
+    "price_twd": 7850,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU0QA900GTJCD/yt000001_1764921545.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU0Q-A900GTJCD",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCF0S-A900GYXN8",
+    "name_zh": "H&D 東稻家居 DIGNITAS狄尼塔斯5尺雙人床架床底 床底板",
+    "price_twd": 1880,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCF0SA900GYXN8/000007_1701677212.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCF0S-A900GYXN8",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAA91-A900ACJUJ",
+    "name_zh": "Boden -克查3.5尺實木書架單人床架-抽屜型",
+    "price_twd": 10420,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAA91A900ACJUJ/000007_1738809488.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAA91-A900ACJUJ",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBCL-A900HA7F9",
+    "name_zh": "A FACTORY 傢俱工場 傢俱工場-圭吾 機能【緩衝款】升降茶几/餐桌/書桌",
+    "price_twd": 6299,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBCLA900HA7F9/000007_1709627729.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBCL-A900HA7F9",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDDBX-A900BCEEF",
+    "name_zh": "IHouse 愛屋家具 毛小孩一家親客廳組 (貓抓皮L型沙發+升降茶几)",
+    "price_twd": 20010,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDDBXA900BCEEF/000007_1620793155.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDDBX-A900BCEEF",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAU3O-A900JJTFM",
+    "name_zh": "桌面置物架 廚房多功能分層收納架 整理餐桌零食茶幾水杯架茶包台面收納架 收納架",
+    "price_twd": 1299,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAU3OA900JJTFM/000007_1765608475.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAU3O-A900JJTFM",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBEY-A900HDHQS",
+    "name_zh": "HORLA 賀啦生活家居 生活家居 雙層小茶几側邊櫃",
+    "price_twd": 483,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBEYA900HDHQS/000007_1712666757.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBEY-A900HDHQS",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB69-A900J73T7",
+    "name_zh": "慢慢家居 2in1-創新機能兩用邊桌茶几-1組 (沙發邊桌 小茶几 邊几 SGS",
+    "price_twd": 699,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB69A900J73T7/000007_1756884060.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB69-A900J73T7",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DCAGRJ-A900I1OKX",
+    "name_zh": "Raymii 瑞米 LOA-06 移動式洞洞板收納推車 辦公收納櫃 主機架 印表",
+    "price_twd": 2799,
+    "image_url": "https://img.pchome.com.tw/cs/items/DCAGRJA900I1OKX/000001_1730787265.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DCAGRJ-A900I1OKX",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAA9V-A900AEDLB",
+    "name_zh": "Homelike 喜家居二抽大茶几(2色可選)(2205)",
+    "price_twd": 1906,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAA9VA900AEDLB/000001_1633053703.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAA9V-A900AEDLB",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB52-A900HXHWN",
+    "name_zh": "慢慢家居 免安裝-桌板可展開可移動氣壓式無段升降茶几 (SGS低甲醛 餐桌 升降",
+    "price_twd": 4499,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB52A900HXHWN/000007_1728381845.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB52-A900HXHWN",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBF1-A900I5L24",
+    "name_zh": "EASY HOME 活動機能可收納沙發邊桌-雙色可選(咖啡桌 小茶几 客廳桌 床",
+    "price_twd": 619,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBF1A900I5L24/000001_1733897118.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBF1-A900I5L24",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB36-A900JBRVE",
+    "name_zh": "直人木業 奶油白榆木可變餐桌茶几120公分(附四張收納椅凳)",
+    "price_twd": 11644,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB36A900JBRVE/000007_1759909001.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB36-A900JBRVE",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900J5SAR",
+    "name_zh": "【木洸】140*80cm客廳家用茶幾 簡約茶台  客廳桌 小戶型長方形桌子",
+    "price_twd": 8420,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900J5SAR/000001_1756370902.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900J5SAR",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB2Z-A900JNGT9",
+    "name_zh": "摺疊桌 折疊餐桌 移動餐桌 100*60*75cm 多功能餐桌 帶滑輪可煞車 餐",
+    "price_twd": 3480,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB2ZA900JNGT9/000007_1768563299.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB2Z-A900JNGT9",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB02-A900HC2MC",
+    "name_zh": "FUNTE Prime電動升降桌 三節式 120x80cm 方形桌板 升降茶几",
+    "price_twd": 15520,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB02A900HC2MC/000007_1769476861.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB02-A900HC2MC",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAALZ-A900AB61M",
+    "name_zh": "HOPMA 合馬 簡易工業茶几桌 台灣製造 和室桌",
+    "price_twd": 731,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAALZA900AB61M/000007_1685427040.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAALZ-A900AB61M",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDD1Y-A900DYHUA",
+    "name_zh": "AOTTO 客廳移動式茶几 邊桌 邊櫃",
+    "price_twd": 590,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDD1YA900DYHUA/000007_1644310137.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDD1Y-A900DYHUA",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0L-A900IQT9Y",
+    "name_zh": "可旋轉靠背小椅子 實木小圓凳 簡約茶幾矮凳 靠背椅 家用小凳子",
+    "price_twd": 2463,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0LA900IQT9Y/000001_1746432452.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0L-A900IQT9Y",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBCL-A900J2Y5H",
+    "name_zh": "IHouse 愛屋家具 春樹 台製免組裝1桌4椅 緩衝+萬向輪 機能升降茶几/餐",
+    "price_twd": 9980,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBCLA900J2Y5H/000007_1753860133.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBCL-A900J2Y5H",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900J5NSQ",
+    "name_zh": "【木洸】100CM整裝輕奢岩板茶几 客廳小戶型茶台 茶幾 茶桌 客廳桌",
+    "price_twd": 6344,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900J5NSQ/000001_1756201300.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900J5NSQ",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB69-A900I472P",
+    "name_zh": "升降邊桌 床邊桌 置物架 沙發邊幾 可移動 簡易臥室懶人現代風格桌 小戶型茶幾",
+    "price_twd": 1399,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB69A900I472P/000007_1732699342.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB69-A900I472P",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DCBB0M-A900BECXX",
+    "name_zh": "Monarch 尊爵家 艾克輕工業復古床邊桌 茶几 邊桌 懶人桌 沙發桌 床上桌",
+    "price_twd": 599,
+    "image_url": "https://img.pchome.com.tw/cs/items/DCBB0MA900BECXX/000007_1780365857.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DCBB0M-A900BECXX",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB69-A900JFFB9",
+    "name_zh": "【木洸】客廳家用茶几 可移動實木桌子 簡約現代日式茶桌 茶几邊幾 小戶型茶桌",
+    "price_twd": 3525,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB69A900JFFB9/000007_1762417517.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB69-A900JFFB9",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBEY-A900HDHQM",
+    "name_zh": "HORLA 賀啦生活家居 生活家居  現代木紋茶几",
+    "price_twd": 881,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBEYA900HDHQM/000007_1759973552.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBEY-A900HDHQM",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDD1Y-A900FS31L",
+    "name_zh": "AOTTO 床邊沙發可升降附輪邊桌-60CM(懶人桌 升降桌 電腦桌 邊几)",
+    "price_twd": 439,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDD1YA900FS31L/000007_1696397795.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDD1Y-A900FS31L",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAALZ-A900A7YHD",
+    "name_zh": "HOPMA 合馬 折疊式桌腳和室桌 台灣製造 懶人茶几桌 摺疊收納桌 野餐露營桌",
+    "price_twd": 518,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAALZA900A7YHD/000007_1685423467.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAALZ-A900A7YHD",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DMBM0K-A900ICB8S",
+    "name_zh": "LG 樂金 AS201PBK0 AeroFurniture 韓國製 邊桌設計 空",
+    "price_twd": 11900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DMBM0KA900ICB8S/000001_1782384179.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DMBM0K-A900ICB8S",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAM0-A900A64EB",
+    "name_zh": "HOPMA 合馬 北歐時尚茶几桌 台灣製造 和室桌",
+    "price_twd": 599,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAM0A900A64EB/000007_1685423271.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAM0-A900A64EB",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZL5-A900H38DC",
+    "name_zh": "歐楓居家 超透明PVC軟玻璃厚桌墊80cm*140cm(桌巾/桌布/餐桌墊/書桌",
+    "price_twd": 499,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZL5A900H38DC/000001_1705459467.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZL5-A900H38DC",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAUIK-A900JJEZE",
+    "name_zh": "【伊達】桌面置物架 廚房多功能分層架 整理餐桌零食茶几 杯架 茶包收納盒 儲物架",
+    "price_twd": 1101,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAUIKA900JJEZE/000007_1765453320.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAUIK-A900JJEZE",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900JCJ52",
+    "name_zh": "80*40 cm茶幾 小戶型客廳家用沙發茶桌 簡約現代橢圓形桌子 極簡奶油風小桌",
+    "price_twd": 2199,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900JCJ52/000001_1760524310.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900JCJ52",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB69-A900J5JXF",
+    "name_zh": "【木洸】現代簡約客廳收納小推車 沙發邊几客廳邊几 可移動60*60*55CM小茶",
+    "price_twd": 5311,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB69A900J5JXF/000001_1755916018.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB69-A900J5JXF",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB1G-A900C0P24",
+    "name_zh": "澄境 三色選百搭三抽屜附插座床頭櫃/收納櫃/置物櫃/櫃子/邊櫃/茶几",
+    "price_twd": 1248,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB1GA900C0P24/000007_1778832310.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB1G-A900C0P24",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB0D-A900IZQWZ",
+    "name_zh": "新錸家居 楠竹原木四段可調節高低折疊桌★風扇款-雕花小桌(床上桌/懶人桌/電腦筆",
+    "price_twd": 639,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB0DA900IZQWZ/000007_1769158666.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB0D-A900IZQWZ",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB69-A900J0U9U",
+    "name_zh": "【極美家居】升級桌面可翻轉邊桌(沙發邊桌 升降床邊桌 升降桌 萬用邊桌 茶几 沙",
+    "price_twd": 320,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB69A900J0U9U/000007_1752128773.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB69-A900J0U9U",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900JC836",
+    "name_zh": "80*45*41cm雙層茶幾小戶型客廳茶桌 茶臺 陽臺小桌子 小茶幾現代簡約創意",
+    "price_twd": 1999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900JC836/000001_1760353678.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900JC836",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDDFQ-A900AUTCT",
+    "name_zh": "吉迪市柚木家具 【吉迪市100%全柚木家具】柚木復古沙發客廳組 不含墊 1+2+",
+    "price_twd": 52630,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDDFQA900AUTCT/yt000001_1732261923.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDDFQ-A900AUTCT",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDDAU-A900ED5GJ",
+    "name_zh": "Homelike 喜家居4.3尺石紋茶几(2202)",
+    "price_twd": 14999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDDAUA900ED5GJ/000001_1645771706.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDDAU-A900ED5GJ",
+    "source": "pchome",
+    "category": "茶几",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD3G-A900HVLYF",
+    "name_zh": "HOPMA 合馬 簡約萬用小邊桌 台灣製造 床邊懶人桌 沙發茶几桌",
+    "price_twd": 788,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD3GA900HVLYF/000007_1727223635.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD3G-A900HVLYF",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900JD0D6",
+    "name_zh": "【木洸】120cm貓抓皮軟包岩板茶几桌  咖啡桌 客廳桌 矮桌子 茶几 置物桌",
+    "price_twd": 6796,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900JD0D6/000007_1761101733.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900JD0D6",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD3U-A900JMI0C",
+    "name_zh": "OSLE 歐適樂 創意床頭櫃沙發邊幾小型設計零食替代臥室窄可愛兒童收納置物架子",
+    "price_twd": 3799,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD3UA900JMI0C/000001_1767862420.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD3U-A900JMI0C",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD3E-A900J0QMY",
+    "name_zh": "TZUMii 森爾電視櫃/電器櫃/TV櫃/影音櫃/視聽櫃",
+    "price_twd": 999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD3EA900J0QMY/000007_1752049594.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD3E-A900J0QMY",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB9C-A900G3PCM",
+    "name_zh": "Homelike 喜家居6尺電視櫃(木面)(2257)",
+    "price_twd": 6486,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB9CA900G3PCM/000001_1677745713.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB9C-A900G3PCM",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD3Q-A900GZVQN",
+    "name_zh": "Bernice -辛西6.7尺三抽伸縮石面電視櫃/長櫃/視聽櫃(寬200~320",
+    "price_twd": 17160,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD3QA900GZVQN/000007_1702439191.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD3Q-A900GZVQN",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Q-A900H9J2L",
+    "name_zh": "RICHOME 克里斯電視櫃(180公分)",
+    "price_twd": 3387,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0QA900H9J2L/000007_1709020450.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Q-A900H9J2L",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53T2",
+    "name_zh": "hoi! 好好生活 Linsy簡約格調岩板收納電視櫃1.8M UC1M",
+    "price_twd": 6821,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53T2/000001_1782214446.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53T2",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900JNNW2",
+    "name_zh": "【木洸】160x30x29cm室內客廳電視櫃 簡約落地式電視機櫃 小戶型地櫃 收",
+    "price_twd": 6545,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900JNNW2/000001_1768812701.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900JNNW2",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900JNRX2",
+    "name_zh": "【木洸】160x30x39cm室內岩板電視櫃 小戶型家用電視機櫃 客廳收納櫃 電",
+    "price_twd": 7136,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900JNRX2/000001_1768897984.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900JNRX2",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAA9V-A9007XSY4",
+    "name_zh": "Homelike 喜家居工業風6尺電視櫃(1658)",
+    "price_twd": 7630,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAA9VA9007XSY4/000001_1621323965.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAA9V-A9007XSY4",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBUAD-A900G5KAZ",
+    "name_zh": "Bernice -斯皮爾5尺電視櫃/長櫃(兩色可選)",
+    "price_twd": 5540,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBUADA900G5KAZ/000001_1679303519.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBUAD-A900G5KAZ",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDD20-A900C7EU3",
+    "name_zh": "北歐現代小户型電視櫃-160cm",
+    "price_twd": 3590,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDD20A900C7EU3/000001_1640671876.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDD20-A900C7EU3",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_CCAA05-A9005SRXX",
+    "name_zh": "HOPMA 合馬 現代二門一抽電視櫃 台灣製造 視聽櫃 電器櫃 展示架 儲藏收納",
+    "price_twd": 1080,
+    "image_url": "https://img.pchome.com.tw/cs/items/CCAA05A9005SRXX/000007_1685427300.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/CCAA05-A9005SRXX",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD4P-A900I5L1Y",
+    "name_zh": "空間特工 電視櫃｜180x45x45cm 公文櫃｜收納架｜置物架｜儲物架｜電器櫃",
+    "price_twd": 3419,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD4PA900I5L1Y/yt000001_1770616548.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD4P-A900I5L1Y",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB9C-A900B5XAB",
+    "name_zh": "Homelike 喜家居樟木4尺電視櫃(2048)",
+    "price_twd": 7630,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB9CA900B5XAB/000001_1614307488.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB9C-A900B5XAB",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAA8D-A9009H5JQ",
+    "name_zh": "HOPMA 合馬 復古二門電視櫃 台灣製造 視聽櫃 電器櫃 展示架 儲藏收納櫃",
+    "price_twd": 1238,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAA8DA9009H5JQ/000007_1685427546.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAA8D-A9009H5JQ",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0P-A900GYOZJ",
+    "name_zh": "Lomani 樂嫚妮  日式仿藤編電視櫃/雙拉門小戶型電視櫃",
+    "price_twd": 1959,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0PA900GYOZJ/000007_1723432915.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0P-A900GYOZJ",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAKZ-A900A128M",
+    "name_zh": "ASSARI -米亞7尺電視櫃(寬212x深41x高48cm)",
+    "price_twd": 13821,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAKZA900A128M/000001_1558508027.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAKZ-A900A128M",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB9V-A900FWYS4",
+    "name_zh": "直人木業 COFFEE淺桐木精密陶板198CM電視櫃/搭配60公分展示櫃",
+    "price_twd": 19516,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB9VA900FWYS4/000001_1672984139.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB9V-A900FWYS4",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAA8D-A9008SYPC",
+    "name_zh": "HOPMA 合馬 現代二抽電視櫃 台灣製造 視聽櫃 電器櫃 展示架 儲藏收納櫃",
+    "price_twd": 1026,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAA8DA9008SYPC/000007_1685427161.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAA8D-A9008SYPC",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53TR",
+    "name_zh": "hoi! 好好生活 Linsy林沐系列多格收納高腳電視櫃1.5M UB2M",
+    "price_twd": 6631,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53TR/000001_1782214414.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53TR",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900IX111",
+    "name_zh": "諳木藏庫 雙櫃門收納木質電視櫃 100cm寬",
+    "price_twd": 1199,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900IX111/000001_1779246277.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900IX111",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAABZ-A900AT6CY",
+    "name_zh": "RICHOME 茵德絲北歐風雙門電視櫃/視聽櫃/電視架/收納架/置物架/客廳櫃",
+    "price_twd": 1372,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAABZA900AT6CY/000001_1597061771.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAABZ-A900AT6CY",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD2I-A900IFP4E",
+    "name_zh": "IHouse 愛屋家具 托特 MIT岩板4尺收納電視櫃(強化木心板)/長櫃/TV",
+    "price_twd": 5980,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD2IA900IFP4E/000007_1741595533.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD2I-A900IFP4E",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900INNTS",
+    "name_zh": "ASSARI 隼真5尺電視櫃(寬152x深40x高49cm)",
+    "price_twd": 5408,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900INNTS/000001_1745478802.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900INNTS",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD28-A900HMNRL",
+    "name_zh": "ASSARI -赫伯特6尺石面伸縮電視櫃(寬180~250x深40x高36cm)",
+    "price_twd": 15624,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD28A900HMNRL/000001_1720086996.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD28-A900HMNRL",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900JNNWU",
+    "name_zh": "【木洸】180x30x29cm室內客廳電視櫃 簡約落地式電視機櫃 小戶型地櫃 收",
+    "price_twd": 7338,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900JNNWU/000007_1768812848.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900JNNWU",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900JBUZY",
+    "name_zh": "HORLA 賀啦生活家居 現代電視櫃",
+    "price_twd": 1045,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900JBUZY/000001_1759977554.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900JBUZY",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD2Z-A900GMJPV",
+    "name_zh": "STYLEHOUSE 時尚屋 [DU10]北歐法雪9.7尺L型電視中空櫃DU10",
+    "price_twd": 16051,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD2ZA900GMJPV/000001_1693545831.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD2Z-A900GMJPV",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900JKSET",
+    "name_zh": "160cm小戶型電視機櫃 簡約高級感電視櫃 收納櫃 隱藏式拉手儲物櫃 邊櫃 置物",
+    "price_twd": 6849,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900JKSET/000001_1766308902.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900JKSET",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD3Q-A900GAQU5",
+    "name_zh": "Bernice -安東尼9.3尺L型電視櫃組合(2.7尺展示櫃+6.7尺長櫃)",
+    "price_twd": 19060,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD3QA900GAQU5/000007_1683265476.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD3Q-A900GAQU5",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GRX",
+    "name_zh": "hoi! 好好生活 YW布拉格橡木實木翻門四抽多功能收納電視櫃1.8M 原木色",
+    "price_twd": 16910,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GRX/000001_1783045616.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GRX",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GRP",
+    "name_zh": "hoi! 好好生活 WH喜木橡膠木實木滑門電視櫃1.5M 原木色 Y520N03",
+    "price_twd": 7599,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GRP/000001_1783045587.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GRP",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K57PE",
+    "name_zh": "hoi! 好好生活 YW西雅圖橡木實木圓角儲物電視櫃1.8M 原木色 Y9031",
+    "price_twd": 14440,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K57PE/000001_1782266428.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K57PE",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53TJ",
+    "name_zh": "hoi! 好好生活 YW西雅圖橡木實木雙抽拉門岩板電視櫃2M 原木色 Y9031",
+    "price_twd": 15865,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53TJ/000001_1782214478.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53TJ",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GSE",
+    "name_zh": "hoi! 好好生活 WH喜木橡膠木實木滑門電視櫃1.8M 原木色 Y520N03",
+    "price_twd": 8911,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GSE/000001_1783045618.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GSE",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53TK",
+    "name_zh": "hoi! 好好生活 YW平原橡木實木滑門電視櫃2M 原木色 Y10N02",
+    "price_twd": 12160,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53TK/000001_1782214454.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53TK",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD3Q-A900GCJZJ",
+    "name_zh": "Bernice -伊森8.4尺全實木收納電視櫃組合(柚木色)",
+    "price_twd": 22980,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD3QA900GCJZJ/000007_1684724977.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD3Q-A900GCJZJ",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53SS",
+    "name_zh": "hoi! 好好生活 YW覓藤橡木實木四抽雙門電視櫃1.8M 原木色 Y49N03",
+    "price_twd": 15675,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53SS/000001_1782214497.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53SS",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GSG",
+    "name_zh": "hoi! 好好生活 WH初雪奶油風橡膠木實木四抽電視櫃2M J01Q09",
+    "price_twd": 9024,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GSG/000001_1783045625.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GSG",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53TG",
+    "name_zh": "hoi! 好好生活 YW貝里白蠟木實木玻璃滑門四抽岩板電視櫃1.8M 原木色 Y",
+    "price_twd": 20900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53TG/000001_1782214489.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53TG",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GSB",
+    "name_zh": "hoi! 好好生活 YW雪影奶油風橡膠木實木滑門電視櫃1.8M Y246N01",
+    "price_twd": 11399,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GSB/000001_1783045610.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GSB",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53TI",
+    "name_zh": "hoi! 好好生活 YW西雅圖橡木實木雙抽拉門岩板電視櫃1.5M 原木色 Y90",
+    "price_twd": 11304,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53TI/000001_1782214481.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53TI",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GSA",
+    "name_zh": "hoi! 好好生活 WH初雪奶油風橡膠木實木四抽電視櫃1.8M J01Q09",
+    "price_twd": 8549,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GSA/000001_1783045608.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GSA",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GRS",
+    "name_zh": "hoi! 好好生活 Linsy北歐實木藤編二抽電視櫃1.8M LT1M",
+    "price_twd": 11875,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GRS/000001_1783045596.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GRS",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD0Z-A900K3P5L",
+    "name_zh": "文創集 晴光3.8尺實木三門二抽雲紋石面電視櫃(加厚石面板)",
+    "price_twd": 10132,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD0ZA900K3P5L/000001_1781161031.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD0Z-A900K3P5L",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GPX",
+    "name_zh": "hoi! 好好生活 YW楊木實木玻璃滑門岩板電視櫃1.8M Y270N02",
+    "price_twd": 10449,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GPX/000001_1783045585.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GPX",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K4XIG",
+    "name_zh": "hoi! 好好生活 YW布拉格橡木實木玻璃滑門雙抽電視櫃1.8M 原木色 Y84",
+    "price_twd": 12635,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K4XIG/000001_1782098189.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K4XIG",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53UF",
+    "name_zh": "hoi! 好好生活 YW萊克現代簡約實木落地款四抽岩板電視櫃1.8M L283N",
+    "price_twd": 12825,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53UF/000001_1782214395.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53UF",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GPY",
+    "name_zh": "hoi! 好好生活 HF格林櫻桃木實木雙抽拉門電視櫃1.8M",
+    "price_twd": 22799,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GPY/000001_1783045592.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GPY",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K6GPZ",
+    "name_zh": "hoi! 好好生活 WH奶油風實木二抽儲物電視櫃2M J01Q08",
+    "price_twd": 11305,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K6GPZ/000001_1783045598.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K6GPZ",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53TL",
+    "name_zh": "hoi! 好好生活 WH奶油風實木二抽儲物電視櫃1.8M J01Q08",
+    "price_twd": 10355,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53TL/000001_1782214449.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53TL",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZUC-A900K5K6A",
+    "name_zh": "【銳達】精雕成對麒麟實木擺飾 吉祥瑞獸造型 客廳電視櫃玄關辦公室裝飾工藝品 麒麟",
+    "price_twd": 3007,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZUCA900K5K6A/000001_1782460143.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZUC-A900K5K6A",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAY0F-A900K53T1",
+    "name_zh": "hoi! 好好生活 WH奶油風實木二抽儲物電視櫃1.5M J01Q08",
+    "price_twd": 9006,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAY0FA900K53T1/000001_1782214451.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAY0F-A900K53T1",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2OBM",
+    "name_zh": "茶幾桌布 新中式茶幾桌布 客廳輕奢桌布 高端電視櫃 長條蓋布 餐桌裝飾臺布 雪尼",
+    "price_twd": 1775,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2OBM/000001_1780471324.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2OBM",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2VB2",
+    "name_zh": "新中式木紋桌布 中國風皮革桌布 防水防油桌布 免洗餐桌墊 防燙耐高溫燙 茶幾墊",
+    "price_twd": 1550,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2VB2/000001_1780640166.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2VB2",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XVT",
+    "name_zh": "餐桌布 新中式餐桌布 橢圓形餐桌布 免洗防油防水 弧形茶幾桌墊 皮革防燙 桌面保",
+    "price_twd": 1879,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XVT/000001_1780727984.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XVT",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XUS",
+    "name_zh": "餐桌墊 新中式餐桌墊 免洗餐桌墊 防水防油餐桌墊 茶幾墊 輕奢高級感 桌面保護墊",
+    "price_twd": 1860,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XUS/000001_1780726708.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XUS",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2VEC",
+    "name_zh": "新中式木紋桌布 中國風皮革桌布 防水防油桌布 免洗餐桌墊 防燙耐高溫燙 茶幾墊",
+    "price_twd": 1550,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2VEC/000001_1780640786.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2VEC",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XV3",
+    "name_zh": "餐桌布 新中式餐桌布 橢圓形餐桌布 免洗防油防水 弧形茶幾桌墊 皮革防燙 桌面保",
+    "price_twd": 1775,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XV3/000001_1780727408.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XV3",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2OBC",
+    "name_zh": "茶幾桌布 新中式茶幾桌布 客廳輕奢桌布 高端電視櫃 長條蓋布 餐桌裝飾臺布 雪尼",
+    "price_twd": 1550,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2OBC/000001_1780471505.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2OBC",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCD-A900K2NBO",
+    "name_zh": "餐桌椅套 新中式椅套 弧形椅子套罩 高級感餐椅 餐桌椅套 全包座椅 靠背保護套",
+    "price_twd": 2433,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCDA900K2NBO/000001_1780455474.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCD-A900K2NBO",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2VC0",
+    "name_zh": "中國風皮革桌布 新中式木紋桌布 防水防油桌布 免洗餐桌墊 防燙耐高溫燙 茶幾墊",
+    "price_twd": 1775,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2VC0/000001_1780640399.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2VC0",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XW8",
+    "name_zh": "餐桌布 免洗防油防水  新中式餐桌布 弧形茶幾桌墊 橢圓形餐桌布 皮革防燙 桌面",
+    "price_twd": 2104,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XW8/000001_1780728443.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XW8",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XVU",
+    "name_zh": "新中式餐桌布 橢圓形餐桌布 免洗防油防水 弧形茶幾桌墊 皮革防燙 桌面保護墊 臺",
+    "price_twd": 2104,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XVU/000001_1780728161.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XVU",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2O0Q",
+    "name_zh": "桌旗 新中式結婚桌旗 紅色長條餐桌布 高端喜慶婚房布置 客廳裝飾蓋布 婚嫁桌旗",
+    "price_twd": 1108,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2O0Q/000001_1780467581.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2O0Q",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2VD0",
+    "name_zh": "免洗餐桌墊 新中式木紋桌布 中國風皮革桌布 防水防油桌布 防燙耐高溫燙 茶幾墊",
+    "price_twd": 1662,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2VD0/000001_1780640590.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2VD0",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCD-A900K2NCL",
+    "name_zh": "新中式椅套 餐桌椅套 弧形椅子套罩 高級感餐椅 餐桌椅套 全包座椅 靠背保護套",
+    "price_twd": 3101,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCDA900K2NCL/000001_1780455674.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCD-A900K2NCL",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XVP",
+    "name_zh": "新中式餐桌布 橢圓形餐桌布 免洗防油防水餐桌布 弧形茶幾桌墊 皮革防燙 桌面保護",
+    "price_twd": 1775,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XVP/000001_1780727779.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XVP",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2XVM",
+    "name_zh": "新中式餐桌布 橢圓形餐桌布 免洗防油防水 弧形茶幾桌墊 皮革防燙 桌面保護墊 臺",
+    "price_twd": 1662,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2XVM/000001_1780727586.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2XVM",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2NZP",
+    "name_zh": "桌旗 新中式結婚桌旗 紅色長條餐桌布 輕奢高端喜慶婚房布置 裝飾蓋布 婚嫁桌旗",
+    "price_twd": 1221,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2NZP/000001_1780467262.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2NZP",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZLF-A900K2OCA",
+    "name_zh": "新中式茶幾桌布 客廳輕奢桌布 高端電視櫃 長條蓋布 餐桌裝飾臺布 雪尼爾茶幾桌布",
+    "price_twd": 1662,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZLFA900K2OCA/000001_1780471741.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZLF-A900K2OCA",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "chinese-modern"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DCBV09-A900IUC3Q",
+    "name_zh": "Herman Miller 【世代家具】Aeron 人體工學椅 - 全功能｜石墨",
+    "price_twd": 38900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DCBV09A900IUC3Q/000007_1753260564.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DCBV09-A900IUC3Q",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDS0A-A900FUY72",
+    "name_zh": "IHouse 愛屋家具 灰太郎 舒適減壓高回彈 貓抓皮沙發 4人+腳椅",
+    "price_twd": 18880,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDS0AA900FUY72/000007_1671524213.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDS0A-A900FUY72",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDK6A-A900HDMI7",
+    "name_zh": "MUJI 無印良品 胡桃木組合床台/Q(大型家具配送)",
+    "price_twd": 15900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDK6AA900HDMI7/000007_1712741934.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDK6A-A900HDMI7",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDB0D-A900FQYSY",
+    "name_zh": "IDEA -MIT寢室傢俱單人加大三件組",
+    "price_twd": 6600,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDB0DA900FQYSY/000001_1668144503.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDB0D-A900FQYSY",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU9C-A900HERPR",
+    "name_zh": "IHouse 愛屋家具 全方位透氣 雙人5尺高迴彈高壓縮獨立筒床墊(軟硬適中)",
+    "price_twd": 2999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU9CA900HERPR/000001_1713516419.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU9C-A900HERPR",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DCBV0W-A900J430X",
+    "name_zh": "Herman Miller 【Ystore雅浩家具】Embody 3.0 黑框款",
+    "price_twd": 55770,
+    "image_url": "https://img.pchome.com.tw/cs/items/DCBV0WA900J430X/000007_1754903661.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DCBV0W-A900J430X",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DBAG4R-A900A6U23",
+    "name_zh": "心一 地中海平安水280ml(24入/箱)",
+    "price_twd": 175,
+    "image_url": "https://img.pchome.com.tw/cs/items/DBAG4RA900A6U23/000001_1565168375.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DBAG4R-A900A6U23",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU9C-A900HERTF",
+    "name_zh": "IHouse 愛屋家具 備長炭負離子 雙人5尺中鋼三線獨立筒床墊(軟硬適中)",
+    "price_twd": 3880,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU9CA900HERTF/000001_1713517774.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU9C-A900HERTF",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC1L-A900GM26G",
+    "name_zh": "吉迪市柚木家具 【吉迪市100%全柚木家具】柚木雕花造型貴妃椅 UNCD-17S",
+    "price_twd": 36000,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC1LA900GM26G/yt000001_1697087062.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC1L-A900GM26G",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBJ7I-A900J4MT4",
+    "name_zh": "YOKA 佑客家具 免運免組裝 2025旗艦人體工學椅 太空滑翔椅Pro 鋁合金",
+    "price_twd": 20980,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBJ7IA900J4MT4/000007_1755078885.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBJ7I-A900J4MT4",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDK1O-A900JXTVV",
+    "name_zh": "MUJI 無印良品 節眼木製桌邊凳/板座/胡桃木(大型家具配送)",
+    "price_twd": 6120,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDK1OA900JXTVV/000007_1776839087.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDK1O-A900JXTVV",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAB5Z-A900B13NF",
+    "name_zh": "AXIS 艾克思 家具消音防刮加厚毛氈腳墊-方形90x114mm_2入",
+    "price_twd": 202,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAB5ZA900B13NF/000001_1618386269.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAB5Z-A900B13NF",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBCL-A900I553S",
+    "name_zh": "IHouse 愛屋家具 台灣製 100cm工學電動升降桌/兒童書桌/辦公桌/書桌",
+    "price_twd": 3166,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBCLA900I553S/000007_1733467737.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBCL-A900I553S",
+    "source": "pchome",
+    "category": "桌子",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDK6A-A900BMNYM",
+    "name_zh": "MUJI 無印良品 自由組合層架/橡木/5層/寬版基本組.7S(大型家具配送)",
+    "price_twd": 8590,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDK6AA900BMNYM/000001_1627998629.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDK6A-A900BMNYM",
+    "source": "pchome",
+    "category": "收納",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU62-A900K1AGW",
+    "name_zh": "A FACTORY 傢俱工場 雙人5尺 實惠型6分木芯板加厚強化床底座(床底/床",
+    "price_twd": 1499,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU62A900K1AGW/000007_1779348851.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU62-A900K1AGW",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DCBV0W-A900JRYN6",
+    "name_zh": "Herman Miller 【Ystore雅浩家具】Aeron 3.0 限定款_",
+    "price_twd": 39903,
+    "image_url": "https://img.pchome.com.tw/cs/items/DCBV0WA900JRYN6/000001_1772446537.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DCBV0W-A900JRYN6",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAKD-A90097P59",
+    "name_zh": "IHouse 愛屋家具 山田 日式插座燈光房間二件組(床頭+床底)-單大3.5尺",
+    "price_twd": 2999,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAKDA90097P59/000007_1773996391.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAKD-A90097P59",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DAAZ6Y-A900JTHJF",
+    "name_zh": "天然蜂蠟油(食品級)25g.蜂蠟護木油 實木保養油 護木蠟木蠟油 傢俱護理蠟 家",
+    "price_twd": 150,
+    "image_url": "https://img.pchome.com.tw/cs/items/DAAZ6YA900JTHJF/000001_1773641571.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DAAZ6Y-A900JTHJF",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DBAI9E-A900B37YA",
+    "name_zh": "TAIYEN 台鹽  地中海生態海鹽(450g/罐)",
+    "price_twd": 112,
+    "image_url": "https://img.pchome.com.tw/cs/items/DBAI9EA900B37YA/000001_1610337010.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DBAI9E-A900B37YA",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DCBV09-A900ITKL3",
+    "name_zh": "Herman Miller 【世代家具】Aeron 人體工學椅 - 全功能｜石墨",
+    "price_twd": 38900,
+    "image_url": "https://img.pchome.com.tw/cs/items/DCBV09A900ITKL3/000007_1752810058.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DCBV09-A900ITKL3",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDS0A-A900FMLAE",
+    "name_zh": "IHouse 愛屋家具 小戶型 貓抓皮收納沙發/沙發床/雙人小沙發",
+    "price_twd": 4999,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDS0AA900FMLAE/000007_1665026781.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDS0A-A900FMLAE",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "mediterranean"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZZ1-A900JWO8U",
+    "name_zh": "客廳地毯 奶油風沙發地毯 地墊 免洗可擦 輕奢高級防水 臥室地毯",
+    "price_twd": 2143,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZZ1A900JWO8U/000001_1775886521.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZZ1-A900JWO8U",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5WSO",
+    "name_zh": "70*100CM 掛畫 牆面畫 客廳掛畫 裝飾畫 壁畫 沙發背景牆掛畫 奶油侘寂",
+    "price_twd": 5399,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5WSO/000001_1782805389.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5WSO",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0N-A900JXZ19",
+    "name_zh": "2.0m奶油風云朵沙發床 可折叠三檔調節 親膚牛奶絨 實木框架 小戶型沙發床（可",
+    "price_twd": 14588,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0NA900JXZ19/000001_1776912677.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0N-A900JXZ19",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5KEF",
+    "name_zh": "掛畫 裝飾畫 花卉掛畫 奶油風掛畫 客廳掛畫 沙發背景牆掛畫 直式掛畫 肌理掛畫",
+    "price_twd": 4229,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5KEF/000001_1782462320.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5KEF",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5SKJ",
+    "name_zh": "掛畫 裝飾畫 客廳掛畫 沙發背景牆掛畫 三聯畫 奶油風掛畫 大象掛畫 花海掛畫",
+    "price_twd": 6015,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5SKJ/000001_1782728934.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5SKJ",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCBDJ-A900JCJ5B",
+    "name_zh": "100*50 cm茶幾 小戶型客廳家用沙發茶桌 簡約現代橢圓形桌子 極簡奶油風小",
+    "price_twd": 2665,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCBDJA900JCJ5B/000001_1760524405.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCBDJ-A900JCJ5B",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5SKW",
+    "name_zh": "掛畫 裝飾畫 客廳掛畫 三聯畫 奶油風掛畫 大象裝飾畫 花海風景掛畫 沙發背景牆",
+    "price_twd": 7801,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5SKW/000001_1782728977.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5SKW",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE18-A900K2BF1",
+    "name_zh": "OSLE 歐適樂 雲朵沙發現代簡約客廳家用小戶型雙人休閑輕奢網紅奶油風布藝沙發",
+    "price_twd": 9899,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE18A900K2BF1/000001_1780133469.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE18-A900K2BF1",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBBAE-A900JNMR4",
+    "name_zh": "可移動茶幾 多功能小推車 奶油風邊幾 客廳沙發邊桌桌子 臥室床頭收納置物架",
+    "price_twd": 1959,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBBAEA900JNMR4/000007_1768792899.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBBAE-A900JNMR4",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZAQ-A900K5XTR",
+    "name_zh": "掛畫 裝飾畫 壁畫 牆面畫 客廳掛畫 沙發背景牆掛畫 奶油風掛畫 抽象掛畫 肌理",
+    "price_twd": 3599,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZAQA900K5XTR/000001_1782812669.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZAQ-A900K5XTR",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5SIG",
+    "name_zh": "40*60CM 客廳掛畫 掛畫 裝飾畫 壁畫 牆面畫 玄關掛畫 沙發背景牆掛畫",
+    "price_twd": 3101,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5SIG/000001_1782727669.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5SIG",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5SR5",
+    "name_zh": "80*80CM 裝飾畫 壁畫 掛畫 客廳掛畫 牆面畫 沙發牆掛畫 奶油風裝飾畫",
+    "price_twd": 7049,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5SR5/000001_1782732185.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5SR5",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCD10-A900JCZFI",
+    "name_zh": "ASSARI 奶油風木芯板插座活動沙發邊櫃",
+    "price_twd": 1687,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCD10A900JCZFI/000001_1760863690.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCD10-A900JCZFI",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZFI-A900JXI5G",
+    "name_zh": "地毯 140*200cm 客廳地毯 奶油風沙發地墊 免洗可擦臥室地毯 輕奢高級大",
+    "price_twd": 2009,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZFIA900JXI5G/000001_1776564348.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZFI-A900JXI5G",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5KEC",
+    "name_zh": "掛畫 裝飾畫 奶油風掛畫 客廳掛畫 花卉裝飾畫 沙發掛畫 肌理畫 餐廳掛畫 床頭",
+    "price_twd": 3289,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5KEC/000001_1782462279.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5KEC",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5SIA",
+    "name_zh": "60*60CM 客廳掛畫 掛畫 裝飾畫 壁畫 牆面畫 沙發背景牆掛畫 奶油風掛畫",
+    "price_twd": 3853,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5SIA/000001_1782727417.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5SIA",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5SRT",
+    "name_zh": "50*70CM掛畫 客廳掛畫 裝飾畫 壁畫 牆面畫 玄關掛畫 沙發牆掛畫 奶油風",
+    "price_twd": 4041,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5SRT/000001_1782732342.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5SRT",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE24-A900JX675",
+    "name_zh": "IDEA 奶油風圓潤飽滿柔韌絨布三人沙發/180CM 可客製",
+    "price_twd": 8990,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE24A900JX675/000001_1776316026.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE24-A900JX675",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQAU7E-A900JQ0PA",
+    "name_zh": "【暢麥】置物架 沙發邊幾 可移動 臥室床頭櫃 奶油風 茶幾小桌子 簡約現代 床邊",
+    "price_twd": 1469,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQAU7EA900JQ0PA/000001_1770628959.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQAU7E-A900JQ0PA",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1F-A900HKO6D",
+    "name_zh": "YIJIE 晨曦   ins網紅休閑椅 旋轉單人沙發椅 奶油風天鵝椅 電腦椅子(",
+    "price_twd": 3399,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1FA900HKO6D/000001_1718542747.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1F-A900HKO6D",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5K5E",
+    "name_zh": "掛畫 裝飾畫 客廳掛畫 沙發背景牆掛畫 奶油風掛畫 花卉掛畫 肌理掛畫 直式掛畫",
+    "price_twd": 2631,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5K5E/000001_1782459435.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5K5E",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAZCM-A900K5WPW",
+    "name_zh": "140*70cm 掛畫 牆面畫 客廳掛畫 裝飾畫 壁畫 九魚圖掛畫 奶油風掛畫",
+    "price_twd": 7799,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAZCMA900K5WPW/000001_1782804894.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAZCM-A900K5WPW",
+    "source": "pchome",
+    "category": "裝飾",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC0R-A900HHOLF",
+    "name_zh": "Obis 歐必斯 FENDER 三人電動沙發/貓抓皮(灰色)",
+    "price_twd": 16899,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC0RA900HHOLF/000007_1775707137.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC0R-A900HHOLF",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0N-A900JNLEH",
+    "name_zh": "多功能懶人折疊沙發床 折疊床 沙發 單人床 躺椅 午休椅 寬65cm",
+    "price_twd": 3990,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0NA900JNLEH/000001_1768738033.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0N-A900JNLEH",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC1T-A900GO8AX",
+    "name_zh": "EZ Maison 輕鬆家居 維拉斯手動沙發躺椅 SS0002(一般地區免運)",
+    "price_twd": 3980,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC1TA900GO8AX/000007_1744954995.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC1T-A900GO8AX",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCF0S-A900H2TJ8",
+    "name_zh": "H&D 東稻家居 二代麥西蒙日式多功能收納防潑沙發床-耐磨",
+    "price_twd": 11199,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCF0SA900H2TJ8/000007_1720410553.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCF0S-A900H2TJ8",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE08-A900I5HFP",
+    "name_zh": "IHouse 愛屋家具 頭等尊享艙 1+2+3人座納帕加厚皮革 按摩+電動沙發套",
+    "price_twd": 48350,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE08A900I5HFP/000007_1733813442.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE08-A900I5HFP",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBJ6Z-A900IQTDL",
+    "name_zh": "電競沙發 電競椅 單人沙發",
+    "price_twd": 3850,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBJ6ZA900IQTDL/000007_1746433956.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBJ6Z-A900IQTDL",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1B-A900JDIC9",
+    "name_zh": "【Secaii設彩品牌店】懶人聯盟 懶人沙發 榻榻米沙發 懶骨頭沙發 豆豆椅 陽",
+    "price_twd": 1124,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1BA900JDIC9/000007_1761276634.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1B-A900JDIC9",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1Y-A900I2Q44",
+    "name_zh": "好氣氛家居 奢華鬆軟寬大雲朵L型沙發/3色可選(左右可換)",
+    "price_twd": 8599,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1YA900I2Q44/000007_1731568033.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1Y-A900I2Q44",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE24-A900JGB65",
+    "name_zh": "IDEA 洛亞飽滿質感高背貓抓皮三人沙發",
+    "price_twd": 11500,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE24A900JGB65/000001_1763101831.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE24-A900JGB65",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1B-A900IWZXC",
+    "name_zh": "A FACTORY 傢俱工場 光年 美型貓抓皮 電動躺降功能沙發躺椅",
+    "price_twd": 5468,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1BA900IWZXC/000007_1757563680.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1B-A900IWZXC",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC1T-A900GO8BI",
+    "name_zh": "EZ Maison 輕鬆家居 哥本哈根可調式單人沙發躺椅 SS0001(一般地區",
+    "price_twd": 2888,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC1TA900GO8BI/000007_1756258852.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC1T-A900GO8BI",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAAKZ-A900ATPHA",
+    "name_zh": "ASSARI -伍羅1+2+3人座半牛皮獨立筒沙發",
+    "price_twd": 58595,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAAKZA900ATPHA/000001_1597738638.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAAKZ-A900ATPHA",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1B-A900K2CGK",
+    "name_zh": "OSLE 歐適樂 陽臺客廳單人沙發椅設計師民宿休息區接待懶人實木原木休閑椅",
+    "price_twd": 4559,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1BA900K2CGK/000001_1780212739.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1B-A900K2CGK",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DSBC5E-A900HQRHZ",
+    "name_zh": "COUGAR 美洲獅 RANGER ONE 電競沙發 三段傾斜 人體工學 側邊收",
+    "price_twd": 8990,
+    "image_url": "https://img.pchome.com.tw/cs/items/DSBC5EA900HQRHZ/000007_1782812558.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DSBC5E-A900HQRHZ",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1B-A900JAP9X",
+    "name_zh": "【木洸】雪尼爾可躺可睡懶人沙發 單人沙發 休閒沙發椅 輕巧海綿顆粒沙發 豆袋沙發",
+    "price_twd": 4729,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1BA900JAP9X/000001_1759229046.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1B-A900JAP9X",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE0N-A900J9HFN",
+    "name_zh": "HappyLife 伸縮實木沙發床/80cm (Y12458)",
+    "price_twd": 17697,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE0NA900J9HFN/000001_1758196555.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE0N-A900J9HFN",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDDFM-A900C01RZ",
+    "name_zh": "ASSARI -北海道全柚木1+2+3人座沙發",
+    "price_twd": 68111,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDDFMA900C01RZ/000001_1637311236.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDDFM-A900C01RZ",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEDK6A-A900JFLCS",
+    "name_zh": "MUJI 無印良品 無扶手簡約沙發/3人座/聚酯平織/棕色寬179*深74.5*",
+    "price_twd": 25990,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEDK6AA900JFLCS/000007_1762501912.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEDK6A-A900JFLCS",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE24-A900IFY70",
+    "name_zh": "IDEA 簡約厚實耐磨貓抓皮三人沙發/三色可選(運費另計)",
+    "price_twd": 6600,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE24A900IFY70/000001_1741762471.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE24-A900IFY70",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEABPM-A900FMXR5",
+    "name_zh": "H&D 東稻家居 日式簡約布質沙發床 懶人沙發床-簡易組裝",
+    "price_twd": 3399,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEABPMA900FMXR5/000007_1665555208.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEABPM-A900FMXR5",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC0C-A900HAB9X",
+    "name_zh": "Birdie -巴金斯毛毛蟲布沙發/懶人沙發/單人沙發/休閒造型椅-灰色",
+    "price_twd": 7720,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC0CA900HAB9X/000007_1709710104.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC0C-A900HAB9X",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1B-A900JCBX6",
+    "name_zh": "懶人沙發 榻榻米沙發 懶骨頭沙發 陽台臥室沙發  環保 加量填充 內膽設計 85",
+    "price_twd": 1124,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1BA900JCBX6/000001_1760422997.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1B-A900JCBX6",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBJ6Z-A900I92DO",
+    "name_zh": "電競沙發 電競椅 單人沙發",
+    "price_twd": 4000,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBJ6ZA900I92DO/000007_1736505095.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBJ6Z-A900I92DO",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC0L-A900HQHXB",
+    "name_zh": "AOTTO 多功能懶人折疊沙發床-特大120cm",
+    "price_twd": 3480,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC0LA900HQHXB/000007_1724034227.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC0L-A900HQHXB",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBJ6Z-A900I49O4",
+    "name_zh": "COUGAR 美洲獅 FIDOM 電競可旋轉搖椅沙發",
+    "price_twd": 10990,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBJ6ZA900I49O4/000007_1732761757.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBJ6Z-A900I49O4",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1A-A900JNWZ3",
+    "name_zh": "【木洸】180x61x57cm三人位大象耳朵沙發 小戶型客廳家用沙發床 酒店沙發",
+    "price_twd": 8326,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1AA900JNWZ3/000001_1768984400.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1A-A900JNWZ3",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE28-A900I2DP0",
+    "name_zh": "客廳懶人沙發單人可躺可睡毛毛蟲椅 臥室小沙發躺椅 榻榻米陽臺龍蝦椅 休閒椅 和室",
+    "price_twd": 2219,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE28A900I2DP0/000007_1731219096.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE28-A900I2DP0",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCC2I-A900HGHG9",
+    "name_zh": "好氣氛家居 多功能雲朵絨布沙發床/兩色可選/寬100公分",
+    "price_twd": 2880,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCC2IA900HGHG9/000007_1715161556.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCC2I-A900HGHG9",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1A-A900J35ZY",
+    "name_zh": "A FACTORY 傢俱工場 杜老爺 零靠牆240CM 貓抓皮雙電動沙發/沙發躺",
+    "price_twd": 19728,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1AA900J35ZY/000007_1753953354.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1A-A900J35ZY",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DMADC4-A900J25HD",
+    "name_zh": "輝葉 Cway沙發按摩椅(腳底/小腿/溫熱/穴位按摩椅 HY-3078)",
+    "price_twd": 32800,
+    "image_url": "https://img.pchome.com.tw/cs/items/DMADC4A900J25HD/yt000001_1781083836.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DMADC4-A900J25HD",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE1W-A900JB3HV",
+    "name_zh": "【木洸】雙人布藝沙發 小戶型地上榻榻米 懶人沙發 軟沙發 軟骨頭 沙發椅125*",
+    "price_twd": 3223,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE1WA900JB3HV/000007_1759393937.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE1W-A900JB3HV",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE2B-A900I99QC",
+    "name_zh": "H&D 東稻家居 國民無段式皮質單人功能沙發 (懶人沙發 孝親椅 美容椅 休閒椅",
+    "price_twd": 2318,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE2BA900I99QC/000007_1736822514.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE2B-A900I99QC",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE2B-A900J3VYG",
+    "name_zh": "H&D 東稻家居 靜然沙發床/折床 雙人沙發 單人床 躺椅 沙發 - DIY自行",
+    "price_twd": 1799,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE2BA900J3VYG/000007_1754548553.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE2B-A900J3VYG",
+    "source": "pchome",
+    "category": "沙發",
+    "style_tags": [
+      "cream"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_QFAALW-A900AJC07",
+    "name_zh": "吉迪市柚木家具 【吉迪市100%全柚木家具】簡約原木方形板凳/椅凳 HY031A",
+    "price_twd": 1800,
+    "image_url": "https://img.pchome.com.tw/cs/items/QFAALWA900AJC07/yt000001_1733274802.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/QFAALW-A900AJC07",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBUAT-A900HAUZM",
+    "name_zh": "A FACTORY 傢俱工場 強森 全實木粗腳穩固 床架/床底 單大3.5尺",
+    "price_twd": 4611,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBUATA900HAUZM/000007_1710226030.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBUAT-A900HAUZM",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBU9C-A900HRY0W",
+    "name_zh": "IHouse 愛屋家具 909B奶油韓風實木 單大3.5尺床台/收納床架/單人床",
+    "price_twd": 5459,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBU9CA900HRY0W/000007_1725261995.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBU9C-A900HRY0W",
+    "source": "pchome",
+    "category": "床架",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBD1R-A900I0NNO",
+    "name_zh": "修補棒 2入 10種顏色任選 補色筆 彩色蠟筆 傢俱補土筆 修補蠟筆 傢俱修補筆",
+    "price_twd": 133,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBD1RA900I0NNO/000007_1729828854.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBD1R-A900I0NNO",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQBD1R-A900I0OOY",
+    "name_zh": "傢俱修補筆 2入 10種色 補色劑 木地板修補 實木修複 修補蠟筆 家具修整 補",
+    "price_twd": 133,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQBD1RA900I0OOY/000007_1729840244.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQBD1R-A900I0OOY",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCE2P-A900IHXGD",
+    "name_zh": "吉迪市柚木家具 【吉迪市100%原木家具】檜木簡約風格條凳 不鏽鋼腳 長椅 長凳",
+    "price_twd": 6500,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCE2PA900IHXGD/000001_1742974282.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCE2P-A900IHXGD",
+    "source": "pchome",
+    "category": "椅子",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DEAK8W-A900K4DWE",
+    "name_zh": "寵物睡床 實木寵物床 疊疊床設計 貓狗睡窩 家用寵物小床 原木風寵物家具 130",
+    "price_twd": 3953,
+    "image_url": "https://img.pchome.com.tw/cs/items/DEAK8WA900K4DWE/000007_1781590228.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DEAK8W-A900K4DWE",
+    "source": "pchome",
+    "category": "傢俱",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
+  },
+  {
+    "id": "pchome_DQCB8D-A900GZM8J",
+    "name_zh": "吉迪市柚木家具 【吉迪市100%全柚木家具】原木版畫 壁掛 掛畫 裝飾 壁飾 L",
+    "price_twd": 1063,
+    "image_url": "https://img.pchome.com.tw/cs/items/DQCB8DA900GZM8J/yt000001_1702280827.jpg",
+    "purchase_url": "https://24h.pchome.com.tw/prod/DQCB8D-A900GZM8J",
+    "source": "pchome",
+    "category": "裝飾",
+    "style_tags": [
+      "wood"
+    ],
+    "colors": [],
+    "dimensions": "",
+    "flux_descriptor": ""
   }
 ]
