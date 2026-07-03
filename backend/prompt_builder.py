@@ -970,8 +970,14 @@ def _build_nonliving_nano_inputs(
     entry: dict, room_image_url: str, room_type: str,
     customer_notes: str = "", budget_tier: str = "tier3",
     retry_context: dict | None = None, design_mode: str = "furnish",
+    consistency_ref_url: str | None = None,
 ) -> dict:
-    """臥室/餐廳/書房專用 prompt（living 不走這裡）。"""
+    """臥室/餐廳/書房專用 prompt（living 不走這裡）。
+
+    consistency_ref_url: 全室模式跨房一致性——同風格「已完成的客廳成品圖」。
+    餐廳照背景常拍得到客廳的共享牆/沙發邊緣，各畫各的會穿幫（343FFAE7 回饋：
+    餐廳視角看到的客廳牆面材質和客廳圖對不上）。傳入時餐廳 prompt 會多一張
+    參考圖＋一致性指令；None 或非餐廳房型 → 行為完全不變。"""
     ref_cats = ROOM_REF_CATS.get(room_type, ())
     matched = entry.get("matched_furniture") or []
     selected: dict[str, dict] = {}
@@ -999,6 +1005,27 @@ def _build_nonliving_nano_inputs(
             image_urls.append(it.get("image_url"))
             next_idx += 1
 
+    # 跨房一致性參考圖（只給餐廳；放在商品參考之後、index 連續）
+    consistency_sec = ""
+    if consistency_ref_url and room_type == "dining":
+        reference_map.append({
+            "index": next_idx, "role": "ADJACENT LIVING (ALREADY DESIGNED)",
+            "url": consistency_ref_url,
+            "cat_en": None, "name_zh": None, "id": None, "kind": "CONSISTENCY",
+        })
+        image_urls.append(consistency_ref_url)
+        consistency_sec = (
+            f"CROSS-ROOM CONSISTENCY: reference image {next_idx} is the ALREADY-DESIGNED "
+            "living area of this SAME home in the SAME style. If any part of that living "
+            "area is visible in this dining photo's background or edges (a shared wall, "
+            "the sofa's edge, the TV wall), render that part to MATCH reference image "
+            f"{next_idx} exactly — same wall colour and finish, same furniture pieces in "
+            "the same positions. Do NOT copy living-room furniture into the dining area "
+            "itself; the reference is for the visible background only. If no part of the "
+            f"living area is visible in this photo, ignore reference image {next_idx} entirely."
+        )
+        next_idx += 1
+
     inputs_sec = _build_inputs_section(reference_map)
     furnish_sec = ROOM_FURNISH.get(room_type, "")
     product_sec = _build_room_product_section(reference_map)
@@ -1023,6 +1050,8 @@ def _build_nonliving_nano_inputs(
     sections = [inputs_sec, furnish_sec]
     if product_sec:
         sections.append(product_sec)
+    if consistency_sec:
+        sections.append(consistency_sec)
     sections.append(style_sec)
     sections.append(soft_sec)
     if budget_sec:
@@ -1290,6 +1319,7 @@ def build_nano_banana_inputs(
     target_note: str | None = None,
     room_type: str = "living",
     design_mode: str = "furnish",
+    consistency_ref_url: str | None = None,
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -1315,6 +1345,7 @@ def build_nano_banana_inputs(
             entry, room_image_url, room_type,
             customer_notes=customer_notes, budget_tier=budget_tier,
             retry_context=retry_context, design_mode=design_mode,
+            consistency_ref_url=consistency_ref_url,
         )
 
     matched = entry.get("matched_furniture") or []
@@ -1440,6 +1471,17 @@ def build_nano_banana_inputs(
     if target_note_sec:
         sections.append(target_note_sec)
     sections.extend([layout_sec, product_sec, style_sec])
+    # 使用者選「沙發不靠牆」→ 給模型自由配置權（大客廳的設計創意選項）。
+    # 走道/面向焦點牆/在客廳區內等鐵則不放寬，只放寬「必須貼牆」。
+    if isinstance(zoning, dict) and zoning.get("_sofa_layout") == "free":
+        sections.append(
+            "FREE-STANDING SOFA (customer's explicit choice): the sofa does NOT need to be "
+            "against a wall — you may float the sofa group in the room for a designer "
+            "composition (e.g. sofa mid-room facing the focal/TV wall, console table or "
+            "clear space behind it). Still keep: sofa inside the confirmed living zone, "
+            "facing the focal anchor across the coffee table, all walkways completely "
+            "clear, and never facing the entrance door."
+        )
     # 軟裝段放在 product/style 後, budget/customer 前: 維持「主家具放置定位」優先,
     # 軟裝是 styled accessory, 不可覆蓋主家具.
     if soft_furnishing_sec:

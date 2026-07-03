@@ -885,6 +885,14 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     })
                 continue   # 跳過底下的既有 nano-banana 與 Flux 分支
 
+            # 跨房一致性：api.py 在 entry 上掛「同風格已完成的客廳成品圖」路徑
+            _cons_url = None
+            _cons_path = render.get("_consistency_ref_path")
+            if _cons_path and os.path.exists(str(_cons_path)):
+                try:
+                    _cons_url = _to_data_url(str(_cons_path))
+                except Exception as _ce:
+                    print(f"  [consistency] 參考圖轉換失敗，略過: {_ce}")
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,
@@ -893,7 +901,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                                               target_location_hint=target_location_hint,
                                               target_note=target_note,
                                               room_type=room_type,
-                                              design_mode=design_mode)
+                                              design_mode=design_mode,
+                                              consistency_ref_url=_cons_url)
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             log_ctx = {

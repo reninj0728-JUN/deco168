@@ -268,6 +268,9 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
     def _norm_side(s):
         s = str(s or "").strip().lower()
         return s if s in ("left", "right") else ""
+    # 「沙發不靠牆」（大客廳設計創意選項）：side 綁定與左右驗收全部關閉，
+    # 由 prompt 的 FREE-STANDING SOFA 段接手（走道/焦點牆/客廳區鐵則不放寬）。
+    _sofa_free = str(pz_living.get("sofa_side") or "").strip().lower() == "free"
     if layout_choice == "B":
         sofa_side = _norm_side(pz_living.get("alt_sofa_side")) or _norm_side(pz_living.get("sofa_side"))
         tv_side   = _norm_side(pz_living.get("alt_tv_side"))   or _norm_side(pz_living.get("tv_side"))
@@ -329,6 +332,7 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
         },
         "_origin": "user_confirmed_v2",
         "_layout_choice": layout_choice or "A",
+        **({"_sofa_layout": "free"} if _sofa_free else {}),
     }
 
 
@@ -1508,9 +1512,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
 
         failed_stage = "render_main"
         last_progress = 60
+        # 跨房一致性（343FFAE7 回饋：餐廳照背景拍得到客廳共享牆，各畫各的會穿幫）：
+        # 同風格的客廳先生成（expanded 依 living→dining 排序），成品圖掛給餐廳當
+        # 背景一致性參考。CROSS_ROOM_CONSISTENCY=0 可關（免部署開關）。
+        _cross_room_on = os.environ.get("CROSS_ROOM_CONSISTENCY", "1").strip() != "0"
+        _living_render_by_style: dict = {}
         # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
         for idx, entry in enumerate(expanded):
+            if (_cross_room_on and entry.get("_room_type") == "dining"
+                    and _living_render_by_style.get(entry.get("style"))):
+                entry["_consistency_ref_path"] = _living_render_by_style[entry.get("style")]
             try:
                 single_result = generate_renders(entry["_base_path"], [entry],
                                              output_dir=str(job_dir),
@@ -1554,6 +1566,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         r["render_path"] = str(new_path)
                     except Exception:
                         pass
+                # 客廳成品記下來 → 同風格餐廳的跨房一致性參考
+                if (entry.get("_room_type") == "living" and r.get("render_path")
+                        and not r.get("error")):
+                    _living_render_by_style[entry.get("style")] = r["render_path"]
                 final.append(r)
 
         result = {"analysis": analysis, "renders": final}

@@ -152,12 +152,15 @@
 
     <div id="sofaSideBox" class="questions" style="display:none;">
       <div class="qtitle" style="font-size:15px;"><span id="sofaSideTitle">沙發靠哪一側長牆？</span><span id="sofaSideAI" style="color:var(--gold-lt);font-weight:400;"></span></div>
-      <div id="sofaSideChooser" style="display:flex; gap:12px; margin-top:10px;">
-        <label class="opt side-opt" id="sideLeft" style="flex:1; padding:16px; text-align:center; font-size:15px;">
+      <div id="sofaSideChooser" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;">
+        <label class="opt side-opt" id="sideLeft" style="flex:1; min-width:140px; padding:16px; text-align:center; font-size:15px;">
           <input type="radio" name="sofaside" value="left" style="display:none;">沙發靠左側牆
         </label>
-        <label class="opt side-opt" id="sideRight" style="flex:1; padding:16px; text-align:center; font-size:15px;">
+        <label class="opt side-opt" id="sideRight" style="flex:1; min-width:140px; padding:16px; text-align:center; font-size:15px;">
           <input type="radio" name="sofaside" value="right" style="display:none;">沙發靠右側牆
+        </label>
+        <label class="opt side-opt" id="sideFree" style="flex-basis:100%; padding:14px; text-align:center; font-size:14px;">
+          <input type="radio" name="sofaside" value="free" style="display:none;">不靠牆 · 讓設計自由發揮<span style="font-size:11px; color:var(--muted);">（適合較大的客廳）</span>
         </label>
       </div>
       <div id="sofaSideReadonly" style="display:none; margin-top:10px; font-size:15px; color:#fff; line-height:1.7;"></div>
@@ -355,19 +358,19 @@
     currentChoice = 'B';
   });
 
-  // 沙發左右選擇
+  // 沙發左右選擇（'free' = 不靠牆，讓設計自由發揮——大客廳選項）
   function setSofaSide(side) {
-    currentSofaSide = (side === 'left') ? 'left' : 'right';
-    var l = document.getElementById('sideLeft'), r = document.getElementById('sideRight');
-    if (l) l.classList.toggle('selected', currentSofaSide === 'left');
-    if (r) r.classList.toggle('selected', currentSofaSide === 'right');
-    var li = document.querySelector('input[name=sofaside][value=left]');
-    var ri = document.querySelector('input[name=sofaside][value=right]');
-    if (li) li.checked = currentSofaSide === 'left';
-    if (ri) ri.checked = currentSofaSide === 'right';
+    currentSofaSide = (side === 'left' || side === 'free') ? side : 'right';
+    ['left', 'right', 'free'].forEach(function(s) {
+      var el = document.getElementById(s === 'left' ? 'sideLeft' : s === 'right' ? 'sideRight' : 'sideFree');
+      if (el) el.classList.toggle('selected', currentSofaSide === s);
+      var inp = document.querySelector('input[name=sofaside][value=' + s + ']');
+      if (inp) inp.checked = currentSofaSide === s;
+    });
   }
   document.getElementById('sideLeft').addEventListener('click', function(){ setSofaSide('left'); });
   document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right'); });
+  document.getElementById('sideFree').addEventListener('click', function(){ setSofaSide('free'); });
 
   // 3. 服務方案 + 付款（Stage 1：原 checkout 邏輯併入本頁）
   // 單一真實來源：全室(plan B) ⟺ space_type=whole ⟺ render_angle=multi；
@@ -487,14 +490,20 @@
     localStorage.setItem('deco_layout_choice', currentChoice || 'A');
     if (currentZoning) {
       try {
-        var oppSide = (currentSofaSide === 'left') ? 'right' : 'left';
         currentZoning.proposed_zones = currentZoning.proposed_zones || {};
         currentZoning.proposed_zones.living_zone = currentZoning.proposed_zones.living_zone || {};
         var lz = currentZoning.proposed_zones.living_zone;
-        lz.sofa_side = currentSofaSide;
-        lz.tv_side = oppSide;
-        lz.alt_sofa_side = currentSofaSide;
-        lz.alt_tv_side = oppSide;
+        if (currentSofaSide === 'free') {
+          // 不靠牆：side 綁定交白卷，後端 flatten 會轉成 _sofa_layout=free（自由配置 prompt）
+          lz.sofa_side = 'free'; lz.tv_side = '';
+          lz.alt_sofa_side = 'free'; lz.alt_tv_side = '';
+        } else {
+          var oppSide = (currentSofaSide === 'left') ? 'right' : 'left';
+          lz.sofa_side = currentSofaSide;
+          lz.tv_side = oppSide;
+          lz.alt_sofa_side = currentSofaSide;
+          lz.alt_tv_side = oppSide;
+        }
         lz.sofa_side_confidence = 'high';   // 使用者明確指定 → 視為高信心
         localStorage.setItem('deco_zoning_json', JSON.stringify(currentZoning));
       } catch (e) {
