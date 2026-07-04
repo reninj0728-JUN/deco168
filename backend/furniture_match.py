@@ -5,6 +5,7 @@
 """
 import json
 import os
+import random
 import re
 from pathlib import Path
 
@@ -678,7 +679,9 @@ def _pick_best_in_category(
             )
             for it in pool
         ]
-        scored.sort(key=lambda x: -x[0])
+        # 同分候選（常見：風格關鍵字沒命中時大量商品打平）用隨機打散，
+        # 避免永遠選到目錄陣列裡排最前面那件、每個客戶拿到一樣的家具
+        scored.sort(key=lambda x: (-x[0], random.random()))
         return scored[0][1]
 
     def _filter(items: list[dict], cap_to_use: int | None) -> list[dict]:
@@ -832,7 +835,8 @@ def match_furniture(
                         preferred_store=preferred_store), it)
             for it in chosen_pool
         ]
-        scored.sort(key=lambda x: -x[0])
+        # 同分候選隨機打散，理由同上（避免 nice-to-have 也永遠固定同一批）
+        scored.sort(key=lambda x: (-x[0], random.random()))
         for _, it in scored:
             cat = resolve_category(it)
             if cat in selected_by_cat:
