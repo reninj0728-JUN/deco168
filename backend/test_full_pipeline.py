@@ -9,7 +9,10 @@
 import os, sys, json, base64, time, io, re
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+# pytest 收集會 import 本檔（檔名 test_ 開頭但其實是 pipeline 核心）；
+# 在 pytest 底下換掉 stdout 會弄壞它的輸出捕捉（ValueError: I/O operation on closed file）
+if "pytest" not in sys.modules and hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 VALID_STYLES = ["modern","japanese","luxury","nordic","muji","cream","wood","french","chinese-modern"]
 
@@ -249,7 +252,8 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
     imgs = [load_img(p) for p in all_paths]
 
     if user_styles and all(s in VALID_STYLES for s in user_styles):
-        fixed_styles = user_styles[:2]
+        # 上限 3：全室方案基本 1 種 + 最多加購 2 種（單一空間前端只送 2 種）
+        fixed_styles = user_styles[:3]
     else:
         fixed_styles = ["modern", "nordic"]
     style_instruction = (

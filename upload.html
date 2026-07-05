@@ -684,7 +684,12 @@
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function randomUploadId() {
-    return Math.random().toString(16).substring(2, 10).toUpperCase();
+    // 加密隨機 16 hex（原本 Math.random 8 碼可被猜測，第三方可覆蓋客戶照片）
+    var buf = new Uint8Array(8);
+    window.crypto.getRandomValues(buf);
+    return Array.prototype.map.call(buf, function(b) {
+      return ('0' + b.toString(16)).slice(-2);
+    }).join('').toUpperCase();
   }
 
   function totalPhotoCount() { return photos.length; }
@@ -801,7 +806,8 @@
         xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_ANON_KEY);
         xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
         xhr.setRequestHeader('Content-Type', file.type || 'image/jpeg');
-        xhr.setRequestHeader('x-upsert', 'true');
+        // 不用 x-upsert：檔名含 Date.now() 每次都唯一，重試不會撞 key；
+        // 開著 upsert 反而讓知道 key 的第三方可以覆蓋客戶已上傳的照片
         xhr.upload.onprogress = function(e) {
           if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
         };

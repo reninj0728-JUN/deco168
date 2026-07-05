@@ -213,9 +213,9 @@ def analyze_space(
         raise RuntimeError("GEMINI_API_KEY / GOOGLE_AI_KEY 未設定，請在 Railway Variables 設定")
     client = genai.Client(api_key=api_key.strip())
 
-    # 用戶必須選 2 種風格（前端強制），不再 AI 自動推薦補齊
+    # 用戶選 2~3 種風格（單一空間 2 種、全室 1+加購最多 3 種），不再 AI 自動推薦補齊
     if user_styles and all(s in VALID_STYLES for s in user_styles):
-        fixed_styles = user_styles[:2]
+        fixed_styles = user_styles[:3]
         mode = "user_selected"
     else:
         # 沒指定 fallback：給 2 種最通用

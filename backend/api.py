@@ -1,6 +1,6 @@
 # DECO168 FastAPI Backend
 # 啟動: cd backend && python3.11 -m uvicorn api:app --reload --port 8000
-import os, sys, json, uuid, shutil, traceback
+import os, re, sys, json, uuid, shutil, traceback
 
 # 清除環境變數可能的換行符（Railway 有時會多帶 \n）
 for _k in ("FAL_KEY", "GEMINI_API_KEY", "GOOGLE_AI_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
@@ -10,12 +10,14 @@ from pathlib import Path
 from typing import List
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 import requests as _req
 
 SUPABASE_URL = "https://cjezgczjjsxfoeifduaj.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4"
+# 優先用 Railway 環境變數的 service_role key（開 RLS 後 anon 會被鎖、只有 service key 能寫）；
+# 沒設時退回 anon key（RLS 開啟前的既有行為，部署不中斷）
+SUPABASE_KEY = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip() or \
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZXpnY3pqanN4Zm9laWZkdWFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjE3NDYsImV4cCI6MjA5NTAzNzc0Nn0.K8zAdT5U3ApWCe4T-noBY5mrseCUSi2-A6Sn8JLU5X4"
 _SB_HEADERS  = {
     "apikey":        SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -112,7 +114,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/jobs", StaticFiles(directory=str(JOBS_DIR), html=False), name="jobs")
+# /jobs 只准拿渲染圖（render_*.png/jpg）。不能整個目錄掛 StaticFiles：
+# job 目錄裡還有客戶原始照片、meta.json、result.json、error.log（含 traceback），
+# 拿到 job_id 的任何人（例如客戶分享結果頁連結）都能整包抓走。
+_RENDER_FILE_RE = re.compile(r"^render_[A-Za-z0-9_\-]+\.(png|jpe?g|webp)$")
+
+@app.get("/jobs/{job_id}/{filename}")
+def serve_render_file(job_id: str, filename: str):
+    from fastapi.responses import FileResponse
+    if not _RENDER_FILE_RE.match(filename) or "/" in job_id or "\\" in job_id or ".." in job_id:
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    fpath = JOBS_DIR / job_id / filename
+    if not fpath.is_file():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return FileResponse(str(fpath))
+
+
+# ── Watchdog：Railway redeploy 會殺掉 in-process BackgroundTasks，
+#    否則被殺的單永遠卡在「處理中」。啟動時掃一次 + get_status 輪詢時懶檢查。 ──
+STALE_JOB_MINUTES = 30
+
+def _sweep_stale_jobs() -> int:
+    """把非終態、超過 STALE_JOB_MINUTES 沒任何進度更新的單標成 failed。
+    進行中的單每個 stage 都會 sb_upsert 更新 updated_at，30 分鐘無更新＝確定死了。"""
+    try:
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=STALE_JOB_MINUTES)).isoformat()
+        r = _req.patch(
+            f"{SUPABASE_URL}/rest/v1/orders",
+            params={"status": "not.in.(completed,failed)", "updated_at": f"lt.{cutoff}"},
+            json={"status": "failed", "progress": 0,
+                  "message": "生成中斷（系統重啟或逾時），請聯絡客服協助重新處理"},
+            headers={**_SB_HEADERS, "Prefer": "return=representation"},
+            timeout=10,
+        )
+        if r.ok:
+            n = len(r.json()) if r.text else 0
+            if n:
+                print(f"[watchdog] 啟動掃描：{n} 筆卡死單已標 failed")
+            return n
+        print(f"[watchdog] 掃描非 2xx: {r.status_code} {r.text[:200]}")
+    except Exception as e:
+        print(f"[watchdog] 掃描失敗（不阻斷啟動）: {type(e).__name__}: {str(e)[:150]}")
+    return 0
+
+@app.on_event("startup")
+def _startup_watchdog():
+    _sweep_stale_jobs()
 
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
@@ -2628,6 +2676,20 @@ def get_status(job_id: str):
     # 優先讀 Supabase
     row = sb_get(job_id)
     if row:
+        # 懶 watchdog：非終態但太久沒進度更新（跨過啟動掃描後才卡死的單）→ 當場標 failed，
+        # 讓前端 polling 拿到明確失敗而不是永遠轉圈
+        if row.get("status") not in ("completed", "failed"):
+            try:
+                from datetime import datetime, timezone
+                upd = row.get("updated_at") or ""
+                ts = datetime.fromisoformat(upd.replace("Z", "+00:00"))
+                age_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60
+                if age_min > STALE_JOB_MINUTES:
+                    msg = "生成中斷（系統重啟或逾時），請聯絡客服協助重新處理"
+                    sb_upsert({"job_id": job_id, "status": "failed", "progress": 0, "message": msg})
+                    return {"status": "failed", "progress": 0, "message": msg}
+            except Exception:
+                pass
         return {"status": row["status"], "progress": row["progress"], "message": row["message"]}
     # fallback: 本機檔案
     status_file = JOBS_DIR / job_id / "status.json"
@@ -2665,7 +2727,12 @@ def get_result(job_id: str):
 
 
 @app.get("/api/job/{job_id}/error")
-def get_error(job_id: str):
+def get_error(job_id: str, token: str = ""):
+    """內部除錯用：error.log 含完整 traceback（路徑/內部細節），不能公開。
+    跟 /debug-health 共用 HEALTH_DEBUG_TOKEN；沒設 env 或 token 不對一律 404。"""
+    expected = (os.environ.get("HEALTH_DEBUG_TOKEN") or "").strip()
+    if not expected or token != expected:
+        return JSONResponse(status_code=404, content={"error": "not found"})
     error_file = JOBS_DIR / job_id / "error.log"
     if not error_file.exists():
         return {"error": "no error log"}

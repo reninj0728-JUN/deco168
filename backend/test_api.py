@@ -1,12 +1,17 @@
-"""Smoke test：本機跑前需 export GEMINI_API_KEY + FAL_KEY 環境變數。"""
+"""Smoke test：本機跑前需 export GEMINI_API_KEY + FAL_KEY 環境變數。
+直接執行：python3 test_api.py（缺 key 會 exit 1）。
+pytest 收集時缺 key 改用 skip——原本 sys.exit(1) 會讓整個 pytest collection
+掛掉（INTERNALERROR），連其他測試檔都跑不了。"""
 import os, sys, json
 
-if not os.environ.get('GEMINI_API_KEY'):
-    print("ERROR: 請先設 GEMINI_API_KEY 環境變數再執行此測試")
-    sys.exit(1)
-if not os.environ.get('FAL_KEY'):
-    print("ERROR: 請先設 FAL_KEY 環境變數再執行此測試")
-    sys.exit(1)
+if not os.environ.get('GEMINI_API_KEY') or not os.environ.get('FAL_KEY'):
+    _msg = "需要 GEMINI_API_KEY + FAL_KEY 環境變數（真呼叫外部 API 的 smoke test）"
+    if "pytest" in sys.modules:
+        import pytest
+        pytest.skip(_msg, allow_module_level=True)
+    else:
+        print(f"ERROR: {_msg}")
+        sys.exit(1)
 
 # Test 1: Gemini JSON mode
 from google import genai
