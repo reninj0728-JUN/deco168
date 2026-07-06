@@ -554,12 +554,18 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      /* scroll-padding-top 讓 nav link 跳轉不被 nav 遮住 */
-      /* snap 改由 JS 控制，CSS 只負責 section 撐滿一頁 */
-      html { scroll-padding-top: 60px; }
+      /* 原生 CSS scroll-snap 翻頁：輕滑一下自動滑到下一區、一次一區。
+         瀏覽器/GPU 直接處理（舊版用 JS 攔 touch 事件會鎖 1 秒、卡手）。
+         scroll-padding-top 同時讓 snap 定位與 nav link 跳轉都避開固定 nav。 */
+      html {
+        scroll-padding-top: 60px;
+        scroll-snap-type: y mandatory;
+      }
       .hero, #story, .how-bg, #examples, #pricing, footer {
         min-height: 100vh;
         min-height: 100svh;
+        scroll-snap-align: start;
+        scroll-snap-stop: always;   /* 甩再快也一次只翻一區，不會飛過頭 */
       }
 
       nav { padding: 0 16px; height: 60px; }
