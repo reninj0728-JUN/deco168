@@ -572,6 +572,16 @@
       backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s;
     }
     .fab-dl:hover { background: var(--gold); color: #111; }
+
+    /* 手機滑動效能：fixed 元素的 backdrop-filter 每一幀都要重算背後內容的模糊，
+       是中低階手機滑動卡頓主因；手機停用並加深底色補償，桌面維持毛玻璃視覺 */
+    @media (max-width: 768px) {
+      nav, .fab-dl {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: rgba(17,17,17,0.97);
+      }
+    }
   </style>
 </head>
 <body>

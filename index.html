@@ -627,6 +627,16 @@
       backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s;
     }
     .fab-dl:hover { background: var(--gold); color: #111; }
+
+    /* 手機滑動效能：fixed 元素的 backdrop-filter 每一幀都要重算背後內容的模糊，
+       是中低階手機滑動卡頓主因；手機停用並加深底色補償，桌面維持毛玻璃視覺 */
+    @media (max-width: 768px) {
+      nav, .fab-dl {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: rgba(17,17,17,0.97);
+      }
+    }
   </style>
 </head>
 <body>
@@ -882,56 +892,9 @@
   </div>
 </footer>
 
-<script>
-/* 手機 swipe snap：JS 控制，避免 iOS CSS snap 橡皮筋頓挫 */
-(function () {
-  if (window.innerWidth > 768) return;
-  var secs = ['.hero','#story','.how-bg','#examples','#pricing','footer']
-    .map(function(s){ return document.querySelector(s); }).filter(Boolean);
-  var last = secs.length - 1;
-  var cur = 0, locked = false, sy = 0;
-
-  function pageBottom() {
-    return document.documentElement.scrollHeight - window.innerHeight;
-  }
-
-  function goTo(idx) {
-    if (locked) return;
-    idx = Math.max(0, Math.min(last, idx));
-    if (idx === cur) return;
-    cur = idx;
-    locked = true;
-    /* footer 比 100svh 短，捲不到 section.top-60；直接捲到頁底 */
-    var top = (idx === last)
-      ? pageBottom()
-      : Math.max(0, secs[cur].getBoundingClientRect().top + window.scrollY - 60);
-    window.scrollTo({ top: top, behavior: 'smooth' });
-    setTimeout(function(){ locked = false; }, 1000);
-  }
-
-  window.addEventListener('touchstart', function(e){ sy = e.touches[0].clientY; }, {passive:true});
-  window.addEventListener('touchend', function(e){
-    if (locked) return;
-    var dy = sy - e.changedTouches[0].clientY;
-    if (Math.abs(dy) < 40) return;
-    goTo(cur + (dy > 0 ? 1 : -1));
-  }, {passive:true});
-
-  /* 捲動結束後同步 cur */
-  var st;
-  window.addEventListener('scroll', function(){
-    clearTimeout(st);
-    st = setTimeout(function(){
-      /* 到頁底就是 footer */
-      if (window.scrollY >= pageBottom() - 10) { cur = last; return; }
-      var sc = window.scrollY + 80;
-      secs.forEach(function(s, i){
-        if (s.getBoundingClientRect().top + window.scrollY <= sc) cur = i;
-      });
-    }, 150);
-  }, {passive:true});
-})();
-</script>
+<!-- 手機 swipe snap 已移除：任何 >40px 的滑動被劫持成「跳一整區 + 鎖 1 秒」，
+     連續滑會卡死、想停在區塊中間也不行，是手機端「滑不順」的主因。
+     還原瀏覽器原生慣性捲動。 -->
 
 <a href="download.html" class="fab-dl" title="查詢 / 下載訂單">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

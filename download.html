@@ -177,7 +177,7 @@
         var item = document.createElement('div');
         item.className = 'render-item';
         item.innerHTML =
-          (imgUrl ? '<img src="' + imgUrl + '" alt="' + name + '">' : '') +
+          (imgUrl ? '<img src="' + imgUrl + '" alt="' + name + '" loading="lazy" decoding="async">' : '') +
           '<span class="render-name">' + name + '</span>' +
           (imgUrl ? '<button class="btn-dl" onclick="dlImg(\'' + imgUrl + '\',\'' + name + '\')">下載</button>' : '<span style="font-size:11px;color:var(--muted)">生成中</span>');
         list.appendChild(item);
