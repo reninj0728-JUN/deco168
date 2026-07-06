@@ -13,32 +13,46 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 RAW_PATH = Path(__file__).parent / "furniture_raw_pchome.json"
 BASE_URL  = "https://24h.pchome.com.tw"
 
-# 針對性補充稀少風格
+# 2026-07 缺口補強：對準 21 個「風格×must-have品類」候選<3件的組合
+# （japanese 餐廳系列、luxury 床、french 茶几/電視櫃/餐桌椅、muji 茶几/餐桌、
+#   chinese-modern 沙發/茶几/床、wood 地毯）。地中海已停售、不再抓。
 SEARCHES = [
-    # 法式浪漫
-    ("法式沙發",     "沙發",  "french"),
-    ("法式床架",     "床架",  "french"),
-    ("弧形沙發",     "沙發",  "french"),
-    ("絲絨沙發",     "沙發",  "french"),
-    ("歐式傢俱",     "傢俱",  "french"),
-    ("藤編椅",       "椅子",  "french"),
+    # japanese（dining_table:1 / dining_chair:1 / table:1）
+    ("日式餐桌",     "桌子",  "japanese"),
+    ("實木餐桌 無垢", "桌子",  "japanese"),
+    ("日式餐椅",     "椅子",  "japanese"),
+    ("實木餐椅",     "椅子",  "japanese"),
+    ("日式書桌",     "桌子",  "japanese"),
+    # luxury（bed:0 / chair:1）
+    ("輕奢床架",     "床架",  "luxury"),
+    ("絲絨床架",     "床架",  "luxury"),
+    ("輕奢餐椅",     "椅子",  "luxury"),
+    ("絲絨單椅",     "椅子",  "luxury"),
+    # french（coffee_table:1 / media_console:0 / storage:1 / dining_table:0 / dining_chair:1 / table:1）
     ("法式茶几",     "茶几",  "french"),
-    # 新中式
-    ("新中式傢俱",   "傢俱",  "chinese-modern"),
+    ("法式電視櫃",   "收納",  "french"),
+    ("法式邊櫃",     "收納",  "french"),
+    ("法式餐桌",     "桌子",  "french"),
+    ("法式餐椅",     "椅子",  "french"),
+    ("法式書桌",     "桌子",  "french"),
+    ("雕花茶几",     "茶几",  "french"),
+    # muji（coffee_table:1 / media_console:2 / dining_table:0 / table:1）
+    ("無印風茶几",   "茶几",  "muji"),
+    ("實木小茶几",   "茶几",  "muji"),
+    ("簡約木質電視櫃", "收納", "muji"),
+    ("無印風餐桌",   "桌子",  "muji"),
+    ("實木書桌 簡約", "桌子",  "muji"),
+    # chinese-modern（sofa:1 / coffee_table:2 / bed:2 / dining_table:2 / table:2）
     ("新中式沙發",   "沙發",  "chinese-modern"),
+    ("實木沙發 中式", "沙發",  "chinese-modern"),
+    ("新中式茶几",   "茶几",  "chinese-modern"),
     ("新中式床架",   "床架",  "chinese-modern"),
-    ("禪風茶几",     "茶几",  "chinese-modern"),
-    ("格柵電視櫃",   "收納",  "chinese-modern"),
-    ("實木電視櫃",   "收納",  "chinese-modern"),
+    ("實木床架 中式", "床架",  "chinese-modern"),
     ("新中式餐桌",   "桌子",  "chinese-modern"),
-    # 地中海
-    ("地中海傢俱",   "傢俱",  "mediterranean"),
-    ("地中海風格",   "傢俱",  "mediterranean"),
-    ("藍白傢俱",     "傢俱",  "mediterranean"),
-    # 其他稀少
-    ("奶油風沙發",   "沙發",  "cream"),
-    ("布克萊沙發",   "沙發",  "cream"),
-    ("原木傢俱",     "傢俱",  "wood"),
+    ("新中式書桌",   "桌子",  "chinese-modern"),
+    # wood（rug:2）
+    ("黃麻地毯",     "地毯",  "wood"),
+    ("棉麻地毯",     "地毯",  "wood"),
 ]
 
 

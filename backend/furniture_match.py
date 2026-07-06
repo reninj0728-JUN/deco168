@@ -529,6 +529,33 @@ def _oversized_sofa_penalty(item: dict, is_small_room: bool) -> float:
     return 0.0
 
 
+_PROMPT_WORD_RE = re.compile(r"[a-z]{4,}")
+# 每個 flux_prompt 結尾固定的攝影/畫質 boilerplate — 所有商品都會同樣命中，只是稀釋上限
+_PROMPT_STOP_WORDS = frozenset({
+    "with", "room", "style", "styled", "interior", "design", "professional",
+    "photography", "staged", "showroom", "editorial", "styling", "wide",
+    "angle", "soft", "natural", "light", "lighting", "people", "text",
+    "watermark", "distortion", "artifacts", "concept", "visual", "space",
+    "living", "bedroom", "dining", "kitchen", "study", "apartment", "home",
+})
+
+
+def _prompt_word_overlap(prompt_keywords: list[str], item_keywords: list[str],
+                         descriptor: str) -> int:
+    """flux_prompt 子句拆成英文單字（≥4 字母、去 boilerplate），
+    對 flux_descriptor + keywords 的單字集合算重疊數。"""
+    prompt_words: set[str] = set()
+    for pkw in prompt_keywords:
+        prompt_words.update(w for w in _PROMPT_WORD_RE.findall(pkw)
+                            if w not in _PROMPT_STOP_WORDS)
+    if not prompt_words:
+        return 0
+    item_words = set(_PROMPT_WORD_RE.findall(descriptor))
+    for ikw in item_keywords:
+        item_words.update(_PROMPT_WORD_RE.findall(ikw))
+    return len(prompt_words & item_words)
+
+
 def score_item(item: dict, style: str, prompt_keywords: list[str],
                match_style: bool = True, is_long_room: bool = False,
                is_small_room: bool = False,
@@ -560,6 +587,11 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     for pkw in prompt_keywords:
         if pkw and (any(pkw in ikw for ikw in item_keywords) or pkw in search_text):
             score += 1
+
+    # 字詞級比對：上面整句包含比對幾乎不命中（flux_prompt 是英文子句、keywords 是
+    # 中文行銷詞），大量商品因此同分。把子句拆單字對 descriptor/keywords 做重疊計分，
+    # 每字 +0.4、上限 +2.0（< 風格分 3.0，風格仍主導排序）
+    score += min(_prompt_word_overlap(prompt_keywords, item_keywords, item_descriptor) * 0.4, 2.0)
 
     item_colors = [c.lower() for c in item.get("colors", [])]
     for pkw in prompt_keywords:

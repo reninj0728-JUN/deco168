@@ -62,10 +62,25 @@ modern / cream / nordic / japanese / wood / luxury / french / muji / chinese-mod
 類目（這是為了避免配件被誤當家具主體用於配對）。"""
 
 
+def _fetch_image_bytes(url: str) -> bytes:
+    """下載商品圖。momoshop 部分圖床（i1/i2/i3.momoshop.com.tw）憑證缺
+    Subject Key Identifier，新版 OpenSSL 直接拒絕——僅在這種情況下對
+    公開商品圖片改用 verify=False 重試（一次性分類用，不碰正式 api.py 流程）。"""
+    import requests
+    import urllib3
+    try:
+        resp = requests.get(url, timeout=20)
+    except requests.exceptions.SSLError:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        resp = requests.get(url, timeout=20, verify=False)
+    if not resp.ok:
+        raise RuntimeError(f"圖片下載失敗 HTTP {resp.status_code}")
+    return resp.content
+
+
 def classify_batch(items: list) -> tuple[list, int]:
     from google import genai
     from google.genai import types
-    import requests
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")
     if not api_key:
@@ -79,15 +94,13 @@ def classify_batch(items: list) -> tuple[list, int]:
     for i, item in enumerate(items):
         label = (item.get("name_zh") or "")[:25]
         try:
-            img_resp = requests.get(item["image_url"], timeout=15)
-            if not img_resp.ok:
-                raise RuntimeError(f"圖片下載失敗 HTTP {img_resp.status_code}")
+            img_bytes = _fetch_image_bytes(item["image_url"])
             mime = "image/webp" if item["image_url"].lower().endswith(".webp") else "image/jpeg"
 
             resp = client.models.generate_content(
                 model="gemini-3.5-flash",
                 contents=[
-                    types.Part.from_bytes(data=img_resp.content, mime_type=mime),
+                    types.Part.from_bytes(data=img_bytes, mime_type=mime),
                     CLASSIFY_PROMPT,
                 ],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),

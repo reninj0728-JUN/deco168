@@ -732,6 +732,22 @@ def _extract_failed_image_urls(err_text: str) -> list[str]:
     return list(dict.fromkeys(urls))  # 去重保序
 
 
+def _save_render_jpg(img_bytes: bytes, out_path: str) -> None:
+    """渲染圖統一存 JPEG（q88）：fal 回傳的 PNG 一張 5-10MB，是 Supabase 儲存爆量
+    主因（2026-07 超額被停權事故）；JPEG 體積縮 ~90%、視覺無差。
+    解不開就原樣寫檔——寧可檔案大，也不能讓渲染流程掛掉。"""
+    try:
+        from PIL import Image
+        import io as _io
+        img = Image.open(_io.BytesIO(img_bytes))
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        img.save(out_path, "JPEG", quality=88)
+    except Exception:
+        with open(out_path, "wb") as f:
+            f.write(img_bytes)
+
+
 def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output",
                      analysis: dict | None = None, design_mode: str = "furnish",
                      zoning: dict | None = None,
@@ -859,9 +875,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         },
                         log_ctx=log_ctx,
                     )
-                    out_path = os.path.join(output_dir, f"render_{style}.png")
-                    with open(out_path, "wb") as f:
-                        f.write(img_bytes)
+                    out_path = os.path.join(output_dir, f"render_{style}.jpg")
+                    _save_render_jpg(img_bytes, out_path)
                     results.append({
                         **render,
                         "render_path": out_path,
@@ -978,9 +993,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     result, img_bytes = _fal_subscribe_timed(
                         render_model, attempt_args, log_ctx=log_ctx,
                     )
-                    out_path = os.path.join(output_dir, f"render_{style}.png")
-                    with open(out_path, "wb") as f:
-                        f.write(img_bytes)
+                    out_path = os.path.join(output_dir, f"render_{style}.jpg")
+                    _save_render_jpg(img_bytes, out_path)
                     results.append({
                         **render,
                         "render_path": out_path,

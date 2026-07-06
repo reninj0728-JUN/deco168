@@ -158,9 +158,63 @@ def _sweep_stale_jobs() -> int:
         print(f"[watchdog] 掃描失敗（不阻斷啟動）: {type(e).__name__}: {str(e)[:150]}")
     return 0
 
+# ── Storage 保留期自動清理：renders/uploads 超過 STORAGE_RETENTION_DAYS 的檔案
+#    自動刪（2026-07 超額 4.3GB 被 Supabase 停權事故的根治）。每次部署啟動時跑，
+#    在背景 thread 執行避免拖慢啟動健康檢查。 ──
+STORAGE_RETENTION_DAYS = int(os.environ.get("STORAGE_RETENTION_DAYS") or "14")
+
+def _storage_list_prefix(bucket: str, prefix: str) -> list:
+    r = _req.post(f"{SUPABASE_URL}/storage/v1/object/list/{bucket}",
+                  json={"prefix": prefix, "limit": 1000,
+                        "sortBy": {"column": "name", "order": "asc"}},
+                  headers=_SB_HEADERS, timeout=30)
+    return r.json() if r.ok else []
+
+def _storage_walk_old(bucket: str, prefix: str, cutoff, depth: int = 0) -> list[str]:
+    from datetime import datetime
+    if depth > 4:
+        return []
+    old: list[str] = []
+    for entry in _storage_list_prefix(bucket, prefix):
+        name = entry.get("name")
+        if not name:
+            continue
+        full = f"{prefix.rstrip('/')}/{name}" if prefix else name
+        if entry.get("id") is None:           # 資料夾 → 遞迴
+            old += _storage_walk_old(bucket, full + "/", cutoff, depth + 1)
+            continue
+        created = entry.get("created_at") or ""
+        try:
+            ts = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts < cutoff:
+            old.append(full)
+    return old
+
+def _purge_expired_storage():
+    from datetime import datetime, timedelta, timezone
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=STORAGE_RETENTION_DAYS)
+        total = 0
+        for bucket in ("renders", "uploads"):
+            old = _storage_walk_old(bucket, "", cutoff)
+            for i in range(0, len(old), 100):
+                chunk = old[i:i + 100]
+                r = _req.delete(f"{SUPABASE_URL}/storage/v1/object/{bucket}",
+                                json={"prefixes": chunk}, headers=_SB_HEADERS, timeout=60)
+                if r.ok:
+                    total += len(chunk)
+        if total:
+            print(f"[storage-cleanup] 已清 {total} 個超過 {STORAGE_RETENTION_DAYS} 天的檔案")
+    except Exception as e:
+        print(f"[storage-cleanup] 清理失敗（不影響服務）: {type(e).__name__}: {str(e)[:150]}")
+
 @app.on_event("startup")
 def _startup_watchdog():
     _sweep_stale_jobs()
+    import threading
+    threading.Thread(target=_purge_expired_storage, daemon=True).start()
 
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
@@ -284,8 +338,8 @@ def sb_upload_render(job_id: str, file_path: Path) -> str | None:
         headers = {
             "apikey":        SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
-            # render 都是 .png（generate_renders 寫 render_*.png），標錯成 jpeg
-            # 瀏覽器會 sniff 救回來，但下載/分享時副檔名與 MIME 不一致
+            # 2026-07 起 generate_renders 統一寫 render_*.jpg（省 90% 儲存）；
+            # 按副檔名標 MIME，舊 .png 重跑單也正確
             "Content-Type":  "image/png" if file_path.suffix.lower() == ".png" else "image/jpeg",
         }
         r = _req.post(
