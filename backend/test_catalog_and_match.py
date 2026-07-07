@@ -76,6 +76,59 @@ def test_match_all_style_room_combos(catalog):
     assert not empties, f"配對回空清單: {empties}"
 
 
+def test_no_consumable_junk_in_catalog(catalog):
+    """耗材（貼膜/保護膜/貼紙/免洗墊）不是家具也不是軟裝，不准進目錄。
+    20A8220A：簡體字「家具贴膜」被當法式茶几畫進渲染圖。"""
+    consumable = ["貼膜", "贴膜", "保護膜", "保护膜", "貼紙", "贴纸",
+                  "軟玻璃", "软玻璃", "免洗"]
+    bad = [it["id"] for it in catalog
+           if any(k in it["name_zh"] for k in consumable)]
+    assert not bad, f"目錄混入耗材商品: {bad[:5]}"
+
+
+def test_no_cloth_junk_in_furniture_categories(catalog):
+    """桌布/餐墊/防燙類商品不准掛在家具本體類目（茶几/桌子/地毯…），
+    只能是裝飾——否則會被當家具本體配對進客戶方案。"""
+    cloth = ["桌布", "桌墊", "桌旗", "餐墊", "防燙", "防烫", "隔熱墊",
+             "桌巾", "臺布", "台布"]
+    furn_cats = ("茶几", "桌子", "地毯", "沙發", "床架", "收納", "椅子")
+    bad = [(it["id"], it["category"]) for it in catalog
+           if it["category"] in furn_cats
+           and any(k in it["name_zh"] for k in cloth)]
+    assert not bad, f"保護布/墊類商品掛在家具類目: {bad[:5]}"
+
+
+def test_multi_piece_bundle_detection():
+    """套組偵測：真套組要抓到、單件複合命名不能誤傷（20A8220A 集集客案例）。"""
+    positives = [
+        "集集客 客廳桌櫃組 岩板茶几電視櫃70+180（客廳桌 電視櫃組 子母桌 沙發桌",
+        "深色木製方桌、長條桌、座椅套組",
+        "茶几130cm+電視櫃180cm 客廳組合",
+    ]
+    negatives = [
+        "組合式書桌 可調高度",
+        "北歐風實木茶几",
+        "L型沙發 三人座 貴妃椅",
+        "現代極簡黑色長方形茶几",
+    ]
+    for name in positives:
+        assert fm.is_multi_piece_bundle(name), f"漏抓套組: {name}"
+    for name in negatives:
+        assert not fm.is_multi_piece_bundle(name), f"誤傷單件: {name}"
+
+
+def test_french_coffee_table_is_real_furniture(catalog):
+    """20A8220A 迴歸：法式客廳的茶几配對結果必須是真家具，不能是貼膜/桌布/套組。"""
+    prompt = "french style living room with curved sofa, elegant coffee table, rug"
+    items = fm.match_furniture("french", prompt, catalog, top_n=5, mode="living")
+    ct = next((it for it in items if fm.resolve_category(it) == "coffee_table"), None)
+    assert ct is not None, "法式客廳配不到茶几"
+    nm = ct["name_zh"]
+    junk = ["貼膜", "贴膜", "桌布", "桌墊", "防燙", "防烫", "免洗"]
+    assert not any(k in nm for k in junk), f"法式茶几配到垃圾商品: {nm}"
+    assert not fm.is_multi_piece_bundle(nm), f"法式茶几配到多件套組: {nm}"
+
+
 def test_must_have_categories_never_empty(catalog):
     """每個房型的 must-have 品類在每種風格下都配得到（跨風格保命網有效）。"""
     missing = []

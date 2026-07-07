@@ -2609,14 +2609,18 @@ async def create_job(
 
         matched: list[str] = []
         excluded_photos: list[str] = []
-        excluded_videos: list[str] = []
+        kept_videos: list[str] = []
         for p in photo_paths:
             if not isinstance(p, str):
                 continue
             if p.startswith("r2://"):
-                # 影片這輪不混進 primary
-                # （USE_VIDEO_KEYFRAMES=0；未來 per-room video 才開啟）
-                excluded_videos.append(p)
+                # 影片是「全屋空間理解」素材，不屬於任何單一房間的照片白名單，
+                # 一律保留給 pipeline → analyze_space(影片為主、照片為輔)。
+                # 2026-07-08（job 20A8220A 抓漏）：這裡原本直接排除 = 全室方案
+                # 客戶上傳的影片被默默丟掉，「影片輔助理解」完全沒發生。
+                # 渲染底圖仍只用照片（run_pipeline 內 video/image 分流），
+                # 影片只進理解層，不影響各房底圖選擇。
+                kept_videos.append(p)
                 continue
             if canonical_photo_key(p) in primary_canon:
                 matched.append(p)
@@ -2634,8 +2638,8 @@ async def create_job(
               f"primary={primary_obj['room_label']}({primary_obj['room_type']})  "
               f"primary_keys={len(primary_obj['photo_keys'])}  "
               f"matched={len(matched)}  excluded_photos={len(excluded_photos)}  "
-              f"excluded_videos={len(excluded_videos)}")
-        photo_paths = matched
+              f"kept_videos={len(kept_videos)}")
+        photo_paths = matched + kept_videos
 
     job_id  = uuid.uuid4().hex[:8].upper()
     job_dir = JOBS_DIR / job_id

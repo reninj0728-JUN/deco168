@@ -5,10 +5,33 @@ Step 1 — Gemini 3.1 Flash-Lite 分析影片
 """
 import os
 import io
+import re
 import json
 import time
 from google import genai
 from google.genai import types
+
+
+def _json_loads_lenient(text: str) -> dict:
+    """解析 Gemini 回的 JSON，容忍常見格式瑕疵。
+    20A8220A 抓漏：validate_render 裸 json.loads，Gemini 回傳尾端多一段文字
+    （Extra data）或被 markdown fence 包住就整個驗證報廢 → 6 張圖 5 張沒過品管
+    直接出貨。這裡先直接 parse，失敗再：去 fence → 從第一個 { 起用 raw_decode
+    （raw_decode 天生容忍尾端多餘文字）。還是失敗才丟例外給呼叫端。"""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\s*", "", t)
+        t = re.sub(r"\s*```\s*$", "", t)
+    i = t.find("{")
+    if i >= 0:
+        obj, _end = json.JSONDecoder().raw_decode(t[i:])
+        if isinstance(obj, dict):
+            return obj
+    raise ValueError(f"Gemini JSON 無法解析: {t[:120]!r}")
 
 
 def _downscale_for_vision(data: bytes, orig_mime: str,
@@ -373,7 +396,7 @@ def analyze_space(
     except Exception:
         pass
 
-    result = json.loads(response.text)
+    result = _json_loads_lenient(response.text)
     result["_mode"] = mode  # 記錄是 AI 推薦還是用戶指定
     return result
 
@@ -924,14 +947,24 @@ ok = 所有違規 flag 全為 false，且有 layout_context 時 sofa_focal_face_
 reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」非「動線不合理」）。
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=[original_part, render_part, prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-        ),
-    )
-    result = json.loads(response.text)
+    # 20A8220A：Gemini 偶發回傳格式瑕疵 JSON，裸 parse 一炸驗證就整張跳過（圖裸奔出貨）。
+    # 寬鬆解析 + 解析失敗重新生成一次（重打一次幾乎都會回乾淨 JSON）。
+    result = None
+    for _attempt in range(2):
+        response = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=[original_part, render_part, prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        try:
+            result = _json_loads_lenient(response.text)
+            break
+        except (ValueError, json.JSONDecodeError) as pe:
+            if _attempt == 1:
+                raise
+            print(f"[validate_render] JSON 解析失敗，重打一次: {str(pe)[:100]}")
     # 確保新欄位永遠存在（沒 layout_context 時預設 False；不誤判）
     result.setdefault("sofa_outside_living_zone", False)
     # C2.1 debug 欄位（即使 false 也要有；沒 layout_context 時為空字串）

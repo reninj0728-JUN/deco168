@@ -26,6 +26,12 @@ JUNK_PATTERNS = [
     r'^六角', r'^疊摞', r'^拿取方便',
 ]
 
+# 耗材/保護用品：不是家具也不是軟裝，一律不進目錄
+# （20A8220A：簡體字「家具贴膜…防烫防刮贴纸」混進來被當法式茶几，簡繁都要擋）
+CONSUMABLE_KW = ["貼膜", "贴膜", "保護膜", "保护膜", "貼紙", "贴纸",
+                 "軟玻璃", "软玻璃", "免洗"]
+
+
 def is_junk(name: str) -> bool:
     if len(name) < 5:
         return True
@@ -33,6 +39,8 @@ def is_junk(name: str) -> bool:
         if re.match(pat, name):
             return True
     if re.search(r'折\d+|折300|折600|折100', name):
+        return True
+    if any(kw in name for kw in CONSUMABLE_KW):
         return True
     return False
 

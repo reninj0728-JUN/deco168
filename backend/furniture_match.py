@@ -350,14 +350,19 @@ LUXURY_MISMATCH_PENALTY = -3.0
 
 # 「地毯」類的功能性雜項（浴室墊/門墊/防滑墊/巧拼）不該當客廳主地毯
 # （66784D97：都會簡約 20 萬方案主清單出現「防滑橡膠地墊 NT$899」）。降權不硬排除。
-RUG_JUNK_KW      = ["地墊", "防滑", "門墊", "腳踏墊", "巧拼", "浴室", "止滑"]
+RUG_JUNK_KW      = ["地墊", "防滑", "門墊", "腳踏墊", "巧拼", "浴室", "止滑",
+                    "餐墊", "隔熱墊", "西餐墊"]
 RUG_JUNK_PENALTY = -4.0
 
 # 「桌子」類的功能性雜項（桌布/餐桌墊/桌旗/玻璃墊）不該當書桌/餐桌本體——
 # 這些是保護布/裝飾巾，商品照裡通常沒有桌子實體。同一種問題的第二個案例
 # （luxury 爬蟲批次抓到 30+ 件「新中式桌布/餐桌墊」被 category 規則誤當桌子），
 # 這次直接在配對層加降權，比每次資料更新後人工挑掉更持久。
-TABLE_JUNK_KW      = ["桌布", "桌墊", "桌旗", "玻璃墊", "餐墊", "防燙墊"]
+# 2026-07-08（job 20A8220A）：pchome 有大量簡體字商品名（家具贴膜/防烫贴纸），
+# 繁體關鍵字全 miss → 法式風格茶几配到「家具貼膜」。簡繁都要列。
+TABLE_JUNK_KW      = ["桌布", "桌墊", "桌旗", "玻璃墊", "餐墊", "防燙墊",
+                      "貼膜", "贴膜", "保護膜", "保护膜", "貼紙", "贴纸",
+                      "防烫", "軟玻璃", "软玻璃", "桌巾", "臺布", "台布"]
 TABLE_JUNK_PENALTY = -4.0
 
 # 電競系商品（碳纖維電競桌/RGB/電競椅）只適合 modern/industrial 調性——
@@ -372,6 +377,25 @@ GAMING_MISMATCH_PENALTY = -4.0
 # 多樣家具的商品名，不誤傷「組合式書桌」這種單件家具的複合命名。
 _MULTI_PIECE_BUNDLE_RE = re.compile(r'.+[、與+].+(套組|組合|件套|全套)$')
 MULTI_PIECE_BUNDLE_PENALTY = -5.0
+
+# 20A8220A 抓漏：「集集客 客廳桌櫃組 岩板茶几電視櫃70+180（客廳桌 電視櫃組 子母桌…」
+# 逃過上面的 regex（結尾被截斷、用的是「桌櫃組」不是「套組」）→ 被當單一電視櫃
+# 參考圖，渲染同時冒出茶几+電視櫃整組。補一層語意判斷：
+# 商品名出現 2 種以上「不同家具本體名詞」＋任一組/套字樣 = 多件套組。
+_FURN_TYPE_TOKENS = ("茶几", "電視櫃", "沙發", "餐桌", "書桌", "床架", "邊几",
+                     "子母桌", "餐椅", "斗櫃", "邊櫃", "床頭櫃", "衣櫃", "書櫃")
+_BUNDLE_HINT_RE = re.compile(r"(套組|組合|件套|全套|超值組|[桌櫃椅][組套])")
+
+
+def is_multi_piece_bundle(name: str) -> bool:
+    """單張商品照裡有多件不同家具的套組商品：當單一家具參考圖會誤導渲染。"""
+    nm = (name or "").strip()
+    if not nm:
+        return False
+    if _MULTI_PIECE_BUNDLE_RE.search(nm):
+        return True
+    types_hit = {t for t in _FURN_TYPE_TOKENS if t in nm}
+    return len(types_hit) >= 2 and bool(_BUNDLE_HINT_RE.search(nm))
 
 
 # ── Phase A：預算 tier + 賣場偏好 ──────────────────────────────────────────────
@@ -634,7 +658,7 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
             score += GAMING_MISMATCH_PENALTY
 
     # 多件商品合照（一張圖裡有 2+ 種不同家具）當單一家具參考會誤導渲染，降權
-    if _MULTI_PIECE_BUNDLE_RE.search((item.get("name_zh") or "").strip()):
+    if is_multi_piece_bundle(item.get("name_zh") or ""):
         score += MULTI_PIECE_BUNDLE_PENALTY
 
     # 賣場偏好加分
@@ -667,17 +691,24 @@ def _pick_best_in_category(
     """
     cap = _budget_cap_for(budget_tier, target_cat)
 
-    # 多件商品合照優先排除（B4174D56：某風格的該品類只有 1 件目錄商品、還是多件套時，
-    # 純降權分數贏不了「沒有對手」——同風格/相近風格池要直接排掉，篩完空了才退回原池。
+    # 多件商品合照 + 桌面保護膜/地墊類垃圾優先排除（B4174D97 / 20A8220A：
+    # 某風格該品類只剩 1 件目錄商品、還是套組或貼膜時，純降權分數贏不了「沒有對手」
+    # ——同風格/相近風格池要直接排掉，逼它掉到 Stage B/C 找真的單件家具。
     # Stage C（must-have 保命，跨所有風格）不套用，保證極端情況下 must-have 仍不會空。
     def _prefer_non_bundle(pool: list[dict]) -> list[dict]:
-        # 刻意不做「篩完空了退回原池」——這裡要的就是「同風格只剩多件套」時
-        # 讓 Stage A/B 判定成沒有可用商品，逼它掉到 Stage C 跨風格找單件商品。
-        # Stage C 本身沒套這個過濾，仍保證 must-have 極端狀況下不會空。
-        return [
-            it for it in pool
-            if not _MULTI_PIECE_BUNDLE_RE.search((it.get("name_zh") or "").strip())
-        ]
+        # 刻意不做「篩完空了退回原池」——這裡要的就是「同風格只剩多件套/垃圾」時
+        # 讓 Stage A/B 判定成沒有可用商品。Stage C 沒套此過濾，must-have 不會空。
+        out = []
+        for it in pool:
+            nm = (it.get("name_zh") or "").strip()
+            if is_multi_piece_bundle(nm):
+                continue
+            if target_cat in ("table", "coffee_table") and any(kw in nm for kw in TABLE_JUNK_KW):
+                continue   # 桌布/貼膜/防燙墊不是桌子（20A8220A：法式茶几配到家具貼膜）
+            if target_cat == "rug" and any(kw in nm for kw in RUG_JUNK_KW):
+                continue   # 餐墊/門墊/防滑墊不是主地毯
+            out.append(it)
+        return out
 
     # tier3 質感底線：太便宜的茶几/地毯/電視櫃不進高預算主家具；
     # 底線篩完空了就回退原池（保證 must-have 永不缺）
