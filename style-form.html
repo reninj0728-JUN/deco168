@@ -820,16 +820,20 @@ const palettes = [
 
 // 每個風格只露 3 個最契合的色系（避免選擇疲勞）
 // styleId → 允許的 palette id list
+// 2026-07-08 按實際庫存重配：每個選項都經過「該風格×該色系的沙發/茶几/地毯/
+// 電視櫃/床是否真的有貨」稽核。莫蘭迪粉/莫蘭迪綠/深藍橡木對應風格庫存掛零
+// （粉色沙發全目錄 0 件）→ 先下架，等進貨再開；否則客戶選了粉色、
+// 商品卻只有棕色（20A8220A 粉紅沙發事故根源之一）。
 const STYLE_PALETTE_MAP = {
   'modern':         ['warm-white', 'grey-stone', 'dark-luxury'],
-  'nordic':         ['warm-white', 'dusty-pink', 'grey-stone'],
-  'cream':          ['cream-terracotta', 'warm-white', 'dusty-pink'],
-  'japanese':       ['warm-white', 'dark-luxury', 'grey-stone'],
-  'wood':           ['warm-white', 'cream-terracotta', 'sage-green'],
+  'nordic':         ['warm-white', 'grey-stone', 'bw-minimal'],
+  'cream':          ['cream-terracotta', 'warm-white', 'bw-minimal'],
+  'japanese':       ['warm-white', 'dark-luxury', 'bw-minimal'],
+  'wood':           ['warm-white', 'cream-terracotta', 'dark-luxury'],
   'luxury':         ['dark-luxury', 'grey-stone', 'bw-minimal'],
-  'french':         ['dusty-pink', 'warm-white', 'cream-terracotta'],
-  'muji':           ['warm-white', 'grey-stone', 'bw-minimal'],
-  'chinese-modern': ['dark-luxury', 'warm-white', 'navy-oak'],
+  'french':         ['warm-white', 'cream-terracotta', 'dark-luxury'],
+  'muji':           ['warm-white', 'cream-terracotta', 'bw-minimal'],
+  'chinese-modern': ['dark-luxury', 'warm-white', 'cream-terracotta'],
 };
 function palettesForStyle(styleId) {
   const allowed = STYLE_PALETTE_MAP[styleId];

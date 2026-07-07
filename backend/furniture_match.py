@@ -819,6 +819,33 @@ def _pick_best_in_category(
     return None
 
 
+# 使用者選的『色系』→ 配對用顏色關鍵字（跟 colors 欄位 + flux_descriptor 比對）。
+# 20A8220A 後續：色系不准再改商品顏色（見 prompt_builder._palette_clause），
+# 那色系要真的有感，就得在「挑商品」這一步就挑顏色相符的——選莫蘭迪粉但目錄
+# 沒有粉色沙發時，寧可前端不開放該色系（style-form STYLE_PALETTE_MAP 已按庫存重配）。
+PALETTE_COLOR_HINTS = {
+    "暖白":   ["白", "米", "原木", "淺木", "white", "beige", "ivory", "oak"],
+    "灰調":   ["灰", "石", "大理", "grey", "gray", "marble", "stone"],
+    "深色":   ["黑", "深", "胡桃", "金", "black", "dark", "walnut", "gold"],
+    "莫蘭迪綠": ["綠", "green", "sage"],
+    "莫蘭迪粉": ["粉", "玫瑰", "pink", "rose", "blush"],
+    "深藍":   ["藍", "橡木", "blue", "navy", "oak"],
+    "奶油":   ["奶油", "米", "磚紅", "棕", "cream", "beige", "terracotta", "brown"],
+    "黑白":   ["黑", "白", "black", "white"],
+}
+
+
+def palette_keywords(palette_name: str | None) -> list[str]:
+    """色系中文名（例『莫蘭迪粉』『暖白 + 淺木』）→ 顏色關鍵字。對不到 → 空。"""
+    pal = (palette_name or "").strip()
+    if not pal:
+        return []
+    for key, kws in PALETTE_COLOR_HINTS.items():
+        if key in pal:
+            return kws
+    return []
+
+
 def match_furniture(
     style: str,
     flux_prompt: str,
@@ -829,6 +856,7 @@ def match_furniture(
     is_small_room: bool = False,
     budget_tier: str = "tier3",
     preferred_store: str = "none",
+    extra_keywords: list[str] | None = None,
 ) -> list[dict]:
     """
     兩階段配對（mode='living' 預設）：
@@ -839,10 +867,13 @@ def match_furniture(
     is_long_room=True 時，sofa 撈取會避開 L/U/沙發床（跨所有風格）
     is_small_room=True 時，sofa 撈取會避開電動/三人座/加大等體積偏大款
     budget_tier / preferred_store：Phase A 加入，影響評分與品類預算上限
+    extra_keywords：額外評分關鍵字（使用者選的色系→顏色字），讓選色影響「挑哪件商品」
 
     其他 mode 暫沿用「全分類混評分 + 每類 1 件」舊邏輯（未來再擴）
     """
     prompt_keywords = [kw.strip().lower() for kw in flux_prompt.split(",")]
+    if extra_keywords:
+        prompt_keywords += [str(k).strip().lower() for k in extra_keywords if str(k).strip()]
 
     # mode 即標準 room_type（living/bedroom/dining/study）；未知房型退回客廳規則。
     rule = ROOM_RULES.get(mode, ROOM_RULES['living'])
@@ -1135,7 +1166,8 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
 def enrich_renders(renders: list[dict], analysis: dict | None = None,
                    budget_tier: str = "tier3",
                    preferred_store: str = "none",
-                   room_type: str = "living") -> list[dict]:
+                   room_type: str = "living",
+                   palettes: dict | None = None) -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -1145,6 +1177,9 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
     analysis: Gemini 分析結果（含 estimated_size 和 room_dimensions）
     budget_tier: 'tier1' / 'tier2' / 'tier3'（影響品類預算上限與 fallback）
     preferred_store: 'none'/'momo'/'ikea'/'hola'/'trplus'（評分加分，不硬篩）
+    palettes: {style_id: 使用者選的色系中文名}——轉成顏色關鍵字進評分，
+              讓「選莫蘭迪粉」真的優先挑到粉色調商品（色系不再改商品顏色後，
+              這是色系影響成品的正道）
 
     輸出：每個 render 加上 "matched_furniture" 欄位
     """
@@ -1188,13 +1223,18 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
     for render in renders:
         style = render.get("style", "")
         flux_prompt = render.get("flux_prompt", "")
+        # 使用者選的色系 → 顏色關鍵字（顏色命中 +0.5/字詞重疊加分，軟性偏好不硬篩）
+        pal_kws = palette_keywords((palettes or {}).get(style))
+        if pal_kws:
+            print(f"[furniture_match] {style} 色系關鍵字加權: {pal_kws[:4]}…")
         # 先過濾尺寸再配對，避免唯一的電視櫃在選中後才被刪除。
         room_catalog = filter_by_dimensions(catalog, max_w)
         matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode=room_type,
                                   is_long_room=is_long_room,
                                   is_small_room=is_small_room,
                                   budget_tier=budget_tier,
-                                  preferred_store=preferred_store)
+                                  preferred_store=preferred_store,
+                                  extra_keywords=pal_kws)
         matched = matched[:5]
 
         render_copy = dict(render)
