@@ -2877,13 +2877,30 @@ async def api_zoning(upload_id: str = Form(...),
     if not local_photos:
         return JSONResponse(status_code=500, content={"error": "failed to download any photo from supabase"})
 
-    # 3. Gemini zoning v2（Phase 1 不傳影片）
+    # 3. Gemini zoning v2（2026-07-08 起：有影片就抽關鍵幀一起送——影片是拿來
+    #    理解結構/方向/動線的，分區判讀是客戶第一眼看到的「AI 理解你家」，
+    #    不能只看照片。全程 best-effort：任何失敗都退回純照片，不擋分區頁。）
     try:
         from zoning_v2 import compute_zoning_v2, draw_overlay
     except ImportError as e:
         return JSONResponse(status_code=500, content={"error": f"zoning module missing: {e}"})
 
-    zoning = compute_zoning_v2(local_photos, video_keyframes=None)
+    zoning_kf: list = []
+    try:
+        _vkeys = upload.get("video_keys") or []
+        if _vkeys and isinstance(_vkeys[0], str) and _vkeys[0].strip():
+            _vdest = tmp_dir / ("zv_" + (_vkeys[0].split("/")[-1] or "video.mp4"))
+            if not _vdest.exists():
+                r2_download_object(_vkeys[0].strip(), _vdest)
+            if _vdest.exists() and _vdest.stat().st_size > 10240:
+                kf_dir = tmp_dir / "zoning_kf"
+                zoning_kf = extract_video_keyframes(str(_vdest), kf_dir, count=4)
+                print(f"[/api/zoning] 影片關鍵幀 {len(zoning_kf)} 張加入 zoning 判讀")
+    except Exception as _ve:
+        print(f"[/api/zoning] 影片擷幀失敗（退回純照片）: {type(_ve).__name__}: {str(_ve)[:100]}")
+        zoning_kf = []
+
+    zoning = compute_zoning_v2(local_photos, video_keyframes=zoning_kf or None)
     if zoning.get("error"):
         return JSONResponse(status_code=500, content={"error": f"gemini zoning failed: {zoning['error']}"})
 
