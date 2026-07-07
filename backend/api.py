@@ -931,9 +931,24 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         x0, y0, x1, y1 = int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)
         if (x1 - x0) < W * 0.30 or (y1 - y0) < H * 0.30:
             return base_path, False, f"裁切框過小 ({x1-x0}x{y1-y0} on {W}x{H})"
+        # 比例鎖定（F87A75BB：客廳 zone 裁出 2.3:1 超寬框 → gpt-image-2 auto
+        # 跟著輸出 1248x544 怪比例）。目標 3:2，太寬就垂直外擴補高、太高就水平
+        # 外擴補寬；原圖不夠補 → 放棄裁切回原圖（最壞=跟沒裁一樣，不會更差）。
+        _TARGET_AR = 1.5
+        cw, ch = (x1 - x0), (y1 - y0)
+        if cw / max(1, ch) > 1.6:
+            need_h = int(cw / _TARGET_AR)
+            y0 = max(0, y0 - (need_h - ch) // 2)
+            y1 = min(H, y0 + need_h)
+            y0 = max(0, y1 - need_h)
+        elif cw / max(1, ch) < 0.6:
+            need_w = int(ch * 0.667)
+            x0 = max(0, x0 - (need_w - cw) // 2)
+            x1 = min(W, x0 + need_w)
+            x0 = max(0, x1 - need_w)
         aspect = (x1 - x0) / max(1, (y1 - y0))
-        if aspect < 0.45 or aspect > 2.6:   # 比例異常→不裁
-            print(f"[pipeline] (i) {room_type} 裁切比例異常 {aspect:.2f}，用整張")
+        if aspect < 0.55 or aspect > 1.8:   # 補完仍異常（原圖本身不夠高/寬）→不裁
+            print(f"[pipeline] (i) {room_type} 裁切比例鎖定失敗 {aspect:.2f}，用整張")
             return base_path, False, f"裁切比例異常 {aspect:.2f}"
         crop = img[y0:y1, x0:x1]
         out_path = str(Path(job_dir) / f"crop_{room_type}_{idx:02d}.jpg")
@@ -1765,6 +1780,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "sofa_intrudes_walkway",
             "coffee_table_in_walkway",
             "furniture_blocks_walkway",
+            "furniture_blocks_door",     # F87A75BB：電視櫃擋大門
             "sofa_faces_walkway",
             "sofa_on_wrong_side",
         )

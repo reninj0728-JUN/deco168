@@ -740,6 +740,25 @@ def _extract_failed_image_urls(err_text: str) -> list[str]:
     return list(dict.fromkeys(urls))  # 去重保序
 
 
+def _gpt_image_size_for(base_path: str) -> str:
+    """底圖方向 → 固定輸出尺寸（gpt-image-2 僅支援這三種）。
+    F87A75BB 抓漏：image_size=auto 會跟著輸入圖的比例跑——客廳裁切框是
+    2.3:1 超寬時，輸出就變 1248x544 的怪比例。交付尺寸必須標準化：
+    橫圖 1536x1024(3:2)、直圖 1024x1536、方圖 1024x1024。"""
+    try:
+        from PIL import Image
+        with Image.open(base_path) as im:
+            w, h = im.size
+        r = w / max(1, h)
+        if r >= 1.15:
+            return "1536x1024"
+        if r <= 0.87:
+            return "1024x1536"
+        return "1024x1024"
+    except Exception:
+        return "1536x1024"
+
+
 def _save_render_jpg(img_bytes: bytes, out_path: str) -> None:
     """渲染圖統一存 JPEG（q88）：fal 回傳的 PNG 一張 5-10MB，是 Supabase 儲存爆量
     主因（2026-07 超額被停權事故）；JPEG 體積縮 ~90%、視覺無差。
@@ -827,7 +846,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         label = render.get("style_label", style)
         flux_prompt = render.get("flux_prompt", "")
         base_image_url = img_urls[idx % len(img_urls)]
-        print(f"  風格 {idx+1} ({label}) 用角度: {Path(image_paths[idx % len(img_urls)]).name}")
+        base_local_path = image_paths[idx % len(img_urls)]
+        print(f"  風格 {idx+1} ({label}) 用角度: {Path(base_local_path).name}")
 
         # 家具描述（家具產品圖暫不直接傳，因為 multi endpoint 會做合成而非參考）
         furniture_items = render.get("matched_furniture", [])[:3]
@@ -982,7 +1002,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "prompt":        camera_constraints + " " + (_sys + " " if _sys else "") + inputs["prompt"],
                     "quality":       os.environ.get("GPT_IMAGE_2_QUALITY", "medium").strip(),
                     "output_format": "png",
-                    "image_size":    "auto",
+                    # 交付尺寸標準化：auto 會複製輸入圖比例（裁切框 2.3:1 → 輸出超寬圖）
+                    "image_size":    _gpt_image_size_for(base_local_path),
                 }
             else:
                 fal_args = {
