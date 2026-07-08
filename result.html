@@ -726,6 +726,33 @@
     setRow('saStoreRow',  'saStore',  ci.preferred_store_label_zh || '');
   }
 
+  // Phase3 自動補生輪詢：被扣的版面由後端在背景繼續補生，補上後 result_json
+  // 的 renders 會變多。這裡每 30 秒查一次（最多 20 分鐘），變多就重新整頁。
+  var _repairTimer = null, _repairPolls = 0;
+  function _startRepairPolling(currentCount, data) {
+    var vs = (data && data.validation_summary) || {};
+    var pending = (vs.dropped && vs.dropped > 0) || data.repairing;
+    if (!pending || _repairTimer || !JOB_ID) return;
+    _repairTimer = setInterval(function() {
+      _repairPolls++;
+      if (_repairPolls > 40) { clearInterval(_repairTimer); _repairTimer = null; return; }
+      fetch(API_BASE + '/api/job/' + JOB_ID + '/result')
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(d) {
+          if (!d) return;
+          var n = (d.renders || []).length;
+          var stillPending = ((d.validation_summary || {}).dropped > 0) || d.repairing;
+          if (n > currentCount) {
+            clearInterval(_repairTimer); _repairTimer = null;
+            window.location.reload();   // 補生完成 → 重載整頁（最單純可靠）
+          } else if (!stillPending) {
+            clearInterval(_repairTimer); _repairTimer = null;
+          }
+        })
+        .catch(function() {});
+    }, 30000);
+  }
+
   function loadResult() {
     if (!JOB_ID) { buildUI(_demoRenders); return; }
     fetch(API_BASE + '/api/job/' + JOB_ID + '/result')
@@ -752,6 +779,9 @@
         else { document.getElementById('tabsContainer').innerHTML = '<div class="loading-msg">尚無渲染圖</div>'; }
         // 部分交付提示：有風格未通過品質檢查時，告知用戶（不影響已交付的圖）
         try { showDroppedNotice(data.validation_summary); } catch (e) { console.warn('dropped notice 失敗', e); }
+        // Phase3 自動補生輪詢：有被扣的版面時，後端正在背景換策略補生。
+        // 每 30 秒重抓一次，張數變多（或補完）就整頁重建——客人不用手動重新整理。
+        try { _startRepairPolling(renders.length, data); } catch (e) {}
       })
       .catch(function(e) {
         var msg = e.message || '';

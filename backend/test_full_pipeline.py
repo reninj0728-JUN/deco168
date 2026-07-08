@@ -795,7 +795,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                      target_note: str | None = None,
                      # step-2: 此張渲染對應的標準房型（living/bedroom/dining/study）；
                      # 給 prompt_builder 依房型佈置（臥室擺床不擺沙發）。預設 living = 原行為。
-                     room_type: str = "living"):
+                     room_type: str = "living",
+                     # Phase3 自動補生用：指定渲染模型（蓋過 RENDER_MODEL env），
+                     # 換模型是卡死 render 的最後一招。None = 原行為。
+                     render_model_override: str | None = None):
     """
     image_paths: 單一路徑或 list；多張時每個 style 輪流用不同角度
     analysis:    Gemini 分析結果，用來建構具體 PRESERVE 指令
@@ -967,7 +970,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             # RENDER_MODEL 預設 fal-ai/nano-banana-pro/edit (現況). 改為
             # openai/gpt-image-2/edit 啟用 GPT Image 2 medium 降成本.
             # 兩組 args 不同, 不能用同一份 payload 餵.
-            render_model = os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit").strip()
+            render_model = (render_model_override
+                            or os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit")).strip()
             if render_model == "openai/gpt-image-2/edit":
                 # gpt-image-2 傾向 auto zoom-in / 重構成 staged 室內攝影棚.
                 # 補硬性 camera constraints 鎖原圖視角 + 廣角縱深 + 前景地板.

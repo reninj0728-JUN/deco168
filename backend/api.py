@@ -1539,6 +1539,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 裁切決策軌跡：沒裁時記下「為什麼」，不然只看 cropped=false 無從診斷
         # （8BEAE3AD 查了半天才發現是部署沒跟上，不是守門擋掉）
         crop_notes: list[str] = [""] * len(flux_bases)
+        # Phase3 自動補生用：記錄裁切前的原圖路徑（index 對齊 flux_bases）
+        uncropped_bases: dict[int, str] = {}
         _crop_eligible = (
             (space_type == "whole" and render_angle == "multi")
             or normalize_room_type(space_type) in _RT_TO_ZONE_KEY   # 單一空間: living/dining
@@ -1554,9 +1556,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if not (isinstance(_contains, list) and len(_contains) >= 2):
                     crop_notes[_i] = f"photo_contains={_contains} 非多區廣角照"
                     continue   # 專屬單房照片，不裁
+                _pre_crop_base = flux_bases[_i]
                 _new_base, _did, _why = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
                 flux_bases[_i] = _new_base
                 crop_flags[_i] = _did
+                if _did:
+                    # Phase3 自動補生要用：裁切版驗證卡死時退回未裁切原圖重生
+                    uncropped_bases[_i] = _pre_crop_base
                 if not _did:
                     crop_notes[_i] = _why or "守門未過"
         else:
@@ -1628,14 +1634,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
-            for base, label, rt, cropped, cnote in zip(flux_bases, angle_labels, angle_room_types,
-                                                       crop_flags, crop_notes):
+            for vi, (base, label, rt, cropped, cnote) in enumerate(zip(flux_bases, angle_labels,
+                                                                       angle_room_types,
+                                                                       crop_flags, crop_notes)):
                 copy = dict(enriched_by_rt[rt][si])
                 copy["_angle_label"] = label
                 copy["_base_path"] = base
                 copy["_room_type"] = rt
                 copy["_cropped"] = cropped   # (i) 是否裁成單房視角
                 copy["_crop_note"] = cnote   # 沒裁時的原因（診斷用）
+                copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 expanded.append(copy)
 
@@ -2363,6 +2371,154 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         for key in r2_keys_to_delete:
             ok = r2_delete_object(key)
             print(f"[pipeline] R2 清除 {key}: {'OK' if ok else 'FAIL'}")
+
+        # ── Phase 3（2026-07-08）：自動補到好 ────────────────────────────────
+        # 部分交付對客人＝沒拿到貨（用戶定調：客人會覺得受騙，商業化不可接受）。
+        # 客人已先拿到通過的圖（completed 已寫入），這裡在同一個背景任務裡對被扣
+        # 的 render 換策略續生：
+        #   策略 A：退回未裁切原圖重生（裁切放大狹長房的空間誤導，9871F294 主因假設）
+        #   策略 B：換渲染模型（gpt-image-2 ↔ nano-banana，卡死時最後一招）
+        # 任一張過驗證 → 立即補寫 result_json（結果頁輪詢自動出現）。
+        # 全程 best-effort：任何例外不影響已交付內容。
+        if dropped_failed_renders and os.environ.get("AUTO_REPAIR", "1").strip() != "0":
+            try:
+                _cur_model = os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit").strip()
+                _alt_model = ("fal-ai/nano-banana-pro/edit"
+                              if _cur_model == "openai/gpt-image-2/edit"
+                              else "openai/gpt-image-2/edit")
+                for idx in range(len(final)):
+                    r = final[idx]
+                    if not _is_hard_fail(r) or idx >= len(expanded):
+                        continue
+                    entry = expanded[idx]
+                    v0 = r.get("validation") or {}
+                    retry_ctx = _build_retry_ctx_from_validation(v0)
+                    # 策略清單：(標籤, 底圖, 模型)。裁切圖卡死 → 先試原圖；再試換模型。
+                    _alt_base = entry.get("_uncropped_base")
+                    strategies = []
+                    if _alt_base and Path(_alt_base).exists():
+                        strategies.append(("原圖重生", _alt_base, None))
+                        strategies.append(("原圖+換模型", _alt_base, _alt_model))
+                    else:
+                        strategies.append(("換模型", entry["_base_path"], _alt_model))
+                    fixed = None
+                    for tag, base_p, model_ov in strategies:
+                        print(f"[pipeline] Phase3 自動補生 render[{idx}] "
+                              f"style={r.get('style')} 策略={tag}")
+                        try:
+                            p3 = generate_renders(
+                                base_p, [entry], output_dir=str(job_dir),
+                                analysis=analysis, design_mode=design_mode,
+                                zoning=zoning_result, customer_notes=customer_notes,
+                                budget_tier=budget_tier, retry_context=retry_ctx,
+                                force_anchored=force_anchored, job_id=job_id,
+                                upload_id_masked=uid_masked,
+                                attempt=int(r.get("retry_count") or 0) + 3,
+                                stage="phase3_auto_repair",
+                                target_zone=_best_pm_target_zone,
+                                target_location_hint=_best_pm_location_hint,
+                                target_note=_best_pm_target_note,
+                                room_type=entry.get("_room_type", "living"),
+                                render_model_override=model_ov,
+                            )
+                        except Exception as g_e:
+                            print(f"[pipeline] Phase3 生成例外（{tag}）: {str(g_e)[:150]}")
+                            continue
+                        cand = (p3 or [{}])[0]
+                        rpath = cand.get("render_path")
+                        if not rpath:
+                            continue
+                        try:
+                            from gemini_analyze import validate_render
+                            _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
+                            v3 = validate_render(base_p, rpath, entry["_angle_label"],
+                                                 layout_context=_lc,
+                                                 room_type=entry.get("_room_type", "living"),
+                                                 design_mode=design_mode)
+                        except Exception as v_e:
+                            print(f"[pipeline] Phase3 驗證例外（{tag}）: {str(v_e)[:120]}")
+                            continue
+                        if (v3 or {}).get("hard_fail"):
+                            print(f"[pipeline] Phase3 {tag} 仍硬傷: {(v3.get('reason') or '')[:100]}")
+                            continue
+                        # 通過 → 改名 + 上傳 + 組交付欄位
+                        src_p = Path(rpath)
+                        new_p = src_p.parent / f"render_{entry.get('style','x')}_{idx:02d}_repair{src_p.suffix}"
+                        try:
+                            src_p.rename(new_p)
+                            rpath = str(new_p)
+                        except Exception:
+                            pass
+                        cand["render_path"] = rpath
+                        cand["validation"] = v3
+                        cand["angle_label"] = entry["_angle_label"]
+                        cand["room_type"] = entry.get("_room_type", "living")
+                        cand["cropped"] = base_p == entry.get("_base_path") and bool(entry.get("_cropped"))
+                        cand["crop_note"] = None if cand["cropped"] else "Phase3 補生（未裁切原圖）"
+                        cand["retry_count"] = int(r.get("retry_count") or 0) + 2
+                        cand["retry_reason"] = f"phase3 auto repair ({tag})"
+                        rurl = sb_upload_render(job_id, Path(rpath))
+                        cand["render_url"] = rurl
+                        cand["render_filename"] = Path(rpath).name
+                        fixed = cand
+                        break
+                    if fixed is None:
+                        continue
+                    # 補寫 DB：讀回目前 result_json，append render、更新統計與 needs_regen
+                    try:
+                        row = sb_get(job_id) or {}
+                        rj = row.get("result_json") if isinstance(row.get("result_json"), dict) else {}
+                        rj_renders = rj.get("renders") or []
+                        rj_renders.append({
+                            "style":             fixed.get("style"),
+                            "style_label":       fixed.get("style_label"),
+                            "angle_label":       fixed.get("angle_label", "主視角"),
+                            "room_type":         fixed.get("room_type", "living"),
+                            "cropped":           bool(fixed.get("cropped")),
+                            "crop_note":         fixed.get("crop_note"),
+                            "render_model":      fixed.get("render_model"),
+                            "render_filename":   fixed.get("render_filename"),
+                            "render_url":        fixed.get("render_url"),
+                            "render_error":      None,
+                            "matched_furniture": _rendered_core_only(fixed.get("matched_furniture"),
+                                                                     fixed.get("room_type", "living")),
+                            "soft_furnishing":   fixed.get("soft_furnishing", []),
+                            "validation":        fixed.get("validation"),
+                            "pipeline_version":  fixed.get("pipeline_version", "flux-v1"),
+                            "reference_map":     _slim_refmap(fixed.get("reference_map")),
+                            "notes":             fixed.get("notes", ""),
+                            "unmatched_visual_items": fixed.get("unmatched_visual_items", []),
+                            "retry_count":       fixed.get("retry_count", 0),
+                            "retry_reason":      fixed.get("retry_reason"),
+                        })
+                        rj["renders"] = rj_renders
+                        vs = rj.get("validation_summary") or {}
+                        vs["delivered"] = int(vs.get("delivered") or 0) + 1
+                        vs["dropped"] = max(0, int(vs.get("dropped") or 0) - 1)
+                        vs["dropped_renders"] = [
+                            d for d in (vs.get("dropped_renders") or [])
+                            if not (d.get("style") == fixed.get("style")
+                                    and d.get("room_type") == fixed.get("room_type"))
+                        ]
+                        rj["validation_summary"] = vs
+                        rj["needs_regen"] = [
+                            n for n in (rj.get("needs_regen") or [])
+                            if not (n.get("style") == fixed.get("style")
+                                    and (n.get("room_type") or "") in ("", fixed.get("room_type")))
+                        ]
+                        if not rj["needs_regen"]:
+                            rj.pop("repairing", None)
+                            rj.pop("needs_regen", None)
+                        sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
+                                   "message": "設計方案生成完畢！" if not rj.get("needs_regen")
+                                              else "部分設計仍在為你優化中，我們會盡快補上",
+                                   "result_json": rj}, timeout=25)
+                        print(f"[pipeline] Phase3 補生成功並已補寫 render[{idx}] "
+                              f"style={fixed.get('style')} room={fixed.get('room_type')}")
+                    except Exception as db_e:
+                        print(f"[pipeline] Phase3 補寫 DB 失敗: {str(db_e)[:150]}")
+            except Exception as p3_outer:
+                print(f"[pipeline] Phase3 例外（不影響已交付）: {str(p3_outer)[:200]}")
 
     except Exception as e:
         # C2.6 失敗收尾: merge 現有 result_json 不蓋既有 analysis / zoning / partial renders
