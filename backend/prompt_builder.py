@@ -171,7 +171,8 @@ def _build_inputs_section(reference_map: list[dict]) -> str:
     return " ".join(lines)
 
 
-def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
+def _build_layout_section(zoning: dict, target_note: str | None = None,
+                          is_long_room_numeric: bool = False) -> str:
     """
     從 zoning 原文組裝 layout 描述（不 parse 牆名）。
     sofa_wall / tv_wall / living_zone.where / walkway / no_large_furniture_zones 全文塞進去。
@@ -200,7 +201,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
         choice_label = layout_choice or "A"
         room_shape_text = str(syn.get("room_shape") or "")
         room_shape_lower = room_shape_text.lower()
-        is_long_room_layout = any(
+        # 9871F294 根因之一：只看 zoning 文字（要剛好寫「狹長」才觸發），
+        # 數值信號（enrich 算的長寬比 >= 2.0 / 長邊 >= 6m）沒接進來 →
+        # 走廊型客廳的 LONG-ROOM 規則整段沒啟動。文字 OR 數值任一成立即觸發。
+        is_long_room_layout = is_long_room_numeric or any(
             k in room_shape_lower
             for k in ("長條", "狹長", "長型", "long rectangular", "elongated", "long room")
         )
@@ -294,6 +298,14 @@ def _build_layout_section(zoning: dict, target_note: str | None = None) -> str:
             "If a zoning sentence says a long wall may hold either the TV cabinet or sofa, that is "
             "an unresolved wall-use note, not a binding sofa-wall instruction; resolve it using this "
             "opposite-side-wall contract. "
+            "DEPTH LOCK (the #1 recurring failure in long rooms — enforce strictly): the sofa and "
+            "the TV console / focal anchor must sit at the SAME depth along the corridor — directly "
+            "across from each other on one shared cross-axis, like the two ends of a single line "
+            "drawn perpendicular to the long walls. Someone sitting on the sofa looking straight "
+            "ahead must see the console, not empty wall. If the sofa is in the rear/window half of "
+            "the room, the console must ALSO be in the rear/window half. Placing the console near "
+            "the entrance/front section while the sofa sits deep in the room is WRONG and will be "
+            "rejected. "
         ) if is_long_room_layout else ""
         # 窄房補強：寬度小，沙發+對牆焦點之間容易擠掉走道。限制家具尺寸與佔深，保住中央動線。
         narrow_room_rule = (
@@ -1445,7 +1457,8 @@ def build_nano_banana_inputs(
     inputs_sec = _build_inputs_section(reference_map)
 
     if _is_zoning_usable(zoning):
-        layout_sec = _build_layout_section(zoning, target_note=target_note)
+        layout_sec = _build_layout_section(zoning, target_note=target_note,
+                                           is_long_room_numeric=bool(entry.get("_is_long_room")))
     else:
         layout_sec = _build_fallback_layout_section()
 
