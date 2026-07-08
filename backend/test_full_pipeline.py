@@ -740,23 +740,25 @@ def _extract_failed_image_urls(err_text: str) -> list[str]:
     return list(dict.fromkeys(urls))  # 去重保序
 
 
-def _gpt_image_size_for(base_path: str) -> str:
+def _gpt_image_size_for(base_path: str) -> dict:
     """底圖方向 → 固定輸出尺寸（gpt-image-2 僅支援這三種）。
     F87A75BB 抓漏：image_size=auto 會跟著輸入圖的比例跑——客廳裁切框是
     2.3:1 超寬時，輸出就變 1248x544 的怪比例。交付尺寸必須標準化：
-    橫圖 1536x1024(3:2)、直圖 1024x1536、方圖 1024x1024。"""
+    橫圖 1536x1024(3:2)、直圖 1024x1536、方圖 1024x1024。
+    631BB0A2 事故：fal 的 image_size 要「物件格式」{'width':...,'height':...}，
+    傳 '1536x1024' 字串會 422 全滅——這裡必須回 dict。"""
     try:
         from PIL import Image
         with Image.open(base_path) as im:
             w, h = im.size
         r = w / max(1, h)
         if r >= 1.15:
-            return "1536x1024"
+            return {"width": 1536, "height": 1024}
         if r <= 0.87:
-            return "1024x1536"
-        return "1024x1024"
+            return {"width": 1024, "height": 1536}
+        return {"width": 1024, "height": 1024}
     except Exception:
-        return "1536x1024"
+        return {"width": 1536, "height": 1024}
 
 
 def _save_render_jpg(img_bytes: bytes, out_path: str) -> None:
@@ -1017,7 +1019,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             # 對策：移除 fal 抓不到的參考圖（保留房間底圖）後重試一次，避免一張外部圖掛掉整個風格。
             attempt_args = fal_args
             _last_err = None
-            for _try in range(2):
+            for _try in range(3):   # image_size 保險絲 + 壞參考圖各可能吃掉一次
                 try:
                     result, img_bytes = _fal_subscribe_timed(
                         render_model, attempt_args, log_ctx=log_ctx,
@@ -1041,6 +1043,12 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     raise
                 except Exception as e:
                     _last_err = e
+                    # 631BB0A2 事故保險絲：image_size 參數被 fal 拒絕（schema 驗證錯）
+                    # → 退回 auto 重試一次。一個輸出尺寸參數絕不允許滅掉整張 render。
+                    if "image_size" in str(e) and attempt_args.get("image_size") != "auto":
+                        print(f"  [render] image_size 參數被拒，退回 auto 重試")
+                        attempt_args = {**attempt_args, "image_size": "auto"}
+                        continue
                     bad = _extract_failed_image_urls(str(e))
                     keep = [u for u in attempt_args["image_urls"]
                             if u == base_image_url or u not in bad]
