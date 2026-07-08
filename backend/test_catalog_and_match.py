@@ -129,6 +129,19 @@ def test_french_coffee_table_is_real_furniture(catalog):
     assert not fm.is_multi_piece_bundle(nm), f"法式茶几配到多件套組: {nm}"
 
 
+def test_no_bunk_bed_in_bedroom(catalog):
+    """9871F294 迴歸：臥室的床配對不能出現雙層床/兒童床（主臥不擺小孩房家具）。"""
+    for style in CURRENT_STYLES:
+        prompt = f"{style} style bedroom with double bed, wardrobe, soft lighting"
+        items = fm.match_furniture(style, prompt, catalog, top_n=5, mode="bedroom")
+        bed = next((it for it in items if fm.resolve_category(it) == "bed"), None)
+        if bed is None:
+            continue
+        nm = bed["name_zh"]
+        bad = [k for k in fm.BED_KIDS_KW if k in nm]
+        assert not bad, f"{style} 臥室配到兒童/雙層床: {nm}（命中 {bad}）"
+
+
 def test_must_have_categories_never_empty(catalog):
     """每個房型的 must-have 品類在每種風格下都配得到（跨風格保命網有效）。"""
     missing = []

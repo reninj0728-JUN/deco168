@@ -375,14 +375,24 @@
   function showDroppedNotice(vs) {
     if (!vs || !vs.dropped) return;
     var dropped = vs.dropped_renders || [];
-    var droppedLabels = dropped.map(function(d) { return d.style_label || d.style || ''; })
-                               .filter(Boolean);
+    // 9871F294 抓漏：只寫風格名時，同風格「部分房間交付、部分細修」會顯示成
+    // 「新中式已交付」+「新中式細修中」自相矛盾——帶上房間標籤（新中式美學 · 客廳），
+    // 並去重（同風格同房間的多視角只列一次）。
+    var _seen = {};
+    var droppedLabels = dropped.map(function(d) {
+      var s = d.style_label || d.style || '';
+      if (!s) return '';
+      var room = d.angle_label || '';
+      return room ? (s + ' · ' + room) : s;
+    }).filter(function(t) {
+      if (!t || _seen[t]) return false;
+      _seen[t] = 1; return true;
+    });
     var droppedText = droppedLabels.length ? droppedLabels.join('、') : (vs.dropped + ' 個風格');
     // 已完成交付的風格名稱（buildUI 分組後的 _groups）
     var deliveredLabels = (_groups || []).map(function(g) { return g.label; }).filter(Boolean);
     var deliveredText = deliveredLabels.join('、');
     var firstClause = deliveredText ? ('「' + deliveredText + '」已完成交付。') : '';
-    var droppedNoun = droppedLabels.length > 1 ? '其餘風格' : '另一個風格';
     var box = document.createElement('div');
     box.className = 'dropped-notice';
     box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:12px 16px;border:1px solid rgba(212,175,55,.35);'
@@ -395,7 +405,7 @@
         + '需要加快請聯絡客服，免費重出。';
     } else {
       box.innerHTML = firstClause
-        + droppedNoun + '「' + droppedText + '」的版面我們還在為你細修，完成後會補上。'
+        + '「' + droppedText + '」我們還在為你細修，完成後會補上。'
         + '需要加快請聯絡客服，免費重出。';
     }
     var tabs = document.getElementById('tabsContainer');

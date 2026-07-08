@@ -2240,9 +2240,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if rooms_for_json:
             result_json_payload["rooms"] = rooms_for_json     # P2-MVP-0
         # Phase 2: 補生後仍硬傷的風格 → 記 needs_regen（額度不消失，待人工/後續補件）
+        # 9871F294 抓漏：多房間訂單只記風格名，前端顯示「新中式已交付」+「新中式細修中」
+        # 自相矛盾——帶上房間標籤讓前端能顯示「新中式美學 · 客廳」。
         if dropped_failed_renders:
             result_json_payload["needs_regen"] = [
-                {"style": r.get("style"), "style_label": r.get("style_label")}
+                {"style": r.get("style"), "style_label": r.get("style_label"),
+                 "room_type": r.get("room_type") or r.get("_room_type"),
+                 "angle_label": r.get("angle_label") or r.get("_angle_label")}
                 for r in dropped_failed_renders if r.get("style")
             ]
         # 全部硬傷 → repairing：訂單仍 completed，但前端顯示「優化中」而非失敗
