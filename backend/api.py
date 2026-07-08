@@ -2382,10 +2382,6 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 全程 best-effort：任何例外不影響已交付內容。
         if dropped_failed_renders and os.environ.get("AUTO_REPAIR", "1").strip() != "0":
             try:
-                _cur_model = os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit").strip()
-                _alt_model = ("fal-ai/nano-banana-pro/edit"
-                              if _cur_model == "openai/gpt-image-2/edit"
-                              else "openai/gpt-image-2/edit")
                 for idx in range(len(final)):
                     r = final[idx]
                     if not _is_hard_fail(r) or idx >= len(expanded):
@@ -2393,14 +2389,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     entry = expanded[idx]
                     v0 = r.get("validation") or {}
                     retry_ctx = _build_retry_ctx_from_validation(v0)
-                    # 策略清單：(標籤, 底圖, 模型)。裁切圖卡死 → 先試原圖；再試換模型。
+                    # 策略清單：(標籤, 底圖, 模型)。用戶定調：不換模型、修根因——
+                    # 每次補生都會經過修正後的完整 prompt（數值長條房觸發 + DEPTH LOCK
+                    # + 上次失敗的具體深度回饋），跟原本失敗那次的指令已經不同。
+                    # 裁切圖卡死 → 先退回未裁切原圖（裁切放大狹長房空間誤導），
+                    # 再給同底圖第二次修正機會（生成本身有隨機性，同指令兩次結果不同）。
                     _alt_base = entry.get("_uncropped_base")
                     strategies = []
                     if _alt_base and Path(_alt_base).exists():
                         strategies.append(("原圖重生", _alt_base, None))
-                        strategies.append(("原圖+換模型", _alt_base, _alt_model))
+                        strategies.append(("原圖重生#2", _alt_base, None))
                     else:
-                        strategies.append(("換模型", entry["_base_path"], _alt_model))
+                        strategies.append(("修正重生", entry["_base_path"], None))
+                        strategies.append(("修正重生#2", entry["_base_path"], None))
                     fixed = None
                     for tag, base_p, model_ov in strategies:
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
