@@ -1104,12 +1104,44 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
                 except Exception:
                     sofa_seat = "unknown"
             break
-    if not sofa_seat or sofa_seat == "unknown":
+    # C（50873CF0/B0CDF6A0 書房櫃「圖與清單完全不同」）：把客廳 must 商品清單
+    # 一併帶給驗收，做「圖上有沒有大致出現」的可見性檢查。
+    must_products = []
+    if (entry_or_render.get("room_type") or entry_or_render.get("_room_type") or "living") == "living":
+        _MUST_VIS_CATS = ("sofa", "coffee_table", "rug", "media_console")
+        for it in (entry_or_render.get("matched_furniture") or []):
+            if isinstance(it, dict) and (it.get("category_en") or "") in _MUST_VIS_CATS:
+                must_products.append({
+                    "cat": it.get("category_en"),
+                    "name": (it.get("name_zh") or "")[:60],
+                    "desc": (it.get("flux_descriptor") or "")[:120],
+                })
+    if (not sofa_seat or sofa_seat == "unknown") and not must_products:
         return layout_ctx
     out = dict(layout_ctx) if isinstance(layout_ctx, dict) else {}
-    out["expected_sofa_seating"] = sofa_seat
-    out["expected_sofa_name"] = sofa_name
+    if sofa_seat and sofa_seat != "unknown":
+        out["expected_sofa_seating"] = sofa_seat
+        out["expected_sofa_name"] = sofa_name
+    if must_products:
+        out["must_products"] = must_products
     return out or layout_ctx
+
+
+def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
+    """B1（B0CDF6A0 根治）：驗證崩潰（ok=None/缺失）不得當通過。
+    客廳 → 標 hard_fail 進 Z3/Phase2/Phase3 補生鏈，寧可誤擋不裸奔交付；
+    非客廳 → 保留原狀但帶 validation_unavailable 標記（不阻斷，風險較低）。
+    正常解析出 ok=true/false 的結果原樣通過。"""
+    if isinstance(v, dict) and v.get("ok") is not None:
+        return v
+    base = dict(v or {})
+    base.setdefault("error", "validation crashed")
+    base["validation_unavailable"] = True
+    if (room_type or "living") == "living":
+        base["ok"] = False
+        base["hard_fail"] = True
+        base["reason"] = "[驗證異常] 客廳驗證未完成，保守重生（不裸奔交付）"
+    return base
 
 
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
@@ -1933,24 +1965,33 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 bpath = r.get("_base_path") or ""
                 rpath = r.get("render_path") or ""
                 if bpath and rpath and Path(bpath).exists() and Path(rpath).exists():
-                    try:
-                        # 非客廳房型不傳 living 的 layout_context（sofa_side/living_where），
-                        # 否則 judge 會被問沙發 → 餐廳/書房 reason 冒沙發語言 → 髒重試(Grok 根治)。
-                        _lc = layout_ctx if (r.get("room_type") or "living") == "living" else None
-                        _lc = _product_fidelity_into_layout_ctx(_lc, r)
-                        v = validate_render(bpath, rpath, r.get("_angle_label", ""),
-                                            layout_context=_lc,
-                                            room_type=r.get("room_type", "living"),
-                                            design_mode=design_mode)
-                    except Exception as ve:
-                        v = {"ok": None, "error": str(ve)[:200]}
+                    # 非客廳房型不傳 living 的 layout_context（sofa_side/living_where），
+                    # 否則 judge 會被問沙發 → 餐廳/書房 reason 冒沙發語言 → 髒重試(Grok 根治)。
+                    _lc = layout_ctx if (r.get("room_type") or "living") == "living" else None
+                    _lc = _product_fidelity_into_layout_ctx(_lc, r)
+                    # B1（B0CDF6A0 根治）：驗證崩潰不得裸奔——當場重驗一次；仍崩 →
+                    # _fail_closed_validation 把客廳標 hard_fail 進補生，非客廳保留標記。
+                    v = None
+                    for _v_try in range(2):
+                        try:
+                            v = validate_render(bpath, rpath, r.get("_angle_label", ""),
+                                                layout_context=_lc,
+                                                room_type=r.get("room_type", "living"),
+                                                design_mode=design_mode)
+                            break
+                        except Exception as ve:
+                            v = {"ok": None, "error": str(ve)[:200]}
+                            print(f"[pipeline] 驗證崩潰（第 {_v_try+1} 次）"
+                                  f"{r.get('style')}/{r.get('room_type')}: {str(ve)[:100]}")
                 else:
                     v = {"ok": None, "error": "missing base or render path"}
-                r["validation"] = v
+                r["validation"] = _fail_closed_validation(v, r.get("room_type", "living"))
         except Exception as outer:
             print(f"[pipeline] 驗證階段例外: {outer}")
             for r in final:
-                r.setdefault("validation", {"ok": None, "error": "validation step crashed"})
+                r.setdefault("validation", _fail_closed_validation(
+                    {"ok": None, "error": "validation step crashed"},
+                    r.get("room_type", "living")))
 
         # ── Z3: 結構失敗自動重試 1 次（僅 Nano Banana）──
         use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
@@ -1969,7 +2010,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "sofa_on_wrong_side",
             "spatial_fidelity_fail",     # 2A520C25：整間房被重畫成別的空間
             "product_sofa_seating_mismatch",  # 1FC382CA：清單單人圖上雙人
-            "focal_anchor_misaligned_with_sofa",  # 電視櫃未正對／跑餐廳
+            "product_visibility_fail",   # 50873CF0：清單商品圖上沒畫/畫成別件
         )
         def _has_high_severity(v: dict) -> bool:
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)
@@ -2098,7 +2139,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             new_v = {"ok": None, "error": "missing base or render path after retry"}
                     except Exception as ve:
                         new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:200]}"}
-                    new_r["validation"]   = new_v
+                    new_r["validation"]   = _fail_closed_validation(new_v, entry.get("_room_type", "living"))
                     new_r["angle_label"]  = entry["_angle_label"]
                     # 重試換掉 r 時務必補回房型，否則 new_r 帶的是 Gemini 廣角圖的 living，
                     # 害結果頁用 living 顯示類別濾掉餐桌/床等 → 「圖上有、清單沒有」(job 23EF5810)。
@@ -2204,7 +2245,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         new_v = {"ok": None, "error": "missing path after hardfix"}
                 except Exception as ve:
                     new_v = {"ok": None, "error": f"revalidate hardfix failed: {str(ve)[:200]}"}
-                new_r["validation"]   = new_v
+                new_r["validation"]   = _fail_closed_validation(new_v, entry.get("_room_type", "living"))
                 new_r["angle_label"]  = entry["_angle_label"]
                 # 同 Z3 retry：補回房型，避免結果頁用 living 濾掉該房家具。
                 new_r["room_type"]    = entry.get("_room_type", "living")

@@ -303,3 +303,72 @@ def test_sheer_curtain_double_ref():
     # 只有一件窗簾時行為不變（每類一件）
     picked2 = pb._select_soft_ref_candidates(soft[:1] + soft[3:])
     assert len([p for p in picked2 if p["category_en"] == "curtain"]) == 1
+
+
+# ══ B1/A1/C 一次全修（B0CDF6A0）迴歸 ═══════════════════════════════════════
+
+def test_json_repair_inner_quotes():
+    """B1：字串內未跳脫引號（B0CDF6A0 兩張客廳驗證崩的實際型態）要能修復。"""
+    import gemini_analyze as ga
+    broken = '{"ok": false, "reason": "沙發"正面"朝向走道", "walls_changed": false}'
+    out = ga._json_loads_lenient(broken)
+    assert out["ok"] is False and out["walls_changed"] is False
+    assert "正面" in out["reason"]
+
+
+def test_json_repair_truncated_and_trailing_comma():
+    """B1：截斷缺右括號、尾逗號都要能修。"""
+    import gemini_analyze as ga
+    out = ga._json_loads_lenient('{"ok": true, "flags": [1, 2,], }')
+    assert out["ok"] is True
+    out2 = ga._json_loads_lenient('{"ok": true, "reason": "被截斷了')
+    assert out2["ok"] is True
+
+
+def test_living_validation_fail_closed():
+    """B1：客廳驗證崩潰（ok=None）不得當通過——hard_fail 進補生；非客廳保留標記不阻斷。"""
+    import api
+    v = api._fail_closed_validation({"ok": None, "error": "boom"}, "living")
+    assert v["hard_fail"] is True and v["ok"] is False and v["validation_unavailable"] is True
+    v2 = api._fail_closed_validation({"ok": None, "error": "boom"}, "bedroom")
+    assert v2.get("hard_fail") is not True and v2["validation_unavailable"] is True
+    # 正常結果原樣通過
+    v3 = api._fail_closed_validation({"ok": True, "hard_fail": False}, "living")
+    assert v3["ok"] is True and not v3.get("validation_unavailable")
+
+
+def test_face_gate_without_user_zoning():
+    """A1：沒有用戶確認分區時，face=false 也必須是硬傷（北歐電視櫃跑餐廳位）。"""
+    import gemini_analyze as ga
+    r = ga._enforce_sofa_focal_orientation(
+        {"sofa_focal_face_each_other": False}, has_layout_ctx=False)
+    assert r["focal_anchor_misaligned_with_sofa"] is True
+    assert r["ok"] is False
+    # 無 ctx 且模型答不出（None）→ 不硬扣（避免誤殺）
+    r2 = ga._enforce_sofa_focal_orientation(
+        {"sofa_focal_face_each_other": None}, has_layout_ctx=False)
+    assert not r2.get("focal_anchor_misaligned_with_sofa")
+
+
+def test_weak_contract_without_confirmation():
+    """A1：無用戶確認但系統 zoning 有 living zone → prompt 出現弱合約；有確認則不出現弱合約字樣。"""
+    import prompt_builder as pb
+    zoning = {
+        "confidence": "high",
+        "spatial_synthesis": {"main_window_wall": "畫面左側落地窗"},
+        "zones": {"living_zone": {"where": "靠窗前段區域"}, "walkway": {"where": "側向走道"}},
+        "furniture_placement_rules": {},
+    }
+    sec = pb._build_layout_section(zoning)
+    assert "SYSTEM-INFERRED LAYOUT" in sec
+    assert "FACING the sofa" in sec
+    confirmed = dict(zoning)
+    confirmed["_origin"] = "user_confirmed_v2"
+    sec2 = pb._build_layout_section(confirmed)
+    assert "SYSTEM-INFERRED LAYOUT" not in sec2  # 用戶確認路徑行為完全不變
+
+
+def test_product_visibility_hard_flag():
+    """C：product_visibility_fail 必須在硬傷清單（否則可見性形同虛設）。"""
+    import gemini_analyze as ga
+    assert "product_visibility_fail" in ga.HARD_FAIL_FLAGS

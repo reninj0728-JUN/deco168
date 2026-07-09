@@ -487,6 +487,23 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 + dining_middle_clause
             )
 
+    # ── A1（B0CDF6A0 根治）：無用戶確認時的「系統推斷弱合約」──────────────
+    # 用戶沒過分區確認時，配置合約以前整層休眠 → 電視櫃跑餐廳位、沙發擋走道、
+    # 位置全錯。系統自算的 zoning 有資料卻被當沒合約——改為弱合約：
+    # 強度足以擋「TV 在餐廳、擋走道、不對沙發」，但明示可被照片實況修正，
+    # 永遠弱於用戶確認（該路徑行為完全不變）。
+    if living_where and zoning.get("_origin") != "user_confirmed_v2":
+        parts.append(
+            "SYSTEM-INFERRED LAYOUT (weak contract — from spatial analysis, follow unless "
+            "the room photo clearly contradicts it): "
+            f"The living zone is: {living_where}. "
+            "Place the ENTIRE living group (sofa + coffee table + rug + media console) inside "
+            "this living zone as ONE compact arrangement. The media console / TV MUST be on a "
+            "wall inside the living zone, directly FACING the sofa on one shared axis — never "
+            "in the dining area, hallway or a far corner. The sofa backs onto a solid wall. "
+            "Keep the main walkway and every doorway completely clear of furniture."
+        )
+
     parts.append("ROOM LAYOUT (whitelist fields only — structure from photo + placement rules):")
     # 結構段白名單（Grok D4 後小加固）：只餵可結構化欄位 + 已 scrub 的短句；
     # 不塞 room_shape 全屋散文、不塞牆面自由長描述。image_1 仍是唯一物理真相。
@@ -1263,6 +1280,12 @@ _RETRY_FLAG_FIX_EN = {
         "The sofa was placed against the WRONG side wall. Re-read the bound SOFA SIDE / "
         "LONG-ROOM SIDE-WALL CONTRACT above and put the sofa BACK against the specified "
         "side wall; the TV cabinet / focal anchor goes on the opposite side facing it.",
+    "product_visibility_fail":
+        "One or more purchasable catalog products from the list were MISSING from the "
+        "render or were replaced by a completely different-looking item. You MUST render "
+        "EVERY referenced product image (sofa, coffee table, rug, media console) so it is "
+        "clearly present and recognizably matches its product photo — same shape, colour "
+        "and material. The customer buys exactly what the picture shows.",
     "spatial_fidelity_fail":
         "CRITICAL — the previous render REPAINTED THE ROOM into a different space "
         "(wrong camera axis, moved the main window, erased a doorway/passage, or grew an "
