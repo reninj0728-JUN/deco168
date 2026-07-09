@@ -16,6 +16,7 @@ Nano Banana Pro multi-image prompt 組裝模組
 - Phase A: customer_notes 用安全 wrapper 包進 prompt（防 prompt injection），
   budget_tier 寫成預算 guidance（不變動定價與付款流程）
 """
+import re
 
 # Primary product reference categories. sofa/coffee_table/rug are must-have;
 # media_console is optional and only appears when furniture_match finds a good product.
@@ -169,6 +170,30 @@ def _build_inputs_section(reference_map: list[dict]) -> str:
             display = role  # already display form, e.g. SOFA / COFFEE TABLE / RUG
             lines.append(f"Reference image {idx} is the {display} PRODUCT (a real product to use).")
     return " ".join(lines)
+
+
+# 2A520C25 根治（Grok 定調「拔管線」）：全屋 spatial_synthesis 會描述畫面外的
+# 房間（後端廚房、通往臥室、大門…）——那是「全屋理解」產物，不是「這張底圖裡該
+# 畫什麼」。單房 render 只能拿到本張照片框到的結構，畫面外房名一律從 layout 文字
+# 移除，避免變成「照著蓋」指令。影片把 zoning 推成更「全屋」→ 這是主要毒源，
+# 從源頭拔掉；FRAME BOUNDARY 只留作第二道保險。
+_OFFFRAME_DEST_RE = re.compile(
+    r"(通往|通向|延伸至|延伸到|連通|連接|鄰接|接續|通到|連向)"
+    r"[^，。、；\s]{0,10}?(廚房|餐廳|臥室|主臥|次臥|書房|玄關|大門|陽台|房間|走廊)"
+)
+
+def _scrub_offframe_rooms(text: str) -> str:
+    """把 layout 文字裡「通往廚房/延伸至臥室」這種畫面外目的地抹成中性字，
+    保留「有開口/走道」的事實。廚房這個詞單獨出現也移除（客廳 render 不該被
+    文字要求畫廚房：真在畫面裡模型自己看得到，不在畫面裡寫了只會誘發幻覺）。"""
+    if not text:
+        return text
+    t = _OFFFRAME_DEST_RE.sub(r"\1其他空間", str(text))
+    t = t.replace("廚房", "").replace("瓦斯爐", "").replace("流理臺", "").replace("流理台", "")
+    # 清掉抹除後殘留的連接碎片（「與 的開口」「、 的」之類）
+    t = re.sub(r"[與和及、,]\s*(?=的|開口|走道|$)", "", t)
+    t = re.sub(r"\s{2,}", " ", t).strip(" 、，,")
+    return t
 
 
 def _build_layout_section(zoning: dict, target_note: str | None = None,
@@ -462,13 +487,15 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
         "that is visible in image_1. Keep the exact same camera viewpoint as image_1."
     )
 
-    if syn.get("room_shape"):
-        parts.append(f"Room shape: {syn['room_shape']}.")
+    # room_shape 是「全屋」敘事（例：長方形…後端延伸至廚房與大門…通往臥室），
+    # 這是 2A520C25 廚房長進客廳的最大扳機——不再原樣塞進單房 render prompt。
+    # 它仍在 is_long_room 偵測用（本函式上方），純供內部判斷，不進 model 指令。
     if syn.get("main_window_wall"):
         win = syn.get("main_window_size", "") or ""
-        parts.append(f"Window location: {syn['main_window_wall']}" + (f" ({win})." if win else "."))
+        parts.append("Window location: " + _scrub_offframe_rooms(syn['main_window_wall'])
+                     + (f" ({win})." if win else "."))
     if syn.get("entrance_position"):
-        parts.append(f"Entrance: {syn['entrance_position']}.")
+        parts.append("Entrance: " + _scrub_offframe_rooms(syn['entrance_position']) + ".")
     if syn.get("exposed_ceiling"):
         parts.append(f"Ceiling features (must preserve): {syn['exposed_ceiling']}.")
 
@@ -477,7 +504,7 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
         parts.append("Walls inventory:")
         for w in walls:
             name = w.get("name", "?")
-            desc = w.get("description", "")
+            desc = _scrub_offframe_rooms(w.get("description", ""))  # 抹掉「通往廚房」等畫面外目的地
             opening = w.get("has_opening")
             opening_txt = "has opening" if opening else "fully solid"
             parts.append(f"- {name} [{opening_txt}]: {desc}")

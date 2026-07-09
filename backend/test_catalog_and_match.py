@@ -157,6 +157,20 @@ def test_spatial_fidelity_gate_logic():
     assert fail is False
 
 
+def test_offframe_room_scrub():
+    """2A520C25 拔管線：全屋 layout 文字裡的畫面外廚房不得進單房 prompt。"""
+    import prompt_builder as pb
+    # 真實案例：客廳牆面描述帶「通往廚房」→ 廚房必須被抹掉，開口/家具資訊保留
+    out = pb._scrub_offframe_rooms("擺放金色大理石邊几的牆面，中段有通往廚房與臥室走道的開口")
+    assert "廚房" not in out
+    assert "金色大理石邊几" in out and "開口" in out
+    # 空字串安全
+    assert pb._scrub_offframe_rooms("") == ""
+    # 沒有畫面外房間的描述原樣保留主要內容
+    plain = pb._scrub_offframe_rooms("完整大白牆，掛花畫，無開口")
+    assert "大白牆" in plain and "廚房" not in plain
+
+
 def test_spatial_fidelity_is_hard_fail_flag():
     """spatial_fidelity_fail 必須在硬傷清單，否則閘門形同虛設。"""
     import gemini_analyze as ga
