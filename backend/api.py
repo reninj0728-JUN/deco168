@@ -1791,6 +1791,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "furniture_blocks_door",     # F87A75BB：電視櫃擋大門
             "sofa_faces_walkway",
             "sofa_on_wrong_side",
+            "spatial_fidelity_fail",     # 2A520C25：整間房被重畫成別的空間
         )
         def _has_high_severity(v: dict) -> bool:
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)
@@ -2470,7 +2471,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         row = sb_get(job_id) or {}
                         rj = row.get("result_json") if isinstance(row.get("result_json"), dict) else {}
                         rj_renders = rj.get("renders") or []
-                        rj_renders.append({
+                        _new_render = {
                             "style":             fixed.get("style"),
                             "style_label":       fixed.get("style_label"),
                             "angle_label":       fixed.get("angle_label", "主視角"),
@@ -2491,7 +2492,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             "unmatched_visual_items": fixed.get("unmatched_visual_items", []),
                             "retry_count":       fixed.get("retry_count", 0),
                             "retry_reason":      fixed.get("retry_reason"),
-                        })
+                        }
+                        # 插回正確位置：同風格內依房型序（客廳→餐廳→主臥→書房），
+                        # 不 append 到最後（否則補上的客廳排在主臥/書房後，2A520C25）。
+                        _rt_ord = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
+                        _st = _new_render.get("style")
+                        _rk = _rt_ord.get(_new_render.get("room_type") or "living", 9)
+                        _pos = len(rj_renders)
+                        for _j, _rr in enumerate(rj_renders):
+                            if _rr.get("style") == _st and \
+                               _rt_ord.get(_rr.get("room_type") or "living", 9) > _rk:
+                                _pos = _j
+                                break
+                        rj_renders.insert(_pos, _new_render)
                         rj["renders"] = rj_renders
                         vs = rj.get("validation_summary") or {}
                         vs["delivered"] = int(vs.get("delivered") or 0) + 1

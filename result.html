@@ -340,6 +340,13 @@
   var _angleIdx = {};
   var _hb = null;   // 載入的完整 result（給「下載設計手冊 / 複製購物清單」用）
 
+    // 房間顯示順序：客廳永遠第一（跟後端 _RT_ORDER 一致）。後端 Phase3 補生是
+    // append 到最後，若不在前端再排一次，補上的客廳會排在主臥/書房後面（2A520C25）。
+  var _RT_ORDER = { living: 0, dining: 1, bedroom: 2, study: 3 };
+  function _roomRank(r) {
+    var rt = (r && (r.room_type || 'living')) || 'living';
+    return (_RT_ORDER[rt] !== undefined) ? _RT_ORDER[rt] : 9;
+  }
   function buildUI(renders) {
     _groups = [];
     _angleIdx = {};
@@ -352,6 +359,10 @@
         _angleIdx[key] = 0;
       }
       byStyle[key].angles.push(r);
+    });
+    // 每個風格內的角度依房型排序（客廳→餐廳→主臥→書房），預設開第一個（=客廳，若有）
+    _groups.forEach(function(g) {
+      g.angles.sort(function(a, b) { return _roomRank(a) - _roomRank(b); });
     });
 
     // TABS：每個風格 1 個 tab
@@ -388,11 +399,12 @@
       if (!t || _seen[t]) return false;
       _seen[t] = 1; return true;
     });
-    var droppedText = droppedLabels.length ? droppedLabels.join('、') : (vs.dropped + ' 個風格');
-    // 已完成交付的風格名稱（buildUI 分組後的 _groups）
-    var deliveredLabels = (_groups || []).map(function(g) { return g.label; }).filter(Boolean);
-    var deliveredText = deliveredLabels.join('、');
-    var firstClause = deliveredText ? ('「' + deliveredText + '」已完成交付。') : '';
+    var droppedText = droppedLabels.length ? droppedLabels.join('、') : (vs.dropped + ' 個版面');
+    // 誠實文案：有待補版面時，絕不說某風格「已完成交付」（2A520C25：法式客廳缺
+    // 卻寫「法式已完成交付」自相矛盾）。改成房級「已交付 N 張／待補 X」。
+    var deliveredCount = (typeof vs.delivered === 'number') ? vs.delivered
+                         : ((_groups || []).reduce(function(n, g) { return n + g.angles.length; }, 0));
+    var firstClause = deliveredCount ? ('已為你交付 ' + deliveredCount + ' 張設計圖。') : '';
     var box = document.createElement('div');
     box.className = 'dropped-notice';
     box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:12px 16px;border:1px solid rgba(212,175,55,.35);'
@@ -405,7 +417,7 @@
         + '需要加快請聯絡客服，免費重出。';
     } else {
       box.innerHTML = firstClause
-        + '「' + droppedText + '」我們還在為你細修，完成後會補上。'
+        + '待補：「' + droppedText + '」我們還在為你細修，完成後會自動補上。'
         + '需要加快請聯絡客服，免費重出。';
     }
     var tabs = document.getElementById('tabsContainer');

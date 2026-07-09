@@ -448,6 +448,19 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             )
 
     parts.append("ROOM LAYOUT (from spatial analysis of the room):")
+    # 2A520C25 抓漏：下面這段 room shape / walls 是「全屋」空間合成，會提到畫面外的
+    # 廚房、大門、別的房間。單張渲染只能畫 image_1 框到的東西——先立一條硬界線，
+    # 讓模型把下面的描述當「擺家具的參考」，不是「要照著蓋出來的結構」。
+    parts.append(
+        "FRAME BOUNDARY (highest priority, overrides the layout text below): image_1 (the "
+        "room photo) is the ONLY source of truth for what physically exists and where the "
+        "camera looks. The layout description below is whole-home context to help place "
+        "furniture — it may mention a kitchen, a main entrance door, or adjacent rooms that "
+        "are OUT OF FRAME. Do NOT draw anything that is not already visible in image_1: do "
+        "not add a kitchen, appliances, extra windows, or an extra room; do not move the "
+        "main window to another wall; do not erase or wall-over any doorway/passage opening "
+        "that is visible in image_1. Keep the exact same camera viewpoint as image_1."
+    )
 
     if syn.get("room_shape"):
         parts.append(f"Room shape: {syn['room_shape']}.")
@@ -1142,6 +1155,15 @@ _RETRY_FLAG_FIX_EN = {
         "The sofa was placed against the WRONG side wall. Re-read the bound SOFA SIDE / "
         "LONG-ROOM SIDE-WALL CONTRACT above and put the sofa BACK against the specified "
         "side wall; the TV cabinet / focal anchor goes on the opposite side facing it.",
+    "spatial_fidelity_fail":
+        "CRITICAL — the previous render REPAINTED THE ROOM into a different space "
+        "(wrong camera axis, moved the main window, erased a doorway/passage, or grew an "
+        "off-frame kitchen/room into view). image_1 is the ONLY truth for this room's "
+        "geometry: keep the SAME camera viewpoint, keep the main window on the SAME wall "
+        "and side as image_1, keep every doorway/passage opening visible in image_1 exactly "
+        "where it is, and do NOT add any kitchen, appliances or extra room that is not "
+        "already visible in image_1. Only restyle the furniture and soft furnishings — the "
+        "walls, openings, window positions and viewpoint must match image_1 one-to-one.",
 }
 
 
