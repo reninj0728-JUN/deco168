@@ -193,13 +193,79 @@ MEDIA_CONSOLE_KEYWORDS = [
     'tv stand', 'tv cabinet', 'media console', 'media cabinet',
     'low media console', '低櫃', '矮櫃',
 ]
+# 名含「電視櫃」但是擺飾／工藝品（例：麒麟「客廳電視櫃玄關…裝飾」）→ 不可當 media_console
+MEDIA_CONSOLE_DECOR_EXCLUDE_KW = [
+    '擺飾', '擺件', '雕塑', '公仔', '瑞獸', '麒麟', '工藝品', '裝飾品',
+    'statue', 'sculpture', 'figurine', 'ornament',
+]
+
+
+def _name_is_media_console_decor_false_positive(name_zh: str) -> bool:
+    """「…裝飾…電視櫃旁」類文案誤觸 MEDIA_CONSOLE_KEYWORDS 時擋下（1FC382CA 麒麟）。"""
+    n = name_zh or ""
+    if not any(kw in n for kw in MEDIA_CONSOLE_DECOR_EXCLUDE_KW):
+        return False
+    # 真電視櫃本體通常以櫃/架為主詞；若同時是擺飾且沒有明確「電視櫃」為主商品結構，排除
+    # 例：名稱主體是麒麟擺飾，只在用途句提到電視櫃
+    if any(k in n for k in ('擺飾', '擺件', '雕塑', '瑞獸', '麒麟', '工藝品')):
+        return True
+    return False
+
+
+# 客廳主沙發：單人／單椅不可當 must-have sofa（1FC382CA 清單單人、圖上雙人）
+LIVING_SOFA_SINGLE_KW = (
+    '單人座', '單人沙發', '單人椅', '單椅', '沙發椅', '休閒椅',
+    'armchair', 'wingback armchair', 'accent chair', 'lounge chair',
+    '懶人沙發', '和室椅', '塌塌米沙發椅',
+)
+LIVING_SOFA_MULTI_KW = (
+    '雙人座', '雙人沙發', '三人座', '三人沙發', '多人', '沙發組',
+    'l型', 'l 型', 'l形', '貴妃', 'sectional', 'loveseat', '2-seater', '3-seater',
+    'two seat', 'three seat',
+)
+LIVING_SOFA_SINGLE_PENALTY = -8.0
+LIVING_SOFA_MULTI_BONUS = 2.5
+
+
+def infer_sofa_seating(name_zh: str, flux_descriptor: str = "") -> str:
+    """從品名/描述推座位數：single / multi / unknown（給 prompt 鎖形 + 驗收）。"""
+    blob = f"{name_zh or ''} {flux_descriptor or ''}".lower()
+    if any(k.lower() in blob for k in LIVING_SOFA_SINGLE_KW):
+        # 單人優先於多人（避免「單人座」含「人座」誤判）
+        if not any(k in (name_zh or '') for k in ('雙人', '三人', '沙發組', 'L型', 'L 型')):
+            return "single"
+    if any(k.lower() in blob for k in LIVING_SOFA_MULTI_KW):
+        return "multi"
+    if '單人' in (name_zh or ''):
+        return "single"
+    if any(k in (name_zh or '') for k in ('雙人', '三人', '多人', '沙發組')):
+        return "multi"
+    return "unknown"
+
+
+def _living_sofa_seating_score_delta(item: dict) -> float:
+    """客廳主沙發：單人重罰、多人加分。"""
+    if resolve_category(item) != "sofa":
+        return 0.0
+    seating = infer_sofa_seating(item.get("name_zh") or "", item.get("flux_descriptor") or "")
+    if seating == "single":
+        return LIVING_SOFA_SINGLE_PENALTY
+    if seating == "multi":
+        return LIVING_SOFA_MULTI_BONUS
+    return 0.0
 
 
 def refine_subcategory(en_cat: str, name_zh: str) -> str:
     """按品名細分 chair / table / mirror(裝飾雜燴 → 軟裝) / pillow(抱枕套→textile)，其他類別維持原樣"""
     name_lower = (name_zh or '').lower()
     if any(kw.lower() in name_lower for kw in MEDIA_CONSOLE_KEYWORDS):
-        return 'media_console'
+        if not _name_is_media_console_decor_false_positive(name_zh or ""):
+            return 'media_console'
+        # 誤觸：當裝飾處理
+        if en_cat == 'mirror' or en_cat == 'other':
+            return 'decor'
+        # category=裝飾 已映成 mirror，上面會進；若從其他 cat 誤觸也歸 decor
+        return 'decor'
     # 沙發墊 / 沙發套 / 坐墊 等是「軟裝紡織」，不是主沙發本體。
     # 修 bug：catalog 把這類錯標成 category=沙發 時，會被當成主沙發配進來
     # （例：NT$337「法式優雅冰絲透氣沙發墊」被選為沙發）。歸 textile。
@@ -640,6 +706,9 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     # 小空間/尺寸不明沙發體積降權
     score += _oversized_sofa_penalty(item, is_small_room)
 
+    # 客廳主沙發：單人座／armchair 重罰，雙人／三人加分（清單與渲圖座位數一致）
+    score += _living_sofa_seating_score_delta(item)
+
     # 奢華系風格 × 日式/無印/北歐命名 → 降權（不硬排除）
     if style in LUXURY_MISMATCH_STYLES:
         _nm = (item.get("name_zh") or "")
@@ -722,6 +791,10 @@ def _pick_best_in_category(
                 continue   # 餐墊/門墊/防滑墊不是主地毯
             if target_cat == "bed" and any(kw in nm for kw in BED_KIDS_KW):
                 continue   # 雙層床/兒童床不進主臥（9871F294）
+            # 客廳主沙發：Stage A/B 排除單人座／armchair（1FC382CA 清單單人圖上雙人）
+            # Stage C 保命跨風格不套此過濾，避免整類空掉。
+            if target_cat == "sofa" and infer_sofa_seating(nm, it.get("flux_descriptor") or "") == "single":
+                continue
             out.append(it)
         return out
 
@@ -1271,6 +1344,11 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
                 "flux_descriptor": item.get("flux_descriptor", "") or item.get("name_zh", ""),
                 "dimensions": item.get("dimensions", ""),
                 "colors": item.get("colors", []),
+                # 給 prompt 鎖形 + 驗收產品一致（座位數）
+                "sofa_seating": (
+                    infer_sofa_seating(item.get("name_zh") or "", item.get("flux_descriptor") or "")
+                    if resolve_category(item) == "sofa" else None
+                ),
             }
             for item in matched
         ]

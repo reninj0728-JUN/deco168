@@ -1084,6 +1084,34 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         return base_path, False, f"例外: {type(e).__name__}"
 
 
+def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
+    """把清單主沙發座位數寫進 layout_ctx，供 validate_render 產品一致驗收（護城河）。"""
+    if not isinstance(entry_or_render, dict):
+        return layout_ctx
+    sofa_seat = None
+    sofa_name = ""
+    for it in (entry_or_render.get("matched_furniture") or []):
+        if not isinstance(it, dict):
+            continue
+        if (it.get("category_en") or "") == "sofa":
+            sofa_seat = it.get("sofa_seating") or None
+            sofa_name = (it.get("name_zh") or "")[:80]
+            if not sofa_seat:
+                try:
+                    from furniture_match import infer_sofa_seating
+                    sofa_seat = infer_sofa_seating(
+                        it.get("name_zh") or "", it.get("flux_descriptor") or "")
+                except Exception:
+                    sofa_seat = "unknown"
+            break
+    if not sofa_seat or sofa_seat == "unknown":
+        return layout_ctx
+    out = dict(layout_ctx) if isinstance(layout_ctx, dict) else {}
+    out["expected_sofa_seating"] = sofa_seat
+    out["expected_sofa_name"] = sofa_name
+    return out or layout_ctx
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -1909,6 +1937,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         # 非客廳房型不傳 living 的 layout_context（sofa_side/living_where），
                         # 否則 judge 會被問沙發 → 餐廳/書房 reason 冒沙發語言 → 髒重試(Grok 根治)。
                         _lc = layout_ctx if (r.get("room_type") or "living") == "living" else None
+                        _lc = _product_fidelity_into_layout_ctx(_lc, r)
                         v = validate_render(bpath, rpath, r.get("_angle_label", ""),
                                             layout_context=_lc,
                                             room_type=r.get("room_type", "living"),
@@ -1939,6 +1968,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "sofa_faces_walkway",
             "sofa_on_wrong_side",
             "spatial_fidelity_fail",     # 2A520C25：整間房被重畫成別的空間
+            "product_sofa_seating_mismatch",  # 1FC382CA：清單單人圖上雙人
+            "focal_anchor_misaligned_with_sofa",  # 電視櫃未正對／跑餐廳
         )
         def _has_high_severity(v: dict) -> bool:
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)
@@ -2058,6 +2089,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         rpath = new_r.get("render_path") or ""
                         if rpath and Path(bpath).exists() and Path(rpath).exists():
                             _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
+                            _lc = _product_fidelity_into_layout_ctx(_lc, entry)
                             new_v = validate_render(bpath, rpath, entry["_angle_label"],
                                                     layout_context=_lc,
                                                     room_type=entry.get("_room_type", "living"),
@@ -2163,6 +2195,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     rpath = new_r.get("render_path") or ""
                     if rpath and Path(bpath).exists() and Path(rpath).exists():
                         _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
+                        _lc = _product_fidelity_into_layout_ctx(_lc, entry)
                         new_v = validate_render(bpath, rpath, entry["_angle_label"],
                                                 layout_context=_lc,
                                                 room_type=entry.get("_room_type", "living"),
@@ -2632,6 +2665,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         try:
                             from gemini_analyze import validate_render
                             _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
+                            _lc = _product_fidelity_into_layout_ctx(_lc, entry)
                             v3 = validate_render(base_p, rpath, entry["_angle_label"],
                                                  layout_context=_lc,
                                                  room_type=entry.get("_room_type", "living"),

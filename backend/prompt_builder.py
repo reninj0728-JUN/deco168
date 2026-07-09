@@ -678,25 +678,42 @@ def _build_product_placement_section(reference_map: list[dict]) -> str:
             "in the living zone. No product references provided — invent style-consistent items."
         )
 
-    lines = ["FURNITURE PLACEMENT (must match product references for appearance):"]
+    lines = ["FURNITURE PLACEMENT (must match product references for appearance AND form factor):"]
     for r in product_refs:
         idx = r["index"]
         role_disp = r["role"]  # e.g. SOFA
         name = r.get("name_zh", "")
-        cat_human = CAT_DISPLAY.get(r["cat_en"], (role_disp, role_disp.lower()))[1]
+        cat_en = r.get("cat_en") or ""
+        cat_human = CAT_DISPLAY.get(cat_en, (role_disp, role_disp.lower()))[1]
+        seating = (r.get("sofa_seating") or "").strip()
+        seat_lock = ""
+        if cat_en == "sofa" and seating == "single":
+            seat_lock = (
+                " SEATING LOCK (hard): this product is a SINGLE-SEAT armchair / 單人座 only. "
+                "Render ONE seat only — do NOT turn it into a 2-seater, 3-seater, loveseat, or sofa. "
+                "If the room needs more seating, that must still be this same single-seat form, not a longer sofa."
+            )
+        elif cat_en == "sofa" and seating == "multi":
+            seat_lock = (
+                " SEATING LOCK (hard): this product is a MULTI-SEAT sofa (2-seater / 3-seater / set). "
+                "Render the correct multi-seat length — do NOT shrink it into a single armchair."
+            )
         lines.append(
             f"- {role_disp}: Place a {cat_human} matching the visual appearance of reference image {idx} "
-            f"({name}). Match its color, material, form, and silhouette closely."
+            f"({name}). Match its color, material, form, silhouette, AND seating capacity closely."
+            f"{seat_lock}"
         )
 
-    # 客廳通則家具擺位
+    # 客廳通則家具擺位（護城河：清單商品 = 圖上商品形與位）
     lines.append(
         "General placement: sofa against the designated sofa wall facing into the room; "
         "coffee table in front of the sofa; rug anchored under the coffee table within the living zone. "
         "If a MEDIA CONSOLE product reference is provided, place it as the focal anchor / TV cabinet "
-        "on the focal wall directly opposite the sofa. The media console and sofa must face each other "
-        "across the coffee table / rug; do not place the media console beside the sofa, on the same wall, "
-        "or on the same side of the room."
+        "ONLY inside the living zone on the wall the sofa faces — centered on the sofa cross-axis. "
+        "The media console and sofa MUST face each other across the coffee table / rug. "
+        "HARD: do NOT place the media console / TV cabinet in the dining zone, entrance, kitchen, "
+        "or mid-room away from the sofa; do not put it beside the sofa, on the same wall, "
+        "or on the same side of the room. Do not invent a different TV cabinet than the reference."
     )
     return " ".join(lines)
 
@@ -1205,6 +1222,15 @@ _RETRY_FLAG_FIX_EN = {
         "where it is, and do NOT add any kitchen, appliances or extra room that is not "
         "already visible in image_1. Only restyle the furniture and soft furnishings — the "
         "walls, openings, window positions and viewpoint must match image_1 one-to-one.",
+    "product_sofa_seating_mismatch":
+        "CRITICAL — the sofa seating capacity did NOT match the product reference. "
+        "If the SOFA reference is a single-seat armchair, render ONE seat only — never a "
+        "2-seater or 3-seater. If the reference is a multi-seat sofa, do not shrink it to "
+        "a single armchair. Match the product photo's seating capacity exactly.",
+    "focal_anchor_misaligned_with_sofa":
+        "The TV cabinet / media console was NOT facing the sofa or was placed outside the "
+        "living zone (e.g. dining area). Put the console on the wall the sofa faces, "
+        "centered on the sofa, inside the living zone only — never in the dining zone.",
 }
 
 
@@ -1478,7 +1504,7 @@ def build_nano_banana_inputs(
         if cat in selected:
             it = selected[cat]
             display_role, _ = CAT_DISPLAY[cat]
-            reference_map.append({
+            ref_entry = {
                 "index": next_idx,
                 "role": display_role,
                 "url": it.get("image_url"),
@@ -1486,7 +1512,10 @@ def build_nano_banana_inputs(
                 "name_zh": it.get("name_zh", ""),
                 "id": it.get("id", ""),
                 "kind": "PRIMARY",
-            })
+            }
+            if cat == "sofa":
+                ref_entry["sofa_seating"] = it.get("sofa_seating") or "unknown"
+            reference_map.append(ref_entry)
             image_urls.append(it.get("image_url"))
             next_idx += 1
 
