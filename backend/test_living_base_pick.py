@@ -62,3 +62,56 @@ def test_build_user_regions_first_wins_when_scores_equal():
     regions = api._build_user_regions_whole(paths, meta)
     assert len(regions) == 1
     assert regions[0]["best_photo_index"] == 0
+
+
+def test_list_candidates_ordered_and_alt_indices():
+    paths = [
+        "uploads/x/photo_01.jpg",
+        "uploads/x/photo_02.jpg",
+        "uploads/x/photo_03.jpg",
+    ]
+    meta = {
+        "uploads/x/photo_01.jpg": {
+            "target_zone": "living",
+            "photo_contains": ["living", "dining"],
+            "target_note": "",
+        },
+        "uploads/x/photo_02.jpg": {
+            "target_zone": "bedroom",
+            "photo_contains": ["bedroom"],
+            "target_note": "",
+        },
+        "uploads/x/photo_03.jpg": {
+            "target_zone": "living",
+            "photo_contains": ["living", "dining"],
+            "target_note": "客廳靠窗",
+        },
+    }
+    cands = api._list_room_photo_candidates(paths, meta, "living")
+    assert len(cands) == 2
+    assert cands[0]["idx"] == 2 and cands[1]["idx"] == 0
+    regions = api._build_user_regions_whole(paths, meta)
+    living = next(r for r in regions if r["room_type"] == "living")
+    assert living["best_photo_index"] == 2
+    assert living.get("alt_photo_indices") == [0]
+
+
+def test_should_try_alt_and_switch_base(tmp_path):
+    assert api._should_try_alt_living_base({"spatial_fidelity_fail": True}) is True
+    assert api._should_try_alt_living_base({"ok": True, "hard_fail": False}) is False
+    # switch uses real files
+    p1 = tmp_path / "a.jpg"
+    p2 = tmp_path / "b.jpg"
+    p1.write_bytes(b"x")
+    p2.write_bytes(b"y")
+    entry = {
+        "_room_type": "living",
+        "_base_path": str(p1),
+        "_alt_bases": [str(p2)],
+        "_used_bases": [str(p1)],
+    }
+    nxt = api._switch_entry_to_next_living_base(entry)
+    assert nxt == str(p2)
+    assert entry["_base_path"] == str(p2)
+    # 用完無下一張
+    assert api._switch_entry_to_next_living_base(entry) is None

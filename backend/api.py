@@ -890,12 +890,84 @@ def _score_photo_for_room(meta: dict | None, rt: str) -> int:
             score += 20
         elif "living" in contains:
             score += 5
+        # 無 note 的客餐廳合照略降（常是過道角；有 note 的不受罰）
+        if not note and "dining" in contains and "living" in contains:
+            score -= 10
     else:
         if rt in contains:
             score += 15
         if note:
             score += 10
     return score
+
+
+def _list_room_photo_candidates(
+    image_paths: list,
+    photo_meta_by_key: dict | None,
+    rt: str,
+) -> list[dict]:
+    """同房型底圖候選，已按分數由高到低排序。
+    每項: {idx, path, score, note}。供選主底圖 + 保真失敗換底圖。"""
+    if not image_paths or not photo_meta_by_key:
+        return []
+    out: list[dict] = []
+    for idx, p in enumerate(image_paths):
+        meta = _photo_meta_for_path(p, photo_meta_by_key)
+        tz = (meta.get("target_zone") or "").strip().lower() if isinstance(meta, dict) else ""
+        if _ZONE_TO_RT.get(tz) != rt:
+            continue
+        sc = _score_photo_for_room(meta if isinstance(meta, dict) else {}, rt)
+        note_pv = ((meta.get("target_note") or "") if isinstance(meta, dict) else "")[:40]
+        out.append({"idx": idx, "path": p, "score": sc, "note": note_pv})
+    out.sort(key=lambda x: (-x["score"], x["idx"]))
+    return out
+
+
+def _should_try_alt_living_base(v: dict | None) -> bool:
+    """客廳保真／結構失敗 → 值得換另一張 living 底圖（比同底圖乾抽更穩）。"""
+    if not isinstance(v, dict):
+        return False
+    if v.get("spatial_fidelity_fail"):
+        return True
+    if v.get("main_window_region_match") is False:
+        return True
+    if v.get("passage_openings_preserved") is False:
+        return True
+    if v.get("offframe_room_invaded"):
+        return True
+    if v.get("windows_changed") or v.get("kitchen_added"):
+        return True
+    reason = v.get("reason") or ""
+    return any(k in reason for k in ("空間保真", "主窗", "走道門洞", "畫面外", "廚房"))
+
+
+def _switch_entry_to_next_living_base(entry: dict) -> str | None:
+    """把 entry 切到下一張尚未用過的 living 備援底圖。成功回新 path，否則 None。
+    不改家具／風格，只換結構真相來源——商業上比無限同圖重抽穩。"""
+    if not isinstance(entry, dict):
+        return None
+    if (entry.get("_room_type") or "living") != "living":
+        return None
+    alts = entry.get("_alt_bases") or []
+    used = list(entry.get("_used_bases") or [])
+    cur = entry.get("_base_path")
+    if cur and cur not in used:
+        used.append(cur)
+    for p in alts:
+        if not p or p in used:
+            continue
+        if not Path(str(p)).exists():
+            continue
+        used.append(p)
+        entry["_used_bases"] = used
+        entry["_base_path"] = p
+        entry["_cropped"] = False
+        entry["_crop_note"] = "alt living base after fidelity fail"
+        entry["_uncropped_base"] = p
+        print(f"[pipeline] living 換底圖 → {Path(str(p)).name} (used={len(used)})")
+        return p
+    entry["_used_bases"] = used
+    return None
 
 
 def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
@@ -905,30 +977,31 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
     修：302D6ED2 重複客廳；C79C7ECC 客廳用錯走廊角 base。"""
     if not image_paths or not photo_meta_by_key:
         return []
-    # rt -> list of (idx, score, note_preview)
-    cands: dict[str, list[tuple[int, int, str]]] = {}
+    # 收集所有有標註的房型
+    rts_seen: list[str] = []
     for idx, p in enumerate(image_paths):
         meta = _photo_meta_for_path(p, photo_meta_by_key)
         tz = (meta.get("target_zone") or "").strip().lower() if isinstance(meta, dict) else ""
         rt = _ZONE_TO_RT.get(tz)
-        if not rt:
-            continue
-        sc = _score_photo_for_room(meta if isinstance(meta, dict) else {}, rt)
-        note_pv = ((meta.get("target_note") or "") if isinstance(meta, dict) else "")[:40]
-        cands.setdefault(rt, []).append((idx, sc, note_pv))
+        if rt and rt not in rts_seen:
+            rts_seen.append(rt)
 
     out: list[dict] = []
-    for rt, lst in cands.items():
-        # 最高分；同分保留上傳序較早者（key: score 高、idx 小 → max 用 (score, -idx)）
-        best_idx, best_sc, best_note = max(lst, key=lambda t: (t[1], -t[0]))
+    for rt in rts_seen:
+        lst = _list_room_photo_candidates(image_paths, photo_meta_by_key, rt)
+        if not lst:
+            continue
+        best = lst[0]
         if len(lst) > 1:
-            print(f"[pipeline] 全室 {rt} 底圖候選 {len(lst)} 張 → 選 idx={best_idx} "
-                  f"score={best_sc} note={best_note!r} "
-                  f"(candidates={[(i, s) for i, s, _ in lst]})")
+            print(f"[pipeline] 全室 {rt} 底圖候選 {len(lst)} 張 → 選 idx={best['idx']} "
+                  f"score={best['score']} note={best['note']!r} "
+                  f"(candidates={[(c['idx'], c['score']) for c in lst]})")
         out.append({
             "room_type": rt,
             "name": _RT_ZH_DISPLAY.get(rt, rt),
-            "best_photo_index": best_idx,
+            "best_photo_index": best["idx"],
+            # 備援底圖 idx（已排序，不含主選）— pipeline 轉成 path 掛上 entry
+            "alt_photo_indices": [c["idx"] for c in lst[1:]],
         })
     # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→主臥→書房
     _RT_ORDER = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
@@ -1680,6 +1753,28 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         n_styles = len(enriched_by_rt[distinct_rts[0]]) if distinct_rts else 0
         print(f"[pipeline] 逐房型配對 room_types={distinct_rts} styles={n_styles}")
 
+        # 客廳備援底圖（分數次高的 living 照片 path 列表）— 保真失敗時換底圖再抽
+        _living_alt_paths: list[str] = []
+        if photo_meta_by_key_early and image_paths:
+            _lcands = _list_room_photo_candidates(
+                image_paths, photo_meta_by_key_early, "living")
+            # 主選之後的 path；path 須存在
+            if _lcands:
+                _primary_living = None
+                for vi, rt0 in enumerate(angle_room_types):
+                    if rt0 == "living" and vi < len(flux_bases):
+                        _primary_living = flux_bases[vi]
+                        break
+                for c in _lcands:
+                    pth = c["path"]
+                    if _primary_living and Path(pth).resolve() == Path(_primary_living).resolve():
+                        continue
+                    if Path(pth).exists():
+                        _living_alt_paths.append(pth)
+                if _living_alt_paths:
+                    print(f"[pipeline] living 備援底圖 {len(_living_alt_paths)} 張: "
+                          f"{[Path(p).name for p in _living_alt_paths]}")
+
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
@@ -1694,6 +1789,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_crop_note"] = cnote   # 沒裁時的原因（診斷用）
                 copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
+                if rt == "living" and _living_alt_paths:
+                    copy["_alt_bases"] = list(_living_alt_paths)
+                    copy["_used_bases"] = [base]
                 expanded.append(copy)
 
         total = len(expanded)
@@ -1900,11 +1998,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # 舊版只在 current_rc>=1 才帶，導致 anchored 訂單 (MAX_RETRY=1) 永遠
                     # 拿不到任何回饋，重試 prompt 跟初次一字不差 → 救不回失敗圖。
                     retry_ctx = _build_retry_ctx_from_validation(v)
+                    # 客廳保真失敗 → 優先換另一張 living 底圖（比同圖乾抽更穩、不失真）
+                    base_for_gen = entry["_base_path"]
+                    if (entry.get("_room_type") or "living") == "living" and _should_try_alt_living_base(v):
+                        _nb = _switch_entry_to_next_living_base(entry)
+                        if _nb:
+                            base_for_gen = _nb
+                            retry_reason = f"{retry_reason} | switch living base"
                     # C2.6 Patch B: Z3 retry 過程中, fal 明確失敗保留原 root cause
                     failed_stage = "z3_retry_generate_renders"
                     try:
                         retry_results = generate_renders(
-                            entry["_base_path"], [entry],
+                            base_for_gen, [entry],
                             output_dir=str(job_dir),
                             analysis=analysis, design_mode=design_mode,
                             zoning=zoning_result,
@@ -2012,9 +2117,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                       f"— {(v.get('reason') or '')[:120]}")
                 write_status(job_id, job_dir, "rendering", 93, "為未通過的風格再生成一次…")
                 failed_stage = "phase2_hardfix_generate_renders"
+                base_for_gen = entry["_base_path"]
+                if (entry.get("_room_type") or "living") == "living" and _should_try_alt_living_base(v):
+                    _nb = _switch_entry_to_next_living_base(entry)
+                    if _nb:
+                        base_for_gen = _nb
                 try:
                     fix_results = generate_renders(
-                        entry["_base_path"], [entry],
+                        base_for_gen, [entry],
                         output_dir=str(job_dir),
                         analysis=analysis, design_mode=design_mode,
                         zoning=zoning_result,
@@ -2472,19 +2582,26 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     entry = expanded[idx]
                     v0 = r.get("validation") or {}
                     retry_ctx = _build_retry_ctx_from_validation(v0)
-                    # 策略清單：(標籤, 底圖, 模型)。用戶定調：不換模型、修根因——
-                    # 每次補生都會經過修正後的完整 prompt（數值長條房觸發 + DEPTH LOCK
-                    # + 上次失敗的具體深度回饋），跟原本失敗那次的指令已經不同。
-                    # 裁切圖卡死 → 先退回未裁切原圖（裁切放大狹長房空間誤導），
-                    # 再給同底圖第二次修正機會（生成本身有隨機性，同指令兩次結果不同）。
-                    _alt_base = entry.get("_uncropped_base")
+                    # 策略清單：(標籤, 底圖, 模型)。不換模型。
+                    # 客廳保真失敗：先換「另一張 living 底圖」（C79 走廊角→靠窗主圖），
+                    # 再未裁切原圖 / 同底圖修正。上限 3 策略，避免無限燒錢。
                     strategies = []
+                    if (entry.get("_room_type") or "living") == "living":
+                        _used = set(entry.get("_used_bases") or [])
+                        _used.add(entry.get("_base_path"))
+                        for _ap in (entry.get("_alt_bases") or []):
+                            if _ap and _ap not in _used and Path(_ap).exists():
+                                strategies.append((f"換客廳底圖:{Path(_ap).name}", _ap, None))
+                                _used.add(_ap)
+                                if len(strategies) >= 2:
+                                    break
+                    _alt_base = entry.get("_uncropped_base")
                     if _alt_base and Path(_alt_base).exists():
                         strategies.append(("原圖重生", _alt_base, None))
-                        strategies.append(("原圖重生#2", _alt_base, None))
-                    else:
+                    if not strategies:
                         strategies.append(("修正重生", entry["_base_path"], None))
-                        strategies.append(("修正重生#2", entry["_base_path"], None))
+                    # 最多 3 次 Phase3 嘗試（穩、可控成本）
+                    strategies = strategies[:3]
                     fixed = None
                     for tag, base_p, model_ov in strategies:
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
