@@ -129,6 +129,40 @@ def test_french_coffee_table_is_real_furniture(catalog):
     assert not fm.is_multi_piece_bundle(nm), f"法式茶几配到多件套組: {nm}"
 
 
+def test_spatial_fidelity_gate_logic():
+    """2A520C25 迴歸：保真四訊號 → spatial_fidelity_fail 的純邏輯（不打 API）。"""
+    import gemini_analyze as ga
+
+    # 全部保留 → 不失守
+    good = {"camera_axis_preserved": True, "main_window_region_match": True,
+            "passage_openings_preserved": True, "offframe_room_invaded": False}
+    fail, problems = ga.compute_spatial_fidelity(good)
+    assert fail is False and problems == []
+
+    # 法式那張：四訊號全紅 → 失守，四條原因都在
+    bad = {"camera_axis_preserved": False, "main_window_region_match": False,
+           "passage_openings_preserved": False, "offframe_room_invaded": True}
+    fail, problems = ga.compute_spatial_fidelity(bad)
+    assert fail is True and len(problems) == 4
+
+    # 只走道門洞消失一項 → 也算失守
+    one = {"camera_axis_preserved": True, "main_window_region_match": True,
+           "passage_openings_preserved": False, "offframe_room_invaded": False}
+    fail, problems = ga.compute_spatial_fidelity(one)
+    assert fail is True and "原有走道門洞消失" in problems
+
+    # 缺欄位 → 用保守預設（保留=True / 入侵=False）→ 不失守（缺欄的 fail-closed
+    # 是在 validate_render 裡對 living 另外判，不在這個純函數）
+    fail, problems = ga.compute_spatial_fidelity({})
+    assert fail is False
+
+
+def test_spatial_fidelity_is_hard_fail_flag():
+    """spatial_fidelity_fail 必須在硬傷清單，否則閘門形同虛設。"""
+    import gemini_analyze as ga
+    assert "spatial_fidelity_fail" in ga.HARD_FAIL_FLAGS
+
+
 def test_no_bunk_bed_in_bedroom(catalog):
     """9871F294 迴歸：臥室的床配對不能出現雙層床/兒童床（主臥不擺小孩房家具）。"""
     for style in CURRENT_STYLES:

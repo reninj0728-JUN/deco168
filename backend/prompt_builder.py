@@ -516,8 +516,15 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
 
 
 def _build_fallback_layout_section() -> str:
-    """zoning 不可用時的退化版（純通則, 條件式 — 不假設房間一定有窗）"""
+    """zoning 不可用時的退化版（純通則, 條件式 — 不假設房間一定有窗）
+    R3（Grok 審核）：FRAME BOUNDARY 也要在 fallback 路徑，否則 zoning 掛掉時
+    少一層「只畫 image_1 框到的東西」防線。"""
     return (
+        "FRAME BOUNDARY (highest priority): image_1 (the room photo) is the ONLY source "
+        "of truth for what physically exists and where the camera looks. Do NOT add a "
+        "kitchen, appliances, extra windows or an extra room that is not already visible "
+        "in image_1; do not move the main window to another wall; do not erase or wall-over "
+        "any doorway/passage opening visible in image_1; keep the exact same camera viewpoint. "
         "ROOM LAYOUT: "
         "Use the ROOM reference image to determine wall positions, window location "
         "(if any), and entrance/corridor openings. "

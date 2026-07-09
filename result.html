@@ -340,8 +340,8 @@
   var _angleIdx = {};
   var _hb = null;   // 載入的完整 result（給「下載設計手冊 / 複製購物清單」用）
 
-    // 房間顯示順序：客廳永遠第一（跟後端 _RT_ORDER 一致）。後端 Phase3 補生是
-    // append 到最後，若不在前端再排一次，補上的客廳會排在主臥/書房後面（2A520C25）。
+    // 房間顯示順序：客廳永遠第一（跟後端 _RT_ORDER 一致）。後端 Phase3 已改成
+    // 依房型 insert 到正確位置；前端再 sort 一次當雙保險（2A520C25）。
   var _RT_ORDER = { living: 0, dining: 1, bedroom: 2, study: 3 };
   function _roomRank(r) {
     var rt = (r && (r.room_type || 'living')) || 'living';
