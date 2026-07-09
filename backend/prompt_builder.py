@@ -1192,8 +1192,10 @@ _RETRY_FLAG_FIX_EN = {
         "The sofa was placed OUTSIDE the designated living zone. "
         "Move the entire sofa group back inside the living zone.",
     "focal_anchor_misaligned_with_sofa":
-        "The focal anchor (TV cabinet / media console / feature wall) was NOT aligned "
-        "with the sofa. Put it on the wall the sofa directly faces, centered on the sofa.",
+        "The TV cabinet / media console was NOT facing the sofa or was placed outside the "
+        "living zone (e.g. dining area). Put the console on the wall the sofa faces, "
+        "centered on the sofa cross-axis, inside the living zone only — never in the dining "
+        "zone, entrance, or beside the sofa on the same wall.",
     "sofa_back_against_window":
         "The sofa back was against the window. Do NOT put the sofa back to the window. "
         "Place the sofa against a solid wall and keep the window clear behind it.",
@@ -1227,10 +1229,6 @@ _RETRY_FLAG_FIX_EN = {
         "If the SOFA reference is a single-seat armchair, render ONE seat only — never a "
         "2-seater or 3-seater. If the reference is a multi-seat sofa, do not shrink it to "
         "a single armchair. Match the product photo's seating capacity exactly.",
-    "focal_anchor_misaligned_with_sofa":
-        "The TV cabinet / media console was NOT facing the sofa or was placed outside the "
-        "living zone (e.g. dining area). Put the console on the wall the sofa faces, "
-        "centered on the sofa, inside the living zone only — never in the dining zone.",
 }
 
 
