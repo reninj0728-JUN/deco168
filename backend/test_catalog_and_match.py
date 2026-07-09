@@ -169,6 +169,37 @@ def test_offframe_room_scrub():
     # 沒有畫面外房間的描述原樣保留主要內容
     plain = pb._scrub_offframe_rooms("完整大白牆，掛花畫，無開口")
     assert "大白牆" in plain and "廚房" not in plain
+    # 擴充黑名單：中島 / 英文 kitchen
+    assert "中島" not in pb._scrub_offframe_rooms("客廳旁設中島與灶台")
+    assert "kitchen" not in pb._scrub_offframe_rooms("open kitchen at the back").lower()
+
+
+def test_layout_structure_whitelist_no_wall_prose():
+    """結構段白名單：牆只輸出 solid/opening，不塞自由 description；不含 room_shape 廚房敘事。"""
+    import prompt_builder as pb
+    zoning = {
+        "confidence": "high",
+        "spatial_synthesis": {
+            "room_shape": "長方形格局，後端延伸至廚房與大門",
+            "main_window_wall": "畫面左側落地窗",
+            "wall_inventory": [
+                {
+                    "name": "右側長實牆",
+                    "description": "完整大白牆，中段有通往廚房的開口",
+                    "has_opening": True,
+                }
+            ],
+        },
+        "zones": {"living_zone": {"where": "靠窗區域"}, "walkway": {"where": "側向走道"}},
+        "furniture_placement_rules": {},
+    }
+    sec = pb._build_layout_section(zoning)
+    assert "後端延伸至廚房" not in sec
+    assert "廚房" not in sec
+    assert "通往廚房的開口" not in sec  # description 不得進 prompt
+    assert "has opening" in sec
+    assert "Window location" in sec
+    assert "FRAME BOUNDARY" in sec
 
 
 def test_spatial_fidelity_is_hard_fail_flag():

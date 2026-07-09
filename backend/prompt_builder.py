@@ -181,15 +181,23 @@ _OFFFRAME_DEST_RE = re.compile(
     r"(通往|通向|延伸至|延伸到|連通|連接|鄰接|接續|通到|連向)"
     r"[^，。、；\s]{0,10}?(廚房|餐廳|臥室|主臥|次臥|書房|玄關|大門|陽台|房間|走廊)"
 )
+# 畫面外廚電／餐廚詞（黑名單急救 + 英文）：真在 image_1 裡模型自己看得見，寫進
+# prompt 只會誘發「長出廚房」。中島/灶台/kitchen 等同理。
+_OFFFRAME_KITCHEN_RE = re.compile(
+    r"(廚房|瓦斯爐|流理臺|流理台|中島|灶台|灶臺|廚具|櫥櫃系統|"
+    r"kitchen|cooktop|range hood|sink counter)",
+    re.IGNORECASE,
+)
+
 
 def _scrub_offframe_rooms(text: str) -> str:
     """把 layout 文字裡「通往廚房/延伸至臥室」這種畫面外目的地抹成中性字，
-    保留「有開口/走道」的事實。廚房這個詞單獨出現也移除（客廳 render 不該被
+    保留「有開口/走道」的事實。廚房／中島等詞單獨出現也移除（客廳 render 不該被
     文字要求畫廚房：真在畫面裡模型自己看得到，不在畫面裡寫了只會誘發幻覺）。"""
     if not text:
         return text
     t = _OFFFRAME_DEST_RE.sub(r"\1其他空間", str(text))
-    t = t.replace("廚房", "").replace("瓦斯爐", "").replace("流理臺", "").replace("流理台", "")
+    t = _OFFFRAME_KITCHEN_RE.sub("", t)
     # 清掉抹除後殘留的連接碎片（「與 的開口」「、 的」之類）
     t = re.sub(r"[與和及、,]\s*(?=的|開口|走道|$)", "", t)
     t = re.sub(r"\s{2,}", " ", t).strip(" 、，,")
@@ -220,8 +228,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
     parts = []
 
     # ── USER-CONFIRMED LAYOUT BINDING（最優先，不可被風格描述覆蓋）──
-    living_where = (zones.get("living_zone") or {}).get("where", "")
+    living_where_raw = (zones.get("living_zone") or {}).get("where", "")
+    living_where = _scrub_offframe_rooms(living_where_raw)
     layout_choice = zoning.get("_layout_choice")
+    sofa_wall_is_ambiguous = False  # 下方 ROOM LAYOUT 白名單段會用到
     if living_where and zoning.get("_origin") == "user_confirmed_v2":
         choice_label = layout_choice or "A"
         room_shape_text = str(syn.get("room_shape") or "")
@@ -472,24 +482,19 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 + dining_middle_clause
             )
 
-    parts.append("ROOM LAYOUT (from spatial analysis of the room):")
-    # 2A520C25 抓漏：下面這段 room shape / walls 是「全屋」空間合成，會提到畫面外的
-    # 廚房、大門、別的房間。單張渲染只能畫 image_1 框到的東西——先立一條硬界線，
-    # 讓模型把下面的描述當「擺家具的參考」，不是「要照著蓋出來的結構」。
+    parts.append("ROOM LAYOUT (whitelist fields only — structure from photo + placement rules):")
+    # 結構段白名單（Grok D4 後小加固）：只餵可結構化欄位 + 已 scrub 的短句；
+    # 不塞 room_shape 全屋散文、不塞牆面自由長描述。image_1 仍是唯一物理真相。
     parts.append(
-        "FRAME BOUNDARY (highest priority, overrides the layout text below): image_1 (the "
-        "room photo) is the ONLY source of truth for what physically exists and where the "
-        "camera looks. The layout description below is whole-home context to help place "
-        "furniture — it may mention a kitchen, a main entrance door, or adjacent rooms that "
-        "are OUT OF FRAME. Do NOT draw anything that is not already visible in image_1: do "
-        "not add a kitchen, appliances, extra windows, or an extra room; do not move the "
-        "main window to another wall; do not erase or wall-over any doorway/passage opening "
-        "that is visible in image_1. Keep the exact same camera viewpoint as image_1."
+        "FRAME BOUNDARY (highest priority): image_1 (the room photo) is the ONLY source of "
+        "truth for what physically exists and where the camera looks. Fields below are "
+        "placement constraints only (already scrubbed of off-frame rooms). Do NOT invent a "
+        "kitchen, appliances, extra windows, or an extra room not visible in image_1; do not "
+        "move the main window; do not erase doorway/passage openings visible in image_1; keep "
+        "the exact same camera viewpoint as image_1."
     )
 
-    # room_shape 是「全屋」敘事（例：長方形…後端延伸至廚房與大門…通往臥室），
-    # 這是 2A520C25 廚房長進客廳的最大扳機——不再原樣塞進單房 render prompt。
-    # 它仍在 is_long_room 偵測用（本函式上方），純供內部判斷，不進 model 指令。
+    # room_shape 全屋敘事永不進 prompt（2A520C25 扳機）；僅上方 is_long_room 內部用。
     if syn.get("main_window_wall"):
         win = syn.get("main_window_size", "") or ""
         parts.append("Window location: " + _scrub_offframe_rooms(syn['main_window_wall'])
@@ -497,47 +502,49 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
     if syn.get("entrance_position"):
         parts.append("Entrance: " + _scrub_offframe_rooms(syn['entrance_position']) + ".")
     if syn.get("exposed_ceiling"):
-        parts.append(f"Ceiling features (must preserve): {syn['exposed_ceiling']}.")
+        parts.append("Ceiling features (must preserve): "
+                     + _scrub_offframe_rooms(str(syn['exposed_ceiling'])) + ".")
 
+    # 牆：白名單只保留「名稱 + 實牆/有開口」；丟棄自由文字 description（最大洩漏面）。
     walls = syn.get("wall_inventory") or []
     if walls:
-        parts.append("Walls inventory:")
+        parts.append("Walls (name + solid/opening only; geometry from image_1):")
         for w in walls:
-            name = w.get("name", "?")
-            desc = _scrub_offframe_rooms(w.get("description", ""))  # 抹掉「通往廚房」等畫面外目的地
+            name = _scrub_offframe_rooms(w.get("name", "?")) or "?"
             opening = w.get("has_opening")
-            opening_txt = "has opening" if opening else "fully solid"
-            parts.append(f"- {name} [{opening_txt}]: {desc}")
+            opening_txt = "has opening — keep that opening clear" if opening else "fully solid"
+            parts.append(f"- {name}: {opening_txt}")
 
     living = zones.get("living_zone", {}) or {}
     if living.get("where"):
-        parts.append(f"Living zone: {living['where']}.")
+        parts.append(f"Living zone: {_scrub_offframe_rooms(living['where'])}.")
 
     if rules.get("sofa_wall"):
+        sw = _scrub_offframe_rooms(rules['sofa_wall'])
         if living_where and zoning.get("_origin") == "user_confirmed_v2" and sofa_wall_is_ambiguous:
             parts.append(
                 "Ambiguous wall-use note (not a resolved sofa-wall instruction; apply the "
-                f"long-room side-wall contract): {rules['sofa_wall']}"
+                f"long-room side-wall contract): {sw}"
             )
         else:
-            parts.append(f"Sofa wall rule: {rules['sofa_wall']}")
+            parts.append(f"Sofa wall rule: {sw}")
     if rules.get("tv_wall"):
-        parts.append(f"TV/focal wall rule: {rules['tv_wall']}")
+        parts.append(f"TV/focal wall rule: {_scrub_offframe_rooms(rules['tv_wall'])}")
     if rules.get("coffee_table_position"):
-        parts.append(f"Coffee table rule: {rules['coffee_table_position']}")
+        parts.append(f"Coffee table rule: {_scrub_offframe_rooms(rules['coffee_table_position'])}")
     if rules.get("rug_anchor"):
-        parts.append(f"Rug anchor rule: {rules['rug_anchor']}")
+        parts.append(f"Rug anchor rule: {_scrub_offframe_rooms(rules['rug_anchor'])}")
     if rules.get("accent_chair_position"):
-        parts.append(f"Accent chair rule: {rules['accent_chair_position']}")
+        parts.append(f"Accent chair rule: {_scrub_offframe_rooms(rules['accent_chair_position'])}")
 
     walkway = zones.get("walkway", {}) or {}
     if walkway.get("where"):
-        parts.append(f"Walkway (must stay clear): {walkway['where']}.")
+        parts.append(f"Walkway (must stay clear): {_scrub_offframe_rooms(walkway['where'])}.")
 
     if no_go:
         parts.append("NO-LARGE-FURNITURE zones (must remain unblocked):")
         for z in no_go:
-            parts.append(f"- {z}")
+            parts.append(f"- {_scrub_offframe_rooms(str(z))}")
 
     return " ".join(parts)
 
