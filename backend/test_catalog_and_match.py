@@ -233,3 +233,73 @@ def test_must_have_categories_never_empty(catalog):
                 if must_cat not in got_cats:
                     missing.append((style, room, must_cat))
     assert not missing, f"must-have 品類缺配: {missing}"
+
+
+def test_slot_name_guards_logic():
+    """50873CF0 槽位鐵則純邏輯：品名宣告的主類型不可混進衝突槽位。"""
+    # 客廳兩個電視櫃的根因：落地電視機櫃進了茶几槽
+    assert fm.violates_slot_guard("coffee_table", "living", "新款輕奢高級落地電視機櫃")
+    # 玄關七層鞋櫃不可當客廳電視櫃
+    assert fm.violates_slot_guard("media_console", "living", "TZUMii 七層鞋櫃+電視櫃")
+    # 邊几不可當主茶几
+    assert fm.violates_slot_guard("coffee_table", "living", "雙層木質白色邊几")
+    # 摺疊電腦桌不可當床頭 side_table
+    assert fm.violates_slot_guard("side_table", "bedroom", "Style 100cm 摺疊書桌電腦桌")
+    # L型電視中空櫃不可進主臥收納
+    assert fm.violates_slot_guard("storage", "bedroom", "STYLEHOUSE 北歐法雪 9.7尺 L型電視中空櫃")
+    # 合法品不誤殺
+    assert not fm.violates_slot_guard("coffee_table", "living", "北歐風實木茶几")
+    assert not fm.violates_slot_guard("media_console", "living", "文創集 瑪西法5尺二門二抽電視櫃")
+    assert not fm.violates_slot_guard("storage", "living", "L型電視中空櫃")   # 客廳收納不禁電視櫃
+    assert not fm.violates_slot_guard("side_table", "living", "U型腿胡桃木邊桌")
+
+
+def test_no_tv_cabinet_in_coffee_table_slot(catalog):
+    """50873CF0 端到端迴歸：任何風格的客廳茶几槽不得出現電視櫃/鞋櫃/邊几。"""
+    for style in CURRENT_STYLES:
+        prompt = f"{style} style living room with sofa, coffee table, rug, media console"
+        items = fm.match_furniture(style, prompt, catalog, top_n=5, mode="living")
+        ct = next((it for it in items if fm.resolve_category(it) == "coffee_table"), None)
+        if ct is None:
+            continue
+        nm = ct["name_zh"]
+        assert not fm.violates_slot_guard("coffee_table", "living", nm), \
+            f"{style} 茶几槽配到衝突商品: {nm}"
+        mc = next((it for it in items if fm.resolve_category(it) == "media_console"), None)
+        if mc is not None:
+            assert not fm.violates_slot_guard("media_console", "living", mc["name_zh"]), \
+                f"{style} 電視櫃槽配到玄關櫃: {mc['name_zh']}"
+
+
+def test_width_extraction_from_name():
+    """50873CF0 尺寸感：尺/裸cm 只寫在品名也要能讀出來。"""
+    # 台尺（dimensions 欄）
+    assert fm._extract_width_cm("9.7尺") == 294
+    assert fm._extract_width_cm("5尺") == 152
+    # 品名 fallback（寬度關鍵品類）
+    big = {"name_zh": "北歐法雪 9.7尺 L型電視中空櫃", "dimensions": "", "category": "收納"}
+    w = fm.extract_item_width_cm(big)
+    assert w is not None and w > 280, f"9.7尺 應解析為 ~294cm，得到 {w}"
+    desk = {"name_zh": "亮面書桌 131CM", "dimensions": "", "category": "桌子"}
+    assert fm.extract_item_width_cm(desk) == 131
+    # 非寬度關鍵品類（窗簾）名字裡的數字不可當寬度
+    curt = {"name_zh": "遮光窗簾 270cm", "dimensions": "", "category": "窗簾"}
+    assert fm.extract_item_width_cm(curt) is None
+
+
+def test_sheer_curtain_double_ref():
+    """50873CF0 雙層窗簾：厚簾+紗簾要各佔一個參考圖名額；同類第三件不收。"""
+    import prompt_builder as pb
+    soft = [
+        {"category_en": "curtain", "image_url": "http://x/1.jpg", "name_zh": "純色簡約遮光窗簾"},
+        {"category_en": "curtain", "image_url": "http://x/2.jpg", "name_zh": "白色輕薄紗簾"},
+        {"category_en": "curtain", "image_url": "http://x/3.jpg", "name_zh": "第二件遮光簾"},
+        {"category_en": "lighting", "image_url": "http://x/4.jpg", "name_zh": "桌燈"},
+    ]
+    picked = pb._select_soft_ref_candidates(soft)
+    names = [p["name_zh"] for p in picked]
+    assert "純色簡約遮光窗簾" in names and "白色輕薄紗簾" in names, f"雙層窗簾沒都進: {names}"
+    assert "第二件遮光簾" not in names
+    # 只有一件窗簾時行為不變（每類一件）
+    picked2 = pb._select_soft_ref_candidates(soft[:1] + soft[3:])
+    assert len([p for p in picked2 if p["category_en"] == "curtain"]) == 1

@@ -168,7 +168,12 @@ def _build_inputs_section(reference_map: list[dict]) -> str:
             )
         else:
             display = role  # already display form, e.g. SOFA / COFFEE TABLE / RUG
-            lines.append(f"Reference image {idx} is the {display} PRODUCT (a real product to use).")
+            # 尺度提示（50873CF0：131cm 書桌被畫成迷你桌）——有寬度就明講，
+            # 逼模型按「相對房間的真實比例」畫，而不是自由縮放。
+            w = ref.get("width_cm")
+            size_hint = (f" Its real width is about {int(w)} cm — render it at TRUE SCALE "
+                         "relative to the room (do not shrink or enlarge it).") if w else ""
+            lines.append(f"Reference image {idx} is the {display} PRODUCT (a real product to use).{size_hint}")
     return " ".join(lines)
 
 
@@ -571,6 +576,36 @@ def _build_fallback_layout_section() -> str:
     )
 
 
+def _select_soft_ref_candidates(soft_furnishing: list[dict]) -> list[dict]:
+    """挑進參考圖的軟裝：每類最多 1 件。
+    例外——窗簾可 2 件（一厚一紗）：50873CF0 抓漏，「每類一件」讓紗簾永遠進不了
+    參考圖，清單有雙層窗簾、圖上永遠只畫一層。第二件窗簾必須跟第一件「紗/非紗」
+    不同（真的是內紗外遮光的雙層組合才多佔一格）。"""
+    out: list[dict] = []
+    seen_cats: set[str] = set()
+    curtain_names: list[str] = []
+    for item in soft_furnishing or []:
+        if len(out) >= MAX_SOFT_REFERENCE_IMAGES:
+            break
+        cat = (item.get("category_en") or "").strip()
+        url = (item.get("image_url") or "").strip()
+        if cat not in SOFT_REFERENCE_CATS or not url.startswith("http"):
+            continue
+        name = item.get("name_zh") or ""
+        if cat == "curtain" and "curtain" in seen_cats:
+            if len(curtain_names) == 1 and (("紗" in name) != ("紗" in curtain_names[0])):
+                out.append(item)
+                curtain_names.append(name)
+            continue
+        if cat in seen_cats:
+            continue
+        out.append(item)
+        seen_cats.add(cat)
+        if cat == "curtain":
+            curtain_names.append(name)
+    return out
+
+
 def _build_soft_furnishing_section(soft_furnishing: list[dict],
                                    reference_map: list[dict] | None = None,
                                    narrow_mode: bool = False) -> str:
@@ -605,6 +640,17 @@ def _build_soft_furnishing_section(soft_furnishing: list[dict],
             f"  - {role}: Use reference image {idx} ({name}) as the {cat_human}. "
             f"Match the product's visible color, material, pattern, and silhouette as closely as possible. "
             f"{placement}"
+        )
+
+    # 雙層窗簾（一厚一紗都進了參考圖時）：明講兩件掛同一窗、內紗外遮光，
+    # 兩層都要看得到（50873CF0：清單有雙層、圖上永遠只畫一層）
+    _curtain_refs = [r for r in soft_refs if (r.get("cat_en") or "") == "curtain"]
+    if len(_curtain_refs) >= 2:
+        ref_lines.append(
+            "  - CURTAIN LAYERING (both curtain products, same window): hang them as a "
+            "DOUBLE layer — the sheer (translucent) curtain as the INNER layer closest to "
+            "the glass, the opaque drape as the OUTER layer, partly drawn so BOTH layers "
+            "are clearly visible in the render."
         )
 
     bullets: list[str] = []
@@ -1099,10 +1145,12 @@ def _build_nonliving_nano_inputs(
         if cat in selected:
             it = selected[cat]
             role_disp = ROOM_CAT_DISPLAY.get(cat, (cat.upper(), cat))[0]
+            from furniture_match import extract_item_width_cm
             reference_map.append({
                 "index": next_idx, "role": role_disp, "url": it.get("image_url"),
                 "cat_en": cat, "name_zh": it.get("name_zh", ""), "id": it.get("id", ""),
                 "kind": "PRIMARY",
+                "width_cm": extract_item_width_cm(it),  # 尺度提示（131cm 書桌畫成迷你桌）
             })
             image_urls.append(it.get("image_url"))
             next_idx += 1
@@ -1502,6 +1550,7 @@ def build_nano_banana_inputs(
         if cat in selected:
             it = selected[cat]
             display_role, _ = CAT_DISPLAY[cat]
+            from furniture_match import extract_item_width_cm
             ref_entry = {
                 "index": next_idx,
                 "role": display_role,
@@ -1510,6 +1559,7 @@ def build_nano_banana_inputs(
                 "name_zh": it.get("name_zh", ""),
                 "id": it.get("id", ""),
                 "kind": "PRIMARY",
+                "width_cm": extract_item_width_cm(it),  # 尺度提示：按真實寬度畫
             }
             if cat == "sofa":
                 ref_entry["sofa_seating"] = it.get("sofa_seating") or "unknown"
@@ -1518,14 +1568,7 @@ def build_nano_banana_inputs(
             next_idx += 1
 
     # 組 prompt 段落
-    soft_candidates: list[dict] = []
-    soft_seen_cats: set[str] = set()
-    for item in entry.get("soft_furnishing") or []:
-        cat = (item.get("category_en") or "").strip()
-        url = (item.get("image_url") or "").strip()
-        if cat in SOFT_REFERENCE_CATS and url.startswith("http") and cat not in soft_seen_cats:
-            soft_candidates.append(item)
-            soft_seen_cats.add(cat)
+    soft_candidates = _select_soft_ref_candidates(entry.get("soft_furnishing") or [])
 
     for soft_ref_count, it in enumerate(soft_candidates):
         if soft_ref_count >= MAX_SOFT_REFERENCE_IMAGES:
