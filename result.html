@@ -381,14 +381,11 @@
     document.getElementById('panelsContainer').innerHTML = panelsHtml;
   }
 
-  // 部分交付：後端把未通過品質檢查的風格從 renders 移除，但會在 validation_summary 留紀錄。
-  // 這裡顯示一條提示，讓用戶知道為何某些風格沒出現，而不是靜默少圖。
-  function showDroppedNotice(vs) {
+  // 部分交付：後端把未通過品質檢查的版面從 renders 移除，validation_summary 留紀錄。
+  // P0（C79C7ECC）：客廳全缺時加強提示——主菜未交付，不可像「已完成」輕輕帶過。
+  function showDroppedNotice(vs, data) {
     if (!vs || !vs.dropped) return;
     var dropped = vs.dropped_renders || [];
-    // 9871F294 抓漏：只寫風格名時，同風格「部分房間交付、部分細修」會顯示成
-    // 「新中式已交付」+「新中式細修中」自相矛盾——帶上房間標籤（新中式美學 · 客廳），
-    // 並去重（同風格同房間的多視角只列一次）。
     var _seen = {};
     var droppedLabels = dropped.map(function(d) {
       var s = d.style_label || d.style || '';
@@ -400,25 +397,33 @@
       _seen[t] = 1; return true;
     });
     var droppedText = droppedLabels.length ? droppedLabels.join('、') : (vs.dropped + ' 個版面');
-    // 誠實文案：有待補版面時，絕不說某風格「已完成交付」（2A520C25：法式客廳缺
-    // 卻寫「法式已完成交付」自相矛盾）。改成房級「已交付 N 張／待補 X」。
     var deliveredCount = (typeof vs.delivered === 'number') ? vs.delivered
                          : ((_groups || []).reduce(function(n, g) { return n + g.angles.length; }, 0));
     var firstClause = deliveredCount ? ('已為你交付 ' + deliveredCount + ' 張設計圖。') : '';
+    var livingMissing = !!(data && data.living_incomplete) || dropped.some(function(d) {
+      return d.room_type === 'living' || (d.angle_label || '').indexOf('客廳') >= 0;
+    });
     var box = document.createElement('div');
     box.className = 'dropped-notice';
-    box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:12px 16px;border:1px solid rgba(212,175,55,.35);'
-      + 'border-radius:8px;background:rgba(212,175,55,.06);color:#d9c7a0;font-size:13px;line-height:1.7;text-align:center;';
-    var anyTimeout = dropped.some(function(d) { return d.timeout; });
-    if (anyTimeout) {
-      // fal 生成逾時 → 友善說明（部分交付），不要露技術錯誤字串
+    if (livingMissing) {
+      box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:14px 18px;border:1px solid rgba(220,80,80,.45);'
+        + 'border-radius:8px;background:rgba(220,80,80,.08);color:#f0c8c8;font-size:13px;line-height:1.8;text-align:center;';
       box.innerHTML = firstClause
-        + '部分視角生成逾時，我們已先把成功完成的設計圖交付給你；其餘會盡快補上。'
-        + '需要加快請聯絡客服，免費重出。';
+        + '<strong style="color:#ffb4b4;">客廳是方案主視覺，目前尚未通過品質檢查，我們不會交付結構錯誤的客廳圖。</strong><br>'
+        + '待補：「' + droppedText + '」。系統已自動嘗試修正；若仍未補上，請聯絡客服<strong>免費重出客廳</strong>。';
     } else {
-      box.innerHTML = firstClause
-        + '待補：「' + droppedText + '」我們還在為你細修，完成後會自動補上。'
-        + '需要加快請聯絡客服，免費重出。';
+      box.style.cssText = 'margin:0 auto 20px;max-width:680px;padding:12px 16px;border:1px solid rgba(212,175,55,.35);'
+        + 'border-radius:8px;background:rgba(212,175,55,.06);color:#d9c7a0;font-size:13px;line-height:1.7;text-align:center;';
+      var anyTimeout = dropped.some(function(d) { return d.timeout; });
+      if (anyTimeout) {
+        box.innerHTML = firstClause
+          + '部分視角生成逾時，我們已先把成功完成的設計圖交付給你；其餘會盡快補上。'
+          + '需要加快請聯絡客服，免費重出。';
+      } else {
+        box.innerHTML = firstClause
+          + '待補：「' + droppedText + '」我們還在為你細修，完成後會自動補上。'
+          + '需要加快請聯絡客服，免費重出。';
+      }
     }
     var tabs = document.getElementById('tabsContainer');
     if (tabs && tabs.parentNode) { tabs.parentNode.insertBefore(box, tabs); }
@@ -789,8 +794,8 @@
             + '可稍後在「查詢下載」用訂單編號查看，或聯絡客服。</div>';
         }
         else { document.getElementById('tabsContainer').innerHTML = '<div class="loading-msg">尚無渲染圖</div>'; }
-        // 部分交付提示：有風格未通過品質檢查時，告知用戶（不影響已交付的圖）
-        try { showDroppedNotice(data.validation_summary); } catch (e) { console.warn('dropped notice 失敗', e); }
+        // 部分交付提示：有版面未通過品質檢查時告知（客廳全缺會加強提示）
+        try { showDroppedNotice(data.validation_summary, data); } catch (e) { console.warn('dropped notice 失敗', e); }
         // Phase3 自動補生輪詢：有被扣的版面時，後端正在背景換策略補生。
         // 每 30 秒重抓一次，張數變多（或補完）就整頁重建——客人不用手動重新整理。
         try { _startRepairPolling(renders.length, data); } catch (e) {}

@@ -861,27 +861,76 @@ def _photo_meta_for_path(path: str, photo_meta_by_key: dict | None) -> dict:
     return {}
 
 
+def _score_photo_for_room(meta: dict | None, rt: str) -> int:
+    """同房型多張候選時的底圖評分（越高越好）。
+    C79C7ECC 根因：舊邏輯 first-wins 永遠拿 photo_01 走廊角當客廳 base，
+    忽略 photo_03「客廳靠窗」——難角 + 錯底圖 → 三風格客廳全被保真擋下。"""
+    if not isinstance(meta, dict):
+        return 0
+    score = 0
+    note = (meta.get("target_note") or "").strip()
+    hint = (meta.get("target_location_hint") or "").strip()
+    contains = meta.get("photo_contains") or []
+    if not isinstance(contains, list):
+        contains = []
+
+    if note:
+        score += 40
+
+    if rt == "living":
+        # 靠窗／窗邊 note = 最強信號（使用者明確指定客廳主圖意圖）
+        if _note_implies_rear_near_window(note) or any(
+            k in note for k in ("靠窗", "窗邊", "窗戶", "後段", "深處", "底端", "靠窗端")
+        ):
+            score += 100
+        if hint == "rear_near_window":
+            score += 50
+        # 純客廳略優於客餐廳合照廣角（合照常是往廚／玄關長軸，結構更難保真）
+        if "living" in contains and "dining" not in contains:
+            score += 20
+        elif "living" in contains:
+            score += 5
+    else:
+        if rt in contains:
+            score += 15
+        if note:
+            score += 10
+    return score
+
+
 def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
     """全室：以使用者『這張照片主要是』(target_zone) 建 regions，一張照片＝一個房間。
-    同房型去重（避免重複客廳）、保留上傳順序。回傳 [] → 沒有可用標註，交回 Gemini regions。
-    這修掉「Gemini 重猜把餐廳當客廳、書房消失、重複客廳」(job 302D6ED2)。"""
+    同房型多張候選時用 _score_photo_for_room 選最佳底圖（不再 first-wins）。
+    回傳 [] → 沒有可用標註，交回 Gemini regions。
+    修：302D6ED2 重複客廳；C79C7ECC 客廳用錯走廊角 base。"""
     if not image_paths or not photo_meta_by_key:
         return []
-    out: list[dict] = []
-    seen: set[str] = set()
+    # rt -> list of (idx, score, note_preview)
+    cands: dict[str, list[tuple[int, int, str]]] = {}
     for idx, p in enumerate(image_paths):
         meta = _photo_meta_for_path(p, photo_meta_by_key)
         tz = (meta.get("target_zone") or "").strip().lower() if isinstance(meta, dict) else ""
         rt = _ZONE_TO_RT.get(tz)
-        if not rt or rt in seen:
+        if not rt:
             continue
-        seen.add(rt)
+        sc = _score_photo_for_room(meta if isinstance(meta, dict) else {}, rt)
+        note_pv = ((meta.get("target_note") or "") if isinstance(meta, dict) else "")[:40]
+        cands.setdefault(rt, []).append((idx, sc, note_pv))
+
+    out: list[dict] = []
+    for rt, lst in cands.items():
+        # 最高分；同分保留上傳序較早者（key: score 高、idx 小 → max 用 (score, -idx)）
+        best_idx, best_sc, best_note = max(lst, key=lambda t: (t[1], -t[0]))
+        if len(lst) > 1:
+            print(f"[pipeline] 全室 {rt} 底圖候選 {len(lst)} 張 → 選 idx={best_idx} "
+                  f"score={best_sc} note={best_note!r} "
+                  f"(candidates={[(i, s) for i, s, _ in lst]})")
         out.append({
             "room_type": rt,
             "name": _RT_ZH_DISPLAY.get(rt, rt),
-            "best_photo_index": idx,
+            "best_photo_index": best_idx,
         })
-    # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→主臥→書房；不照上傳順序(#3)。
+    # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→主臥→書房
     _RT_ORDER = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
     out.sort(key=lambda r: _RT_ORDER.get(r["room_type"], 9))
     return out
@@ -2262,13 +2311,36 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if all_failed_repairing:
             result_json_payload["repairing"] = True
 
+        # P0（C79C7ECC）：客廳是全室／主視覺主菜——若客廳全被擋、一張都沒交付，
+        # 不可顯示「設計方案生成完畢」（客人只拿到主臥書房會覺得被騙）。
+        _living_delivered = any(
+            (r.get("room_type") or r.get("_room_type") or "living") == "living"
+            for r in delivery_final
+        )
+        _living_dropped = any(
+            (r.get("room_type") or r.get("_room_type") or "") == "living"
+            for r in dropped_failed_renders
+        )
+        living_incomplete = bool(_living_dropped and not _living_delivered)
+        if living_incomplete:
+            result_json_payload["living_incomplete"] = True
+            print("[pipeline] living_incomplete=True — 客廳未交付，完件文案改為部分優化中")
+        if dropped_failed_renders and not all_failed_repairing:
+            result_json_payload["partial_delivery"] = True
+
         # C2.6: completed DB write 需驗證, 否則不可設 completed_flag。
         # 大 payload（result_json 含 analysis/zoning/renders…）寫入可能 >8s 逾時被吞掉，
         # 導致狀態沒更新成 completed → 圖明明生好了卻被打成 failed。
         # 對策：拉長 timeout + 重試多次（寫入→讀回驗證），全部失敗才 raise。
         failed_stage = "result_upsert"
-        completed_msg = ("部分設計仍在為你優化中，我們會盡快補上"
-                         if all_failed_repairing else "設計方案生成完畢！")
+        if all_failed_repairing:
+            completed_msg = "部分設計仍在為你優化中，我們會盡快補上"
+        elif living_incomplete:
+            completed_msg = "主空間（客廳）設計仍在優化中；其他房間已先交付"
+        elif dropped_failed_renders:
+            completed_msg = "部分設計仍在為你優化中，我們會盡快補上"
+        else:
+            completed_msg = "設計方案生成完畢！"
         completed_payload = {"job_id": job_id, "status": "completed", "progress": 100,
                              "message": completed_msg,
                              "result_json": result_json_payload}
@@ -2306,6 +2378,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             slim_result_json["repairing"] = True
         if dropped_failed_renders:
             slim_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
+        if living_incomplete:
+            slim_result_json["living_incomplete"] = True
+        if result_json_payload.get("partial_delivery"):
+            slim_result_json["partial_delivery"] = True
 
         # 極簡 payload（第三層 fallback）：留「結果頁必要欄位 + 精簡家具」，仍夠小一定寫得進。
         # 家具只留顯示必要欄位（去掉 flux_descriptor/dimensions/colors/id 等），確保最小層也有清單。
@@ -2335,6 +2411,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         }
         if all_failed_repairing:
             minimal_result_json["repairing"] = True
+        if living_incomplete:
+            minimal_result_json["living_incomplete"] = True
+        if result_json_payload.get("partial_delivery"):
+            minimal_result_json["partial_delivery"] = True
+        if dropped_failed_renders:
+            minimal_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
 
         # 事前估算大小：完整 payload 太大就直接從精簡版起跳。
         try:
