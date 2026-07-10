@@ -435,3 +435,20 @@ def test_related_styles_symmetric_union():
     for a in all_styles:
         for b in fm._get_related_styles(a):
             assert a in fm._get_related_styles(b), f"{a}->{b} 相近不對稱"
+
+
+def test_study_storage_slot_guard():
+    """6F1BFC19：書房 storage 槽必須擋電視櫃/玄關櫃（跟 bedroom 一致）。"""
+    assert fm.violates_slot_guard("storage", "study", "STYLEHOUSE 北歐法雪9.7尺L型電視中空櫃DU10")
+    assert fm.violates_slot_guard("storage", "study", "玄關櫃 雙門鞋櫃")
+    assert not fm.violates_slot_guard("storage", "study", "五層開放式書櫃 橡木色")
+    assert fm.violates_slot_guard("storage", "bedroom", "岩板電視櫃")  # 原有行為不動
+
+
+def test_blocks_door_hard_and_retry_wired():
+    """6F1BFC19：家具擋門/貼門旁必須是硬傷且 retry 有專屬修正指令；
+    驗收條文必須含「開啟弧形/一個門寬」淨空判定。"""
+    import gemini_analyze as ga
+    import prompt_builder as pb
+    assert "furniture_blocks_door" in ga.HARD_FAIL_FLAGS
+    assert "furniture_blocks_door" in pb._RETRY_FLAG_FIX_EN

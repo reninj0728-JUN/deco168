@@ -316,6 +316,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
         _entr_side = ("left" if ("左" in _entr_txt or "left" in _entr_txt.lower())
                       else ("right" if ("右" in _entr_txt or "right" in _entr_txt.lower()) else ""))
         door_on_tv_wall = _tv_side_raw in ("left", "right") and _entr_side == _tv_side_raw
+        # 6F1BFC19 根治：使用者選「不靠牆/自由發揮」→ sofa_side 空 → 選邊完全沒約束，
+        # 模型把沙發貼到大門那面牆。未綁邊時用大門側 ground truth 給確定性預設：
+        # 沙發背預設遠離大門的那面長牆（zoning 自己的大門迴避原則），不是自由亂選。
+        _sofa_free_layout = zoning.get("_sofa_layout") == "free"
         door_tv_protocol = (
             " DOOR-ON-TV-WALL PROTOCOL (the main entrance door is on the SAME wall designated "
             "for the TV/media console — this protocol OVERRIDES the centered-alignment rule): "
@@ -340,19 +344,49 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 "side wall holds the TV cabinet / media console / focal anchor facing the sofa. "
                 f"Putting the sofa on the {_SIDE_EN[_opp]} side is a FAILURE. "
             )
+        elif _entr_side in _SIDE_EN:
+            _away = "right" if _entr_side == "left" else "left"
+            side_choice_clause = (
+                "No side was pre-bound, so apply the DOOR-AVOIDANCE DEFAULT: the main "
+                f"entrance door is on the {_SIDE_EN[_entr_side]} wall, therefore the sofa "
+                f"back belongs on the {_SIDE_EN[_away]} long wall (the wall WITHOUT the "
+                f"entrance door). If the {_SIDE_EN[_entr_side]} wall must hold the TV/media "
+                "console, put it on that wall's solid segment clearly deeper into the room, "
+                "away from the door. No sofa, console or cabinet may stand within one full "
+                "door-width of the entrance door frame or inside its swing arc. "
+            )
         else:
             side_choice_clause = (
-                "Choose the left or right side according to visible doors and openings. "
+                "Choose the left or right side according to visible doors and openings, "
+                "never placing the sofa on the wall segment beside the entrance door. "
             )
-        long_room_side_wall_rule = (
-            " LONG-ROOM SIDE-WALL CONTRACT (hard rule): This is a long rectangular room. "
+        # 6F1BFC19：free（不靠牆）+ 長房間時，舊條文「必須貼牆、不准漂浮」跟後面的
+        # FREE-STANDING 段自相矛盾——模型聽了貼牆卻沒邊約束，把沙發貼到大門牆。
+        # free 只放寬「必須貼牆」本身，軸向/選邊/避門全部保留。
+        _flush_clause = (
+            "The customer explicitly allows a FREE-STANDING sofa: it may float off the wall, "
+            "but it must stay PARALLEL to the long side walls with its back toward one long "
+            "side wall. "
+            if _sofa_free_layout else
             "The sofa BACK must be flush and parallel against ONE unobstructed LONG SIDE WALL "
             "running from the entrance/front toward the window/back. "
+        )
+        _no_float_clause = (
+            "The sofa must not sit transversely across the room or back directly against the "
+            "window/end wall. "
+            if _sofa_free_layout else
+            "The sofa must not "
+            "float in the room, sit transversely across the room, or back directly against the "
+            "window/end wall. "
+        )
+        long_room_side_wall_rule = (
+            " LONG-ROOM SIDE-WALL CONTRACT (hard rule): This is a long rectangular room. "
+            + _flush_clause
             + side_choice_clause +
             "The opposite long side wall must hold "
-            "the TV cabinet / media console / focal anchor, facing the sofa. The sofa must not "
-            "float in the room, sit transversely across the room, or back directly against the "
-            "window/end wall. Keep the coffee table and rug between the sofa and focal wall, close "
+            "the TV cabinet / media console / focal anchor, facing the sofa. "
+            + _no_float_clause +
+            "Keep the coffee table and rug between the sofa and focal wall, close "
             "to the sofa and completely outside the main longitudinal route. Preserve a continuous "
             "80-90 cm clear route from the entrance to all room doors and the window-side end. "
             "If a zoning sentence says a long wall may hold either the TV cabinet or sofa, that is "
@@ -423,6 +457,11 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "fully visible and reachable in the render. If the designated focal wall contains a "
             "door, the console goes on the SOLID segment of that wall only, clear of the door "
             "frame and its swing path. "
+            "ENTRANCE CLEARANCE (hard rule): keep one full door-width of completely EMPTY floor "
+            "beside the main entrance door frame on both sides, plus its entire swing arc. No "
+            "sofa, cabinet, table or any large furniture may stand on the entrance wall segment "
+            "within one door-width of the door, even if the door itself stays visible — the "
+            "entry drop zone must stay open. "
             "The focal "
             "wall MUST NOT be left as bare paint or a single small frame on its own. The "
             "anchor MUST be ONE of the following real furniture pieces: a low media "
@@ -1297,6 +1336,12 @@ _RETRY_FLAG_FIX_EN = {
     "furniture_blocks_walkway":
         "Furniture blocked the walkway. Keep all major furniture clear of the corridor "
         "opening so the walkway stays fully passable.",
+    "furniture_blocks_door":
+        "Furniture blocked or crowded a door — most critically the ENTRANCE door. Move "
+        "every piece completely clear of all doors: nothing inside any door's swing arc, "
+        "and no sofa/cabinet standing on the entrance wall within one full door-width of "
+        "the entrance door frame. Relocate the sofa to the solid wall away from the "
+        "entrance and keep the entry drop zone empty.",
     "sofa_faces_walkway":
         "The sofa faced the walkway instead of the focal anchor. Turn the sofa to face "
         "the TV cabinet / focal wall, not the corridor.",
@@ -1707,7 +1752,9 @@ def build_nano_banana_inputs(
             "composition (e.g. sofa mid-room facing the focal/TV wall, console table or "
             "clear space behind it). Still keep: sofa inside the confirmed living zone, "
             "facing the focal anchor across the coffee table, all walkways completely "
-            "clear, and never facing the entrance door."
+            "clear, never facing the entrance door, and NEVER against or beside the "
+            "entrance-door wall segment — the door swing arc plus one door-width strip "
+            "beside the frame must stay empty."
         )
     # 軟裝段放在 product/style 後, budget/customer 前: 維持「主家具放置定位」優先,
     # 軟裝是 styled accessory, 不可覆蓋主家具.

@@ -453,7 +453,10 @@ _SIDE_TABLE_NAME_KW = ("邊几", "角几", "邊桌", "side table")
 SLOT_NAME_GUARDS: dict = {
     "coffee_table": {"any": _TV_NAME_KW + _ENTRANCE_NAME_KW + _DESK_NAME_KW + _SIDE_TABLE_NAME_KW},
     "media_console": {"any": _ENTRANCE_NAME_KW},
-    "storage":      {"bedroom": _TV_NAME_KW + _ENTRANCE_NAME_KW},
+    # 6F1BFC19：書房 storage 槽沒守衛，「9.7尺L型電視中空櫃」進了書房——
+    # 電視櫃/玄關櫃在 bedroom 和 study 的收納槽都不合理，一起擋。
+    "storage":      {"bedroom": _TV_NAME_KW + _ENTRANCE_NAME_KW,
+                     "study":   _TV_NAME_KW + _ENTRANCE_NAME_KW},
     "side_table":   {"any": _DESK_NAME_KW},
     "table":        {"any": _TV_NAME_KW + _ENTRANCE_NAME_KW},
 }
