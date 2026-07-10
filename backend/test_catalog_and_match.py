@@ -481,3 +481,18 @@ def test_product_visibility_covers_all_rooms():
     }
     ctx2 = api._product_fidelity_into_layout_ctx(None, living_entry)
     assert [p["cat"] for p in ctx2["must_products"]] == ["sofa", "coffee_table", "rug", "media_console"]
+
+
+def test_visibility_tiering_nice_items_dont_kill_render():
+    """46F1B2B5 誤擋教訓：可見性分級——must 缺漏才硬傷；加分品項(燈具/單椅)
+    沒入圖只記 visibility_nice_bad，交付層從清單移除該品項、不殺圖。"""
+    import inspect
+    import gemini_analyze as ga
+    import api
+    src = inspect.getsource(ga.validate_render)
+    assert "visibility_nice_bad" in src
+    assert "_pv_bad_must" in src          # fail 只由 must 品項觸發
+    # 交付層有清單移除邏輯
+    import io, tokenize
+    api_src = open(api.__file__, encoding="utf-8").read()
+    assert "visibility_nice_bad" in api_src and "自清單移除" in api_src

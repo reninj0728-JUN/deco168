@@ -2287,6 +2287,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             return False
         delivery_final = [r for r in final if not _is_hard_fail(r)]
         dropped_failed_renders = [r for r in final if _is_hard_fail(r)]
+
+        # 46F1B2B5 分級交付：加分品項（燈具/單椅…非 must）沒入圖不殺圖——
+        # 從該房購物清單移除該品項，清單=圖從清單端成立。must 缺漏仍在上面硬傷擋。
+        for r in delivery_final:
+            _nice_bad = set((r.get("validation") or {}).get("visibility_nice_bad") or [])
+            if not _nice_bad:
+                continue
+            _mf = r.get("matched_furniture") or []
+            _kept = [it for it in _mf
+                     if not (isinstance(it, dict) and (it.get("category_en") or "") in _nice_bad)]
+            _removed = [f"{(it.get('category_en') or '?')}:{(it.get('name_zh') or '')[:24]}"
+                        for it in _mf
+                        if isinstance(it, dict) and (it.get("category_en") or "") in _nice_bad]
+            if _removed:
+                r["matched_furniture"] = _kept
+                print(f"[visibility] {r.get('style')}/{r.get('room_type','living')} "
+                      f"加分品項未入圖，自清單移除：{'、'.join(_removed)}")
         dropped_validation_reasons = []
         for r in dropped_failed_renders:
             v = r.get("validation") or {}
