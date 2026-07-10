@@ -351,9 +351,12 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 f"entrance door is on the {_SIDE_EN[_entr_side]} wall, therefore the sofa "
                 f"back belongs on the {_SIDE_EN[_away]} long wall (the wall WITHOUT the "
                 f"entrance door). If the {_SIDE_EN[_entr_side]} wall must hold the TV/media "
-                "console, put it on that wall's solid segment clearly deeper into the room, "
-                "away from the door. No sofa, console or cabinet may stand within one full "
-                "door-width of the entrance door frame or inside its swing arc. "
+                "console, anchor on the door: after the far edge of the entrance door frame, "
+                "leave a strip of completely bare wall and empty floor at least ONE FULL "
+                "DOOR-WIDTH wide, and only then start the console — then slide the sofa "
+                "along its wall to sit directly opposite the console. No sofa, console or "
+                "cabinet may stand within one full door-width of the entrance door frame or "
+                "inside its swing arc. "
             )
         else:
             side_choice_clause = (
@@ -1341,10 +1344,10 @@ _RETRY_FLAG_FIX_EN = {
         "opening so the walkway stays fully passable.",
     "furniture_blocks_door":
         "Furniture blocked or crowded a door — most critically the ENTRANCE door. Move "
-        "every piece completely clear of all doors: nothing inside any door's swing arc, "
-        "and no sofa/cabinet standing on the entrance wall within one full door-width of "
-        "the entrance door frame. Relocate the sofa to the solid wall away from the "
-        "entrance and keep the entry drop zone empty.",
+        "every piece completely clear of all doors: nothing inside any door's swing arc. "
+        "Anchor on the entrance door: after its far frame edge, leave at least one full "
+        "door-width of bare wall and empty floor BEFORE any console/cabinet begins. The "
+        "sofa belongs on the opposite solid wall, directly across from the console.",
     "sofa_faces_walkway":
         "The sofa faced the walkway instead of the focal anchor. Turn the sofa to face "
         "the TV cabinet / focal wall, not the corridor.",
@@ -1428,11 +1431,11 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
         _what = "media console / cabinet" if _dg.get("target") == "focal_anchor" else "sofa"
         lines.append(
             f"- MEASURED VIOLATION: the {_what} stood only {_ratio} door-widths from the "
-            "entrance door (measured on your previous render; minimum is ONE full door-width, "
-            "prefer more). Move the media console to the REAR half of its wall — clearly PAST "
-            "the midpoint of the room, far from the entrance — and slide the sofa group deeper "
-            "with it so sofa and console stay directly opposite each other. The wall strip "
-            "beside the entrance door must show BARE WALL with empty floor."
+            "entrance door (measured on your previous render; minimum is ONE full door-width). "
+            "Anchor on the DOOR: find the far edge of the entrance door frame, leave a strip of "
+            "completely BARE WALL and empty floor at least one full door-width wide after it, "
+            "and only THEN start the media console — still within the living area. Slide the "
+            "sofa along its own wall to sit directly opposite the console's new position."
         )
     # 沙發/電視櫃/living group 的修正指令只對客廳有意義；餐廳/主臥/書房若因結構或
     # 走道觸發重試，餵這些會把沙發塞進非客廳房間(Grok 指出的生成側洩漏)。
