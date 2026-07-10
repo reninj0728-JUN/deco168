@@ -452,3 +452,32 @@ def test_blocks_door_hard_and_retry_wired():
     import prompt_builder as pb
     assert "furniture_blocks_door" in ga.HARD_FAIL_FLAGS
     assert "furniture_blocks_door" in pb._RETRY_FLAG_FIX_EN
+
+
+def test_product_visibility_covers_all_rooms():
+    """6F1BFC19 客戶鐵則：購物清單=渲染圖——可見性 must_products 不再只蓋客廳。
+    書房收納櫃清單有、圖上畫成第二張書桌，以前這裡直接跳過不檢。"""
+    import api
+    study_entry = {
+        "room_type": "study",
+        "matched_furniture": [
+            {"category_en": "table",   "name_zh": "實木簡約書桌", "flux_descriptor": "oak desk"},
+            {"category_en": "chair",   "name_zh": "原木繩編方凳", "flux_descriptor": "stool"},
+            {"category_en": "storage", "name_zh": "輕奢收納櫃",   "flux_descriptor": "cabinet"},
+            {"category_en": "storage", "name_zh": "第二件收納",   "flux_descriptor": "dup"},
+            {"category_en": "rug",     "name_zh": "綠色地毯",     "flux_descriptor": "rug"},
+        ],
+    }
+    ctx = api._product_fidelity_into_layout_ctx(None, study_entry)
+    cats = [p["cat"] for p in ctx["must_products"]]
+    assert cats == ["table", "chair", "storage", "rug"]  # 同 cat 去重、順序照清單
+    # 客廳原行為不變：sofa/coffee_table/rug/media_console 都在
+    living_entry = {
+        "room_type": "living",
+        "matched_furniture": [
+            {"category_en": c, "name_zh": c, "flux_descriptor": c}
+            for c in ("sofa", "coffee_table", "rug", "media_console")
+        ],
+    }
+    ctx2 = api._product_fidelity_into_layout_ctx(None, living_entry)
+    assert [p["cat"] for p in ctx2["must_products"]] == ["sofa", "coffee_table", "rug", "media_console"]

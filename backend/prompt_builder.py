@@ -1358,9 +1358,12 @@ _RETRY_FLAG_FIX_EN = {
     "product_visibility_fail":
         "One or more purchasable catalog products from the list were MISSING from the "
         "render or were replaced by a completely different-looking item. You MUST render "
-        "EVERY referenced product image (sofa, coffee table, rug, media console) so it is "
+        "EVERY referenced product image in this room's shopping list (sofa, tables, rug, "
+        "consoles, bed, desk, chair, storage — whatever the list contains) so each is "
         "clearly present and recognizably matches its product photo — same shape, colour "
-        "and material. The customer buys exactly what the picture shows.",
+        "and material. Never draw a second copy of another category instead (e.g. a second "
+        "desk where the storage cabinet should stand). The customer buys exactly what the "
+        "picture shows.",
     "spatial_fidelity_fail":
         "CRITICAL — the previous render REPAINTED THE ROOM into a different space "
         "(wrong camera axis, moved the main window, erased a doorway/passage, or grew an "

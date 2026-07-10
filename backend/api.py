@@ -1104,18 +1104,23 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
                 except Exception:
                     sofa_seat = "unknown"
             break
-    # C（50873CF0/B0CDF6A0 書房櫃「圖與清單完全不同」）：把客廳 must 商品清單
-    # 一併帶給驗收，做「圖上有沒有大致出現」的可見性檢查。
+    # C（50873CF0/B0CDF6A0 書房櫃「圖與清單完全不同」）：把商品清單一併帶給驗收，
+    # 做「圖上有沒有大致出現」的可見性檢查。
+    # 6F1BFC19 升級（客戶鐵則）：購物清單=渲染圖，**所有房型**的清單主家具全檢，
+    # 不再只蓋客廳 4 類——書房收納櫃清單有、圖上畫成第二張書桌，以前完全沒人管。
+    # 軟裝建議區（curtain/pillow…獨立區塊）本來就不在 matched_furniture，不受此檢。
     must_products = []
-    if (entry_or_render.get("room_type") or entry_or_render.get("_room_type") or "living") == "living":
-        _MUST_VIS_CATS = ("sofa", "coffee_table", "rug", "media_console")
-        for it in (entry_or_render.get("matched_furniture") or []):
-            if isinstance(it, dict) and (it.get("category_en") or "") in _MUST_VIS_CATS:
-                must_products.append({
-                    "cat": it.get("category_en"),
-                    "name": (it.get("name_zh") or "")[:60],
-                    "desc": (it.get("flux_descriptor") or "")[:120],
-                })
+    _seen_cats = set()
+    for it in (entry_or_render.get("matched_furniture") or []):
+        _cat = (it.get("category_en") or "") if isinstance(it, dict) else ""
+        if _cat and _cat not in _seen_cats:  # product_visibility 以 cat 為 key，同類取第一件
+            _seen_cats.add(_cat)
+            must_products.append({
+                "cat": _cat,
+                "name": (it.get("name_zh") or "")[:60],
+                "desc": (it.get("flux_descriptor") or "")[:120],
+            })
+    must_products = must_products[:6]  # 防 prompt 膨脹；清單本來就 top 4-5
     if (not sofa_seat or sofa_seat == "unknown") and not must_products:
         return layout_ctx
     out = dict(layout_ctx) if isinstance(layout_ctx, dict) else {}
