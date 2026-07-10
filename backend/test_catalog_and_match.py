@@ -532,3 +532,24 @@ def test_door_adjacency_geometry():
     assert ga._door_adjacency_violation(rb_ok) is None
     # 沒標到門 bbox → 不誤判（退回判官布林）
     assert ga._door_adjacency_violation({"focal_anchor": [1, 1, 9, 9]}) is None
+
+
+def test_door_gap_retry_carries_measurement():
+    """FE964758：擋門重試必須帶量測數字（差多少門寬、該放哪半段），
+    且憑空窗簾要進 windows_changed 定義、生成鐵則禁止實牆掛簾。"""
+    import inspect
+    import prompt_builder as pb
+    import gemini_analyze as ga
+    sec = pb._build_retry_context_section(
+        {"failed_flags": ["furniture_blocks_door"],
+         "door_gap": {"target": "focal_anchor", "gap": 15, "door_w": 145}},
+        room_type="living")
+    assert "MEASURED VIOLATION" in sec and "0.1 door-widths" in sec
+    # 非客廳不得注入沙發/櫃指令
+    sec2 = pb._build_retry_context_section(
+        {"door_gap": {"target": "focal_anchor", "gap": 15, "door_w": 145},
+         "reason": "x"}, room_type="bedroom")
+    assert "MEASURED VIOLATION" not in sec2
+    assert "fakes a" in pb.CRITICAL_RULES        # 生成端禁憑空窗簾
+    src = inspect.getsource(ga.validate_render)
+    assert "憑空窗簾" in src                      # 驗收端定義已含

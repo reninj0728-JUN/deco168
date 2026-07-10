@@ -930,6 +930,9 @@ QUALITY_TAIL = (
 CRITICAL_RULES = (
     "CRITICAL: "
     "(a) Do not invent walls, doors, or windows that are not in the ROOM reference. "
+    "Curtains count: hang curtains ONLY where the ROOM reference actually shows a window "
+    "or glass door. Dressing a solid wall or a passage with a full-height curtain fakes a "
+    "window that does not exist and is forbidden. "
     "(b) Do not transform the space into a kitchen or dining hall. "
     "(c) For each product reference, the corresponding item in the output must look like it "
     "in color, material, and silhouette — do not substitute a different-looking product. "
@@ -1417,6 +1420,20 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
     if not failed_flags and reason:
         # 沒有結構化 flag 但有文字 reason → 至少把 reason 帶給 model 參考。
         lines.append(f"- Reviewer note on the previous attempt: {reason}")
+    # FE964758：擋門違規帶量測數字——「離門遠一點」太模糊，模型重試仍貼門。
+    # 直接告訴它上次差多少、這次要放哪半段。
+    _dg = retry_context.get("door_gap")
+    if (room_type or "living") == "living" and isinstance(_dg, dict) and _dg.get("door_w"):
+        _ratio = round(float(_dg.get("gap", 0)) / float(_dg["door_w"]), 1)
+        _what = "media console / cabinet" if _dg.get("target") == "focal_anchor" else "sofa"
+        lines.append(
+            f"- MEASURED VIOLATION: the {_what} stood only {_ratio} door-widths from the "
+            "entrance door (measured on your previous render; minimum is ONE full door-width, "
+            "prefer more). Move the media console to the REAR half of its wall — clearly PAST "
+            "the midpoint of the room, far from the entrance — and slide the sofa group deeper "
+            "with it so sofa and console stay directly opposite each other. The wall strip "
+            "beside the entrance door must show BARE WALL with empty floor."
+        )
     # 沙發/電視櫃/living group 的修正指令只對客廳有意義；餐廳/主臥/書房若因結構或
     # 走道觸發重試，餵這些會把沙發塞進非客廳房間(Grok 指出的生成側洩漏)。
     is_living = (room_type or "living") == "living"

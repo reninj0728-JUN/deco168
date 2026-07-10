@@ -989,7 +989,10 @@ Q2f: sofa_facing_entrance_door（沙發視線是否對著大門 — 客廳必答
 {_reno_clause}【結構保留判定】
 - kitchen_added：原圖沒廚房元素，渲染圖出現廚房櫥櫃/水槽/料理台/餐桌/瓦斯爐
 - recessed_space_added：渲染圖出現原圖沒的凹間/額外房間/隔斷/廊道
-- windows_changed：窗戶數量/位置/形狀差異 > 20%
+- windows_changed：窗戶數量/位置/形狀差異 > 20%。
+  也包含「憑空窗簾」（FE964758 抓漏）：原圖是實牆/通道的位置，渲染圖掛上
+  整面落地窗簾、看起來像那裡有窗 → true（客戶會誤以為該處有窗，結構謊言）。
+  窗簾掛在原圖真實窗戶上 → 不算。
 - {_walls_def}
 - {_ceiling_def}
 - floor_changed：**裸露地板**材質/方向/比例顯著被改。**新增地毯不算 floor_changed**

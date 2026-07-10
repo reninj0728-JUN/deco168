@@ -2043,6 +2043,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             reason = (v.get("reason") or "").strip()
             if reason:
                 ctx["reason"] = reason[:240]
+            # FE964758：擋門重試帶「量測數字」——靜態指令模型聽不懂多遠才算開
+            # （muji 重試後仍貼門 15/1000）。把幾何檢查量到的間距/門寬餵給 retry prompt。
+            if v.get("furniture_blocks_door"):
+                try:
+                    from gemini_analyze import _door_adjacency_violation
+                    _viol = _door_adjacency_violation(v.get("render_bboxes") or {})
+                    if _viol:
+                        ctx["door_gap"] = {"target": _viol[0], "gap": round(_viol[1]),
+                                           "door_w": round(_viol[2])}
+                except Exception:
+                    pass
             return ctx or None
 
         if use_nano:
