@@ -327,7 +327,12 @@ def analyze_space(
     else:
         print(f"[Gemini] 上傳影片: {video_path}")
         video_file = client.files.upload(file=video_path)
+        # 無上限 PROCESSING 等待會吊死整單（D50FC472）。此路徑只有純影片單會走
+        # （影片是唯一素材、無照片可退），逾時就明確報錯，別讓單卡到容器重啟。
+        _vid_t0 = time.time()
         while video_file.state.name == "PROCESSING":
+            if time.time() - _vid_t0 > 180:
+                raise RuntimeError("Gemini 影片處理逾時（卡在 PROCESSING 超過 180s），請重新上傳或改傳照片")
             print("[Gemini] 影片處理中...")
             time.sleep(3)
             video_file = client.files.get(name=video_file.name)

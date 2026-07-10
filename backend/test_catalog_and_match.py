@@ -496,3 +496,15 @@ def test_visibility_tiering_nice_items_dont_kill_render():
     import io, tokenize
     api_src = open(api.__file__, encoding="utf-8").read()
     assert "visibility_nice_bad" in api_src and "自清單移除" in api_src
+
+
+def test_video_processing_wait_is_bounded():
+    """D50FC472 根治：影片 PROCESSING 等待必須有上限——照片+影片路徑逾時退回
+    純照片；純影片路徑逾時明確報錯。不准無限迴圈吊死整單。"""
+    import inspect
+    import gemini_analyze as ga
+    import test_full_pipeline as tfp
+    src_pipeline = inspect.getsource(tfp.analyze_image)
+    assert "PROCESSING 超過 120s" in src_pipeline   # 退回純照片
+    src_space = inspect.getsource(ga.analyze_space)
+    assert "PROCESSING 超過 180s" in src_space       # 明確逾時報錯
