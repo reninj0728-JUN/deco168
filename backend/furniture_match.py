@@ -1264,7 +1264,12 @@ def _legacy_match(style: str, prompt_keywords: list[str], catalog: list[dict], t
 
 
 def _get_related_styles(style: str) -> list[str]:
-    """風格相近群組，用於寬鬆配對"""
+    """風格相近群組，用於寬鬆配對。
+
+    取「所有含該風格群組的聯集」而非第一個命中群組——舊寫法 first-match 造成
+    不對稱：wood 的相近含 muji，但 muji 第一組就命中 [modern,nordic,cream]，
+    拿不到 wood/japanese。結果 Gemini 視覺把素橡木品改標成 wood 後，muji 的
+    茶几/電視櫃 fallback 反而借不到最像 muji 的貨（2026-07-10 刀2驗收發現）。"""
     groups = [
         ["modern", "muji", "nordic", "cream"],
         ["japanese", "muji", "wood"],
@@ -1277,10 +1282,11 @@ def _get_related_styles(style: str) -> list[str]:
         ["boho", "wood"],
         ["industrial", "modern"],
     ]
+    related: list[str] = []
     for group in groups:
         if style in group:
-            return [s for s in group if s != style]
-    return []
+            related.extend(s for s in group if s != style and s not in related)
+    return related
 
 
 def _width_cap_for_short_side(short_side_m: float) -> int:

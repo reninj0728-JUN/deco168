@@ -422,3 +422,16 @@ def test_tier2_totals_land_in_band(catalog):
                                        top_n=5, mode=room, budget_tier="tier2")
             total += sum(int(it.get("price_twd") or 0) for it in items)
         assert total >= 100000, f"{style} tier2 三房合計僅 NT${total:,}，低於 10萬下限"
+
+
+def test_related_styles_symmetric_union():
+    """相近風格必須取「所有群組聯集」且對稱——舊 first-match 寫法讓 muji
+    借不到 wood/japanese（素橡木品被視覺改標 wood 後 fallback 撈空）。"""
+    rel_muji = fm._get_related_styles("muji")
+    assert "wood" in rel_muji and "japanese" in rel_muji and "nordic" in rel_muji
+    # 對稱性：a 的相近含 b ⇔ b 的相近含 a
+    all_styles = ["modern", "nordic", "japanese", "muji", "luxury", "art-deco",
+                  "boho", "industrial", "cream", "french", "chinese-modern", "wood"]
+    for a in all_styles:
+        for b in fm._get_related_styles(a):
+            assert a in fm._get_related_styles(b), f"{a}->{b} 相近不對稱"

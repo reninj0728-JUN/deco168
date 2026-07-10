@@ -62,6 +62,77 @@ modern / cream / nordic / japanese / wood / luxury / french / muji / chinese-mod
 類目（這是為了避免配件被誤當家具主體用於配對）。"""
 
 
+def _parse_classify_json(text: str) -> dict:
+    """Gemini 偶爾吐 markdown 圍欄、未跳脫引號或尾註——多層 fallback。"""
+    import re
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("empty response")
+
+    def _try_load(s: str) -> dict | None:
+        try:
+            obj = json.loads(s)
+            return obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    obj = _try_load(raw)
+    if obj:
+        return obj
+
+    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL | re.IGNORECASE)
+    if m:
+        obj = _try_load(m.group(1))
+        if obj:
+            return obj
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        blob = raw[start : end + 1]
+        obj = _try_load(blob)
+        if obj:
+            return obj
+        blob2 = re.sub(r",\s*([}\]])", r"\1", blob)
+        obj = _try_load(blob2)
+        if obj:
+            return obj
+
+    # 欄位級 regex fallback（flux_descriptor 常有未跳脫引號弄壞 JSON）
+    def _field(name: str) -> str | None:
+        mm = re.search(
+            rf'"{name}"\s*:\s*"((?:\\.|[^"\\])*)"',
+            raw,
+            re.DOTALL,
+        )
+        if mm:
+            return mm.group(1).replace('\\"', '"').replace("\\n", " ").strip()
+        # 寬鬆：取到下一個 ", 或行尾
+        mm = re.search(rf'"{name}"\s*:\s*"([^"]*)"', raw)
+        return mm.group(1).strip() if mm else None
+
+    def _list_field(name: str) -> list[str]:
+        mm = re.search(rf'"{name}"\s*:\s*\[(.*?)\]', raw, re.DOTALL)
+        if not mm:
+            return []
+        return [x.strip().strip('"').strip("'") for x in re.findall(r'"([^"]+)"', mm.group(1))]
+
+    style_tags = _list_field("style_tags")
+    colors = _list_field("colors")
+    category = _field("category") or ""
+    dimensions = _field("dimensions") or ""
+    flux = _field("flux_descriptor") or ""
+    if not (style_tags or category or flux):
+        raise ValueError(f"no JSON object in: {raw[:120]!r}")
+    return {
+        "style_tags": style_tags,
+        "colors": colors,
+        "category": category,
+        "dimensions": dimensions,
+        "flux_descriptor": flux,
+    }
+
+
 def _fetch_image_bytes(url: str) -> bytes:
     """下載商品圖。momoshop 部分圖床（i1/i2/i3.momoshop.com.tw）憑證缺
     Subject Key Identifier，新版 OpenSSL 直接拒絕——僅在這種情況下對
@@ -78,21 +149,32 @@ def _fetch_image_bytes(url: str) -> bytes:
     return resp.content
 
 
-def classify_batch(items: list) -> tuple[list, int]:
+def _log(msg: str) -> None:
+    print(msg, flush=True)
+
+
+def _save_catalog(items: list) -> None:
+    CATALOG_PATH.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def classify_batch(catalog: list, to_classify: list) -> tuple[int, int]:
+    """In-place update catalog by id; checkpoint every 20 successes/attempts."""
     from google import genai
     from google.genai import types
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_KEY")
     if not api_key:
-        print("找不到 GEMINI_API_KEY，中止")
+        _log("找不到 GEMINI_API_KEY，中止")
         sys.exit(1)
 
     client = genai.Client(api_key=api_key)
-    updated = []
+    by_id = {it["id"]: i for i, it in enumerate(catalog) if it.get("id")}
     failed = 0
+    done = 0
 
-    for i, item in enumerate(items):
+    for i, item in enumerate(to_classify):
         label = (item.get("name_zh") or "")[:25]
+        item_id = item.get("id")
         try:
             img_bytes = _fetch_image_bytes(item["image_url"])
             mime = "image/webp" if item["image_url"].lower().endswith(".webp") else "image/jpeg"
@@ -105,7 +187,7 @@ def classify_batch(items: list) -> tuple[list, int]:
                 ],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
-            result = json.loads(resp.text)
+            result = _parse_classify_json(getattr(resp, "text", None) or "")
 
             style = (result.get("style_tags") or [None])[0]
             if style not in VALID_STYLES:
@@ -123,38 +205,45 @@ def classify_batch(items: list) -> tuple[list, int]:
                 new_item["dimensions"] = result["dimensions"]
             if result.get("flux_descriptor"):
                 new_item["flux_descriptor"] = result["flux_descriptor"]
-            updated.append(new_item)
+            # 保證至少有 descriptor，避免重跑時無限重試同一件
+            if not new_item.get("flux_descriptor"):
+                new_item["flux_descriptor"] = (new_item.get("name_zh") or "furniture")[:40]
+
+            if item_id in by_id:
+                catalog[by_id[item_id]] = new_item
+            done += 1
 
         except Exception as e:
-            print(f"  [{i+1}/{len(items)}] 失敗（{label}）：{type(e).__name__}: {str(e)[:80]}")
-            updated.append(item)  # 保留原樣，不遺失資料
+            _log(f"  [{i+1}/{len(to_classify)}] 失敗（{label}）：{type(e).__name__}: {str(e)[:80]}")
             failed += 1
-            continue
+            # 失敗不寫 descriptor → 可重跑
 
-        if (i + 1) % 20 == 0:
-            print(f"  進度: {i+1}/{len(items)}（失敗 {failed}）")
-        time.sleep(0.4)
+        if (i + 1) % 20 == 0 or (i + 1) == len(to_classify):
+            _save_catalog(catalog)
+            _log(f"  進度: {i+1}/{len(to_classify)} ok≈{done} fail={failed}（已 checkpoint）")
+        time.sleep(0.35)
 
-    return updated, failed
+    return done, failed
 
 
 def main():
     cat = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     to_classify = [it for it in cat if not it.get("flux_descriptor")]
-    print(f"目錄總數: {len(cat)}，待分類: {len(to_classify)}")
+    _log(f"目錄總數: {len(cat)}，待分類: {len(to_classify)}")
+    if not to_classify:
+        _log("沒有待分類項目")
+        return
 
-    updated, failed = classify_batch(to_classify)
-    updated_by_id = {it["id"]: it for it in updated}
-
-    final = [updated_by_id.get(it["id"], it) for it in cat]
+    done, failed = classify_batch(cat, to_classify)
+    _save_catalog(cat)
 
     from collections import Counter
-    style_dist = Counter(it["style_tags"][0] for it in final if it.get("style_tags"))
-
-    CATALOG_PATH.write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n完成。分類 {len(to_classify)} 件，失敗 {failed} 件（失敗的保留原分類，未遺失）")
-    print("全目錄風格分佈:", dict(style_dist))
+    style_dist = Counter(it["style_tags"][0] for it in cat if it.get("style_tags"))
+    still = sum(1 for it in cat if not it.get("flux_descriptor"))
+    _log(f"\n完成。成功≈{done}，失敗 {failed}，仍無 descriptor {still}")
+    _log("全目錄風格分佈: " + str(dict(style_dist)))
 
 
 if __name__ == "__main__":
     main()
+
