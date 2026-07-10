@@ -586,12 +586,15 @@
     <div class="upload-icon">🎬</div>
     <div class="upload-title">上傳空間影片（選填）</div>
     <div class="upload-hint">
-      影片可選填，幫助我們確認整體格局與各空間的相對位置；<b>照片才是設計提案的主要依據</b>。隨手拍一段就好，<b>不用說話</b>，需求用文字備註說明即可。
+      影片可選填，幫助我們確認整體格局與各空間的相對位置；<b>照片才是設計提案的主要依據</b>。
+      <b>建議 30 秒～2 分鐘</b>：每個空間慢慢繞一圈即可，<b>不用說話</b>，需求用文字備註說明即可。
+      過長的影片反而會拖慢 AI 分析。
     </div>
     <div class="upload-formats">
       <span class="format-tag">MP4</span>
       <span class="format-tag">MOV</span>
-      <span class="format-tag">最大 500MB</span>
+      <span class="format-tag">5 分鐘內</span>
+      <span class="format-tag">最大 300MB</span>
     </div>
   </div>
   <div class="file-list" id="video-list"></div>
@@ -864,12 +867,34 @@
   function onDropVideo(e) {
     e.preventDefault();
     document.getElementById('video-box').classList.remove('active');
-    Array.from(e.dataTransfer.files || []).forEach(function(f) { videoFiles.push(f); });
-    renderVideoList();
+    Array.from(e.dataTransfer.files || []).forEach(addVideoFile);
   }
   function onPickVideo(input) {
-    Array.from(input.files || []).forEach(function(f) { videoFiles.push(f); });
+    Array.from(input.files || []).forEach(addVideoFile);
+  }
+  // 影片限制：>300MB 直接擋；>5 分鐘擋（過長 = Gemini 處理慢/卡死風險/token 爆量）。
+  // 長度要等 metadata 載入才知道，所以先入列再非同步驗，超長就移除並提示。
+  var VIDEO_MAX_MB = 300, VIDEO_MAX_SEC = 300;
+  function addVideoFile(f) {
+    if (f.size > VIDEO_MAX_MB * 1024 * 1024) {
+      alert('「' + f.name + '」超過 ' + VIDEO_MAX_MB + 'MB。\n建議 30 秒～2 分鐘、每個空間繞一圈即可；請壓縮或剪短後再上傳。');
+      return;
+    }
+    videoFiles.push(f);
     renderVideoList();
+    try {
+      var v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = function () {
+        URL.revokeObjectURL(v.src);
+        if (v.duration && v.duration > VIDEO_MAX_SEC) {
+          var idx = videoFiles.indexOf(f);
+          if (idx >= 0) { videoFiles.splice(idx, 1); renderVideoList(); }
+          alert('「' + f.name + '」長度約 ' + Math.round(v.duration / 60) + ' 分鐘，超過 5 分鐘上限。\n建議 30 秒～2 分鐘：每個空間慢慢繞一圈就夠了，請剪短後再上傳。');
+        }
+      };
+      v.src = URL.createObjectURL(f);
+    } catch (e) { /* metadata 讀不到就放行，後端照片為主不會卡單 */ }
   }
 
   function renderFlatItem(file, onRemove) {
