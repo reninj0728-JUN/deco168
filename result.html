@@ -532,9 +532,43 @@
                 '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:4px;">此搭配預估花費</div>' +
               '</div>' +
               '<div class="total-price">NT$' + total.toLocaleString() + '</div>' +
-            '</div>'
+            '</div>' + _budgetStatusHtml(group)
           : '')
       : '<p style="font-size:12px;color:var(--muted);padding:20px 0;">商品清單生成中…</p>';
+
+    // 刀3（預算誠實化）：本風格「全部房間」主家具累計 vs 客戶選的預算區間。
+    // 達標打勾；未達下限誠實說並附「可升級單品」提示（自然的加購動線）。
+    // 區間對照 furniture_match.BUDGET_LABEL_ZH 的三段。
+  function _budgetStatusHtml(group) {
+    var ci = (_hb || {}).customer_inputs || {};
+    var tier = ci.budget_tier || '';
+    var BANDS = { tier1: [0, 100000], tier2: [100000, 200000], tier3: [200000, Infinity] };
+    var band = BANDS[tier];
+    if (!band || !group) return '';
+    var styleTotal = 0;
+    (_groups || []).forEach(function(g) {
+      if (g.style !== group.style) return;
+      g.angles.forEach(function(r) {
+        (r.matched_furniture || []).forEach(function(f) { styleTotal += (f.price_twd || 0); });
+      });
+    });
+    if (!styleTotal) return '';
+    var inBand = styleTotal >= band[0] && (band[1] === Infinity || styleTotal <= band[1]);
+    var label = ci.budget_label_zh || '';
+    var txt, color;
+    if (inBand) {
+      txt = '✓ 本風格全室主家具累計 NT$' + styleTotal.toLocaleString() + '，落在你的預算「' + label + '」內';
+      color = '#7fb069';
+    } else if (styleTotal < band[0]) {
+      txt = '本風格全室主家具累計 NT$' + styleTotal.toLocaleString() + '，低於你的預算區間——所有商品可依喜好升級同類單品';
+      color = 'var(--muted)';
+    } else {
+      txt = '本風格全室主家具累計 NT$' + styleTotal.toLocaleString() + '，略高於預算區間——可將部分單品換為較實惠款';
+      color = 'var(--muted)';
+    }
+    return '<div style="margin-top:10px;padding:10px 14px;border:1px solid var(--line);border-radius:6px;' +
+           'font-size:11px;letter-spacing:0.5px;line-height:1.7;color:' + color + ';">' + txt + '</div>';
+  }
 
     // 軟裝接入 (2026-06-18): 顯示 pillow / curtain / wall_art / vase / plant.
     // 不算入主總計; 中文 cat label 用既有 category 欄位 (例如「抱枕」「窗簾」「裝飾」).

@@ -1,6 +1,6 @@
 """
 對 furniture_catalog_real.json 所有商品做 Gemini 視覺分類
-- 模型: gemini-2.5-flash-lite（免費版）
+- 模型: gemini-3.5-flash（免費版）
 - 速度: 每 4 秒一件
 - 斷點續跑: 進度存 reclassify_progress.json，中斷後接著跑
 - 日誌: 同時寫到 reclassify_log.txt
@@ -11,7 +11,7 @@ from pathlib import Path
 CATALOG_PATH  = Path(__file__).parent / "furniture_catalog_real.json"
 PROGRESS_PATH = Path(__file__).parent / "reclassify_progress.json"
 LOG_PATH      = Path(__file__).parent / "reclassify_log.txt"
-MODEL         = "gemini-2.5-flash-lite"
+MODEL         = "gemini-3.5-flash"
 SLEEP_SEC     = 2
 
 VALID_STYLES = ["modern","japanese","luxury","nordic","muji","cream","wood","french","chinese-modern"]

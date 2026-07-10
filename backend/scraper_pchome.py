@@ -13,46 +13,41 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 RAW_PATH = Path(__file__).parent / "furniture_raw_pchome.json"
 BASE_URL  = "https://24h.pchome.com.tw"
 
-# 2026-07 缺口補強：對準 21 個「風格×must-have品類」候選<3件的組合
-# （japanese 餐廳系列、luxury 床、french 茶几/電視櫃/餐桌椅、muji 茶几/餐桌、
-#   chinese-modern 沙發/茶几/床、wood 地毯）。地中海已停售、不再抓。
+# 2026-07-11 刀2：對準「tier2 目標帶（中高價）內候選 <3 件」的 18 個缺口。
+# 關鍵字刻意偏中高價材質詞（大理石/岩板/實木/羊毛/絨布），配合刀1 的帶內加分
+# 才有貨可挑。junk/套組/貼膜過濾已在 _safe_merge_raw + furniture_match 雙層把關。
 SEARCHES = [
-    # japanese（dining_table:1 / dining_chair:1 / table:1）
-    ("日式餐桌",     "桌子",  "japanese"),
-    ("實木餐桌 無垢", "桌子",  "japanese"),
-    ("日式餐椅",     "椅子",  "japanese"),
-    ("實木餐椅",     "椅子",  "japanese"),
-    ("日式書桌",     "桌子",  "japanese"),
-    # luxury（bed:0 / chair:1）
-    ("輕奢床架",     "床架",  "luxury"),
-    ("絲絨床架",     "床架",  "luxury"),
-    ("輕奢餐椅",     "椅子",  "luxury"),
-    ("絲絨單椅",     "椅子",  "luxury"),
-    # french（coffee_table:1 / media_console:0 / storage:1 / dining_table:0 / dining_chair:1 / table:1）
-    ("法式茶几",     "茶几",  "french"),
-    ("法式電視櫃",   "收納",  "french"),
-    ("法式邊櫃",     "收納",  "french"),
-    ("法式餐桌",     "桌子",  "french"),
-    ("法式餐椅",     "椅子",  "french"),
-    ("法式書桌",     "桌子",  "french"),
-    ("雕花茶几",     "茶几",  "french"),
-    # muji（coffee_table:1 / media_console:2 / dining_table:0 / table:1）
-    ("無印風茶几",   "茶几",  "muji"),
-    ("實木小茶几",   "茶几",  "muji"),
-    ("簡約木質電視櫃", "收納", "muji"),
-    ("無印風餐桌",   "桌子",  "muji"),
-    ("實木書桌 簡約", "桌子",  "muji"),
-    # chinese-modern（sofa:1 / coffee_table:2 / bed:2 / dining_table:2 / table:2）
-    ("新中式沙發",   "沙發",  "chinese-modern"),
-    ("實木沙發 中式", "沙發",  "chinese-modern"),
-    ("新中式茶几",   "茶几",  "chinese-modern"),
-    ("新中式床架",   "床架",  "chinese-modern"),
-    ("實木床架 中式", "床架",  "chinese-modern"),
-    ("新中式餐桌",   "桌子",  "chinese-modern"),
-    ("新中式書桌",   "桌子",  "chinese-modern"),
-    # wood（rug:2）
-    ("黃麻地毯",     "地毯",  "wood"),
-    ("棉麻地毯",     "地毯",  "wood"),
+    # japanese sofa:0 / rug:0 / media_console:1
+    ("日式實木沙發",   "沙發",  "japanese"),
+    ("無垢沙發",       "沙發",  "japanese"),
+    ("日式地毯 圈絨",  "地毯",  "japanese"),
+    ("日式實木電視櫃", "收納",  "japanese"),
+    # luxury sofa:1 / coffee_table:2 / rug:1 / bed:0
+    ("輕奢沙發 三人",  "沙發",  "luxury"),
+    ("絨布沙發 輕奢",  "沙發",  "luxury"),
+    ("大理石茶几",     "茶几",  "luxury"),
+    ("岩板茶几",       "茶几",  "luxury"),
+    ("輕奢地毯 加厚",  "地毯",  "luxury"),
+    ("土耳其地毯 客廳", "地毯", "luxury"),
+    ("輕奢床架 雙人",  "床架",  "luxury"),
+    ("絨布床架",       "床架",  "luxury"),
+    # french coffee_table:0 / rug:1 / bed:1
+    ("法式茶几 實木",  "茶几",  "french"),
+    ("法式復古地毯",   "地毯",  "french"),
+    ("法式床架 雙人",  "床架",  "french"),
+    # muji coffee_table:0 / media_console:1
+    ("實木茶几 橡木",  "茶几",  "muji"),
+    ("實木電視櫃 橡木", "收納", "muji"),
+    # chinese-modern sofa:0 / rug:1 / media_console:1 / bed:1
+    ("新中式沙發 三人", "沙發", "chinese-modern"),
+    ("新中式地毯",     "地毯",  "chinese-modern"),
+    ("新中式電視櫃 實木", "收納", "chinese-modern"),
+    ("新中式床架 實木", "床架", "chinese-modern"),
+    # cream bed:1 / wood rug:0
+    ("奶油風床架 雙人", "床架", "cream"),
+    ("雲朵床架",       "床架",  "cream"),
+    ("羊毛地毯",       "地毯",  "wood"),
+    ("編織羊毛地毯",   "地毯",  "wood"),
 ]
 
 

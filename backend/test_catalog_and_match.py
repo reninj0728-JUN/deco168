@@ -399,3 +399,26 @@ def test_sofa_facing_entrance_is_hard():
     import prompt_builder as pb
     assert "sofa_facing_entrance_door" in ga.HARD_FAIL_FLAGS
     assert "sofa_facing_entrance_door" in pb._RETRY_FLAG_FIX_EN
+
+
+def test_budget_band_delta():
+    """刀1（預算靠攏）純邏輯：帶內加分、遠低扣分、tier3 無帶、幅度小於風格分。"""
+    assert fm.budget_band_delta("tier2", "rug", 8000) == fm.BUDGET_BAND_BONUS      # 帶內
+    assert fm.budget_band_delta("tier2", "rug", 599) == fm.BUDGET_BAND_FAR_BELOW_PENALTY  # 遠低
+    assert fm.budget_band_delta("tier2", "rug", 3000) == fm.BUDGET_BAND_BELOW_PENALTY     # 略低
+    assert fm.budget_band_delta("tier2", "rug", 99999) == 0.0   # 超帶頂交給 CAP，不重複罰
+    assert fm.budget_band_delta("tier3", "rug", 599) == 0.0     # tier3 無帶
+    assert fm.budget_band_delta("tier2", "rug", None) == 0.0    # 沒標價不罰
+    # 幅度必須壓在風格分(+3)之下，避免預算分反客為主
+    assert abs(fm.BUDGET_BAND_BONUS) < 3 and abs(fm.BUDGET_BAND_FAR_BELOW_PENALTY) < 3
+
+
+def test_tier2_totals_land_in_band(catalog):
+    """刀1 端到端：tier2 全室三房主家具合計應 >= 10萬（1A3B0C68 曾配出 7.4萬）。"""
+    for style in ("nordic", "muji"):
+        total = 0
+        for room in ("living", "bedroom", "study"):
+            items = fm.match_furniture(style, f"{style} style {room}", catalog,
+                                       top_n=5, mode=room, budget_tier="tier2")
+            total += sum(int(it.get("price_twd") or 0) for it in items)
+        assert total >= 100000, f"{style} tier2 三房合計僅 NT${total:,}，低於 10萬下限"

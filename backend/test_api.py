@@ -19,7 +19,7 @@ from google.genai import types
 
 client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
 resp = client.models.generate_content(
-    model='gemini-3.1-flash-lite',
+    model='gemini-3.5-flash',
     contents='Return JSON: {"status": "ok", "msg": "Gemini connected"}',
     config=types.GenerateContentConfig(response_mime_type='application/json')
 )

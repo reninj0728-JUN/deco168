@@ -560,6 +560,60 @@ BUDGET_CAT_CAP = {
 # fallback 寬鬆倍率（嚴格 → 1.5× → 不設限）
 BUDGET_RELAX_MULTIPLIER = 1.5
 
+# ── 刀1（1A3B0C68 預算檢討）：預算「目標帶」靠攏評分 ─────────────────────────
+# 舊機制只有天花板（別超過），沒有「應該花到」——tier2(10-20萬) 客戶常拿到
+# 7-8 萬的清單，599 地毯只要風格 tag 準就贏過 8,000 的。
+# 帶內 +1.5、遠低於帶下緣(<50%) -1.5、略低(50%~下緣) -0.5。
+# 軟分不硬篩（帶內沒貨仍配得到便宜款，不會空單）；幅度壓在風格分(+3)之下，
+# 避免「只挑貴的、風格跑掉」。tier3 不設帶（另有 TIER3_PRICE_FLOOR 質感下限）。
+BUDGET_TARGET_BAND = {
+    'tier1': {
+        'sofa': (8000, 25000),   'coffee_table': (2000, 8000),
+        'rug': (1500, 6000),     'media_console': (4000, 12000),
+        'bed': (6000, 20000),    'curtain': (1500, 8000),
+        'lighting': (1000, 6000), 'default': (1500, 10000),
+    },
+    'tier2': {
+        'sofa': (20000, 60000),  'coffee_table': (5000, 20000),
+        'rug': (4000, 15000),    'media_console': (10000, 30000),
+        'bed': (15000, 45000),   'curtain': (3000, 18000),
+        'lighting': (2500, 15000), 'default': (4000, 20000),
+    },
+}
+BUDGET_BAND_BONUS = 1.5
+BUDGET_BAND_BELOW_PENALTY = -0.5
+BUDGET_BAND_FAR_BELOW_PENALTY = -1.5
+
+# tier2 薄質感下限（Grok 建議的刀1補強）：擋「69 元地墊當主地毯」這種東西，
+# 比 tier3 的兇版溫和；篩完空池就回退原池（不會空單）。
+TIER2_PRICE_FLOOR = {
+    'coffee_table': 1500,
+    'rug': 1000,
+    'media_console': 2000,
+}
+
+
+def budget_band_delta(budget_tier: str, cat_en: str, price) -> float:
+    """商品價格相對「預算目標帶」的評分增減（純函數，可單測）。"""
+    bands = BUDGET_TARGET_BAND.get(budget_tier)
+    if not bands:
+        return 0.0
+    band = bands.get(cat_en) or bands.get('default')
+    try:
+        p = int(price or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if not band or p <= 0:
+        return 0.0
+    lo, hi = band
+    if lo <= p <= hi:
+        return BUDGET_BAND_BONUS
+    if p < lo * 0.5:
+        return BUDGET_BAND_FAR_BELOW_PENALTY
+    if p < lo:
+        return BUDGET_BAND_BELOW_PENALTY
+    return 0.0   # 高於帶頂：CAP 已管，不重複罰
+
 
 def _budget_cap_for(budget_tier: str, cat_en: str) -> int | None:
     """回該 tier + 品類的單件上限（TWD）。tier3 或缺值回 None = 不過濾。"""
@@ -698,7 +752,8 @@ def _prompt_word_overlap(prompt_keywords: list[str], item_keywords: list[str],
 def score_item(item: dict, style: str, prompt_keywords: list[str],
                match_style: bool = True, is_long_room: bool = False,
                is_small_room: bool = False,
-               preferred_store: str = "none") -> float:
+               preferred_store: str = "none",
+               budget_tier: str = "tier3") -> float:
     """
     評分一件家具（不含類別加分，類別由外層篩選控制）
 
@@ -788,6 +843,9 @@ def score_item(item: dict, style: str, prompt_keywords: list[str],
     # 賣場偏好加分
     score += _store_bonus(item, preferred_store)
 
+    # 刀1：預算目標帶靠攏（tier1/tier2；tier3 無帶）。帶內 +1.5、遠低 -1.5。
+    score += budget_band_delta(budget_tier, resolve_category(item), item.get("price_twd"))
+
     return score
 
 
@@ -846,11 +904,15 @@ def _pick_best_in_category(
         return out
 
     # tier3 質感底線：太便宜的茶几/地毯/電視櫃不進高預算主家具；
+    # 刀1 補強：tier2 也有薄底線（擋 69 元地墊當主地毯），
     # 底線篩完空了就回退原池（保證 must-have 永不缺）
     def _apply_tier3_floor(pool: list[dict]) -> list[dict]:
-        if budget_tier != "tier3":
+        if budget_tier == "tier3":
+            floor = TIER3_PRICE_FLOOR.get(target_cat)
+        elif budget_tier == "tier2":
+            floor = TIER2_PRICE_FLOOR.get(target_cat)
+        else:
             return pool
-        floor = TIER3_PRICE_FLOOR.get(target_cat)
         if not floor:
             return pool
         floored = []
@@ -872,7 +934,8 @@ def _pick_best_in_category(
                            match_style=match_style,
                            is_long_room=is_long_room,
                            is_small_room=is_small_room,
-                           preferred_store=preferred_store),
+                           preferred_store=preferred_store,
+                           budget_tier=budget_tier),
                 it,
             )
             for it in pool
@@ -1064,7 +1127,8 @@ def match_furniture(
             (score_item(it, style, prompt_keywords,
                         is_long_room=is_long_room,
                         is_small_room=is_small_room,
-                        preferred_store=preferred_store), it)
+                        preferred_store=preferred_store,
+                        budget_tier=budget_tier), it)
             for it in chosen_pool
         ]
         # 同分候選隨機打散，理由同上（避免 nice-to-have 也永遠固定同一批）
