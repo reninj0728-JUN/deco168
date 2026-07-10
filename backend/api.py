@@ -2011,6 +2011,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "spatial_fidelity_fail",     # 2A520C25：整間房被重畫成別的空間
             "product_sofa_seating_mismatch",  # 1FC382CA：清單單人圖上雙人
             "product_visibility_fail",   # 50873CF0：清單商品圖上沒畫/畫成別件
+            "sofa_facing_entrance_door",  # 1A3B0C68：沙發視線正對大門
         )
         def _has_high_severity(v: dict) -> bool:
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)

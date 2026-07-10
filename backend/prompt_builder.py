@@ -308,6 +308,26 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "the TV/focal wall described there gets the media console / TV cabinet, "
             "and the sofa belongs on the opposite side facing it. "
         ) if focal_wall_text else ""
+        # 1A3B0C68 根治：大門與電視「同一側牆」偵測——zoning 把 tv_side 指到大門
+        # 那面牆時（對側是唯一實牆的暗廳格局），置中規則會把電視推到大門旁、
+        # 沙發視線掃到大門 = 客戶體感「沙發對門」。同牆時啟動避門協議。
+        _tv_side_raw = (rules.get("tv_side") or "").strip().lower()
+        _entr_txt = str(syn.get("entrance_position") or "") + str((zones.get("entrance_zone") or {}).get("where", ""))
+        _entr_side = ("left" if ("左" in _entr_txt or "left" in _entr_txt.lower())
+                      else ("right" if ("右" in _entr_txt or "right" in _entr_txt.lower()) else ""))
+        door_on_tv_wall = _tv_side_raw in ("left", "right") and _entr_side == _tv_side_raw
+        door_tv_protocol = (
+            " DOOR-ON-TV-WALL PROTOCOL (the main entrance door is on the SAME wall designated "
+            "for the TV/media console — this protocol OVERRIDES the centered-alignment rule): "
+            "place the media console on the SOLID segment of that wall clearly AWAY from the "
+            "entrance door (deeper into the room), and slide the ENTIRE living group (sofa + "
+            "coffee table + rug) deeper along the room axis TOGETHER so the sofa still sits "
+            "directly opposite the console. Sitting on the sofa and looking straight ahead, the "
+            "view must land on the TV/console — the entrance door must be clearly OUTSIDE the "
+            "sofa's forward field of view (beside/behind it), never in front of it. Keep the "
+            "door swing and its approach completely clear. A sofa that visually faces the "
+            "entrance door is a FAILURE and will be rejected. "
+        ) if door_on_tv_wall else ""
         # sofa_side / tv_side：zoning 階段決定的 ground truth，render 不可重猜（修「錯邊」根因）。
         sofa_side = (rules.get("sofa_side") or "").strip().lower()
         _SIDE_EN = {"left": "LEFT", "right": "RIGHT"}
@@ -395,6 +415,7 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "If the wall opposite the sofa contains the entry door, slide the sofa + focal pair "
             "along their walls so the sofa faces the SOLID section of that wall (away from the "
             "door), keeping the door swing and its approach completely clear. "
+            + door_tv_protocol +
             "DOORS ARE UNTOUCHABLE: the media console / TV cabinet / any furniture must NEVER be "
             "placed in front of, overlapping, or leaning against ANY door or doorway — this "
             "includes the main entrance door (often a dark metal security door), bedroom doors, "
@@ -501,7 +522,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "this living zone as ONE compact arrangement. The media console / TV MUST be on a "
             "wall inside the living zone, directly FACING the sofa on one shared axis — never "
             "in the dining area, hallway or a far corner. The sofa backs onto a solid wall. "
-            "Keep the main walkway and every doorway completely clear of furniture."
+            "Keep the main walkway and every doorway completely clear of furniture. "
+            "Sitting on the sofa and looking forward must NEVER face the main entrance door — "
+            "if the console's wall also holds the entrance door, put the console on the solid "
+            "segment away from the door and shift the whole group deeper."
         )
 
     parts.append("ROOM LAYOUT (whitelist fields only — structure from photo + placement rules):")
@@ -1280,6 +1304,12 @@ _RETRY_FLAG_FIX_EN = {
         "The sofa was placed against the WRONG side wall. Re-read the bound SOFA SIDE / "
         "LONG-ROOM SIDE-WALL CONTRACT above and put the sofa BACK against the specified "
         "side wall; the TV cabinet / focal anchor goes on the opposite side facing it.",
+    "sofa_facing_entrance_door":
+        "Sitting on the sofa, the view faced the apartment's ENTRANCE DOOR. Slide the whole "
+        "living group (sofa + coffee table + rug + console) deeper along the room axis, put "
+        "the console on the solid wall segment AWAY from the door, and orient the sofa so its "
+        "forward view lands on the TV/console with the entrance door clearly outside its "
+        "field of view (beside or behind the sofa). Never let the sofa look at the door.",
     "product_visibility_fail":
         "One or more purchasable catalog products from the list were MISSING from the "
         "render or were replaced by a completely different-looking item. You MUST render "

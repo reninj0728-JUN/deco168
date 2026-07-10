@@ -372,3 +372,30 @@ def test_product_visibility_hard_flag():
     """C：product_visibility_fail 必須在硬傷清單（否則可見性形同虛設）。"""
     import gemini_analyze as ga
     assert "product_visibility_fail" in ga.HARD_FAIL_FLAGS
+
+
+def test_door_on_tv_wall_protocol():
+    """1A3B0C68 迴歸：大門與電視同側牆 → 生成 prompt 必須帶避門協議；不同側則不帶。"""
+    import prompt_builder as pb
+    base = {
+        "_origin": "user_confirmed_v2",
+        "confidence": "high",
+        "_layout_choice": "A",
+        "spatial_synthesis": {"entrance_position": "主視角左前方（深色金邊大門）"},
+        "zones": {"living_zone": {"where": "前端客廳區"}, "walkway": {"where": "中央"}},
+        "furniture_placement_rules": {"sofa_side": "right", "tv_side": "left"},
+    }
+    sec = pb._build_layout_section(base)
+    assert "DOOR-ON-TV-WALL PROTOCOL" in sec
+    # 門在右、電視在左 → 不同牆，不觸發
+    other = {**base, "spatial_synthesis": {"entrance_position": "主視角右前方"}}
+    sec2 = pb._build_layout_section(other)
+    assert "DOOR-ON-TV-WALL PROTOCOL" not in sec2
+
+
+def test_sofa_facing_entrance_is_hard():
+    """1A3B0C68：沙發視線對大門必須是硬傷 + retry 有專屬修正指令。"""
+    import gemini_analyze as ga
+    import prompt_builder as pb
+    assert "sofa_facing_entrance_door" in ga.HARD_FAIL_FLAGS
+    assert "sofa_facing_entrance_door" in pb._RETRY_FLAG_FIX_EN
