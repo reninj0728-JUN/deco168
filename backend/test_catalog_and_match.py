@@ -508,3 +508,27 @@ def test_video_processing_wait_is_bounded():
     assert "PROCESSING 超過 120s" in src_pipeline   # 退回純照片
     src_space = inspect.getsource(ga.analyze_space)
     assert "PROCESSING 超過 180s" in src_space       # 明確逾時報錯
+
+
+def test_door_adjacency_geometry():
+    """BB034AB8 根治：門邊淨空改幾何量測——判官 bbox 準但布林會漏答，
+    程式直接算重疊/間距，抓到強制 blocks_door 進重試鏈。"""
+    import gemini_analyze as ga
+    # 北歐實測 bbox：高櫃(focal x94-369) 與門(約 x80-250) 重疊 → 違規
+    rb_nordic = {"entrance_door": [300, 80, 860, 250],
+                 "focal_anchor": [422, 94, 840, 369],
+                 "sofa": [512, 625, 906, 981]}
+    v = ga._door_adjacency_violation(rb_nordic)
+    assert v and v[0] == "focal_anchor"
+    # 無印實測：櫃 x262 起、門 xmax~240 → 間距 22 < 0.25*180 → 違規
+    rb_muji = {"entrance_door": [330, 60, 830, 240],
+               "focal_anchor": [513, 262, 674, 381],
+               "sofa": [482, 584, 826, 856]}
+    assert ga._door_adjacency_violation(rb_muji)
+    # 合格構圖：櫃離門 0.5 門寬以上 → 放行
+    rb_ok = {"entrance_door": [330, 60, 830, 240],
+             "focal_anchor": [500, 360, 700, 560],
+             "sofa": [480, 700, 850, 980]}
+    assert ga._door_adjacency_violation(rb_ok) is None
+    # 沒標到門 bbox → 不誤判（退回判官布林）
+    assert ga._door_adjacency_violation({"focal_anchor": [1, 1, 9, 9]}) is None
