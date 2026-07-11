@@ -3480,9 +3480,14 @@ async def api_zoning(upload_id: str = Form(...),
 
 @app.get("/health")
 def health():
-    """公開端點（無驗證，任何人可打）。商業化收斂：只回 status，
-    不回任何 env 名稱/bucket/key 是否設定等部署細節。診斷走 /debug-health。"""
-    return {"status": "ok"}
+    """公開端點（無驗證，任何人可打）。商業化收斂：只回 status 與 build 短碼，
+    不回任何 env 名稱/bucket/key 是否設定等部署細節。診斷走 /debug-health。
+
+    build 短碼（29ECD0B1 教訓）：push 後 /health 回 ok 的是「舊容器」——新版還在
+    build，這時送進來的單會在容器切換時被殺。等部署要等 build 值變成新 commit，
+    不能只看 ok。短碼 8 碼非機密（repo 私有，短 hash 無法反推程式碼）。"""
+    sha = (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "")[:8]
+    return {"status": "ok", "build": sha or "unknown"}
 
 
 @app.get("/debug-health")
