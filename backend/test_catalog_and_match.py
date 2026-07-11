@@ -593,9 +593,9 @@ def test_door_flip_escalation():
         "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
     }
     sec_flip = pb._build_layout_section(zoning_free, retry_context={"door_flip": True})
-    assert "FLIPPED COMPOSITION" in sec_flip
-    assert "console against the RIGHT" in sec_flip     # 櫃改無門實牆
-    assert "sofa BACK on the LEFT" in sec_flip          # 沙發門牆但深於門
+    assert "FLIPPED BOUND SIDE" in sec_flip
+    assert "against the RIGHT long wall" in sec_flip   # 櫃改無門實牆
+    assert "flush against the LEFT long wall" in sec_flip  # 沙發門牆但深於門
     sec_default = pb._build_layout_section(zoning_free)
     assert "DOOR-AVOIDANCE DEFAULT" in sec_default and "FLIPPED" not in sec_default
     # 綁邊訂單：翻面 ctx 不得覆蓋客戶明確選擇

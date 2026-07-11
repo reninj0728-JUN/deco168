@@ -350,15 +350,19 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             # 連續失敗後翻面——櫃子改放無門實牆（零門風險），沙發放門牆但深於門。
             # 只在「隨機/未綁邊」時啟動；客戶明確選邊的訂單永遠尊重客戶。
             _away = "right" if _entr_side == "left" else "left"
+            # 措辭沿用 BOUND SIDE 硬合約格式（生產實證服從率最高的寫法）：
+            # 7FAF8361 用溫和敘述時，模型把沙發跟櫃子擠到同一面牆。
             side_choice_clause = (
-                "FLIPPED COMPOSITION (escalation — earlier attempts kept crowding the "
-                f"entrance door): put the TV/media console against the {_SIDE_EN[_away]} "
-                "long wall (the wall WITHOUT the entrance door), centered on the living "
-                f"area. Put the sofa BACK on the {_SIDE_EN[_entr_side]} wall, but starting "
-                "clearly PAST the entrance door swing (at least half a door-width beyond the "
-                "frame, more if the wall allows), facing the console across the coffee table. The entrance door "
-                "strip — its swing arc plus half a door-width beside it — must stay "
-                "completely EMPTY: bare wall, empty floor. "
+                "FLIPPED BOUND SIDE (escalation — single source of truth, do NOT re-decide): "
+                f"the TV cabinet / media console MUST be against the {_SIDE_EN[_away]} long "
+                "wall (the wall WITHOUT the entrance door), centered on the living area. The "
+                f"sofa BACK MUST be flush against the {_SIDE_EN[_entr_side]} long wall, "
+                "starting clearly PAST the entrance door swing (at least half a door-width "
+                "beyond the frame, more if the wall allows), facing the console across the "
+                f"coffee table. Putting the sofa on the {_SIDE_EN[_away]} side, putting the "
+                f"console on the {_SIDE_EN[_entr_side]} side, or putting both on the same "
+                "wall is a FAILURE. The entrance door strip — its swing arc plus half a "
+                "door-width beside it — must stay completely EMPTY: bare wall, empty floor. "
             )
         elif _entr_side in _SIDE_EN:
             _away = "right" if _entr_side == "left" else "left"
