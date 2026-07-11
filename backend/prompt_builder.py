@@ -355,9 +355,9 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 f"entrance door): put the TV/media console against the {_SIDE_EN[_away]} "
                 "long wall (the wall WITHOUT the entrance door), centered on the living "
                 f"area. Put the sofa BACK on the {_SIDE_EN[_entr_side]} wall, but starting "
-                "at least 1.5 door-widths PAST the entrance door frame (deeper into the "
-                "room), facing the console across the coffee table. The entrance door "
-                "strip — its swing arc plus one full door-width beside it — must stay "
+                "clearly PAST the entrance door swing (at least half a door-width beyond the "
+                "frame, more if the wall allows), facing the console across the coffee table. The entrance door "
+                "strip — its swing arc plus half a door-width beside it — must stay "
                 "completely EMPTY: bare wall, empty floor. "
             )
         elif _entr_side in _SIDE_EN:
@@ -368,10 +368,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 f"back belongs on the {_SIDE_EN[_away]} long wall (the wall WITHOUT the "
                 f"entrance door). If the {_SIDE_EN[_entr_side]} wall must hold the TV/media "
                 "console, anchor on the door: after the far edge of the entrance door frame, "
-                "leave a strip of completely bare wall and empty floor at least ONE FULL "
-                "DOOR-WIDTH wide, and only then start the console — then slide the sofa "
+                "leave a strip of completely bare wall and empty floor at least HALF a "
+                "door-width wide (more if the wall allows), and only then start the console — then slide the sofa "
                 "along its wall to sit directly opposite the console. No sofa, console or "
-                "cabinet may stand within one full door-width of the entrance door frame or "
+                "cabinet may stand within half a door-width of the entrance door frame or "
                 "inside its swing arc. "
             )
         else:
@@ -476,10 +476,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "fully visible and reachable in the render. If the designated focal wall contains a "
             "door, the console goes on the SOLID segment of that wall only, clear of the door "
             "frame and its swing path. "
-            "ENTRANCE CLEARANCE (hard rule): keep one full door-width of completely EMPTY floor "
+            "ENTRANCE CLEARANCE (hard rule): keep at least half a door-width of completely EMPTY floor "
             "beside the main entrance door frame on both sides, plus its entire swing arc. No "
             "sofa, cabinet, table or any large furniture may stand on the entrance wall segment "
-            "within one door-width of the door, even if the door itself stays visible — the "
+            "within half a door-width of the door, even if the door itself stays visible — the "
             "entry drop zone must stay open. "
             "The focal "
             "wall MUST NOT be left as bare paint or a single small frame on its own. The "
@@ -1455,9 +1455,10 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
         _what = "media console / cabinet" if _dg.get("target") == "focal_anchor" else "sofa"
         lines.append(
             f"- MEASURED VIOLATION: the {_what} stood only {_ratio} door-widths from the "
-            "entrance door (measured on your previous render; minimum is ONE full door-width). "
+            "entrance door (measured on your previous render; minimum is HALF a door-width, "
+            "more if the wall allows). "
             "Anchor on the DOOR: find the far edge of the entrance door frame, leave a strip of "
-            "completely BARE WALL and empty floor at least one full door-width wide after it, "
+            "completely BARE WALL and empty floor at least half a door-width wide after it, "
             "and only THEN start the media console — still within the living area. Slide the "
             "sofa along its own wall to sit directly opposite the console's new position."
         )
@@ -1801,7 +1802,7 @@ def build_nano_banana_inputs(
             "clear space behind it). Still keep: sofa inside the confirmed living zone, "
             "facing the focal anchor across the coffee table, all walkways completely "
             "clear, never facing the entrance door, and NEVER against or beside the "
-            "entrance-door wall segment — the door swing arc plus one door-width strip "
+            "entrance-door wall segment — the door swing arc plus a half-door-width strip "
             "beside the frame must stay empty."
         )
     # 軟裝段放在 product/style 後, budget/customer 前: 維持「主家具放置定位」優先,
