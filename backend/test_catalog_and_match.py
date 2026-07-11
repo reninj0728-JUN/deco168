@@ -553,3 +553,16 @@ def test_door_gap_retry_carries_measurement():
     assert "fakes a" in pb.CRITICAL_RULES        # 生成端禁憑空窗簾
     src = inspect.getsource(ga.validate_render)
     assert "憑空窗簾" in src                      # 驗收端定義已含
+
+
+def test_retry_timeout_never_kills_whole_job():
+    """522FBC37：Z3 重試/Phase2 補生的 fal 逾時只犧牲該張（error_type 記在
+    render 上、原 hard_fail 走 needs_regen），不准 raise 炸整單。"""
+    import re
+    import api
+    src = open(api.__file__, encoding="utf-8").read()
+    # 不允許「except (FalGenerationTimeout, ...): raise」這種殺整單寫法
+    assert not re.search(
+        r"except \(FalGenerationTimeout, FalResultDownloadError\)[^:]*:\s*\n\s*(#[^\n]*\n\s*)*raise\b",
+        src), "fal 逾時 re-raise 會讓整單陪葬（522FBC37）"
+    assert "只犧牲此張" in src

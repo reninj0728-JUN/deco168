@@ -2115,10 +2115,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             target_note=_best_pm_target_note,
                             room_type=entry.get("_room_type", "living"),
                         )
-                    except (FalGenerationTimeout, FalResultDownloadError):
-                        # C2.6 Patch B: 不被後續 anchored validation collapse 改寫.
-                        # 直接讓 outer except 把原始 error_type 寫進 result_json.
-                        raise
+                    except (FalGenerationTimeout, FalResultDownloadError) as re_e:
+                        # 522FBC37 根治：重試逾時不准炸整單——舊版 raise 讓其他五張
+                        # 好圖全陪葬成「處理失敗」。root cause 記在該 render 上
+                        # （dropped_renders 的 timeout 標記吃 error_type），此張保留
+                        # 原 hard_fail 驗證 → 交付層自然走 needs_regen，其餘照常交付。
+                        print(f"[pipeline] Z3 retry fal 逾時/下載失敗（只犧牲此張）: "
+                              f"{type(re_e).__name__}")
+                        r["retry_count"] = current_rc + 1
+                        r["retry_reason"] = f"retry fal timeout: {str(re_e)[:160]}"
+                        r["error_type"] = type(re_e).__name__
+                        break
                     except Exception as re_e:
                         print(f"[pipeline] Z3 retry 例外: {re_e}")
                         r["retry_count"] = current_rc + 1
@@ -2231,8 +2238,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         target_note=_best_pm_target_note,
                         room_type=entry.get("_room_type", "living"),
                     )
-                except (FalGenerationTimeout, FalResultDownloadError):
-                    raise
+                except (FalGenerationTimeout, FalResultDownloadError) as fx_e:
+                    # 522FBC37 根治（同 Z3）：補生逾時只犧牲此張，不殺整單。
+                    print(f"[pipeline] Phase2 補生 fal 逾時/下載失敗（只犧牲此張）: "
+                          f"{type(fx_e).__name__}")
+                    entry["error_type"] = type(fx_e).__name__
+                    continue
                 except Exception as fx_e:
                     print(f"[pipeline] Phase2 補生例外: {fx_e}")
                     continue
