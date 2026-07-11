@@ -566,3 +566,15 @@ def test_retry_timeout_never_kills_whole_job():
         r"except \(FalGenerationTimeout, FalResultDownloadError\)[^:]*:\s*\n\s*(#[^\n]*\n\s*)*raise\b",
         src), "fal 逾時 re-raise 會讓整單陪葬（522FBC37）"
     assert "只犧牲此張" in src
+
+
+def test_dropped_reason_prefers_real_validation():
+    """1164DFC6：有真的跑完的驗收判定時，落選原因必須用判定，不准被
+    fal 暫時性假鎖的過期字串蓋掉（誤導根因排查一整輪）。"""
+    import api, inspect, re
+    src = open(api.__file__, encoding="utf-8").read()
+    assert "過期字串蓋掉真正落選原因" in src
+    # fal 暫時性錯誤要有退避重試
+    import test_full_pipeline as tfp
+    src2 = inspect.getsource(tfp.generate_renders)
+    assert "暫時性錯誤" in src2 and "locked" in src2

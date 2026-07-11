@@ -2331,8 +2331,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             v = r.get("validation") or {}
             _is_timeout = (r.get("error_type") in ("FalGenerationTimeout", "FalResultDownloadError")) \
                           or ("exceeded" in str(r.get("error") or "").lower())
-            # 真實 render/fal 錯誤優先（r.error），別被驗證的 "missing base" 蓋住 → 才查得出根因
-            reason = r.get("error") or v.get("reason") or v.get("error") or "render 未產出"
+            # 1164DFC6 修正：有「真的跑完的驗收判定」時（ok 非 None 且有 reason），
+            # 判定優先——舊寫法 r.error 無條件優先，fal 暫時性假鎖（User is locked）
+            # 的過期字串蓋掉真正落選原因（幾何擋門），誤導排查方向整整一輪。
+            # 驗收沒真的跑（ok=None / 沒圖可驗）時，才輪到 r.error 保住 fal 根因
+            # （原教訓：別被 "missing base" 蓋住真實 render 錯誤）。
+            _v_reason = (v.get("reason") or "").strip()
+            if v.get("ok") is not None and _v_reason:
+                reason = _v_reason
+            else:
+                reason = r.get("error") or _v_reason or v.get("error") or "render 未產出"
             dropped_validation_reasons.append({
                 "style":       r.get("style"),
                 "style_label": r.get("style_label"),

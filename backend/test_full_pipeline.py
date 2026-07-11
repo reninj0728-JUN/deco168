@@ -1069,6 +1069,15 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         print(f"  [render] fal 無法下載 {len(bad)} 張參考圖，移除後重試")
                         attempt_args = {**attempt_args, "image_urls": keep}
                         continue
+                    # 1164DFC6：fal 暫時性假鎖（User is locked）/ 5xx 與成功呼叫「交錯」
+                    # 出現（同分鐘其他請求都過、帳戶有錢）——0.5s 內被瞬間拒絕。
+                    # 單次 5s 退避重試，別讓瞬時抖動白吃一次生成、還留下誤導性錯誤字串。
+                    if _try < 2 and any(k in str(e).lower() for k in
+                                        ("locked", "internal server error",
+                                         "service unavailable", "too many requests")):
+                        print(f"  [render] fal 暫時性錯誤（{str(e)[:60]}）→ 5s 後重試")
+                        time.sleep(5)
+                        continue
                     break
             if _last_err is not None:
                 # 重試後仍失敗：標記 failed（render_path=None），交付閘門會判為不可交付
