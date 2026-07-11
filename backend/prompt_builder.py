@@ -210,7 +210,8 @@ def _scrub_offframe_rooms(text: str) -> str:
 
 
 def _build_layout_section(zoning: dict, target_note: str | None = None,
-                          is_long_room_numeric: bool = False) -> str:
+                          is_long_room_numeric: bool = False,
+                          retry_context: dict | None = None) -> str:
     """
     從 zoning 原文組裝 layout 描述（不 parse 牆名）。
     sofa_wall / tv_wall / living_zone.where / walkway / no_large_furniture_zones 全文塞進去。
@@ -343,6 +344,21 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 f"against the {_SIDE_EN[sofa_side]} long side wall, and the {_SIDE_EN[_opp]} long "
                 "side wall holds the TV cabinet / media console / focal anchor facing the sofa. "
                 f"Putting the sofa on the {_SIDE_EN[_opp]} side is a FAILURE. "
+            )
+        elif _entr_side in _SIDE_EN and isinstance(retry_context, dict) and retry_context.get("door_flip"):
+            # 通用升級（客戶要求「任何格局都要處理好」）：預設構圖（櫃在門牆留一門寬）
+            # 連續失敗後翻面——櫃子改放無門實牆（零門風險），沙發放門牆但深於門。
+            # 只在「隨機/未綁邊」時啟動；客戶明確選邊的訂單永遠尊重客戶。
+            _away = "right" if _entr_side == "left" else "left"
+            side_choice_clause = (
+                "FLIPPED COMPOSITION (escalation — earlier attempts kept crowding the "
+                f"entrance door): put the TV/media console against the {_SIDE_EN[_away]} "
+                "long wall (the wall WITHOUT the entrance door), centered on the living "
+                f"area. Put the sofa BACK on the {_SIDE_EN[_entr_side]} wall, but starting "
+                "at least 1.5 door-widths PAST the entrance door frame (deeper into the "
+                "room), facing the console across the coffee table. The entrance door "
+                "strip — its swing arc plus one full door-width beside it — must stay "
+                "completely EMPTY: bare wall, empty floor. "
             )
         elif _entr_side in _SIDE_EN:
             _away = "right" if _entr_side == "left" else "left"
@@ -1423,10 +1439,18 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
     if not failed_flags and reason:
         # 沒有結構化 flag 但有文字 reason → 至少把 reason 帶給 model 參考。
         lines.append(f"- Reviewer note on the previous attempt: {reason}")
+    # 翻面升級時，量測指令（叫它在同一面牆退開）會跟翻面構圖打架——只出翻面說明。
+    if (room_type or "living") == "living" and retry_context.get("door_flip"):
+        lines.append(
+            "- ESCALATION: your previous attempts repeatedly crowded the entrance door. "
+            "The layout rules above now specify a FLIPPED composition (console on the "
+            "solid wall, sofa past the door). Follow them exactly."
+        )
     # FE964758：擋門違規帶量測數字——「離門遠一點」太模糊，模型重試仍貼門。
     # 直接告訴它上次差多少、這次要放哪半段。
     _dg = retry_context.get("door_gap")
-    if (room_type or "living") == "living" and isinstance(_dg, dict) and _dg.get("door_w"):
+    if (room_type or "living") == "living" and not retry_context.get("door_flip") \
+            and isinstance(_dg, dict) and _dg.get("door_w"):
         _ratio = round(float(_dg.get("gap", 0)) / float(_dg["door_w"]), 1)
         _what = "media console / cabinet" if _dg.get("target") == "focal_anchor" else "sofa"
         lines.append(
@@ -1712,7 +1736,8 @@ def build_nano_banana_inputs(
 
     if _is_zoning_usable(zoning):
         layout_sec = _build_layout_section(zoning, target_note=target_note,
-                                           is_long_room_numeric=bool(entry.get("_is_long_room")))
+                                           is_long_room_numeric=bool(entry.get("_is_long_room")),
+                                           retry_context=retry_context)
     else:
         layout_sec = _build_fallback_layout_section()
 

@@ -2087,6 +2087,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # 舊版只在 current_rc>=1 才帶，導致 anchored 訂單 (MAX_RETRY=1) 永遠
                     # 拿不到任何回饋，重試 prompt 跟初次一字不差 → 救不回失敗圖。
                     retry_ctx = _build_retry_ctx_from_validation(v)
+                    # 通用升級：門邊淨空第 2 次重試仍失敗 → 翻面構圖（櫃改實牆、沙發
+                    # 深於門）。只在「隨機/未綁邊」（free）時啟動——客戶明確選邊的
+                    # 訂單永遠尊重客戶的選擇。
+                    if (retry_ctx and current_rc >= 1 and v.get("furniture_blocks_door")
+                            and (zoning_result or {}).get("_sofa_layout") == "free"):
+                        retry_ctx["door_flip"] = True
+                        print(f"[pipeline] Z3 retry#{current_rc+1} 擋門未收斂 → 升級翻面構圖")
                     # 客廳保真失敗 → 優先換另一張 living 底圖（比同圖乾抽更穩、不失真）
                     base_for_gen = entry["_base_path"]
                     if (entry.get("_room_type") or "living") == "living" and _should_try_alt_living_base(v):
@@ -2210,6 +2217,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     continue
                 entry = expanded[idx]
                 retry_ctx = _build_retry_ctx_from_validation(v)
+                # Phase2 是 Z3 耗盡後才來——擋門還沒好就直接翻面（free 限定）
+                if (retry_ctx and v.get("furniture_blocks_door")
+                        and (zoning_result or {}).get("_sofa_layout") == "free"):
+                    retry_ctx["door_flip"] = True
+                    print(f"[pipeline] Phase2 擋門未收斂 → 升級翻面構圖")
                 print(f"[pipeline] Phase2 硬傷補生 render[{idx}] style={r.get('style')} "
                       f"— {(v.get('reason') or '')[:120]}")
                 write_status(job_id, job_dir, "rendering", 93, "為未通過的風格再生成一次…")
@@ -2709,6 +2721,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     entry = expanded[idx]
                     v0 = r.get("validation") or {}
                     retry_ctx = _build_retry_ctx_from_validation(v0)
+                    # Phase3 同 Phase2：擋門到這裡還沒好就翻面（free 限定）
+                    if (retry_ctx and v0.get("furniture_blocks_door")
+                            and (zoning_result or {}).get("_sofa_layout") == "free"):
+                        retry_ctx["door_flip"] = True
+                        print(f"[pipeline] Phase3 擋門未收斂 → 升級翻面構圖")
                     # 策略清單：(標籤, 底圖, 模型)。不換模型。
                     # 客廳保真失敗：先換「另一張 living 底圖」（C79 走廊角→靠窗主圖），
                     # 再未裁切原圖 / 同底圖修正。上限 3 策略，避免無限燒錢。

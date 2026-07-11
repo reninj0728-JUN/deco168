@@ -578,3 +578,35 @@ def test_dropped_reason_prefers_real_validation():
     import test_full_pipeline as tfp
     src2 = inspect.getsource(tfp.generate_renders)
     assert "暫時性錯誤" in src2 and "locked" in src2
+
+
+def test_door_flip_escalation():
+    """通用升級：擋門重試不收斂 → 翻面構圖（櫃改無門實牆、沙發深於門）。
+    只在 free/未綁邊時啟動；明確綁邊訂單不受影響。"""
+    import prompt_builder as pb
+    zoning_free = {
+        "_origin": "user_confirmed_v2", "_layout_choice": "A", "_sofa_layout": "free",
+        "spatial_synthesis": {"room_shape": "長條型格局",
+                              "entrance_position": "左側前段大門"},
+        "zones": {"living_zone": {"where": "客廳前段區域。"},
+                  "entrance_zone": {"where": "左側前段大門周邊區域。"}},
+        "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
+    }
+    sec_flip = pb._build_layout_section(zoning_free, retry_context={"door_flip": True})
+    assert "FLIPPED COMPOSITION" in sec_flip
+    assert "console against the RIGHT" in sec_flip     # 櫃改無門實牆
+    assert "sofa BACK on the LEFT" in sec_flip          # 沙發門牆但深於門
+    sec_default = pb._build_layout_section(zoning_free)
+    assert "DOOR-AVOIDANCE DEFAULT" in sec_default and "FLIPPED" not in sec_default
+    # 綁邊訂單：翻面 ctx 不得覆蓋客戶明確選擇
+    zoning_bound = dict(zoning_free)
+    zoning_bound.pop("_sofa_layout")
+    zoning_bound["furniture_placement_rules"] = {"sofa_wall": "x", "sofa_side": "right", "tv_side": "left"}
+    sec_bound = pb._build_layout_section(zoning_bound, retry_context={"door_flip": True})
+    assert "BOUND SIDE" in sec_bound and "FLIPPED" not in sec_bound
+    # retry 段：翻面時出 ESCALATION、且不出會打架的量測指令
+    rsec = pb._build_retry_context_section(
+        {"failed_flags": ["furniture_blocks_door"], "door_flip": True,
+         "door_gap": {"target": "focal_anchor", "gap": 9, "door_w": 150}},
+        room_type="living")
+    assert "ESCALATION" in rsec and "MEASURED VIOLATION" not in rsec
