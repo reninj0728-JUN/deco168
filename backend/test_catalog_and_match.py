@@ -580,9 +580,9 @@ def test_dropped_reason_prefers_real_validation():
     assert "暫時性錯誤" in src2 and "locked" in src2
 
 
-def test_door_flip_escalation():
-    """通用升級：擋門重試不收斂 → 翻面構圖（櫃改無門實牆、沙發深於門）。
-    只在 free/未綁邊時啟動；明確綁邊訂單不受影響。"""
+def test_door_on_long_wall_flip_is_default():
+    """6DA08412 根治：門在長牆＋未綁邊 → 翻面是「預設」（櫃放無門牆、沙發放
+    大門牆過門、面朝無門牆），不再是失敗後才升級。綁邊訂單不受影響。"""
     import prompt_builder as pb
     zoning_free = {
         "_origin": "user_confirmed_v2", "_layout_choice": "A", "_sofa_layout": "free",
@@ -592,21 +592,36 @@ def test_door_flip_escalation():
                   "entrance_zone": {"where": "左側前段大門周邊區域。"}},
         "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
     }
-    sec_flip = pb._build_layout_section(zoning_free, retry_context={"door_flip": True})
-    assert "FLIPPED BOUND SIDE" in sec_flip
-    assert "against the RIGHT long wall" in sec_flip   # 櫃改無門實牆
-    assert "flush against the LEFT long wall" in sec_flip  # 沙發門牆但深於門
-    sec_default = pb._build_layout_section(zoning_free)
-    assert "DOOR-AVOIDANCE DEFAULT" in sec_default and "FLIPPED" not in sec_default
-    # 綁邊訂單：翻面 ctx 不得覆蓋客戶明確選擇
+    # 門在左 → 櫃放右(無門)長牆、沙發放左(大門)長牆過門
+    sec = pb._build_layout_section(zoning_free)
+    assert "DOOR-ON-A-LONG-WALL LAYOUT" in sec
+    assert "console MUST be against the RIGHT long wall" in sec
+    assert "sofa BACK MUST be flush against the LEFT long wall" in sec
+    assert "DOOR-AVOIDANCE DEFAULT" not in sec   # 舊的錯誤預設已移除
+    # 綁邊訂單永遠尊重客戶
     zoning_bound = dict(zoning_free)
     zoning_bound.pop("_sofa_layout")
     zoning_bound["furniture_placement_rules"] = {"sofa_wall": "x", "sofa_side": "right", "tv_side": "left"}
-    sec_bound = pb._build_layout_section(zoning_bound, retry_context={"door_flip": True})
-    assert "BOUND SIDE" in sec_bound and "FLIPPED" not in sec_bound
-    # retry 段：翻面時出 ESCALATION、且不出會打架的量測指令
-    rsec = pb._build_retry_context_section(
-        {"failed_flags": ["furniture_blocks_door"], "door_flip": True,
-         "door_gap": {"target": "focal_anchor", "gap": 9, "door_w": 150}},
-        room_type="living")
-    assert "ESCALATION" in rsec and "MEASURED VIOLATION" not in rsec
+    sec_bound = pb._build_layout_section(zoning_bound)
+    assert "BOUND SIDE" in sec_bound and "DOOR-ON-A-LONG-WALL" not in sec_bound
+
+
+def test_sofa_faces_door_wall_geometry():
+    """6DA08412：沙發在對側、面朝大門那面長牆 → 幾何判定為對門（即使電視櫃
+    離門 0.26 門寬壓線過了 adjacency 閘門）。翻面（沙發同門側）則放行。"""
+    import gemini_analyze as ga
+    # 交付出包的實測 bbox：門在左、沙發在右 → 對門
+    rb_bad = {"entrance_door": [156, 76, 831, 222],
+              "sofa": [455, 592, 850, 903],
+              "focal_anchor": [479, 260, 614, 377]}
+    assert ga._sofa_faces_door_wall(rb_bad) == "left"
+    # adjacency 閘門對這張剛好放行（0.26 > 0.25）——證明需要 faces 這一層
+    assert ga._door_adjacency_violation(rb_bad) is None
+    # 翻面後：門在左、沙發也在左（過門）→ 放行
+    rb_flip = {"entrance_door": [156, 76, 831, 222],
+               "sofa": [455, 120, 850, 430],
+               "focal_anchor": [479, 640, 614, 780]}
+    assert ga._sofa_faces_door_wall(rb_flip) is None
+    # 門在中央（後牆門）→ 不套此規則
+    rb_center = {"entrance_door": [156, 430, 500, 560], "sofa": [455, 80, 850, 360]}
+    assert ga._sofa_faces_door_wall(rb_center) is None
