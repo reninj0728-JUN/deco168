@@ -616,3 +616,18 @@ def test_door_on_long_wall_classic_default():
     zoning_bound["furniture_placement_rules"] = {"sofa_wall": "x", "sofa_side": "right", "tv_side": "left"}
     sec_bound = pb._build_layout_section(zoning_bound)
     assert "BOUND SIDE" in sec_bound and "DOOR-ON-A-LONG-WALL" not in sec_bound
+
+
+def test_quota_outage_skips_retry_burn():
+    """三單回測教訓：Gemini 429 額度斷線＝判官下線，重畫也沒人能驗——
+    交付層照樣 fail-closed 擋，但 Z3/Phase2/Phase3 不准燒 fal 重試。"""
+    import api
+    v = api._fail_closed_validation({"ok": None,
+        "error": "429 RESOURCE_EXHAUSTED. credits are depleted"}, "living")
+    assert v.get("validation_outage") is True and v.get("hard_fail")
+    v2 = api._fail_closed_validation({"ok": None, "error": "some other crash"}, "living")
+    assert not v2.get("validation_outage")
+    src = open(api.__file__, encoding="utf-8").read()
+    assert src.count("跳過 Z3 重試，不燒 fal") == 1
+    assert src.count("跳過 Phase2 補生，不燒 fal") == 1
+    assert src.count("跳過 Phase3 補生，不燒 fal") == 1

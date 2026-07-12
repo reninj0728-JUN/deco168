@@ -1132,16 +1132,28 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
     return out or layout_ctx
 
 
+def _is_quota_outage(err: str | None) -> bool:
+    """Gemini 額度耗盡/限流（429 RESOURCE_EXHAUSTED）＝判官基礎設施斷線，
+    不是這張圖的問題——重畫一百次也沒人能驗，重試純燒 fal 錢。"""
+    e = (err or "").lower()
+    return ("resource_exhausted" in e or "429" in e
+            or "credits are depleted" in e or "quota" in e)
+
+
 def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     """B1（B0CDF6A0 根治）：驗證崩潰（ok=None/缺失）不得當通過。
     客廳 → 標 hard_fail 進 Z3/Phase2/Phase3 補生鏈，寧可誤擋不裸奔交付；
     非客廳 → 保留原狀但帶 validation_unavailable 標記（不阻斷，風險較低）。
-    正常解析出 ok=true/false 的結果原樣通過。"""
+    正常解析出 ok=true/false 的結果原樣通過。
+    額度斷線（429）另掛 validation_outage：交付層照樣擋，但重試鏈跳過
+    ——判官斷線時燒 fal 重畫是純浪費（三單回測教訓）。"""
     if isinstance(v, dict) and v.get("ok") is not None:
         return v
     base = dict(v or {})
     base.setdefault("error", "validation crashed")
     base["validation_unavailable"] = True
+    if _is_quota_outage(base.get("error")):
+        base["validation_outage"] = True
     if (room_type or "living") == "living":
         base["ok"] = False
         base["hard_fail"] = True
@@ -2069,6 +2081,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     if current_rc >= MAX_RETRY:
                         break  # 硬上限
                     v = r.get("validation") or {}
+                    if v.get("validation_outage"):
+                        print(f"[pipeline] Gemini 額度斷線（429）——跳過 Z3 重試，不燒 fal（{r.get('style')}/{r.get('room_type')}）")
+                        break
                     should_retry, retry_reason = z3_needs_retry(v)
                     if not should_retry:
                         break  # 已通過
@@ -2207,6 +2222,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 r = final[idx]
                 v = r.get("validation") or {}
                 if not v.get("hard_fail"):
+                    continue
+                if v.get("validation_outage"):
+                    print("[pipeline] Gemini 額度斷線（429）——跳過 Phase2 補生，不燒 fal")
                     continue
                 if idx >= len(expanded):
                     continue
@@ -2710,6 +2728,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         continue
                     entry = expanded[idx]
                     v0 = r.get("validation") or {}
+                    if v0.get("validation_outage"):
+                        print("[pipeline] Gemini 額度斷線（429）——跳過 Phase3 補生，不燒 fal")
+                        continue
                     retry_ctx = _build_retry_ctx_from_validation(v0)
                     # 策略清單：(標籤, 底圖, 模型)。不換模型。
                     # 客廳保真失敗：先換「另一張 living 底圖」（C79 走廊角→靠窗主圖），
