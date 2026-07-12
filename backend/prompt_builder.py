@@ -346,27 +346,28 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 f"Putting the sofa on the {_SIDE_EN[_opp]} side is a FAILURE. "
             )
         elif _entr_side in _SIDE_EN:
-            # 6DA08412 根治：門在長牆＋未綁邊時，翻面就是「預設」，不是救援。
-            # 舊「避門預設」把電視櫃放門牆、沙發放對面 → 沙發面朝門牆 = 結構性
-            # 「沙發對門」（門櫃只差 0.26 門寬就壓線過閘門、判官沒判 facing → 交付）。
-            # 正解：電視櫃放「無門」的那面長牆，沙發放「大門」那面長牆但過門擺，
-            # 沙發面朝無門牆 = 面朝遠離大門 = 結構上不可能對門。措辭用 BOUND SIDE
-            # 硬合約格式（生產實證服從率最高）。
+            # C2327004 定案：門在長牆＋未綁邊時，用「客戶眼球認可過」的經典構圖
+            # （21CCB9AF）：沙發靠無門實牆、櫃子在門牆但「明顯過門」。翻面實驗
+            # （沙發放門牆過門）四輪證明模型畫不出來——相機就站在門旁，等於要它
+            # 把沙發畫在鏡頭腳下。體感關鍵不是構圖方向，是「櫃子離門多開」：
+            # 0.26 門寬（6DA08412 客訴）跟 0.42（客戶說 OK）的差別。prompt 要求
+            # 半門寬以上、幾何閘門及格線 0.40，壓線圖一律重生。
             _away = "right" if _entr_side == "left" else "left"
             side_choice_clause = (
-                "DOOR-ON-A-LONG-WALL LAYOUT (single source of truth — do NOT re-decide; the "
-                "entrance door sits on one of the two long walls, so the sofa must NEVER face "
-                "the door wall): "
-                f"the TV cabinet / media console MUST be against the {_SIDE_EN[_away]} long "
-                "wall (the wall WITHOUT the entrance door), centered on the living area. The "
-                f"sofa BACK MUST be flush against the {_SIDE_EN[_entr_side]} long wall (the SAME "
-                "wall as the entrance door), positioned clearly PAST the entrance door swing "
-                "(start at least half a door-width beyond the door frame, more if the wall "
-                "allows), so the sofa faces the console on the opposite wall and faces AWAY "
-                f"from the door. Putting the sofa on the {_SIDE_EN[_away]} side, putting the "
-                f"console on the {_SIDE_EN[_entr_side]} (door) wall, or putting both on the "
-                "same wall is a FAILURE. The entrance door strip — its swing arc plus half a "
-                "door-width beside it — must stay completely EMPTY: bare wall, empty floor. "
+                "DOOR-ON-A-LONG-WALL LAYOUT (single source of truth — do NOT re-decide): "
+                f"the sofa BACK MUST be flush against the {_SIDE_EN[_away]} long wall (the "
+                f"wall WITHOUT the entrance door). The {_SIDE_EN[_entr_side]} wall holds the "
+                "TV cabinet / media console, but ONLY on its segment clearly PAST the "
+                "entrance door: leave completely BARE wall and empty floor for at least "
+                "HALF a door-width after the door frame (more if the wall allows) before "
+                "the console starts, and slide the WHOLE living group (sofa + coffee table "
+                "+ rug + console) deeper along the room so the sofa sits directly opposite "
+                "the console. Sitting on the sofa and looking straight ahead, the view MUST "
+                "land on the console with the entrance door clearly OUTSIDE that line of "
+                "sight (beside/behind, never in front). A console touching or crowding the "
+                f"door, or a sofa placed on the {_SIDE_EN[_entr_side]} (door) wall, is a "
+                "FAILURE. The door swing arc plus half a door-width beside it must stay "
+                "completely EMPTY. "
             )
         else:
             side_choice_clause = (
@@ -1441,11 +1442,13 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
         _ratio = round(float(_dg.get("gap", 0)) / float(_dg["door_w"]), 1)
         lines.append(
             f"- MEASURED VIOLATION: furniture stood only {_ratio} door-widths from the "
-            "entrance door (minimum is HALF a door-width). Follow the DOOR-ON-A-LONG-WALL "
-            "LAYOUT above EXACTLY: the TV console belongs on the long wall WITHOUT the door; "
-            "the sofa sits on the door wall but starts past the door swing, facing the "
-            "console across the room and facing AWAY from the door. The door strip stays "
-            "bare. Do not put the console on the door wall."
+            "entrance door (minimum is HALF a door-width, more if the wall allows). Follow "
+            "the DOOR-ON-A-LONG-WALL LAYOUT above EXACTLY: slide the WHOLE living group "
+            "(sofa + coffee table + rug + console) DEEPER along the room so the console "
+            "starts at least half a door-width past the door frame with bare wall before "
+            "it, and the sofa sits directly opposite the console — its straight-ahead view "
+            "landing on the console, the entrance door clearly beside/behind that line of "
+            "sight. Never place anything inside the door swing."
         )
     # 沙發/電視櫃/living group 的修正指令只對客廳有意義；餐廳/主臥/書房若因結構或
     # 走道觸發重試，餵這些會把沙發塞進非客廳房間(Grok 指出的生成側洩漏)。
