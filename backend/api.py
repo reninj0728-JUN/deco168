@@ -1026,7 +1026,10 @@ def _door_exclusion_limits(W: int, door_x0: int, door_x1: int) -> tuple[int, int
     排除上限吃掉半張圖為止，剩餘不足由呼叫端守門退回原圖。"""
     d_w = max(1, door_x1 - door_x0)
     d_cx = (door_x0 + door_x1) / 2
-    pad = int(d_w * 0.5)
+    # 緩衝取小值：門在前景時像素寬度被透視放大（B525E1E2 的門佔 32% 畫寬，
+    # 0.5 門寬緩衝=砍掉半張圖，剩右牆+地板的廢底圖）。0.1 門寬與 3% 畫寬取小，
+    # 實測（demo_living_original 4032px、門 0-1290）留 65% 畫面、左右牆皆在。
+    pad = min(int(d_w * 0.1), int(W * 0.03))
     if d_cx < W * 0.35:      # 門在左 → 左緣推到門右緣+緩衝
         return (min(door_x1 + pad, int(W * 0.5)), W)
     if d_cx > W * 0.65:      # 門在右

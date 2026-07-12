@@ -637,14 +637,16 @@ def test_door_exclusion_limits():
     """回測 12/18 定案：門不入鏡＝根治。裁切邊界推過門框+半門寬；
     門在中央（端景門）不處理；排除上限半張圖。"""
     import api
-    # 門在左（px 100-300, W=2000, 門寬200）→ x0 推到 300+100=400
-    assert api._door_exclusion_limits(2000, 100, 300) == (400, 2000)
+    # 門在左（px 100-300, W=2000, 門寬200）→ 緩衝 min(20, 60)=20 → x0=320
+    assert api._door_exclusion_limits(2000, 100, 300) == (320, 2000)
     # 門在右
-    assert api._door_exclusion_limits(2000, 1700, 1900) == (0, 1600)
+    assert api._door_exclusion_limits(2000, 1700, 1900) == (0, 1680)
     # 門在中央 → 不動
     assert api._door_exclusion_limits(2000, 900, 1100) == (0, 2000)
-    # 排除上限：門+緩衝超過半張 → 鎖在 W/2
-    assert api._door_exclusion_limits(2000, 100, 900) == (1000, 2000)
+    # 排除上限：前景大門+緩衝超過半張 → 鎖在 W/2
+    assert api._door_exclusion_limits(2000, 100, 1100) == (1000, 2000)
+    # B525E1E2 實測：W=4032 門 0-1290 → 緩衝 min(129,120)=120 → x0=1410（留 65%）
+    assert api._door_exclusion_limits(4032, 0, 1290) == (1410, 4032)
 
 
 def test_door_excluded_prompt_drops_entrance_clauses():
