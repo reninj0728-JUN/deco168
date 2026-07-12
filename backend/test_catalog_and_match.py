@@ -631,3 +631,35 @@ def test_quota_outage_skips_retry_burn():
     assert src.count("跳過 Z3 重試，不燒 fal") == 1
     assert src.count("跳過 Phase2 補生，不燒 fal") == 1
     assert src.count("跳過 Phase3 補生，不燒 fal") == 1
+
+
+def test_door_exclusion_limits():
+    """回測 12/18 定案：門不入鏡＝根治。裁切邊界推過門框+半門寬；
+    門在中央（端景門）不處理；排除上限半張圖。"""
+    import api
+    # 門在左（px 100-300, W=2000, 門寬200）→ x0 推到 300+100=400
+    assert api._door_exclusion_limits(2000, 100, 300) == (400, 2000)
+    # 門在右
+    assert api._door_exclusion_limits(2000, 1700, 1900) == (0, 1600)
+    # 門在中央 → 不動
+    assert api._door_exclusion_limits(2000, 900, 1100) == (0, 2000)
+    # 排除上限：門+緩衝超過半張 → 鎖在 W/2
+    assert api._door_exclusion_limits(2000, 100, 900) == (1000, 2000)
+
+
+def test_door_excluded_prompt_drops_entrance_clauses():
+    """門排除出鏡的底圖：prompt 不得再對看不見的門下指令。"""
+    import prompt_builder as pb
+    zoning = {
+        "_origin": "user_confirmed_v2", "_layout_choice": "A", "_sofa_layout": "free",
+        "spatial_synthesis": {"room_shape": "長條型格局",
+                              "entrance_position": "左側前段大門"},
+        "zones": {"living_zone": {"where": "客廳前段區域。"},
+                  "entrance_zone": {"where": "左側前段大門周邊區域。"}},
+        "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
+    }
+    sec_normal = pb._build_layout_section(zoning)
+    assert "DOOR-ON-A-LONG-WALL LAYOUT" in sec_normal
+    sec_ex = pb._build_layout_section({**zoning, "_door_excluded": True})
+    assert "DOOR-ON-A-LONG-WALL LAYOUT" not in sec_ex
+    assert "Choose the left or right side" in sec_ex   # 退回一般選邊

@@ -963,6 +963,7 @@ def _switch_entry_to_next_living_base(entry: dict) -> str | None:
         entry["_base_path"] = p
         entry["_cropped"] = False
         entry["_crop_note"] = "alt living base after fidelity fail"
+        entry["_door_excluded"] = False   # 換回的原圖大門可能在鏡內
         entry["_uncropped_base"] = p
         print(f"[pipeline] living 換底圖 → {Path(str(p)).name} (used={len(used)})")
         return p
@@ -1015,35 +1016,53 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
 _RT_TO_ZONE_KEY = {"living": "living_zone", "dining": "dining_zone"}
 
 
-def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tuple[str, bool, str]:
-    """回傳 (要用的底圖路徑, 是否有裁切, 沒裁時的具體原因)。"""
+def _door_exclusion_limits(W: int, door_x0: int, door_x1: int) -> tuple[int, int]:
+    """回測定案（12/18，六客廳全因門邊間距陣亡）：模型對「離門半門寬」的服從率
+    只有一два成，調字句到不了商用交付率。根治＝門不入鏡——客廳裁切邊界直接推到
+    門框內緣＋半門寬緩衝，可見範圍內放家具「物理上必然過門」，交付圖沒有大門
+    就永遠不存在「沙發對門」體感（室內攝影本來就不把大門拍進客廳照）。
+
+    回傳 (允許的最小 x0, 允許的最大 x1)。門在中央（端景門）不處理；
+    排除上限吃掉半張圖為止，剩餘不足由呼叫端守門退回原圖。"""
+    d_w = max(1, door_x1 - door_x0)
+    d_cx = (door_x0 + door_x1) / 2
+    pad = int(d_w * 0.5)
+    if d_cx < W * 0.35:      # 門在左 → 左緣推到門右緣+緩衝
+        return (min(door_x1 + pad, int(W * 0.5)), W)
+    if d_cx > W * 0.65:      # 門在右
+        return (0, max(door_x0 - pad, int(W * 0.5)))
+    return (0, W)
+
+
+def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tuple[str, bool, str, bool]:
+    """回傳 (要用的底圖路徑, 是否有裁切, 沒裁時的具體原因, 大門是否已排除出鏡)。"""
     zone_key = _RT_TO_ZONE_KEY.get(room_type)
     if not zone_key or not base_path:
-        return base_path, False, "房型不適用或缺底圖"
+        return base_path, False, "房型不適用或缺底圖", False
     try:
         import cv2
         from zoning_v2 import compute_zoning_v2
         img = cv2.imread(base_path)
         if img is None:
-            return base_path, False, "底圖讀取失敗"
+            return base_path, False, "底圖讀取失敗", False
         H, W = img.shape[:2]
         # 單張重跑 zoning → bbox 必落在這張上（零跨元件對齊風險）
         zres = compute_zoning_v2([Path(base_path)], video_keyframes=None)
         if not isinstance(zres, dict) or zres.get("error"):
-            return base_path, False, f"zoning 失敗: {str((zres or {}).get('error'))[:60]}"
+            return base_path, False, f"zoning 失敗: {str((zres or {}).get('error'))[:60]}", False
         zones = zres.get("proposed_zones") or {}
         bbox = (zones.get(zone_key) or {}).get("bbox_on_best_photo")
         if not bbox or len(bbox) != 4:
-            return base_path, False, f"{zone_key} 無 bbox"
+            return base_path, False, f"{zone_key} 無 bbox", False
         ymin, xmin, ymax, xmax = [float(v) for v in bbox]
         fy0, fx0, fy1, fx1 = ymin / 1000.0, xmin / 1000.0, ymax / 1000.0, xmax / 1000.0
         bw, bh = (fx1 - fx0), (fy1 - fy0)
         if bw <= 0 or bh <= 0:
-            return base_path, False, f"bbox 退化 ({bw:.2f}x{bh:.2f})"
+            return base_path, False, f"bbox 退化 ({bw:.2f}x{bh:.2f})", False
         area = bw * bh
         if area < 0.25:   # zone 太小＝不可靠，不裁
             print(f"[pipeline] (i) {room_type} zone 太小 area={area:.2f}，用整張")
-            return base_path, False, f"zone 面積 {area:.2f} < 0.25"
+            return base_path, False, f"zone 面積 {area:.2f} < 0.25", False
         # 動態外擴：大區小擴(6%)、小區多擴(12%)，保留一點鄰接感又不切到家具。
         # 63B7B5C9 回饋：原本 10%/20% 裁完還剩大半張，客戶感覺不到「特寫」——
         # 收緊外擴讓單房聚焦真的看得出來；面積/比例守門不變，不確定仍回原圖。
@@ -1051,8 +1070,27 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         fx0 = max(0.0, fx0 - margin); fy0 = max(0.0, fy0 - margin)
         fx1 = min(1.0, fx1 + margin); fy1 = min(1.0, fy1 + margin)
         x0, y0, x1, y1 = int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)
+        # 客廳門排除：大門 bbox 在側邊 → 裁切邊界推過門框+半門寬，門不入鏡
+        door_excluded = False
+        _dlim_x0, _dlim_x1 = 0, W
+        if room_type == "living":
+            _ez = (zres.get("existing_zones") or {}).get("entrance_zone") or {}
+            _dbb = _ez.get("bbox_on_best_photo")
+            if _dbb and len(_dbb) == 4:
+                _d_x0 = int(float(_dbb[1]) / 1000.0 * W)
+                _d_x1 = int(float(_dbb[3]) / 1000.0 * W)
+                _dlim_x0, _dlim_x1 = _door_exclusion_limits(W, _d_x0, _d_x1)
+                _nx0, _nx1 = max(x0, _dlim_x0), min(x1, _dlim_x1)
+                if (_nx0, _nx1) != (x0, x1) and (_nx1 - _nx0) >= W * 0.30:
+                    print(f"[pipeline] (i) living 門排除出鏡: x0 {x0}->{_nx0}, x1 {x1}->{_nx1}"
+                          f"（門 px {_d_x0}-{_d_x1}）")
+                    x0, x1 = _nx0, _nx1
+                    door_excluded = True
+                elif (_nx0, _nx1) != (x0, x1):
+                    print(f"[pipeline] (i) living 門排除後過窄（{_nx1-_nx0}px），放棄排除維持原裁切")
+                    _dlim_x0, _dlim_x1 = 0, W
         if (x1 - x0) < W * 0.30 or (y1 - y0) < H * 0.30:
-            return base_path, False, f"裁切框過小 ({x1-x0}x{y1-y0} on {W}x{H})"
+            return base_path, False, f"裁切框過小 ({x1-x0}x{y1-y0} on {W}x{H})", False
         # 比例鎖定（F87A75BB：客廳 zone 裁出 2.3:1 超寬框 → gpt-image-2 auto
         # 跟著輸出 1248x544 怪比例）。目標 3:2，太寬就垂直外擴補高、太高就水平
         # 外擴補寬；原圖不夠補 → 放棄裁切回原圖（最壞=跟沒裁一樣，不會更差）。
@@ -1065,23 +1103,23 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
             y0 = max(0, y1 - need_h)
         elif cw / max(1, ch) < 0.6:
             need_w = int(ch * 0.667)
-            x0 = max(0, x0 - (need_w - cw) // 2)
-            x1 = min(W, x0 + need_w)
-            x0 = max(0, x1 - need_w)
+            x0 = max(_dlim_x0, x0 - (need_w - cw) // 2)
+            x1 = min(_dlim_x1, x0 + need_w)
+            x0 = max(_dlim_x0, x1 - need_w)
         aspect = (x1 - x0) / max(1, (y1 - y0))
         if aspect < 0.55 or aspect > 1.8:   # 補完仍異常（原圖本身不夠高/寬）→不裁
             print(f"[pipeline] (i) {room_type} 裁切比例鎖定失敗 {aspect:.2f}，用整張")
-            return base_path, False, f"裁切比例異常 {aspect:.2f}"
+            return base_path, False, f"裁切比例異常 {aspect:.2f}", False, False
         crop = img[y0:y1, x0:x1]
         out_path = str(Path(job_dir) / f"crop_{room_type}_{idx:02d}.jpg")
         if not cv2.imwrite(out_path, crop):
-            return base_path, False, "裁切檔寫入失敗"
+            return base_path, False, "裁切檔寫入失敗", False, False
         print(f"[pipeline] (i) {room_type} 裁成單房視角 area={area:.2f} margin={margin} "
               f"box=({x0},{y0},{x1},{y1})")
-        return out_path, True, ""
+        return out_path, True, "", door_excluded
     except Exception as e:
         print(f"[pipeline] (i) {room_type} 裁切例外，用整張: {e}")
-        return base_path, False, f"例外: {type(e).__name__}"
+        return base_path, False, f"例外: {type(e).__name__}", False, False
 
 
 def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
@@ -1738,6 +1776,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 裁切決策軌跡：沒裁時記下「為什麼」，不然只看 cropped=false 無從診斷
         # （8BEAE3AD 查了半天才發現是部署沒跟上，不是守門擋掉）
         crop_notes: list[str] = [""] * len(flux_bases)
+        door_excluded_flags: list[bool] = [False] * len(flux_bases)
         # Phase3 自動補生用：記錄裁切前的原圖路徑（index 對齊 flux_bases）
         uncropped_bases: dict[int, str] = {}
         _crop_eligible = (
@@ -1756,12 +1795,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     crop_notes[_i] = f"photo_contains={_contains} 非多區廣角照"
                     continue   # 專屬單房照片，不裁
                 _pre_crop_base = flux_bases[_i]
-                _new_base, _did, _why = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
+                _new_base, _did, _why, _door_ex = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
                 flux_bases[_i] = _new_base
                 crop_flags[_i] = _did
                 if _did:
                     # Phase3 自動補生要用：裁切版驗證卡死時退回未裁切原圖重生
                     uncropped_bases[_i] = _pre_crop_base
+                if _door_ex:
+                    door_excluded_flags[_i] = True
                 if not _did:
                     crop_notes[_i] = _why or "守門未過"
         else:
@@ -1864,6 +1905,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_room_type"] = rt
                 copy["_cropped"] = cropped   # (i) 是否裁成單房視角
                 copy["_crop_note"] = cnote   # 沒裁時的原因（診斷用）
+                copy["_door_excluded"] = bool(door_excluded_flags[vi])  # 大門已裁出鏡
                 copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 if rt == "living" and _living_alt_paths:

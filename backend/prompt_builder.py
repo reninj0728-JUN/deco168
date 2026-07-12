@@ -316,6 +316,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
         _entr_txt = str(syn.get("entrance_position") or "") + str((zones.get("entrance_zone") or {}).get("where", ""))
         _entr_side = ("left" if ("左" in _entr_txt or "left" in _entr_txt.lower())
                       else ("right" if ("右" in _entr_txt or "right" in _entr_txt.lower()) else ""))
+        # 門排除出鏡：底圖裡沒有大門 → 所有 entrance 側指令關閉（對看不見的門
+        # 下指令會讓模型憑空畫門或亂閃避），改走一般選邊。
+        if zoning.get("_door_excluded"):
+            _entr_side = ""
         door_on_tv_wall = _tv_side_raw in ("left", "right") and _entr_side == _tv_side_raw
         # 6F1BFC19 根治：使用者選「不靠牆/自由發揮」→ sofa_side 空 → 選邊完全沒約束，
         # 模型把沙發貼到大門那面牆。未綁邊時用大門側 ground truth 給確定性預設：
@@ -1724,7 +1728,11 @@ def build_nano_banana_inputs(
     inputs_sec = _build_inputs_section(reference_map)
 
     if _is_zoning_usable(zoning):
-        layout_sec = _build_layout_section(zoning, target_note=target_note,
+        # 門排除出鏡的底圖：畫面裡沒有大門，避門條款會叫模型對付一扇看不見的門
+        # （甚至憑空畫一扇）——關掉 entrance 側指令，其餘合約照常。
+        _z_for_layout = ({**zoning, "_door_excluded": True}
+                         if entry.get("_door_excluded") else zoning)
+        layout_sec = _build_layout_section(_z_for_layout, target_note=target_note,
                                            is_long_room_numeric=bool(entry.get("_is_long_room")),
                                            retry_context=retry_context)
     else:
