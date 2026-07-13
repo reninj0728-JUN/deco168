@@ -480,7 +480,9 @@
       : '';
 
     var cropNote = r.cropped
-      ? '<div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:4px;">＊此房視角已從原始廣角優化為獨立視角，實際空間以您上傳照片為準</div>'
+      ? '<div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:4px;">＊此房視角已從原始廣角優化為獨立視角' +
+        (r.door_excluded ? '（取景自玄關向內，大門位於鏡頭後方、不在畫面中）' : '') +
+        '，實際空間以您上傳照片為準</div>'
       : '';
     var imgSection = imgUrl
       ? navHtml +

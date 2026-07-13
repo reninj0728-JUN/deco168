@@ -1097,32 +1097,36 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         # 比例鎖定（F87A75BB：客廳 zone 裁出 2.3:1 超寬框 → gpt-image-2 auto
         # 跟著輸出 1248x544 怪比例）。目標 3:2，太寬就垂直外擴補高、太高就水平
         # 外擴補寬；原圖不夠補 → 放棄裁切回原圖（最壞=跟沒裁一樣，不會更差）。
+        # 比例鎖定 v2（用戶抓漏：1.29 底圖被模型輸出成 1.5，多出的寬度是模型
+        # 自己補畫、補畫區恰好蓋到門的位置=失真）。改「只裁不補」：在現有框內
+        # 收斂成精確 3:2——太寬置中裁寬（框已在門界內，安全）、太高偏下裁高
+        # （多裁天花板、保留家具/地板），模型拿到與輸出同比例底圖=零補邊空間。
         _TARGET_AR = 1.5
         cw, ch = (x1 - x0), (y1 - y0)
-        if cw / max(1, ch) > 1.6:
+        ar = cw / max(1, ch)
+        if ar > _TARGET_AR + 0.02:
+            need_w = int(ch * _TARGET_AR)
+            _cx = (x0 + x1) // 2
+            x0 = max(x0, min(_cx - need_w // 2, x1 - need_w))
+            x1 = x0 + need_w
+        elif ar < _TARGET_AR - 0.02:
             need_h = int(cw / _TARGET_AR)
-            y0 = max(0, y0 - (need_h - ch) // 2)
-            y1 = min(H, y0 + need_h)
-            y0 = max(0, y1 - need_h)
-        elif cw / max(1, ch) < 0.6:
-            need_w = int(ch * 0.667)
-            x0 = max(_dlim_x0, x0 - (need_w - cw) // 2)
-            x1 = min(_dlim_x1, x0 + need_w)
-            x0 = max(_dlim_x0, x1 - need_w)
-        aspect = (x1 - x0) / max(1, (y1 - y0))
-        if aspect < 0.55 or aspect > 1.8:   # 補完仍異常（原圖本身不夠高/寬）→不裁
-            print(f"[pipeline] (i) {room_type} 裁切比例鎖定失敗 {aspect:.2f}，用整張")
-            return base_path, False, f"裁切比例異常 {aspect:.2f}", False, False
+            _trim = ch - need_h
+            y0 = y0 + int(_trim * 0.25)   # 少裁上緣（保留天花板/間照），多裁前景地板
+            y1 = y0 + need_h
+        if (x1 - x0) < W * 0.28 or (y1 - y0) < H * 0.28:
+            print(f"[pipeline] (i) {room_type} 3:2 收斂後過小，用整張")
+            return base_path, False, "3:2 收斂後過小", False
         crop = img[y0:y1, x0:x1]
         out_path = str(Path(job_dir) / f"crop_{room_type}_{idx:02d}.jpg")
         if not cv2.imwrite(out_path, crop):
-            return base_path, False, "裁切檔寫入失敗", False, False
+            return base_path, False, "裁切檔寫入失敗", False
         print(f"[pipeline] (i) {room_type} 裁成單房視角 area={area:.2f} margin={margin} "
               f"box=({x0},{y0},{x1},{y1})")
         return out_path, True, "", door_excluded
     except Exception as e:
         print(f"[pipeline] (i) {room_type} 裁切例外，用整張: {e}")
-        return base_path, False, f"例外: {type(e).__name__}", False, False
+        return base_path, False, f"例外: {type(e).__name__}", False
 
 
 def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
@@ -1958,13 +1962,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                               "error": str(_fe)[:200], "error_type": type(_fe).__name__,
                               "angle_label": entry.get("_angle_label", "主視角"),
                               "room_type": entry.get("_room_type", "living"),
-                              "cropped": bool(entry.get("_cropped"))})
+                              "cropped": bool(entry.get("_cropped")),
+                              "door_excluded": bool(entry.get("_door_excluded"))})
                 continue
             if single_result:
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
                 r["room_type"] = entry.get("_room_type", "living")
                 r["cropped"] = bool(entry.get("_cropped"))   # (i) 標記：此圖底圖已裁成單房視角
+                r["door_excluded"] = bool(entry.get("_door_excluded"))  # 大門在鏡頭外（前端誠實揭露）
                 r["crop_note"] = entry.get("_crop_note") or None   # 沒裁的原因（診斷）
                 # 用 style + angle 區分檔名
                 if r.get("render_path"):
@@ -2233,6 +2239,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     new_r["_room_type"]   = entry.get("_room_type", "living")
                     new_r["_base_path"]   = entry.get("_base_path")
                     new_r["cropped"]      = bool(entry.get("_cropped"))
+                    new_r["door_excluded"] = bool(entry.get("_door_excluded"))
                     new_r["crop_note"]    = entry.get("_crop_note") or None
                     new_r["retry_count"]  = current_rc + 1
                     new_r["retry_reason"] = retry_reason
@@ -2345,6 +2352,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 new_r["_room_type"]   = entry.get("_room_type", "living")
                 new_r["_base_path"]   = entry.get("_base_path")
                 new_r["cropped"]      = bool(entry.get("_cropped"))
+                new_r["door_excluded"] = bool(entry.get("_door_excluded"))
                 new_r["crop_note"]    = entry.get("_crop_note") or None
                 new_r["retry_count"]  = int(r.get("retry_count") or 0) + 1
                 new_r["retry_reason"] = "phase2 hardfix"
@@ -2486,6 +2494,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "angle_label":       r.get("angle_label", "主視角"),
                 "room_type":         r.get("room_type", "living"),   # step-2：結果頁按房間分頁/驗收用
                 "cropped":           bool(r.get("cropped")),         # (i) 此圖底圖已裁成單房視角
+                "door_excluded":     bool(r.get("door_excluded")),    # 大門在鏡頭外
                 "crop_note":         r.get("crop_note"),             # 沒裁的原因（診斷）
                 "render_model":      r.get("render_model"),          # debug：banana / gpt-image-2
                 "render_filename":   render_path.name if render_path else None,
