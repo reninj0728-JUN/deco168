@@ -1633,6 +1633,7 @@ def build_nano_banana_inputs(
     room_type: str = "living",
     design_mode: str = "furnish",
     consistency_ref_url: str | None = None,
+    layout_guide_url: str | None = None,
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -1725,6 +1726,28 @@ def build_nano_banana_inputs(
         image_urls.append(it.get("image_url"))
         next_idx += 1
 
+    # 版面引導（用戶提案，2026-07-13 實測 4/4 全中）：底圖副本上畫沙發/電視櫃/
+    # 淨空框當參考圖——模型看不懂「離門半個門寬」，但看得懂圖上畫的框。
+    layout_guide_sec = ""
+    if layout_guide_url:
+        _guide_idx = next_idx
+        reference_map.append({
+            "index": _guide_idx, "role": "LAYOUT GUIDE", "url": layout_guide_url,
+            "cat_en": None, "name_zh": None, "id": None, "kind": "LAYOUT_GUIDE",
+        })
+        image_urls.append(layout_guide_url)
+        next_idx += 1
+        layout_guide_sec = (
+            f"LAYOUT GUIDE (binding placement plan): reference image #{_guide_idx} is the SAME "
+            "room photo with placement boxes drawn on it. Place the SOFA entirely inside the "
+            "GREEN box, with its back against that wall. Place the TV cabinet / media console "
+            "entirely inside the BLUE box, facing the sofa. The RED zone must remain completely "
+            "EMPTY floor (main walkway) — nothing may stand there. Put the coffee table and rug "
+            "between the sofa and the console. These boxes are the single source of truth for "
+            "placement and OVERRIDE any conflicting verbal hint. Do NOT draw any boxes, lines "
+            "or labels in the output image."
+        )
+
     inputs_sec = _build_inputs_section(reference_map)
 
     if _is_zoning_usable(zoning):
@@ -1737,6 +1760,8 @@ def build_nano_banana_inputs(
                                            retry_context=retry_context)
     else:
         layout_sec = _build_fallback_layout_section()
+    if layout_guide_sec:
+        layout_sec = (layout_sec + "\n\n" + layout_guide_sec) if layout_sec else layout_guide_sec
 
     product_sec = _build_product_placement_section(reference_map)
     style_sec = _build_style_section(entry)

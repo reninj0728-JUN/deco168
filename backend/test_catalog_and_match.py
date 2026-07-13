@@ -665,3 +665,35 @@ def test_door_excluded_prompt_drops_entrance_clauses():
     sec_ex = pb._build_layout_section({**zoning, "_door_excluded": True})
     assert "DOOR-ON-A-LONG-WALL LAYOUT" not in sec_ex
     assert "Choose the left or right side" in sec_ex   # 退回一般選邊
+
+
+def test_layout_guide_pipeline_wiring():
+    """版面引導（用戶提案，直測 4/4）：畫框圖→參考圖→圖例指令 全鏈接通。"""
+    import os, tempfile
+    import numpy as np, cv2
+    import api
+    import prompt_builder as pb
+    # 1) 引導圖生成（右沙發/左櫃 + 鏡射）
+    with tempfile.TemporaryDirectory() as td:
+        fake = os.path.join(td, "crop.jpg")
+        cv2.imwrite(fake, np.full((600, 900, 3), 200, dtype=np.uint8))
+        p = api._build_layout_guide_image(fake, td, 0, "right")
+        assert p and os.path.exists(p)
+        p2 = api._build_layout_guide_image(fake, td, 1, "left")
+        assert p2 and os.path.exists(p2)
+    # 2) 沙發側決策：綁邊優先；未綁邊 → 無門側；未知 → right
+    assert api._guide_sofa_side({"furniture_placement_rules": {"sofa_side": "left"}}) == "left"
+    assert api._guide_sofa_side({"spatial_synthesis": {"entrance_position": "左側前段大門"},
+                                 "furniture_placement_rules": {}}) == "right"
+    assert api._guide_sofa_side({}) == "right"
+    # 3) prompt：guide url 進 image_urls + LAYOUT GUIDE 圖例段
+    entry = {"style": "muji", "style_label": "無印極簡", "matched_furniture": [],
+             "flux_prompt": "warm oak"}
+    inputs = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg",
+                                         layout_guide_url="https://x/guide.jpg")
+    assert "https://x/guide.jpg" in inputs["image_urls"]
+    assert "LAYOUT GUIDE" in inputs["prompt"]
+    assert "GREEN box" in inputs["prompt"] and "Do NOT draw any boxes" in inputs["prompt"]
+    # 沒帶 guide → prompt 無圖例段（不影響原行為）
+    inputs2 = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg")
+    assert "LAYOUT GUIDE" not in inputs2["prompt"]

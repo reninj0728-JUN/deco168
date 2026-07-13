@@ -953,6 +953,16 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     _cons_url = _to_data_url(str(_cons_path))
                 except Exception as _ce:
                     print(f"  [consistency] 參考圖轉換失敗，略過: {_ce}")
+            # 版面引導參考圖（用戶提案，4/4 實測）：畫了沙發/電視櫃/淨空框的底圖副本。
+            # LAYOUT_GUIDE=0 可急關；讀不到檔就靜默略過（不影響主流程）。
+            _guide_url = None
+            _gp = render.get("_layout_guide")
+            if (_gp and os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
+                    and os.path.exists(_gp)):
+                try:
+                    _guide_url = _to_data_url(_gp)
+                except Exception as _ge:
+                    print(f"  [layout-guide] 讀取失敗，略過: {_ge}")
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,
@@ -962,7 +972,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                                               target_note=target_note,
                                               room_type=room_type,
                                               design_mode=design_mode,
-                                              consistency_ref_url=_cons_url)
+                                              consistency_ref_url=_cons_url,
+                                              layout_guide_url=_guide_url)
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             log_ctx = {

@@ -964,6 +964,7 @@ def _switch_entry_to_next_living_base(entry: dict) -> str | None:
         entry["_cropped"] = False
         entry["_crop_note"] = "alt living base after fidelity fail"
         entry["_door_excluded"] = False   # 換回的原圖大門可能在鏡內
+        entry["_layout_guide"] = None     # 引導框是畫在原裁切圖上的，換底圖即失效
         entry["_uncropped_base"] = p
         print(f"[pipeline] living 換底圖 → {Path(str(p)).name} (used={len(used)})")
         return p
@@ -1127,6 +1128,66 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
     except Exception as e:
         print(f"[pipeline] (i) {room_type} 裁切例外，用整張: {e}")
         return base_path, False, f"例外: {type(e).__name__}", False
+
+
+def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str) -> str | None:
+    """版面引導圖（用戶提案，2026-07-13 直測 4/4 全中）：在客廳底圖副本上畫
+    沙發（綠）/電視櫃（藍）/走道淨空（紅）三個框當額外參考圖。
+    模型對「圖上畫的框」的服從率遠高於文字空間指令（一兩成 → 4/4）。
+
+    v1 框位：實測驗證過的畫面比例帶，依 sofa_side 鏡射。失敗回 None（主流程不受影響）。"""
+    try:
+        import cv2
+        img = cv2.imread(crop_path)
+        if img is None:
+            return None
+        H, W = img.shape[:2]
+
+        def _box(x0f, y0f, x1f, y1f, color, label):
+            x0, y0, x1, y1 = int(W*x0f), int(H*y0f), int(W*x1f), int(H*y1f)
+            overlay = img.copy()
+            cv2.rectangle(overlay, (x0, y0), (x1, y1), color, -1)
+            cv2.addWeighted(overlay, 0.25, img, 0.75, 0, img)
+            cv2.rectangle(img, (x0, y0), (x1, y1), color, max(4, W // 400))
+            cv2.putText(img, label, (x0 + 20, y0 + max(40, H // 25)),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.8, W / 1400),
+                        color, max(3, W // 500), cv2.LINE_AA)
+
+        GREEN, BLUE, RED = (60, 200, 60), (220, 130, 40), (50, 50, 230)
+        if (sofa_side or "right") == "right":
+            _box(0.52, 0.38, 0.98, 0.88, GREEN, "SOFA")
+            _box(0.01, 0.34, 0.22, 0.62, BLUE, "TV CONSOLE")
+            _box(0.26, 0.24, 0.48, 0.60, RED, "KEEP CLEAR")
+        else:
+            _box(0.02, 0.38, 0.48, 0.88, GREEN, "SOFA")
+            _box(0.78, 0.34, 0.99, 0.62, BLUE, "TV CONSOLE")
+            _box(0.52, 0.24, 0.74, 0.60, RED, "KEEP CLEAR")
+        out = str(Path(job_dir) / f"guide_living_{idx:02d}.jpg")
+        if not cv2.imwrite(out, img):
+            return None
+        print(f"[pipeline] (i) living 版面引導圖: sofa_side={sofa_side or 'right'} → {Path(out).name}")
+        return out
+    except Exception as e:
+        print(f"[pipeline] (i) 版面引導圖失敗（略過）: {type(e).__name__}: {str(e)[:80]}")
+        return None
+
+
+def _guide_sofa_side(zoning_result: dict | None) -> str:
+    """引導圖的沙發側：客戶明確綁邊優先；未綁邊時沙發放「無門」側
+    （大門側留給電視櫃——與經典構圖合約一致）；都不知道 → right。"""
+    z = zoning_result or {}
+    rules = z.get("furniture_placement_rules") or {}
+    bound = str(rules.get("sofa_side") or "").strip().lower()
+    if bound in ("left", "right"):
+        return bound
+    syn = z.get("spatial_synthesis") or {}
+    _entr = str(syn.get("entrance_position") or "") + \
+        str(((z.get("zones") or {}).get("entrance_zone") or {}).get("where", ""))
+    if "左" in _entr or "left" in _entr.lower():
+        return "right"
+    if "右" in _entr or "right" in _entr.lower():
+        return "left"
+    return "right"
 
 
 def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
@@ -1900,6 +1961,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     print(f"[pipeline] living 備援底圖 {len(_living_alt_paths)} 張: "
                           f"{[Path(p).name for p in _living_alt_paths]}")
 
+        # 版面引導圖：每個 living 視角各生成一張（畫框在該視角的底圖上）。
+        # 沙發側由 zoning ground truth 決定（綁邊優先、否則無門側）。
+        _sofa_side_for_guide = _guide_sofa_side(zoning_result)
+        layout_guide_paths: dict[int, str | None] = {}
+        for _vi, (_bp, _rt) in enumerate(zip(flux_bases, angle_room_types)):
+            if _rt == "living" and os.environ.get("LAYOUT_GUIDE", "1").strip() != "0":
+                layout_guide_paths[_vi] = _build_layout_guide_image(
+                    _bp, job_dir, _vi, _sofa_side_for_guide)
+
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
@@ -1913,6 +1983,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_cropped"] = cropped   # (i) 是否裁成單房視角
                 copy["_crop_note"] = cnote   # 沒裁時的原因（診斷用）
                 copy["_door_excluded"] = bool(door_excluded_flags[vi])  # 大門已裁出鏡
+                copy["_layout_guide"] = layout_guide_paths.get(vi)      # 版面引導參考圖
                 copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 if rt == "living" and _living_alt_paths:
