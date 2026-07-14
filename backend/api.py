@@ -430,7 +430,7 @@ def _preferred_focal_side(zoning: dict | None) -> str:
         return ""
     # 一側是入口、對側是無開口完整實牆，完整牆優先給沙發當穩定背牆；
     # focal/TV 留在入口側「過門後的實牆段」。這可避免 E72 把沙發塞在大門旁。
-    if entrance in ("left", "right") and not window:
+    if entrance in ("left", "right") and window not in ("left", "right"):
         opposite = "right" if entrance == "left" else "left"
         for wall in syn.get("wall_inventory") or []:
             txt = f"{wall.get('name', '')} {wall.get('description', '')}"

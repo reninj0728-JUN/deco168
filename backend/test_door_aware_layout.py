@@ -182,17 +182,37 @@ class DoorAwareLayoutTests(unittest.TestCase):
         }
         # 無主窗時，完整右牆優先給沙發；左側只在過門後放 TV。
         self.assertEqual(api._preferred_focal_side(no_window), "left")
+        job_2879173d = {
+            "_entrance_side": "left",
+            "_window_side": "back",
+            "spatial_synthesis": {
+                "room_shape": "長方形長條格局",
+                "main_window_wall": "深處端點",
+                "wall_inventory": [
+                    {"name": "左側長牆", "has_opening": True},
+                    {"name": "右側長牆", "has_opening": False},
+                    {"name": "遠端壁面", "has_opening": True},
+                ],
+            },
+        }
+        # 2879173D：後窗不占左右長牆；右側完整牆仍應留給沙發，
+        # TV 放左側過門後牆段。舊版誤回 right，讓四輪沙發都貼大門。
+        focal_side = api._preferred_focal_side(job_2879173d)
+        self.assertEqual(focal_side, "left")
         prompt_z = {
-            **no_window,
+            **job_2879173d,
             "_origin": "user_confirmed_v2",
             "_layout_choice": "A",
             "_sofa_layout": "free",
-            "_auto_focal_side": "left",
+            "_auto_focal_side": focal_side,
             "zones": {"living_zone": {"where": "客廳前中段"},
                       "entrance_zone": {"where": "左側大門"}},
             "furniture_placement_rules": {"sofa_side": "", "tv_side": ""},
         }
-        self.assertIn("ONE FULL visible door-width", pb._build_layout_section(prompt_z))
+        layout_prompt = pb._build_layout_section(prompt_z)
+        self.assertIn("ONE FULL visible door-width", layout_prompt)
+        self.assertIn("focal/TV wall is LEFT", layout_prompt)
+        self.assertIn("sofa belongs on the RIGHT", layout_prompt)
         # 若唯一實牆跟入口同側，TV 仍必須被推過門淨空，不能藍紅重疊。
         conflict = api._layout_guide_plan(
             1000, 700, sofa_side="free", entrance_side="left",
@@ -212,12 +232,13 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertTrue(api._zoning_bbox_matches_source(paths[0], paths, zoning))
         self.assertFalse(api._zoning_bbox_matches_source(paths[1], paths, zoning))
 
-    def test_ui_keeps_three_choices_and_explains_ai_auto(self):
+    def test_ui_keeps_three_choices_without_public_ai_wording(self):
         html = (Path(__file__).parent.parent / "zoning-confirm.html").read_text(encoding="utf-8")
         for value in ("left", "right", "free"):
             self.assertIn(f'value="{value}"', html)
-        self.assertIn("交給 AI 自動配置", html)
-        self.assertIn("空間夠大時可不靠牆", html)
+        self.assertIn("採用建議配置", html)
+        self.assertIn("依門窗與動線安排", html)
+        self.assertNotIn("交給 AI 自動配置", html)
         self.assertIn("currentSofaSide = 'free'; // 非長型房未讓客戶指定", html)
 
     def test_validator_hard_fails_sofa_facing_door_or_window(self):
