@@ -615,8 +615,8 @@ def _sofa_focal_floor_depth_violation(rb: dict) -> tuple[float, float] | None:
                 and b[2] > b[0] and b[3] > b[1]):
             return None
     delta = abs(float(sofa[2]) - float(focal[2]))
-    # normalized 0-1000；超過 12% 畫高已不是正常透視誤差，而是前後錯位。
-    threshold = 120.0
+    # normalized 0-1000；落地點差超過 6% 畫高，肉眼已會變成斜對／掃到大門。
+    threshold = 60.0
     return (delta, threshold) if delta > threshold else None
 
 

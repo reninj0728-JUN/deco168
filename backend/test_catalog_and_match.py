@@ -551,7 +551,13 @@ def test_door_adjacency_geometry():
         "sofa": [515, 608, 860, 893],
     }
     depth_v = ga._sofa_focal_floor_depth_violation(rb_e72_wrong_axis)
-    assert depth_v and depth_v[0] == 177 and depth_v[1] == 120
+    assert depth_v and depth_v[0] == 177 and depth_v[1] == 60
+    rb_e72_still_wrong = {
+        "entrance_door": [238, 120, 843, 258],
+        "focal_anchor": [533, 259, 693, 377],
+        "sofa": [496, 608, 804, 849],
+    }
+    assert ga._sofa_focal_floor_depth_violation(rb_e72_still_wrong) == (111.0, 60.0)
     rb_e72_aligned = {**rb_e72_wrong_axis, "focal_anchor": [650, 265, 842, 386]}
     assert ga._sofa_focal_floor_depth_violation(rb_e72_aligned) is None
 

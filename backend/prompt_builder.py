@@ -372,9 +372,11 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                         "and media console deeper along that wall: the console must start at least ONE "
                         "FULL visible door-width past the outer door frame, never beside or touching "
                         "the entrance. Keep the wall segment from the door through that full door-width "
-                        "completely bare. Move the sofa equally deep along its opposite wall so the sofa "
-                        "centre and TV-console centre sit on ONE straight cross-room line. The sofa must "
-                        "NOT remain level with the entrance door while the TV sits deeper in the room. "
+                        "completely bare. Move the SOFA deeper along its opposite wall until the sofa "
+                        "and TV-console floor-contact baselines differ by no more than 6% of the image "
+                        "height and their centres sit on ONE straight cross-room line. Never solve this "
+                        "by pulling the TV back toward the entrance. The sofa must NOT remain level with "
+                        "the entrance door while the TV sits deeper in the room. "
                     )
             else:
                 _auto_choice = (
@@ -1394,10 +1396,11 @@ _RETRY_FLAG_FIX_EN = {
         "The sofa was placed OUTSIDE the designated living zone. "
         "Move the entire sofa group back inside the living zone.",
     "focal_anchor_misaligned_with_sofa":
-        "The sofa and TV/media console were NOT on the same cross-room depth axis. Move the sofa "
-        "and focal anchor along their opposite walls until their floor-contact centres align on ONE "
-        "straight line perpendicular to the walls. Do not leave the sofa level with the entrance "
-        "while the TV sits deeper in the room.",
+        "The sofa and TV/media console were NOT on the same cross-room depth axis. Keep the TV safely "
+        "past the entrance, and move the SOFA deeper along the opposite wall until both floor-contact "
+        "baselines differ by no more than 6% of image height. Their centres must align on ONE straight "
+        "line perpendicular to the walls. Never move the TV back toward the entrance; do not leave the "
+        "sofa level with the entrance while the TV sits deeper in the room.",
     "sofa_back_against_window":
         "The sofa back was against the window. Do NOT put the sofa back to the window. "
         "Place the sofa against a solid wall and keep the window clear behind it.",
