@@ -551,14 +551,15 @@ def test_door_adjacency_geometry():
         "focal_anchor": [535, 265, 683, 386],
         "sofa": [515, 608, 860, 893],
     }
-    depth_v = ga._sofa_focal_floor_depth_violation(rb_e72_wrong_axis)
-    assert depth_v and depth_v[0] == 177 and depth_v[1] == 60
+    axis_v = ga._sofa_focal_center_axis_violation(rb_e72_wrong_axis)
+    assert axis_v and axis_v[0] == 78.5 and axis_v[1] == 40
     rb_e72_still_wrong = {
         "entrance_door": [238, 120, 843, 258],
         "focal_anchor": [533, 259, 693, 377],
         "sofa": [496, 608, 804, 849],
     }
-    assert ga._sofa_focal_floor_depth_violation(rb_e72_still_wrong) == (111.0, 60.0)
+    # 中心軸本身可接受，但沙發仍跟門太同深；必須由三物件門區證據擋下。
+    assert ga._sofa_focal_center_axis_violation(rb_e72_still_wrong) is None
     assert not ga._perspective_door_exception_proven(rb_e72_still_wrong)
     assert ga._door_adjacency_violation(
         rb_e72_still_wrong, focal_past_door_in_depth=True) is not None
@@ -568,11 +569,19 @@ def test_door_adjacency_geometry():
         "focal_anchor": [518, 292, 656, 405],
         "sofa": [480, 577, 689, 735],
     }
+    assert ga._sofa_focal_center_axis_violation(rb_e72_safe) is None
     assert ga._perspective_door_exception_proven(rb_e72_safe)
     assert ga._door_adjacency_violation(
         rb_e72_safe, focal_past_door_in_depth=True) is None
-    rb_e72_aligned = {**rb_e72_wrong_axis, "focal_anchor": [650, 265, 842, 386]}
-    assert ga._sofa_focal_floor_depth_violation(rb_e72_aligned) is None
+
+    rb_7493_axis_wrong = {
+        "entrance_door": [195, 72, 865, 228],
+        "focal_anchor": [425, 257, 684, 387],
+        "sofa": [508, 594, 831, 858],
+    }
+    assert ga._sofa_focal_center_axis_violation(rb_7493_axis_wrong) == (115.0, 40.0)
+    rb_e72_aligned = {**rb_e72_wrong_axis, "focal_anchor": [600, 265, 775, 386]}
+    assert ga._sofa_focal_center_axis_violation(rb_e72_aligned) is None
 
 
 def test_recursive_audit_contracts():
