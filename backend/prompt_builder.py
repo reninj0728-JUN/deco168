@@ -366,6 +366,14 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                     f"the recommended focal/TV wall is {_SIDE_EN[_auto_focal]}, so the sofa belongs "
                     f"on the {_SIDE_EN[_auto_sofa]} side facing it. "
                 )
+                if _auto_focal == _entr_side:
+                    _auto_choice += (
+                        "Because the focal wall also contains the entrance door, move the ENTIRE TV "
+                        "and media console deeper along that wall: the console must start at least ONE "
+                        "FULL visible door-width past the outer door frame, never beside or touching "
+                        "the entrance. Keep the wall segment from the door through that full door-width "
+                        "completely bare. "
+                    )
             else:
                 _auto_choice = (
                     "the left/right walls are both constrained by the entrance and main window. "

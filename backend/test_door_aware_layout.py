@@ -172,6 +172,7 @@ class DoorAwareLayoutTests(unittest.TestCase):
         no_window = {
             "_entrance_side": "left",
             "spatial_synthesis": {
+                "room_shape": "狹長深型格局",
                 "main_window_wall": "主客廳沒有直接對外窗",
                 "wall_inventory": [
                     {"name": "左側長牆", "has_opening": True},
@@ -181,6 +182,17 @@ class DoorAwareLayoutTests(unittest.TestCase):
         }
         # 無主窗時，完整右牆優先給沙發；左側只在過門後放 TV。
         self.assertEqual(api._preferred_focal_side(no_window), "left")
+        prompt_z = {
+            **no_window,
+            "_origin": "user_confirmed_v2",
+            "_layout_choice": "A",
+            "_sofa_layout": "free",
+            "_auto_focal_side": "left",
+            "zones": {"living_zone": {"where": "客廳前中段"},
+                      "entrance_zone": {"where": "左側大門"}},
+            "furniture_placement_rules": {"sofa_side": "", "tv_side": ""},
+        }
+        self.assertIn("ONE FULL visible door-width", pb._build_layout_section(prompt_z))
         # 若唯一實牆跟入口同側，TV 仍必須被推過門淨空，不能藍紅重疊。
         conflict = api._layout_guide_plan(
             1000, 700, sofa_side="free", entrance_side="left",
@@ -224,6 +236,8 @@ class DoorAwareLayoutTests(unittest.TestCase):
             {"ok": True, "sofa_facing_window": True}, is_living=True)
         self.assertFalse(facing["ok"])
         self.assertTrue(facing["sofa_facing_window"])
+        self.assertTrue(ga._living_bbox_is_broad_depth_zone([380, 250, 980, 980]))
+        self.assertFalse(ga._living_bbox_is_broad_depth_zone([700, 250, 980, 980]))
 
 
     def test_free_mode_crop_keeps_entrance_and_exact_three_to_two(self):
