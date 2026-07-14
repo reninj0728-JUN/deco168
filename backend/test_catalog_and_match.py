@@ -511,77 +511,26 @@ def test_video_processing_wait_is_bounded():
 
 
 def test_door_adjacency_geometry():
-    """BB034AB8 根治：門邊淨空改幾何量測——判官 bbox 準但布林會漏答，
-    程式直接算重疊/間距，抓到強制 blocks_door 進重試鏈。"""
+    """使用者裁決校準庫｜接受組全放、拒絕組全擋才准調門檻。"""
+    import json
     import gemini_analyze as ga
-    # 北歐實測 bbox：高櫃(focal x94-369) 與門(約 x80-250) 重疊 → 違規
-    rb_nordic = {"entrance_door": [300, 80, 860, 250],
-                 "focal_anchor": [422, 94, 840, 369],
-                 "sofa": [512, 625, 906, 981]}
-    v = ga._door_adjacency_violation(rb_nordic)
-    assert v and v[0] == "focal_anchor"
-    # 無印實測：櫃 x262 起、門 xmax~240 → 間距 22 < 0.25*180 → 違規
-    rb_muji = {"entrance_door": [330, 60, 830, 240],
-               "focal_anchor": [513, 262, 674, 381],
-               "sofa": [482, 584, 826, 856]}
-    assert ga._door_adjacency_violation(rb_muji)
-    # 合格構圖：櫃離門 0.5 門寬以上 → 放行
-    rb_ok = {"entrance_door": [330, 60, 830, 240],
-             "focal_anchor": [500, 360, 700, 560],
-             "sofa": [480, 700, 850, 980]}
-    assert ga._door_adjacency_violation(rb_ok) is None
-    # 沒標到門 bbox → 不誤判（退回判官布林）
+
+    fixture = Path(__file__).parent / "fixtures" / "living_layout_calibration.json"
+    cases = json.loads(fixture.read_text(encoding="utf-8"))
+
+    for case in cases["accepted"]:
+        violation = ga._door_adjacency_violation(case["render_bboxes"])
+        assert violation is None, f"accepted case rejected: {case['case_id']} -> {violation}"
+
+    for case in cases["rejected"]:
+        violation = ga._door_adjacency_violation(case["render_bboxes"])
+        assert violation is not None, f"rejected case passed: {case['case_id']}"
+        assert violation[0] == case["expected_violation_target"], (
+            f"wrong violation target: {case['case_id']} -> {violation[0]}"
+        )
+
+    assert ga.DOOR_GAP_MIN_FOCAL == 0.28
     assert ga._door_adjacency_violation({"focal_anchor": [1, 1, 9, 9]}) is None
-    # 6DA08412 分級門檻校準：客訴圖（櫃距門 0.26 門寬）必死；認可圖（0.42）穩過
-    rb_complaint = {"entrance_door": [156, 76, 831, 222],
-                    "focal_anchor": [479, 260, 614, 377],   # gap 38/146 = 0.26
-                    "sofa": [455, 592, 850, 903]}
-    v2 = ga._door_adjacency_violation(rb_complaint)
-    assert v2 and v2[0] == "focal_anchor" and v2[3] == ga.DOOR_GAP_MIN_FOCAL
-    # 判官單獨答 true 不得豁免；客訴圖的沙發仍與門同深、且沒跟 TV 對齊。
-    assert ga._door_adjacency_violation(
-        rb_complaint, focal_past_door_in_depth=True) is not None
-    assert not ga._perspective_door_exception_proven(rb_complaint)
-    rb_approved = {"entrance_door": [323, 122, 853, 272],
-                   "focal_anchor": [508, 335, 606, 410],    # gap 63/150 = 0.42
-                   "sofa": [500, 700, 850, 980]}
-    assert ga._door_adjacency_violation(rb_approved) is None
-    rb_e72_wrong_axis = {
-        "entrance_door": [215, 96, 835, 255],
-        "focal_anchor": [535, 265, 683, 386],
-        "sofa": [515, 608, 860, 893],
-    }
-    axis_v = ga._sofa_focal_center_axis_violation(rb_e72_wrong_axis)
-    assert axis_v and axis_v[0] == 78.5 and axis_v[1] == 40
-    rb_e72_still_wrong = {
-        "entrance_door": [238, 120, 843, 258],
-        "focal_anchor": [533, 259, 693, 377],
-        "sofa": [496, 608, 804, 849],
-    }
-    # 中心軸本身可接受，但沙發仍跟門太同深；必須由三物件門區證據擋下。
-    assert ga._sofa_focal_center_axis_violation(rb_e72_still_wrong) is None
-    assert not ga._perspective_door_exception_proven(rb_e72_still_wrong)
-    assert ga._door_adjacency_violation(
-        rb_e72_still_wrong, focal_past_door_in_depth=True) is not None
-
-    rb_e72_safe = {
-        "entrance_door": [221, 114, 831, 255],
-        "focal_anchor": [518, 292, 656, 405],
-        "sofa": [480, 577, 689, 735],
-    }
-    assert ga._sofa_focal_center_axis_violation(rb_e72_safe) is None
-    assert ga._perspective_door_exception_proven(rb_e72_safe)
-    assert ga._door_adjacency_violation(
-        rb_e72_safe, focal_past_door_in_depth=True) is None
-
-    rb_7493_axis_wrong = {
-        "entrance_door": [195, 72, 865, 228],
-        "focal_anchor": [425, 257, 684, 387],
-        "sofa": [508, 594, 831, 858],
-    }
-    assert ga._sofa_focal_center_axis_violation(rb_7493_axis_wrong) == (115.0, 40.0)
-    rb_e72_aligned = {**rb_e72_wrong_axis, "focal_anchor": [600, 265, 775, 386]}
-    assert ga._sofa_focal_center_axis_violation(rb_e72_aligned) is None
 
 
 def test_recursive_audit_contracts():
