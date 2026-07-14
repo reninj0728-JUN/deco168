@@ -697,3 +697,24 @@ def test_layout_guide_pipeline_wiring():
     # 沒帶 guide → prompt 無圖例段（不影響原行為）
     inputs2 = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg")
     assert "LAYOUT GUIDE" not in inputs2["prompt"]
+
+
+def test_room_crop_disarms_c24_depth_gate():
+    """E72F4ADB：裁切單房底圖時「在不在客廳區」由裁切保證、擺位由版面引導治理
+    ——C2.4 深度門檻必須讓位（判官說合理卻被舊深度鐵則殺掉=兩個主人打架）。"""
+    import inspect
+    import api
+    import gemini_analyze as ga
+    # ctx 傳遞：cropped render → base_is_room_crop 進 layout_ctx
+    ctx = api._product_fidelity_into_layout_ctx({"living_where": "後段靠窗"},
+                                                {"room_type": "living", "cropped": True,
+                                                 "matched_furniture": []})
+    assert ctx.get("base_is_room_crop") is True
+    # 未裁切 → 不設旗標（原行為不變）
+    ctx2 = api._product_fidelity_into_layout_ctx({"living_where": "後段靠窗"},
+                                                 {"room_type": "living", "cropped": False,
+                                                  "matched_furniture": []})
+    assert not (ctx2 or {}).get("base_is_room_crop")
+    # 驗收端：C2.4 區塊有讓位分支
+    src = inspect.getsource(ga.validate_render)
+    assert "base_is_room_crop" in src

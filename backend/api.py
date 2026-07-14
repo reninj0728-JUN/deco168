@@ -1227,9 +1227,15 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
                 "desc": (it.get("flux_descriptor") or "")[:120],
             })
     must_products = must_products[:6]  # 防 prompt 膨脹；清單本來就 top 4-5
-    if (not sofa_seat or sofa_seat == "unknown") and not must_products:
+    # E72F4ADB：底圖為裁切單房視角時告知驗收端（C2.4 深度門檻讓位——
+    # zone 歸屬由裁切保證、擺位由版面引導圖治理）。四個驗收呼叫點都經過
+    # 這個函式，一處設定全覆蓋。
+    _is_crop = bool(entry_or_render.get("_cropped") or entry_or_render.get("cropped"))
+    if (not sofa_seat or sofa_seat == "unknown") and not must_products and not _is_crop:
         return layout_ctx
     out = dict(layout_ctx) if isinstance(layout_ctx, dict) else {}
+    if _is_crop:
+        out["base_is_room_crop"] = True
     if sofa_seat and sofa_seat != "unknown":
         out["expected_sofa_seating"] = sofa_seat
         out["expected_sofa_name"] = sofa_name
