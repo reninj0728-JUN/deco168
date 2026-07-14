@@ -973,7 +973,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                                               room_type=room_type,
                                               design_mode=design_mode,
                                               consistency_ref_url=_cons_url,
-                                              layout_guide_url=_guide_url)
+                                              layout_guide_url=_guide_url,
+                                              layout_guide_mode=render.get("_layout_guide_mode"))
             print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             log_ctx = {

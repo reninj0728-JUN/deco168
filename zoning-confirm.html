@@ -170,7 +170,7 @@
           <input type="radio" name="sofaside" value="right" style="display:none;">沙發靠右側牆
         </label>
         <label class="opt side-opt" id="sideFree" style="flex-basis:100%; padding:14px; text-align:center; font-size:14px;">
-          <input type="radio" name="sofaside" value="free" style="display:none;">不靠牆 · 讓設計自由發揮<span style="font-size:11px; color:var(--muted);">（適合較大的客廳）</span>
+          <input type="radio" name="sofaside" value="free" style="display:none;">交給 AI 自動配置<span style="font-size:11px; color:var(--muted);">（空間夠大時可不靠牆）</span>
         </label>
       </div>
       <div id="sofaSideReadonly" style="display:none; margin-top:10px; font-size:15px; color:#fff; line-height:1.7;"></div>
@@ -319,6 +319,7 @@
       document.getElementById('sofaSideReadonly').style.display = 'none';
       document.getElementById('sofaSideHint').style.display = 'block';
     } else {
+      currentSofaSide = 'free'; // 非長型房未讓客戶指定，必須走 AI 自動配置
       document.getElementById('sofaSideTitle').textContent = '沙發位置';
       document.getElementById('sofaSideAI').textContent = '';
       document.getElementById('sofaSideChooser').style.display = 'none';
@@ -368,7 +369,7 @@
     currentChoice = 'B';
   });
 
-  // 沙發左右選擇（'free' = 不靠牆，讓設計自由發揮——大客廳選項）
+  // 沙發選擇（'free' = 客戶無指定，交給 AI 依門窗、走道、空間大小自動配置）
   function setSofaSide(side) {
     currentSofaSide = (side === 'left' || side === 'free') ? side : 'right';
     ['left', 'right', 'free'].forEach(function(s) {
@@ -506,7 +507,7 @@
         currentZoning.proposed_zones.living_zone = currentZoning.proposed_zones.living_zone || {};
         var lz = currentZoning.proposed_zones.living_zone;
         if (currentSofaSide === 'free') {
-          // 不靠牆：side 綁定交白卷，後端 flatten 會轉成 _sofa_layout=free（自由配置 prompt）
+          // AI 自動配置：不綁左右，由後端依門窗、走道與空間大小決定；大客廳可浮置。
           lz.sofa_side = 'free'; lz.tv_side = '';
           lz.alt_sofa_side = 'free'; lz.alt_tv_side = '';
         } else {
@@ -516,7 +517,8 @@
           lz.alt_sofa_side = currentSofaSide;
           lz.alt_tv_side = oppSide;
         }
-        lz.sofa_side_confidence = 'high';   // 使用者明確指定 → 視為高信心
+        lz.sofa_side_confidence = (currentSofaSide === 'free') ? '' : 'high';
+        // 只有實際點選靠左／靠右才算客戶明確指定；AI auto 不可冒充 high confidence。
         localStorage.setItem('deco_zoning_json', JSON.stringify(currentZoning));
       } catch (e) {
         console.warn('zoning_json 寫入失敗', e);

@@ -590,32 +590,32 @@ def test_dropped_reason_prefers_real_validation():
     assert "暫時性錯誤" in src2 and "locked" in src2
 
 
-def test_door_on_long_wall_classic_default():
-    """C2327004/DEA3A864 定案：門在長牆＋未綁邊 → 用客戶眼球認可的經典構圖
-    （沙發靠無門實牆、櫃在門牆但過門半門寬以上）。翻面實驗（沙發放門牆）
-    四輪證明模型畫不出來（相機就在門旁），已撤。綁邊訂單不受影響。"""
+def test_door_on_long_wall_free_is_door_aware():
+    """E72F4ADB 根治：free／自動配置保留門 bbox；左門案例用前側小沙發，
+    TV 在右側完整牆，中央後方走道保持可通。"""
     import prompt_builder as pb
     zoning_free = {
         "_origin": "user_confirmed_v2", "_layout_choice": "A", "_sofa_layout": "free",
+        "_entrance_side": "left", "_auto_focal_side": "right", "_auto_can_float": False,
         "spatial_synthesis": {"room_shape": "長條型格局",
                               "entrance_position": "左側前段大門"},
         "zones": {"living_zone": {"where": "客廳前段區域。"},
                   "entrance_zone": {"where": "左側前段大門周邊區域。"}},
-        "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
+        "furniture_placement_rules": {"sofa_wall": "", "sofa_side": "", "tv_side": ""},
     }
-    # 門在左 → 沙發靠右(無門)牆、櫃在左(門)牆過門、半門寬淨空、視線不掃門
     sec = pb._build_layout_section(zoning_free)
-    assert "DOOR-ON-A-LONG-WALL LAYOUT" in sec
-    assert "sofa BACK MUST be flush against the RIGHT long wall" in sec
-    assert "HALF a door-width" in sec
-    assert "OUTSIDE that line of sight" in sec
-    assert "sofa placed on the LEFT (door) wall" in sec  # 沙發上門牆=FAILURE
+    assert "AI-AUTO LAYOUT" in sec
+    assert "focal/TV wall is RIGHT" in sec
+    assert "sofa belongs on the LEFT side" in sec
+    assert "not a random side" in sec
+    assert "DOOR-ON-A-LONG-WALL LAYOUT" not in sec
+    assert "sofa BACK MUST be flush against the RIGHT long wall" not in sec
     # 綁邊訂單永遠尊重客戶
     zoning_bound = dict(zoning_free)
     zoning_bound.pop("_sofa_layout")
     zoning_bound["furniture_placement_rules"] = {"sofa_wall": "x", "sofa_side": "right", "tv_side": "left"}
     sec_bound = pb._build_layout_section(zoning_bound)
-    assert "BOUND SIDE" in sec_bound and "DOOR-ON-A-LONG-WALL" not in sec_bound
+    assert "BOUND SIDE" in sec_bound and "AI-AUTO LAYOUT" not in sec_bound
 
 
 def test_quota_outage_skips_retry_burn():
@@ -661,10 +661,12 @@ def test_door_excluded_prompt_drops_entrance_clauses():
         "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
     }
     sec_normal = pb._build_layout_section(zoning)
-    assert "DOOR-ON-A-LONG-WALL LAYOUT" in sec_normal
+    assert "AI-AUTO LAYOUT" in sec_normal
     sec_ex = pb._build_layout_section({**zoning, "_door_excluded": True})
+    # 舊單即使門已被裁掉，auto 仍須是 AI 建議，不得退成亂選左右。
+    assert "AI-AUTO LAYOUT" in sec_ex
+    assert "not a random side" in sec_ex
     assert "DOOR-ON-A-LONG-WALL LAYOUT" not in sec_ex
-    assert "Choose the left or right side" in sec_ex   # 退回一般選邊
 
 
 def test_layout_guide_pipeline_wiring():
@@ -692,22 +694,22 @@ def test_layout_guide_pipeline_wiring():
     inputs = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg",
                                          layout_guide_url="https://x/guide.jpg")
     assert "https://x/guide.jpg" in inputs["image_urls"]
-    assert "LAYOUT GUIDE" in inputs["prompt"]
-    assert "GREEN box" in inputs["prompt"] and "Do NOT draw any boxes" in inputs["prompt"]
+    assert "LAYOUT CONSTRAINT MAP" in inputs["prompt"]
+    assert "RED forbidden zones only" in inputs["prompt"]
+    assert "Do NOT copy boxes" in inputs["prompt"]
     # 沒帶 guide → prompt 無圖例段（不影響原行為）
     inputs2 = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg")
     assert "LAYOUT GUIDE" not in inputs2["prompt"]
 
 
 def test_room_crop_disarms_c24_depth_gate():
-    """E72F4ADB：裁切單房底圖時「在不在客廳區」由裁切保證、擺位由版面引導治理
-    ——C2.4 深度門檻必須讓位（判官說合理卻被舊深度鐵則殺掉=兩個主人打架）。"""
+    """只有真正依 living-zone bbox 裁出的單房底圖，才能放寬 C2.4 深度閘門。"""
     import inspect
     import api
     import gemini_analyze as ga
-    # ctx 傳遞：cropped render → base_is_room_crop 進 layout_ctx
     ctx = api._product_fidelity_into_layout_ctx({"living_where": "後段靠窗"},
                                                 {"room_type": "living", "cropped": True,
+                                                 "_zone_cropped": True,
                                                  "matched_furniture": []})
     assert ctx.get("base_is_room_crop") is True
     # 未裁切 → 不設旗標（原行為不變）

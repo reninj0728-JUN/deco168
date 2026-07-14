@@ -314,8 +314,11 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
         # 沙發視線掃到大門 = 客戶體感「沙發對門」。同牆時啟動避門協議。
         _tv_side_raw = (rules.get("tv_side") or "").strip().lower()
         _entr_txt = str(syn.get("entrance_position") or "") + str((zones.get("entrance_zone") or {}).get("where", ""))
-        _entr_side = ("left" if ("左" in _entr_txt or "left" in _entr_txt.lower())
-                      else ("right" if ("右" in _entr_txt or "right" in _entr_txt.lower()) else ""))
+        # 大門側以 flatten 寫入的 bbox 判定為真相；文字只支援舊資料 fallback。
+        _entr_side = str(zoning.get("_entrance_side") or "").strip().lower()
+        if _entr_side not in ("left", "right"):
+            _entr_side = ("left" if ("左" in _entr_txt or "left" in _entr_txt.lower())
+                          else ("right" if ("右" in _entr_txt or "right" in _entr_txt.lower()) else ""))
         # 門排除出鏡：底圖裡沒有大門 → 所有 entrance 側指令關閉（對看不見的門
         # 下指令會讓模型憑空畫門或亂閃避），改走一般選邊。
         if zoning.get("_door_excluded"):
@@ -349,6 +352,32 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 "side wall holds the TV cabinet / media console / focal anchor facing the sofa. "
                 f"Putting the sofa on the {_SIDE_EN[_opp]} side is a FAILURE. "
             )
+        elif _sofa_free_layout:
+            _auto_focal = str(zoning.get("_auto_focal_side") or "").strip().lower()
+            _auto_position = (
+                "The room is confirmed large enough, so a floating sofa MAY be used when it keeps "
+                "all circulation clear. " if zoning.get("_auto_can_float") else
+                "Do NOT force a floating layout; use a compact placement that preserves the central "
+                "route to the rear. "
+            )
+            if _auto_focal in _SIDE_EN:
+                _auto_sofa = "left" if _auto_focal == "right" else "right"
+                _auto_choice = (
+                    f"the recommended focal/TV wall is {_SIDE_EN[_auto_focal]}, so the sofa belongs "
+                    f"on the {_SIDE_EN[_auto_sofa]} side facing it. "
+                )
+            else:
+                _auto_choice = (
+                    "the left/right walls are both constrained by the entrance and main window. "
+                    "Choose a third solid wall, front/rear wall, or safe angled arrangement from the "
+                    "actual photo; do not force either unsafe side. "
+                )
+            side_choice_clause = (
+                "AI-AUTO LAYOUT (the customer delegated the decision; this is a reasoned layout, "
+                "not a random side): " + _auto_choice + _auto_position +
+                "The sofa must NEVER face the entrance door, main window, balcony opening or corridor; "
+                "all door, walkway and no-furniture clearance stays empty. "
+            )
         elif _entr_side in _SIDE_EN:
             # C2327004 定案：門在長牆＋未綁邊時，用「客戶眼球認可過」的經典構圖
             # （21CCB9AF）：沙發靠無門實牆、櫃子在門牆但「明顯過門」。翻面實驗
@@ -378,25 +407,34 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 "Choose the left or right side according to visible doors and openings, "
                 "never placing the sofa on the wall segment beside the entrance door. "
             )
-        # 6F1BFC19：free（不靠牆）+ 長房間時，舊條文「必須貼牆、不准漂浮」跟後面的
-        # FREE-STANDING 段自相矛盾——模型聽了貼牆卻沒邊約束，把沙發貼到大門牆。
-        # free 只放寬「必須貼牆」本身，軸向/選邊/避門全部保留。
-        _flush_clause = (
-            "The customer explicitly allows a FREE-STANDING sofa: it may float off the wall, "
-            "but it must stay PARALLEL to the long side walls with its back toward one long "
-            "side wall. "
-            if _sofa_free_layout else
-            "The sofa BACK must be flush and parallel against ONE unobstructed LONG SIDE WALL "
-            "running from the entrance/front toward the window/back. "
-        )
-        _no_float_clause = (
-            "The sofa must not sit transversely across the room or back directly against the "
-            "window/end wall. "
-            if _sofa_free_layout else
-            "The sofa must not "
-            "float in the room, sit transversely across the room, or back directly against the "
-            "window/end wall. "
-        )
+        # AI auto 不是強制浮置；只有尺寸確認夠大才允許離牆。
+        if _sofa_free_layout and zoning.get("_auto_can_float"):
+            _flush_clause = (
+                "AI confirmed this room is large enough for a FREE-STANDING sofa; it may float on "
+                "usable floor outside every entrance, walkway and no-furniture constraint while "
+                "remaining parallel to the main walls. "
+            )
+            _no_float_clause = (
+                "The sofa must not sit transversely across the route or face a window/end opening. "
+            )
+        elif _sofa_free_layout:
+            _flush_clause = (
+                "AI auto mode does NOT require a floating sofa here; choose a compact safe floor "
+                "position outside every red entrance, walkway and no-furniture constraint, keeping "
+                "the main longitudinal route open. "
+            )
+            _no_float_clause = (
+                "Do not drift the sofa into the center route or face a window/end opening. "
+            )
+        else:
+            _flush_clause = (
+                "The sofa BACK must be flush and parallel against ONE unobstructed LONG SIDE WALL "
+                "running from the entrance/front toward the window/back. "
+            )
+            _no_float_clause = (
+                "The sofa must not float in the room, sit transversely across the room, or back "
+                "directly against the window/end wall. "
+            )
         long_room_side_wall_rule = (
             " LONG-ROOM SIDE-WALL CONTRACT (hard rule): This is a long rectangular room. "
             + _flush_clause
@@ -464,6 +502,9 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "centred, face-to-face pair. Do NOT push it toward the window end, into a corner, or "
             "offset down the length of the room; its centre should line up with the sofa's centre. "
             "ENTRANCE DOOR: the sofa must NEVER directly face the apartment's main entrance door. "
+            "MAIN WINDOW: the sofa must NEVER directly face the main window, floor-to-ceiling window "
+            "or balcony glass opening; keep that glazing to the sofa's side or behind it and aim the "
+            "sofa toward the solid-wall TV/focal anchor instead. "
             "If the wall opposite the sofa contains the entry door, slide the sofa + focal pair "
             "along their walls so the sofa faces the SOLID section of that wall (away from the "
             "door), keeping the door swing and its approach completely clear. "
@@ -1634,6 +1675,7 @@ def build_nano_banana_inputs(
     design_mode: str = "furnish",
     consistency_ref_url: str | None = None,
     layout_guide_url: str | None = None,
+    layout_guide_mode: str | None = None,
 ) -> dict:
     """
     組 Nano Banana Pro multi-image edit 所需的 prompt + image_urls。
@@ -1737,15 +1779,33 @@ def build_nano_banana_inputs(
         })
         image_urls.append(layout_guide_url)
         next_idx += 1
+        _guide_mode = (layout_guide_mode or entry.get("_layout_guide_mode") or "bound").strip().lower()
+        _is_auto_guide = (_guide_mode == "free" or _guide_mode.startswith("auto_"))
+        if _is_auto_guide:
+            _choice_note = (
+                "The customer has no left/right preference. Independently choose the safest sofa and "
+                "TV/focal-wall arrangement from the actual doors, main window, solid walls and floor "
+                "perspective; this is not a random draw. "
+            )
+            _float_note = (
+                "A floating sofa is allowed only if the visible floor area remains generous after all "
+                "red constraints are respected. " if _guide_mode == "auto_float" else
+                "Do not force a floating sofa; prefer a compact layout unless the room clearly has "
+                "enough usable floor area. "
+            )
+        else:
+            _choice_note = (
+                "The customer's left/right sofa-side choice in USER-CONFIRMED LAYOUT is binding. "
+                "Choose the exact floor position and TV alignment while preserving that chosen side. "
+            )
+            _float_note = "Do not float or flip the sofa away from the customer's chosen side. "
         layout_guide_sec = (
-            f"LAYOUT GUIDE (binding placement plan): reference image #{_guide_idx} is the SAME "
-            "room photo with placement boxes drawn on it. Place the SOFA entirely inside the "
-            "GREEN box, with its back against that wall. Place the TV cabinet / media console "
-            "entirely inside the BLUE box, facing the sofa. The RED zone must remain completely "
-            "EMPTY floor (main walkway) — nothing may stand there. Put the coffee table and rug "
-            "between the sofa and the console. These boxes are the single source of truth for "
-            "placement and OVERRIDE any conflicting verbal hint. Do NOT draw any boxes, lines "
-            "or labels in the output image."
+            f"LAYOUT CONSTRAINT MAP: reference image #{_guide_idx} is the SAME room photo with RED "
+            "forbidden zones only. " + _choice_note + _float_note +
+            "Every RED ENTRANCE, WALKWAY or NO FURNITURE zone must remain completely EMPTY. "
+            "The sofa and TV console must stand on the real floor / real wall plane, follow the "
+            "photograph's perspective, face each other, and face neither the entrance door nor any "
+            "main window. Do NOT copy boxes, lines or labels into the output."
         )
 
     inputs_sec = _build_inputs_section(reference_map)
@@ -1813,19 +1873,21 @@ def build_nano_banana_inputs(
     if target_note_sec:
         sections.append(target_note_sec)
     sections.extend([layout_sec, product_sec, style_sec])
-    # 使用者選「沙發不靠牆」→ 給模型自由配置權（大客廳的設計創意選項）。
-    # 走道/面向焦點牆/在客廳區內等鐵則不放寬，只放寬「必須貼牆」。
+    # 客戶選「交給 AI 自動配置」｜不是強制浮置；是否離牆由空間尺寸判斷。
     if isinstance(zoning, dict) and zoning.get("_sofa_layout") == "free":
-        sections.append(
-            "FREE-STANDING SOFA (customer's explicit choice): the sofa does NOT need to be "
-            "against a wall — you may float the sofa group in the room for a designer "
-            "composition (e.g. sofa mid-room facing the focal/TV wall, console table or "
-            "clear space behind it). Still keep: sofa inside the confirmed living zone, "
-            "facing the focal anchor across the coffee table, all walkways completely "
-            "clear, never facing the entrance door, and NEVER against or beside the "
-            "entrance-door wall segment — the door swing arc plus a half-door-width strip "
-            "beside the frame must stay empty."
+        _auto_float_text = (
+            "This room is large enough, so a floating sofa is allowed inside the guide zone. "
+            if zoning.get("_auto_can_float") else
+            "This room is not confirmed large enough for a forced floating sofa; a wall-adjacent "
+            "or compact foreground layout is preferred. "
         )
+        sections.append(
+            "AI AUTO SOFA LAYOUT (customer has no left/right preference): AI must make and follow "
+            "one safe recommendation from the actual room geometry. " + _auto_float_text +
+            "The sofa must face the focal/TV anchor, NEVER the entrance door, main window, balcony "
+            "opening or corridor. Keep every door swing, entrance approach and main walkway clear."
+        )
+
     # 軟裝段放在 product/style 後, budget/customer 前: 維持「主家具放置定位」優先,
     # 軟裝是 styled accessory, 不可覆蓋主家具.
     if soft_furnishing_sec:

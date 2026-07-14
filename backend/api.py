@@ -355,6 +355,181 @@ def sb_upload_render(job_id: str, file_path: Path) -> str | None:
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+
+def _entrance_side_from_zoning(zoning: dict | None) -> str:
+    """大門左右真相｜bbox 優先，文字只做 fallback。
+
+    bbox 格式為 normalized 0-1000 [ymin, xmin, ymax, xmax]。舊流程只讀
+    entrance_position/where 文字，Gemini 文字一飄就左右反轉；這裡把影像座標升為
+    單一真相，供 flatten、版面 guide 與 prompt 共用。
+    """
+    if not isinstance(zoning, dict):
+        return ""
+    explicit = str(zoning.get("_entrance_side") or "").strip().lower()
+    if explicit in ("left", "right", "center"):
+        return explicit
+    zone_sets = [zoning.get("existing_zones") or {}, zoning.get("zones") or {}]
+    entrance = {}
+    for zones in zone_sets:
+        candidate = zones.get("entrance_zone") or {}
+        if candidate:
+            entrance = candidate
+            break
+    bbox = entrance.get("bbox_on_best_photo")
+    if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        try:
+            cx = (float(bbox[1]) + float(bbox[3])) / 2.0
+            if cx < 350:
+                return "left"
+            if cx > 650:
+                return "right"
+            return "center"
+        except (TypeError, ValueError):
+            pass
+    syn = zoning.get("spatial_synthesis") or {}
+    text = str(syn.get("entrance_position") or "") + " " + str(entrance.get("where") or "")
+    if "左" in text or "left" in text.lower():
+        return "left"
+    if "右" in text or "right" in text.lower():
+        return "right"
+    return ""
+
+
+def _window_side_from_zoning(zoning: dict | None) -> str:
+    """主窗所在側；沒有直接窗或文字不明時回空，不亂猜。"""
+    if not isinstance(zoning, dict):
+        return ""
+    explicit = str(zoning.get("_window_side") or "").strip().lower()
+    if explicit in ("left", "right", "front", "back"):
+        return explicit
+    syn = zoning.get("spatial_synthesis") or {}
+    text = str(syn.get("main_window_wall") or "")
+    low = text.lower()
+    if any(k in text for k in ("無直接", "沒有直接", "無大窗", "沒有大窗")) or "no direct" in low:
+        return ""
+    if "左" in text or "left" in low:
+        return "left"
+    if "右" in text or "right" in low:
+        return "right"
+    if any(k in text for k in ("正前", "前方")) or "front" in low:
+        return "front"
+    if any(k in text for k in ("後方", "深處", "盡頭")) or "back" in low or "rear" in low:
+        return "back"
+    return ""
+
+
+def _preferred_focal_side(zoning: dict | None) -> str:
+    """AI 自動配置的 TV／焦點牆｜完整實牆優先，避開主窗與入口側。"""
+    z = zoning or {}
+    syn = z.get("spatial_synthesis") or {}
+    entrance = _entrance_side_from_zoning(z)
+    window = _window_side_from_zoning(z)
+    # 左右兩側一邊是入口、一邊是主窗時，沒有安全的左右焦點牆；
+    # 交回 AI 改找前／後實牆或斜向配置，不硬猜其中一邊。
+    if entrance in ("left", "right") and window in ("left", "right") and entrance != window:
+        return ""
+    scores = {"left": 0, "right": 0}
+    found = False
+    for wall in syn.get("wall_inventory") or []:
+        if not isinstance(wall, dict):
+            continue
+        name = str(wall.get("name") or "")
+        low = name.lower()
+        side = "left" if ("左" in name or "left" in low) else (
+            "right" if ("右" in name or "right" in low) else "")
+        if not side:
+            continue
+        found = True
+        scores[side] += 4 if wall.get("has_opening") is False else -4
+    for side in ("left", "right"):
+        if side == window:
+            scores[side] -= 6
+        if side == entrance:
+            scores[side] -= 2
+    if found or any(scores.values()):
+        return "right" if scores["right"] >= scores["left"] else "left"
+    if entrance == "left":
+        return "right"
+    if entrance == "right":
+        return "left"
+    if window == "left":
+        return "right"
+    if window == "right":
+        return "left"
+    return "right"
+
+
+def _room_can_float_sofa(analysis: dict | None, zoning: dict | None) -> bool:
+    """只有高信心、單一客廳且真的夠寬時才開放浮置。"""
+    a = analysis or {}
+    dims = a.get("room_dimensions") or {}
+    if str(dims.get("confidence") or "").strip().lower() != "high":
+        return False
+    space = str(a.get("space_type") or "").strip().lower()
+    if not space or any(k in space for k in ("whole", "全室", "整戶", "全屋")):
+        return False
+    if not any(k in space for k in ("living", "客廳", "起居")):
+        return False
+    try:
+        length = float(dims.get("length_m") or dims.get("estimated_length_m") or 0)
+        width = float(dims.get("width_m") or dims.get("estimated_width_m") or 0)
+    except (TypeError, ValueError):
+        return False
+    if length <= 0 or width <= 0:
+        return False
+    short, long = min(length, width), max(length, width)
+    shape = str(((zoning or {}).get("spatial_synthesis") or {}).get("room_shape") or "").lower()
+    if any(k in shape for k in ("狹長", "窄", "narrow")):
+        return False
+    return short >= 4.2 and (length * width) >= 24.0 and (long / short) <= 1.8
+
+
+def _rects_intersect(a, b) -> bool:
+    if not a or not b:
+        return False
+    return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
+
+
+def _full_frame_3_2_crop_box(W: int, H: int,
+                             preserve_bbox: tuple | None = None) -> tuple[int, int, int, int]:
+    """只裁不補、精確 3:2；寬圖水平裁切時必須保留指定門 bbox。"""
+    if W <= 0 or H <= 0:
+        return (0, 0, max(0, W), max(0, H))
+    target = 1.5
+    if W / H < target:
+        need_h = min(H, int(round(W / target)))
+        # 窄圖只裁上下，保留完整左右門；優先保留地板與入口門腳。
+        return (0, H - need_h, W, H)
+    need_w = min(W, int(round(H * target)))
+    centered = max(0, (W - need_w) // 2)
+    x0 = centered
+    if preserve_bbox and len(preserve_bbox) == 4 and need_w < W:
+        bx0, _by0, bx1, _by1 = [int(v) for v in preserve_bbox]
+        lo = max(0, bx1 - need_w)
+        hi = min(W - need_w, bx0)
+        if lo <= hi:
+            x0 = min(max(centered, lo), hi)
+        else:
+            x0 = max(0, min(W - need_w, (bx0 + bx1 - need_w) // 2))
+    return (x0, 0, x0 + need_w, H)
+
+
+def _zoning_bbox_matches_source(source_path: str, image_paths: list,
+                                 zoning: dict | None) -> bool:
+    """zoning bbox 只屬於 best_photo_index 指向的那張原圖。"""
+    if not source_path or not image_paths or not isinstance(zoning, dict):
+        return False
+    idx = zoning.get("best_photo_index")
+    if not isinstance(idx, int) or not (0 <= idx < len(image_paths)):
+        return False
+    try:
+        src = os.path.normcase(os.path.abspath(str(source_path)))
+        truth = os.path.normcase(os.path.abspath(str(image_paths[idx])))
+        return src == truth
+    except Exception:
+        return str(source_path) == str(image_paths[idx])
+
+
 def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
     """
     Z2: 使用者確認過的 v2 zoning（existing_zones / proposed_zones）攤平成 v1 結構，
@@ -389,6 +564,7 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
             "where": pz_living.get("alt_option") or (pz.get("dining_zone") or {}).get("where", ""),
             "why_here": "使用者選擇方案 B（替代佈局）",
             "evidence": "user choice",
+            "bbox_on_best_photo": pz_living.get("bbox_on_best_photo"),
         }
         dining = {
             "where": (pz.get("dining_zone") or {}).get("alt_option") or pz_living.get("where", ""),
@@ -400,6 +576,7 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
             "where": pz_living.get("where", ""),
             "why_here": pz_living.get("rationale", ""),
             "evidence": "user-confirmed AI recommendation",
+            "bbox_on_best_photo": pz_living.get("bbox_on_best_photo"),
         }
         dining = {
             "where": (pz.get("dining_zone") or {}).get("where", ""),
@@ -420,9 +597,10 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
             "dining_zone":   dining,
             "walkway":       ez.get("walkway") or {},
             "entrance_zone": ez.get("entrance_zone") or {},
+            "no_go_zone":    pz.get("no_large_furniture_zone") or {},
         },
         "furniture_placement_rules": {
-            "sofa_wall":                sofa_wall_hint,
+            "sofa_wall":                "" if _sofa_free else sofa_wall_hint,
             "tv_wall":                  "",
             "sofa_side":                sofa_side,             # "left"/"right"/"" — 共用 ground truth
             "tv_side":                  tv_side,               # sofa_side 的對面
@@ -434,6 +612,9 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
         },
         "_origin": "user_confirmed_v2",
         "_layout_choice": layout_choice or "A",
+        "_zoning_best_photo_index": zoning_v2.get("best_photo_index"),
+        "_entrance_side": _entrance_side_from_zoning(zoning_v2),
+        "_window_side": _window_side_from_zoning(zoning_v2),
         **({"_sofa_layout": "free"} if _sofa_free else {}),
     }
 
@@ -948,6 +1129,10 @@ def _switch_entry_to_next_living_base(entry: dict) -> str | None:
         return None
     if (entry.get("_room_type") or "living") != "living":
         return None
+    # AI auto 的門窗／走道 guide 綁在目前底圖；換底圖會把最重要的幾何契約清掉。
+    # 保真失敗時寧可沿用同底圖重試，也不准退化成沒有 guide 的自由生成。
+    if str(entry.get("_layout_guide_mode") or "").startswith("auto_") and entry.get("_layout_guide"):
+        return None
     alts = entry.get("_alt_bases") or []
     used = list(entry.get("_used_bases") or [])
     cur = entry.get("_base_path")
@@ -962,6 +1147,7 @@ def _switch_entry_to_next_living_base(entry: dict) -> str | None:
         entry["_used_bases"] = used
         entry["_base_path"] = p
         entry["_cropped"] = False
+        entry["_zone_cropped"] = False
         entry["_crop_note"] = "alt living base after fidelity fail"
         entry["_door_excluded"] = False   # 換回的原圖大門可能在鏡內
         entry["_layout_guide"] = None     # 引導框是畫在原裁切圖上的，換底圖即失效
@@ -970,6 +1156,32 @@ def _switch_entry_to_next_living_base(entry: dict) -> str | None:
         return p
     entry["_used_bases"] = used
     return None
+
+
+def _phase3_base_strategies(entry: dict) -> list[tuple[str, str, None]]:
+    """Phase3 底圖策略；AI-auto 有 guide 時只能沿用同一底圖。"""
+    current = entry.get("_base_path")
+    if not current:
+        return []
+    if (str(entry.get("_layout_guide_mode") or "").startswith("auto_")
+            and entry.get("_layout_guide")):
+        return [("門感知同底圖修正", current, None)]
+    strategies: list[tuple[str, str, None]] = []
+    if (entry.get("_room_type") or "living") == "living":
+        used = set(entry.get("_used_bases") or [])
+        used.add(current)
+        for alt in entry.get("_alt_bases") or []:
+            if alt and alt not in used and Path(alt).exists():
+                strategies.append((f"換客廳底圖:{Path(alt).name}", alt, None))
+                used.add(alt)
+                if len(strategies) >= 2:
+                    break
+    uncropped = entry.get("_uncropped_base")
+    if uncropped and Path(uncropped).exists():
+        strategies.append(("原圖重生", uncropped, None))
+    if not strategies:
+        strategies.append(("修正重生", current, None))
+    return strategies[:3]
 
 
 def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
@@ -1015,6 +1227,55 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
 # 保守原則：任何不確定 → 回原圖（最壞＝跟現在一樣，不會更差）。只處理 living/dining
 # （會共用廣角合照的房型）；bedroom/study 多為專屬單張，不裁。
 _RT_TO_ZONE_KEY = {"living": "living_zone", "dining": "dining_zone"}
+
+
+def _bbox1000_to_crop_px(bbox1000, W: int, H: int,
+                         crop_box: tuple[int, int, int, int]) -> tuple | None:
+    """把原圖 normalized bbox 映射到實際裁切圖像素座標。"""
+    if not isinstance(bbox1000, (list, tuple)) or len(bbox1000) != 4:
+        return None
+    try:
+        ymin, xmin, ymax, xmax = [float(v) for v in bbox1000]
+    except (TypeError, ValueError):
+        return None
+    cx0, cy0, cx1, cy1 = crop_box
+    x0 = max(0, min(cx1 - cx0, int(xmin / 1000.0 * W) - cx0))
+    y0 = max(0, min(cy1 - cy0, int(ymin / 1000.0 * H) - cy0))
+    x1 = max(0, min(cx1 - cx0, int(xmax / 1000.0 * W) - cx0))
+    y1 = max(0, min(cy1 - cy0, int(ymax / 1000.0 * H) - cy0))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return (x0, y0, x1, y1)
+
+
+def _crop_full_frame_3_2_base(base_path: str, job_dir, idx: int,
+                               entrance_bbox1000=None):
+    """free／自動配置專用｜保留入口門證據，只裁成精確 3:2。"""
+    try:
+        import cv2
+        img = cv2.imread(base_path)
+        if img is None:
+            return base_path, False, "底圖讀取失敗", None
+        H, W = img.shape[:2]
+        door_px = None
+        if isinstance(entrance_bbox1000, (list, tuple)) and len(entrance_bbox1000) == 4:
+            try:
+                ymin, xmin, ymax, xmax = [float(v) for v in entrance_bbox1000]
+                door_px = (
+                    int(xmin / 1000.0 * W), int(ymin / 1000.0 * H),
+                    int(xmax / 1000.0 * W), int(ymax / 1000.0 * H),
+                )
+            except (TypeError, ValueError):
+                door_px = None
+        crop_box = _full_frame_3_2_crop_box(W, H, preserve_bbox=door_px)
+        x0, y0, x1, y1 = crop_box
+        crop = img[y0:y1, x0:x1]
+        out_path = str(Path(job_dir) / f"crop_living_free_{idx:02d}.jpg")
+        if crop.size == 0 or not cv2.imwrite(out_path, crop):
+            return base_path, False, "free 3:2 裁切寫入失敗", None
+        return out_path, True, "free 保留大門精確 3:2", crop_box
+    except Exception as e:
+        return base_path, False, f"free 裁切例外: {type(e).__name__}", None
 
 
 def _door_exclusion_limits(W: int, door_x0: int, door_x1: int) -> tuple[int, int]:
@@ -1130,42 +1391,209 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         return base_path, False, f"例外: {type(e).__name__}", False
 
 
-def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str) -> str | None:
-    """版面引導圖（用戶提案，2026-07-13 直測 4/4 全中）：在客廳底圖副本上畫
-    沙發（綠）/電視櫃（藍）/走道淨空（紅）三個框當額外參考圖。
-    模型對「圖上畫的框」的服從率遠高於文字空間指令（一兩成 → 4/4）。
+def _layout_guide_plan(W: int, H: int, sofa_side: str,
+                       entrance_side: str = "",
+                       entrance_bbox: tuple | None = None,
+                       focal_side: str = "",
+                       auto_float: bool = False,
+                       blocked_rects: list | None = None,
+                       living_bbox: tuple | None = None) -> dict:
+    """產生可驗證的家具配置；找不到不碰門／走道的矩形就不畫 binding guide。"""
+    side = sofa_side if sofa_side in ("left", "right", "free") else "free"
+    ent = entrance_side if entrance_side in ("left", "right") else ""
+    focal = focal_side if focal_side in ("left", "right") else (
+        "right" if ent == "left" else "left" if ent == "right" else "right")
+    margin_x = int(W * 0.02)
+    door_clear = None
+    if entrance_bbox:
+        dx0, dy0, dx1, _dy1 = [int(v) for v in entrance_bbox]
+        door_clear = (
+            max(0, dx0 - margin_x), max(0, dy0 - int(H * 0.04)),
+            min(W, dx1 + margin_x), H,
+        )
+    elif ent == "left":
+        door_clear = (0, int(H * 0.28), int(W * 0.30), H)
+    elif ent == "right":
+        door_clear = (int(W * 0.70), int(H * 0.28), W, H)
 
-    v1 框位：實測驗證過的畫面比例帶，依 sofa_side 鏡射。失敗回 None（主流程不受影響）。"""
+    def _ordered(rect):
+        if not rect or len(rect) != 4:
+            return None
+        x0, y0, x1, y1 = [int(v) for v in rect]
+        if x0 < 0 or y0 < 0 or x1 > W or y1 > H or x1 <= x0 or y1 <= y0:
+            return None
+        return (x0, y0, x1, y1)
+
+    blocked = []
+    for rect in list(blocked_rects or []):
+        clean = _ordered(rect)
+        if clean:
+            blocked.append(clean)
+    forbidden = blocked + ([door_clear] if door_clear else [])
+    allowed = _ordered(living_bbox)
+
+    def _safe(rect, require_living=False):
+        clean = _ordered(rect)
+        if not clean or any(_rects_intersect(clean, bad) for bad in forbidden):
+            return False
+        if require_living and allowed:
+            cx = (clean[0] + clean[2]) / 2
+            cy = (clean[1] + clean[3]) / 2
+            if not (allowed[0] <= cx <= allowed[2] and allowed[1] <= cy <= allowed[3]):
+                return False
+        return True
+
+    is_auto = side == "free"
+    mode = ("auto_float" if auto_float else "auto_compact") if is_auto else "bound"
+    preferred = "left" if focal == "right" else "right"
+    # focal_side 已由完整牆／門窗資料決定。若該對向找不到安全矩形就略過 guide，
+    # 不可在 planner 內偷偷翻邊，否則 prompt 與 guide 會使用兩套配置。
+    side_candidates = [preferred] if is_auto else [side]
+    if mode == "auto_float":
+        sofa_w, sofa_h = 0.25, 0.34
+        y_starts = (0.48, 0.12, 0.62)
+    elif mode == "auto_compact":
+        sofa_w, sofa_h = 0.18, 0.24
+        # 0.22 是門後、主走道上方的中前段安全帶；E72 真實 bbox 需要這一格。
+        y_starts = (0.70, 0.36, 0.22, 0.08)
+    else:
+        sofa_w, sofa_h = 0.38, 0.48
+        y_starts = (0.38, 0.08)
+
+    sofa = tv = None
+    chosen = side_candidates[0]
+    for candidate_side in side_candidates:
+        sw, sh = int(W * sofa_w), int(H * sofa_h)
+        if candidate_side == "left":
+            sx_starts = (0.32, 0.08, 0.50)
+            tx_starts = (0.72, 0.52)
+            facing = "right"
+        else:
+            sx_starts = (1 - 0.32 - sofa_w, 1 - 0.08 - sofa_w, 1 - 0.50 - sofa_w)
+            tx_starts = (0.04, 0.28)
+            facing = "left"
+        for yf in y_starts:
+            sy0 = int(H * yf)
+            sy1 = min(H, sy0 + sh)
+            tv_h = int(H * min(0.26, sofa_h))
+            ty0 = sy0
+            ty1 = min(H, ty0 + tv_h)
+            for sxf in sx_starts:
+                sx0 = int(W * sxf)
+                srect = (sx0, sy0, sx0 + sw, sy1)
+                if not _safe(srect, require_living=True):
+                    continue
+                for txf in tx_starts:
+                    tx0 = int(W * txf)
+                    trect = (tx0, ty0, min(W, tx0 + int(W * 0.24)), ty1)
+                    if _safe(trect) and not _rects_intersect(srect, trect):
+                        sofa, tv, chosen = srect, trect, candidate_side
+                        break
+                if sofa:
+                    break
+            if sofa:
+                break
+        if sofa:
+            break
+
+    return {
+        "valid": bool(sofa and tv),
+        "mode": mode,
+        "chosen_sofa_side": chosen,
+        "sofa_facing": "right" if chosen == "left" else "left",
+        "sofa": sofa,
+        "tv": tv,
+        "door_clear": door_clear,
+        "blocked": blocked,
+        "keep_clear": None,
+        "reason": "" if sofa and tv else "no safe furniture rectangles outside door/walkway/no-go zones",
+    }
+
+
+def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
+                              entrance_side: str = "",
+                              entrance_bbox: tuple | None = None,
+                              focal_side: str = "",
+                              auto_float: bool = False,
+                              blocked_rects: list | None = None,
+                              living_bbox: tuple | None = None) -> str | None:
+    """在實際渲染底圖上畫可驗證的配置；無安全方案就不輸出 guide。"""
     try:
         import cv2
+        import numpy as np
         img = cv2.imread(crop_path)
         if img is None:
             return None
         H, W = img.shape[:2]
+        plan = _layout_guide_plan(
+            W, H, sofa_side, entrance_side, entrance_bbox,
+            focal_side=focal_side, auto_float=auto_float,
+            blocked_rects=blocked_rects, living_bbox=living_bbox,
+        )
 
-        def _box(x0f, y0f, x1f, y1f, color, label):
-            x0, y0, x1, y1 = int(W*x0f), int(H*y0f), int(W*x1f), int(H*y1f)
+        def _mark_entrance(rect):
+            if not rect:
+                return None
+            x0, y0, x1, y1 = [int(v) for v in rect]
+            red = (50, 50, 230)
+            target = ((x0 + x1) // 2, (y0 + y1) // 2)
+            label_x = max(20, min(W - int(W * 0.38), x0 + 15))
+            label_y = max(int(H * 0.10), y0 - int(H * 0.05))
+            cv2.putText(img, "ENTRANCE DOOR", (label_x, label_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.8, W / 1500),
+                        red, max(3, W // 550), cv2.LINE_AA)
+            cv2.arrowedLine(img, (label_x, label_y + 15), target, red,
+                            max(4, W // 500), cv2.LINE_AA, tipLength=0.08)
+            cv2.circle(img, target, max(10, W // 180), red, max(4, W // 600), cv2.LINE_AA)
+            return target
+
+        def _floor_zone(rect, label):
+            if not rect:
+                return
+            x0, y0, x1, y1 = [int(v) for v in rect]
+            inset = int((x1 - x0) * 0.28)
+            poly = np.array([
+                (x0 + inset, y0), (x1 - inset, y0),
+                (x1, y1), (x0, y1),
+            ], dtype=np.int32)
+            red = (50, 50, 230)
             overlay = img.copy()
-            cv2.rectangle(overlay, (x0, y0), (x1, y1), color, -1)
-            cv2.addWeighted(overlay, 0.25, img, 0.75, 0, img)
-            cv2.rectangle(img, (x0, y0), (x1, y1), color, max(4, W // 400))
-            cv2.putText(img, label, (x0 + 20, y0 + max(40, H // 25)),
-                        cv2.FONT_HERSHEY_SIMPLEX, max(0.8, W / 1400),
-                        color, max(3, W // 500), cv2.LINE_AA)
+            cv2.fillPoly(overlay, [poly], red)
+            cv2.addWeighted(overlay, 0.22, img, 0.78, 0, img)
+            cv2.polylines(img, [poly], True, red, max(5, W // 350), cv2.LINE_AA)
+            cv2.putText(img, label, (x0 + inset + 12, y0 + max(45, H // 24)),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.7, W / 1700),
+                        red, max(3, W // 600), cv2.LINE_AA)
 
-        GREEN, BLUE, RED = (60, 200, 60), (220, 130, 40), (50, 50, 230)
-        if (sofa_side or "right") == "right":
-            _box(0.52, 0.38, 0.98, 0.88, GREEN, "SOFA")
-            _box(0.01, 0.34, 0.22, 0.62, BLUE, "TV CONSOLE")
-            _box(0.26, 0.24, 0.48, 0.60, RED, "KEEP CLEAR")
-        else:
-            _box(0.02, 0.38, 0.48, 0.88, GREEN, "SOFA")
-            _box(0.78, 0.34, 0.99, 0.62, BLUE, "TV CONSOLE")
-            _box(0.52, 0.24, 0.74, 0.60, RED, "KEEP CLEAR")
+        entrance_point = _mark_entrance(plan["door_clear"])
+        for _blocked in plan.get("blocked") or []:
+            _floor_zone(_blocked, "ENTRANCE APPROACH / WALKWAY")
+        if entrance_point and plan.get("blocked"):
+            bx0, by0, bx1, by1 = plan["blocked"][0]
+            if entrance_point[0] < W // 2:
+                flow_target = (bx0 + int((bx1 - bx0) * 0.12), by1 - int((by1 - by0) * 0.08))
+            else:
+                flow_target = (bx1 - int((bx1 - bx0) * 0.12), by1 - int((by1 - by0) * 0.08))
+            red = (50, 50, 230)
+            cv2.arrowedLine(img, entrance_point, flow_target, red,
+                            max(4, W // 500), cv2.LINE_AA, tipLength=0.06)
+            mid = ((entrance_point[0] + flow_target[0]) // 2,
+                   (entrance_point[1] + flow_target[1]) // 2)
+            cv2.putText(img, "ENTRY FLOW", (mid[0] + 10, mid[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.65, W / 1850),
+                        red, max(3, W // 650), cv2.LINE_AA)
+        cv2.putText(
+            img, "CONSTRAINT MAP: KEEP ALL RED ZONES EMPTY",
+            (max(20, W // 50), max(55, H // 24)),
+            cv2.FONT_HERSHEY_SIMPLEX, max(0.7, W / 1800),
+            (50, 50, 230), max(3, W // 600), cv2.LINE_AA,
+        )
         out = str(Path(job_dir) / f"guide_living_{idx:02d}.jpg")
         if not cv2.imwrite(out, img):
             return None
-        print(f"[pipeline] (i) living 版面引導圖: sofa_side={sofa_side or 'right'} → {Path(out).name}")
+        print(f"[pipeline] (i) living 版面引導圖: mode={plan['mode']} "
+              f"sofa={plan['chosen_sofa_side']} entrance={entrance_side or 'unknown'} "
+              f"→ {Path(out).name}")
         return out
     except Exception as e:
         print(f"[pipeline] (i) 版面引導圖失敗（略過）: {type(e).__name__}: {str(e)[:80]}")
@@ -1173,19 +1601,18 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str)
 
 
 def _guide_sofa_side(zoning_result: dict | None) -> str:
-    """引導圖的沙發側：客戶明確綁邊優先；未綁邊時沙發放「無門」側
-    （大門側留給電視櫃——與經典構圖合約一致）；都不知道 → right。"""
+    """明確 left/right 照用戶；free 保持 free；其餘才依門側給舊預設。"""
     z = zoning_result or {}
+    if z.get("_sofa_layout") == "free":
+        return "free"
     rules = z.get("furniture_placement_rules") or {}
     bound = str(rules.get("sofa_side") or "").strip().lower()
     if bound in ("left", "right"):
         return bound
-    syn = z.get("spatial_synthesis") or {}
-    _entr = str(syn.get("entrance_position") or "") + \
-        str(((z.get("zones") or {}).get("entrance_zone") or {}).get("where", ""))
-    if "左" in _entr or "left" in _entr.lower():
+    entrance_side = _entrance_side_from_zoning(z)
+    if entrance_side == "left":
         return "right"
-    if "右" in _entr or "right" in _entr.lower():
+    if entrance_side == "right":
         return "left"
     return "right"
 
@@ -1227,14 +1654,14 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
                 "desc": (it.get("flux_descriptor") or "")[:120],
             })
     must_products = must_products[:6]  # 防 prompt 膨脹；清單本來就 top 4-5
-    # E72F4ADB：底圖為裁切單房視角時告知驗收端（C2.4 深度門檻讓位——
-    # zone 歸屬由裁切保證、擺位由版面引導圖治理）。四個驗收呼叫點都經過
-    # 這個函式，一處設定全覆蓋。
-    _is_crop = bool(entry_or_render.get("_cropped") or entry_or_render.get("cropped"))
-    if (not sofa_seat or sofa_seat == "unknown") and not must_products and not _is_crop:
+    # 只有依 living-zone bbox 裁成單房視角，才可讓 C2.4 深度門檻讓位。
+    # free 模式的全幅 3:2 只是比例裁切，不代表整張都是客廳區。
+    _is_zone_crop = bool(
+        entry_or_render.get("_zone_cropped") or entry_or_render.get("zone_cropped"))
+    if (not sofa_seat or sofa_seat == "unknown") and not must_products and not _is_zone_crop:
         return layout_ctx
     out = dict(layout_ctx) if isinstance(layout_ctx, dict) else {}
-    if _is_crop:
+    if _is_zone_crop:
         out["base_is_room_crop"] = True
     if sofa_seat and sofa_seat != "unknown":
         out["expected_sofa_seating"] = sofa_seat
@@ -1847,6 +2274,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 「客廳設計」，給的是客餐廳廣角照，成品必須是客廳特寫，不是原封不動的
         # 廣角照（4C3560A2 回饋：拿到跟上傳一樣的視角會覺得受騙）。
         crop_flags: list[bool] = [False] * len(flux_bases)
+        zone_crop_flags: list[bool] = [False] * len(flux_bases)
+        # free／自動配置不能把大門裁掉；保留每張實際 crop_box，讓門 bbox 與 guide 同座標。
+        crop_source_paths: list[str] = list(flux_bases)
+        crop_boxes: list[tuple | None] = [None] * len(flux_bases)
+        _early_living = (((user_zoning_v2 or {}).get("proposed_zones") or {}).get("living_zone") or {})
+        _early_entrance = (((user_zoning_v2 or {}).get("existing_zones") or {}).get("entrance_zone") or {})
+        _early_entrance_bbox = _early_entrance.get("bbox_on_best_photo")
+        _free_layout_requested = str(_early_living.get("sofa_side") or "").strip().lower() == "free"
         # 裁切決策軌跡：沒裁時記下「為什麼」，不然只看 cropped=false 無從診斷
         # （8BEAE3AD 查了半天才發現是部署沒跟上，不是守門擋掉）
         crop_notes: list[str] = [""] * len(flux_bases)
@@ -1863,17 +2298,40 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if _rt not in _RT_TO_ZONE_KEY:
                     crop_notes[_i] = f"room_type={_rt} 不在裁切適用房型"
                     continue
+                _pre_crop_base = flux_bases[_i]
+                # free／自動配置：大門是擺位與驗收證據，禁止走「門排除出鏡」。
+                # 只做全幅精確 3:2，後續把同一 door bbox 映射到 guide。
+                if _rt == "living" and _free_layout_requested:
+                    _bbox_source_matches = _zoning_bbox_matches_source(
+                        _pre_crop_base, image_paths, user_zoning_v2 or {})
+                    if user_zoning_v2 and not _bbox_source_matches:
+                        crop_notes[_i] = "AI auto 非 zoning 主視角：保留原圖，不裁門"
+                        crop_boxes[_i] = None
+                        continue
+                    _bbox_for_this_source = (
+                        _early_entrance_bbox if _bbox_source_matches else None
+                    )
+                    _new_base, _did, _why, _crop_box = _crop_full_frame_3_2_base(
+                        _pre_crop_base, job_dir, _i,
+                        entrance_bbox1000=_bbox_for_this_source,
+                    )
+                    flux_bases[_i] = _new_base
+                    crop_flags[_i] = _did
+                    crop_boxes[_i] = _crop_box
+                    crop_notes[_i] = _why or "free 保留大門"
+                    if _did:
+                        uncropped_bases[_i] = _pre_crop_base
+                    continue
                 _meta = _photo_meta_for_path(flux_bases[_i], photo_meta_by_key_early)
                 _contains = _meta.get("photo_contains") if isinstance(_meta, dict) else None
                 if not (isinstance(_contains, list) and len(_contains) >= 2):
                     crop_notes[_i] = f"photo_contains={_contains} 非多區廣角照"
                     continue   # 專屬單房照片，不裁
-                _pre_crop_base = flux_bases[_i]
                 _new_base, _did, _why, _door_ex = _crop_region_base(flux_bases[_i], _rt, job_dir, _i)
                 flux_bases[_i] = _new_base
                 crop_flags[_i] = _did
+                zone_crop_flags[_i] = _did
                 if _did:
-                    # Phase3 自動補生要用：裁切版驗證卡死時退回未裁切原圖重生
                     uncropped_bases[_i] = _pre_crop_base
                 if _door_ex:
                     door_excluded_flags[_i] = True
@@ -1926,6 +2384,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             _best_pm_target_zone,
             _best_pm_location_hint,
         )
+        if zoning_result.get("_sofa_layout") == "free":
+            zoning_result["_auto_focal_side"] = _preferred_focal_side(zoning_result)
+            zoning_result["_auto_can_float"] = _room_can_float_sofa(analysis, zoning_result)
 
         failed_stage = "matching"
         last_progress = 45
@@ -1967,29 +2428,88 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     print(f"[pipeline] living 備援底圖 {len(_living_alt_paths)} 張: "
                           f"{[Path(p).name for p in _living_alt_paths]}")
 
-        # 版面引導圖：每個 living 視角各生成一張（畫框在該視角的底圖上）。
-        # 沙發側由 zoning ground truth 決定（綁邊優先、否則無門側）。
+        # 版面引導圖：free 保持 free，門 bbox／門側用同一份 zoning 真相。
         _sofa_side_for_guide = _guide_sofa_side(zoning_result)
+        _entrance_side_for_guide = _entrance_side_from_zoning(zoning_result)
+        _focal_side_for_guide = _preferred_focal_side(zoning_result)
+        _auto_float_for_guide = (
+            _sofa_side_for_guide == "free" and _room_can_float_sofa(analysis, zoning_result)
+        )
+        _entrance_zone_for_guide = ((zoning_result.get("zones") or {}).get("entrance_zone") or {})
+        _entrance_bbox_1000 = _entrance_zone_for_guide.get("bbox_on_best_photo")
         layout_guide_paths: dict[int, str | None] = {}
+        layout_guide_modes: dict[int, str] = {}
         for _vi, (_bp, _rt) in enumerate(zip(flux_bases, angle_room_types)):
             if _rt == "living" and os.environ.get("LAYOUT_GUIDE", "1").strip() != "0":
+                layout_guide_modes[_vi] = (
+                    "auto_float" if _sofa_side_for_guide == "free" and _auto_float_for_guide
+                    else "auto_constraints" if _sofa_side_for_guide == "free"
+                    else "bound_constraints"
+                )
+                if zone_crop_flags[_vi]:
+                    print(f"[pipeline] guide[{_vi}] 略過：zone crop 尚無可驗證座標轉換")
+                    layout_guide_paths[_vi] = None
+                    continue
+                _source_matches_zoning = _zoning_bbox_matches_source(
+                    crop_source_paths[_vi], image_paths, user_zoning_v2 or {})
+                if user_zoning_v2 and not _source_matches_zoning:
+                    print(f"[pipeline] guide[{_vi}] 略過：底圖不是 zoning 主視角，禁止跨照片套 bbox")
+                    layout_guide_paths[_vi] = None
+                    continue
+                _door_bbox_crop = None
+                _blocked_crop: list[tuple] = []
+                _living_bbox_crop = None
+                try:
+                    import cv2
+                    _src_img = cv2.imread(crop_source_paths[_vi])
+                    if _src_img is not None:
+                        _oh, _ow = _src_img.shape[:2]
+                        _cb = crop_boxes[_vi] or (0, 0, _ow, _oh)
+                        if _entrance_bbox_1000 and not door_excluded_flags[_vi]:
+                            _door_bbox_crop = _bbox1000_to_crop_px(
+                                _entrance_bbox_1000, _ow, _oh, _cb)
+                        _zones = zoning_result.get("zones") or {}
+                        for _zk in ("walkway", "no_go_zone"):
+                            _bb = ((_zones.get(_zk) or {}).get("bbox_on_best_photo"))
+                            _mapped = _bbox1000_to_crop_px(_bb, _ow, _oh, _cb) if _bb else None
+                            if _mapped:
+                                if (_zk == "no_go_zone" and _door_bbox_crop
+                                        and _rects_intersect(_mapped, _door_bbox_crop)):
+                                    continue
+                                _blocked_crop.append(_mapped)
+                        _lbb = ((_zones.get("living_zone") or {}).get("bbox_on_best_photo"))
+                        if _lbb:
+                            _living_bbox_crop = _bbox1000_to_crop_px(_lbb, _ow, _oh, _cb)
+                except Exception as _map_err:
+                    print(f"[pipeline] zoning bbox→guide 映射失敗: {_map_err}")
+                    layout_guide_paths[_vi] = None
+                    continue
                 layout_guide_paths[_vi] = _build_layout_guide_image(
-                    _bp, job_dir, _vi, _sofa_side_for_guide)
+                    _bp, job_dir, _vi, _sofa_side_for_guide,
+                    entrance_side=_entrance_side_for_guide,
+                    entrance_bbox=_door_bbox_crop,
+                    focal_side=_focal_side_for_guide,
+                    auto_float=_auto_float_for_guide,
+                    blocked_rects=_blocked_crop,
+                    living_bbox=_living_bbox_crop,
+                )
 
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
-            for vi, (base, label, rt, cropped, cnote) in enumerate(zip(flux_bases, angle_labels,
-                                                                       angle_room_types,
-                                                                       crop_flags, crop_notes)):
+            for vi, (base, label, rt, cropped, zone_cropped, cnote) in enumerate(zip(
+                    flux_bases, angle_labels, angle_room_types,
+                    crop_flags, zone_crop_flags, crop_notes)):
                 copy = dict(enriched_by_rt[rt][si])
                 copy["_angle_label"] = label
                 copy["_base_path"] = base
                 copy["_room_type"] = rt
-                copy["_cropped"] = cropped   # (i) 是否裁成單房視角
+                copy["_cropped"] = cropped
+                copy["_zone_cropped"] = zone_cropped  # 只有真 living-zone 裁切才可放寬深度驗收
                 copy["_crop_note"] = cnote   # 沒裁時的原因（診斷用）
                 copy["_door_excluded"] = bool(door_excluded_flags[vi])  # 大門已裁出鏡
                 copy["_layout_guide"] = layout_guide_paths.get(vi)      # 版面引導參考圖
+                copy["_layout_guide_mode"] = layout_guide_modes.get(vi, "bound")
                 copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 if rt == "living" and _living_alt_paths:
@@ -2091,6 +2611,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             return {
                 "layout_choice":            zr.get("_layout_choice") or "A",
                 "room_shape":               syn.get("room_shape", ""),
+                "main_window_wall":          syn.get("main_window_wall", ""),
+                "entrance_side":             zr.get("_entrance_side", ""),
+                "window_side":               zr.get("_window_side", ""),
+                "auto_layout":               zr.get("_sofa_layout") == "free",
+                "auto_can_float":            bool(zr.get("_auto_can_float")),
+                "auto_focal_side":           zr.get("_auto_focal_side", ""),
                 "living_where":             living,
                 "sofa_wall_rule":           rules.get("sofa_wall", ""),
                 "sofa_side":                rules.get("sofa_side", ""),
@@ -2157,6 +2683,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "product_sofa_seating_mismatch",  # 1FC382CA：清單單人圖上雙人
             "product_visibility_fail",   # 50873CF0：清單商品圖上沒畫/畫成別件
             "sofa_facing_entrance_door",  # 1A3B0C68：沙發視線正對大門
+            "sofa_facing_window",         # 客戶鐵則：沙發正面不得對主窗／落地窗
+            "sofa_facing_window_unverified",  # 判官漏答也不得交付
         )
         def _has_high_severity(v: dict) -> bool:
             return isinstance(v, dict) and any(v.get(f) for f in HIGH_SEVERITY_FLAGS)
@@ -2863,26 +3391,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         print("[pipeline] Gemini 額度斷線（429）——跳過 Phase3 補生，不燒 fal")
                         continue
                     retry_ctx = _build_retry_ctx_from_validation(v0)
-                    # 策略清單：(標籤, 底圖, 模型)。不換模型。
-                    # 客廳保真失敗：先換「另一張 living 底圖」（C79 走廊角→靠窗主圖），
-                    # 再未裁切原圖 / 同底圖修正。上限 3 策略，避免無限燒錢。
-                    strategies = []
-                    if (entry.get("_room_type") or "living") == "living":
-                        _used = set(entry.get("_used_bases") or [])
-                        _used.add(entry.get("_base_path"))
-                        for _ap in (entry.get("_alt_bases") or []):
-                            if _ap and _ap not in _used and Path(_ap).exists():
-                                strategies.append((f"換客廳底圖:{Path(_ap).name}", _ap, None))
-                                _used.add(_ap)
-                                if len(strategies) >= 2:
-                                    break
-                    _alt_base = entry.get("_uncropped_base")
-                    if _alt_base and Path(_alt_base).exists():
-                        strategies.append(("原圖重生", _alt_base, None))
-                    if not strategies:
-                        strategies.append(("修正重生", entry["_base_path"], None))
-                    # 最多 3 次 Phase3 嘗試（穩、可控成本）
-                    strategies = strategies[:3]
+                    # AI-auto guide 綁在同一底圖，Phase3 不得換圖或改用未裁切原圖。
+                    strategies = _phase3_base_strategies(entry)
                     fixed = None
                     for tag, base_p, model_ov in strategies:
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
