@@ -376,7 +376,9 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 "AI-AUTO LAYOUT (the customer delegated the decision; this is a reasoned layout, "
                 "not a random side): " + _auto_choice + _auto_position +
                 "The sofa must NEVER face the entrance door, main window, balcony opening or corridor; "
-                "all door, walkway and no-furniture clearance stays empty. "
+                "all door, walkway and no-furniture clearance stays empty. Unless the customer notes "
+                "explicitly request no TV, install a clearly visible TV with a low media console on "
+                "the chosen focal wall; decor frames alone are not an acceptable focal anchor. "
             )
         elif _entr_side in _SIDE_EN:
             # C2327004 定案：門在長牆＋未綁邊時，用「客戶眼球認可過」的經典構圖

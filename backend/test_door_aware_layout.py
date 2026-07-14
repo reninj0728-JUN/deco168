@@ -169,6 +169,18 @@ class DoorAwareLayoutTests(unittest.TestCase):
             },
         }
         self.assertEqual(api._preferred_focal_side(z), "right")
+        no_window = {
+            "_entrance_side": "left",
+            "spatial_synthesis": {
+                "main_window_wall": "主客廳沒有直接對外窗",
+                "wall_inventory": [
+                    {"name": "左側長牆", "has_opening": True},
+                    {"name": "右側長牆", "has_opening": False},
+                ],
+            },
+        }
+        # 無主窗時，完整右牆優先給沙發；左側只在過門後放 TV。
+        self.assertEqual(api._preferred_focal_side(no_window), "left")
         # 若唯一實牆跟入口同側，TV 仍必須被推過門淨空，不能藍紅重疊。
         conflict = api._layout_guide_plan(
             1000, 700, sofa_side="free", entrance_side="left",

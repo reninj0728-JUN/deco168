@@ -428,6 +428,16 @@ def _preferred_focal_side(zoning: dict | None) -> str:
     # 交回 AI 改找前／後實牆或斜向配置，不硬猜其中一邊。
     if entrance in ("left", "right") and window in ("left", "right") and entrance != window:
         return ""
+    # 一側是入口、對側是無開口完整實牆，完整牆優先給沙發當穩定背牆；
+    # focal/TV 留在入口側「過門後的實牆段」。這可避免 E72 把沙發塞在大門旁。
+    if entrance in ("left", "right") and not window:
+        opposite = "right" if entrance == "left" else "left"
+        for wall in syn.get("wall_inventory") or []:
+            txt = f"{wall.get('name', '')} {wall.get('description', '')}"
+            side = "left" if ("左" in txt or "left" in txt.lower()) else (
+                "right" if ("右" in txt or "right" in txt.lower()) else "")
+            if side == opposite and wall.get("has_opening") is False:
+                return entrance
     scores = {"left": 0, "right": 0}
     found = False
     for wall in syn.get("wall_inventory") or []:
