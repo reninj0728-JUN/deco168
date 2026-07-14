@@ -545,6 +545,15 @@ def test_door_adjacency_geometry():
                    "focal_anchor": [508, 335, 606, 410],    # gap 63/150 = 0.42
                    "sofa": [500, 700, 850, 980]}
     assert ga._door_adjacency_violation(rb_approved) is None
+    rb_e72_wrong_axis = {
+        "entrance_door": [215, 96, 835, 255],
+        "focal_anchor": [535, 265, 683, 386],
+        "sofa": [515, 608, 860, 893],
+    }
+    depth_v = ga._sofa_focal_floor_depth_violation(rb_e72_wrong_axis)
+    assert depth_v and depth_v[0] == 177 and depth_v[1] == 120
+    rb_e72_aligned = {**rb_e72_wrong_axis, "focal_anchor": [650, 265, 842, 386]}
+    assert ga._sofa_focal_floor_depth_violation(rb_e72_aligned) is None
 
 
 def test_door_gap_retry_carries_measurement():
