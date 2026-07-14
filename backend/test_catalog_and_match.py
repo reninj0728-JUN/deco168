@@ -538,6 +538,9 @@ def test_door_adjacency_geometry():
                     "sofa": [455, 592, 850, 903]}
     v2 = ga._door_adjacency_violation(rb_complaint)
     assert v2 and v2[0] == "focal_anchor" and v2[3] == ga.DOOR_GAP_MIN_FOCAL
+    # 同牆深處 TV 櫃受透視壓縮時，判官確認前後分離 → 不可再用 2D x-gap 誤殺。
+    assert ga._door_adjacency_violation(
+        rb_complaint, focal_past_door_in_depth=True) is None
     rb_approved = {"entrance_door": [323, 122, 853, 272],
                    "focal_anchor": [508, 335, 606, 410],    # gap 63/150 = 0.42
                    "sofa": [500, 700, 850, 980]}
