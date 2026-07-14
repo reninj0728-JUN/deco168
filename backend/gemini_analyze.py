@@ -551,6 +551,30 @@ DOOR_GAP_MIN_FOCAL = 0.35
 DOOR_GAP_MIN_SOFA = 0.25
 
 
+def _perspective_door_exception_proven(rb: dict) -> bool:
+    """Q2f2 物證雙重確認｜門、沙發、TV 三者皆符合才准豁免 2D x-gap。"""
+    if not isinstance(rb, dict):
+        return False
+
+    def _valid(b):
+        return (isinstance(b, (list, tuple)) and len(b) == 4
+                and all(isinstance(v, (int, float)) for v in b)
+                and b[2] > b[0] and b[3] > b[1])
+
+    door, sofa, focal = (
+        rb.get("entrance_door"), rb.get("sofa"), rb.get("focal_anchor"))
+    if not all(_valid(b) for b in (door, sofa, focal)):
+        return False
+    door_to_focal = float(door[2]) - float(focal[2])
+    door_to_sofa = float(door[2]) - float(sofa[2])
+    sofa_focal_axis_gap = abs(float(sofa[2]) - float(focal[2]))
+    return (
+        door_to_focal >= 120.0
+        and door_to_sofa >= 100.0
+        and sofa_focal_axis_gap <= 60.0
+    )
+
+
 def _door_adjacency_violation(rb: dict,
                               focal_past_door_in_depth: bool = False) -> tuple | None:
     """門邊淨空幾何判定；同牆深處焦點不可只用 2D x-gap 誤殺。
@@ -572,7 +596,8 @@ def _door_adjacency_violation(rb: dict,
         return None
     door_w = door[3] - door[1]
     for nm, thr in (("focal_anchor", DOOR_GAP_MIN_FOCAL), ("sofa", DOOR_GAP_MIN_SOFA)):
-        if nm == "focal_anchor" and focal_past_door_in_depth:
+        if (nm == "focal_anchor" and focal_past_door_in_depth
+                and _perspective_door_exception_proven(rb)):
             continue
         b = rb.get(nm)
         if not _valid(b):

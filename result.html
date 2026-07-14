@@ -323,7 +323,7 @@
     var orderId   = JOB_ID || (localStorage.getItem('deco_order_id') || '').replace(/^ORD-/, '') || '—';
     var plan      = localStorage.getItem('deco_plan') || 'A';
     var orderTime = localStorage.getItem('deco_order_time');
-    var planLabel = plan === 'B' ? '全室空間 · 2 種風格' : '單一空間 · 2 種風格';
+    var planLabel = plan === 'B' ? '全室空間' : '單一空間';
     var timeStr   = '';
     if (orderTime) {
       var d = new Date(parseInt(orderTime, 10));
@@ -333,6 +333,29 @@
     document.getElementById('metaPlan').textContent    = planLabel;
     document.getElementById('metaDate').textContent    = timeStr || '—';
   })();
+
+  function updateMetaSummary(data) {
+    var renders = (data && data.renders) || [];
+    var pending = (data && data.needs_regen) || [];
+    var styleSet = {}, roomSet = {};
+    renders.concat(pending).forEach(function(r) {
+      if (r && r.style) styleSet[r.style] = true;
+      var rt = r && r.room_type;
+      if (rt) roomSet[rt] = true;
+    });
+    ((data && data.rooms) || []).forEach(function(r) {
+      var rt = r && r.room_type;
+      if (rt) roomSet[rt] = true;
+    });
+    var styleCount = Object.keys(styleSet).length;
+    var roomCount = Object.keys(roomSet).length;
+    var plan = localStorage.getItem('deco_plan') || 'A';
+    var scope = (roomCount > 1 || plan === 'B')
+      ? (roomCount ? roomCount + ' 個空間' : '全室空間')
+      : '單一空間';
+    document.getElementById('metaPlan').textContent =
+      scope + (styleCount ? ' · ' + styleCount + ' 種風格' : '');
+  }
 
   // ── 渲染分組：永遠按「風格」分群（上方 tab = 風格，一次看一個風格）；
   //    每個風格內，用「房間/角度子分頁」切換（客廳/餐廳/主臥 可直接點，不用左右鍵）。──
@@ -786,7 +809,7 @@
   var _repairTimer = null, _repairPolls = 0;
   function _startRepairPolling(currentCount, data) {
     var vs = (data && data.validation_summary) || {};
-    var pending = (vs.dropped && vs.dropped > 0) || data.repairing;
+    var pending = !!(data && data.repairing);
     if (!pending || _repairTimer || !JOB_ID) return;
     _repairTimer = setInterval(function() {
       _repairPolls++;
@@ -796,7 +819,7 @@
         .then(function(d) {
           if (!d) return;
           var n = (d.renders || []).length;
-          var stillPending = ((d.validation_summary || {}).dropped > 0) || d.repairing;
+          var stillPending = !!d.repairing;
           if (n > currentCount) {
             clearInterval(_repairTimer); _repairTimer = null;
             window.location.reload();   // 補生完成 → 重載整頁（最單純可靠）
@@ -818,6 +841,7 @@
       })
       .then(function(data) {
         _hb = data;
+        try { updateMetaSummary(data); } catch (e) { console.warn('方案摘要顯示失敗', e); }
         // 顯示空間分析（讀現有 result_json.analysis，不打新 API）
         try { fillAnalysis(data.analysis || {}); } catch (e) { console.warn('analysis 顯示失敗', e); }
         // Phase A：顯示客戶輸入（預算 / 需求 / 賣場）
@@ -830,6 +854,11 @@
           document.getElementById('tabsContainer').innerHTML =
             '<div class="loading-msg">你的專屬設計仍在為你優化中，我們會盡快補上。<br>'
             + '可稍後在「查詢下載」用訂單編號查看，或聯絡客服。</div>';
+        }
+        else if (data.repair_incomplete || data.living_incomplete) {
+          document.getElementById('tabsContainer').innerHTML =
+            '<div class="loading-msg">主空間尚未通過配置驗收，這份訂單不能視為完成。<br>'
+            + '請聯絡客服重新處理。</div>';
         }
         else { document.getElementById('tabsContainer').innerHTML = '<div class="loading-msg">尚無渲染圖</div>'; }
         // 部分交付提示：有版面未通過品質檢查時告知（客廳全缺會加強提示）

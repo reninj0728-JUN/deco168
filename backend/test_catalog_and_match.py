@@ -538,9 +538,10 @@ def test_door_adjacency_geometry():
                     "sofa": [455, 592, 850, 903]}
     v2 = ga._door_adjacency_violation(rb_complaint)
     assert v2 and v2[0] == "focal_anchor" and v2[3] == ga.DOOR_GAP_MIN_FOCAL
-    # 同牆深處 TV 櫃受透視壓縮時，判官確認前後分離 → 不可再用 2D x-gap 誤殺。
+    # 判官單獨答 true 不得豁免；客訴圖的沙發仍與門同深、且沒跟 TV 對齊。
     assert ga._door_adjacency_violation(
-        rb_complaint, focal_past_door_in_depth=True) is None
+        rb_complaint, focal_past_door_in_depth=True) is not None
+    assert not ga._perspective_door_exception_proven(rb_complaint)
     rb_approved = {"entrance_door": [323, 122, 853, 272],
                    "focal_anchor": [508, 335, 606, 410],    # gap 63/150 = 0.42
                    "sofa": [500, 700, 850, 980]}
@@ -558,8 +559,44 @@ def test_door_adjacency_geometry():
         "sofa": [496, 608, 804, 849],
     }
     assert ga._sofa_focal_floor_depth_violation(rb_e72_still_wrong) == (111.0, 60.0)
+    assert not ga._perspective_door_exception_proven(rb_e72_still_wrong)
+    assert ga._door_adjacency_violation(
+        rb_e72_still_wrong, focal_past_door_in_depth=True) is not None
+
+    rb_e72_safe = {
+        "entrance_door": [221, 114, 831, 255],
+        "focal_anchor": [518, 292, 656, 405],
+        "sofa": [480, 577, 689, 735],
+    }
+    assert ga._perspective_door_exception_proven(rb_e72_safe)
+    assert ga._door_adjacency_violation(
+        rb_e72_safe, focal_past_door_in_depth=True) is None
     rb_e72_aligned = {**rb_e72_wrong_axis, "focal_anchor": [650, 265, 842, 386]}
     assert ga._sofa_focal_floor_depth_violation(rb_e72_aligned) is None
+
+
+def test_recursive_audit_contracts():
+    """Claude 舊審計中仍屬實的三項｜狀態、PhotoMeta 真相、結果摘要。"""
+    import inspect
+    import api
+
+    metas, err = api._normalize_photo_meta_for_room({
+        "room_type": "living", "photo_keys": ["uploads/x/living.jpg"]})
+    assert not err and metas[0]["target_zone"] == "living"
+
+    src = inspect.getsource(api.run_pipeline)
+    assert '"status": _delivery_status' in src
+    assert '"status": "incomplete"' in src
+    assert '_repair_status = "repairing" if rj.get("needs_regen") else "completed"' in src
+    assert '_single_rt_source = _best_pm_target_zone or space_type' in src
+
+    root = Path(__file__).parent.parent
+    result_html = (root / "result.html").read_text(encoding="utf-8")
+    generate_html = (root / "generate.html").read_text(encoding="utf-8")
+    assert "單一空間 · 2 種風格" not in result_html
+    assert "function updateMetaSummary(data)" in result_html
+    assert "data.status === 'repairing'" in generate_html
+    assert "data.status === 'incomplete'" in generate_html
 
 
 def test_door_gap_retry_carries_measurement():

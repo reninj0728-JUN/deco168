@@ -142,7 +142,7 @@ def _sweep_stale_jobs() -> int:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=STALE_JOB_MINUTES)).isoformat()
         r = _req.patch(
             f"{SUPABASE_URL}/rest/v1/orders",
-            params={"status": "not.in.(completed,failed)", "updated_at": f"lt.{cutoff}"},
+            params={"status": "not.in.(completed,failed,incomplete)", "updated_at": f"lt.{cutoff}"},
             json={"status": "failed", "progress": 0,
                   "message": "生成中斷（系統重啟或逾時），請聯絡客服協助重新處理"},
             headers={**_SB_HEADERS, "Prefer": "return=representation"},
@@ -692,9 +692,12 @@ LOCATION_HINT_ENUM: tuple[str, ...] = (
 TARGET_NOTE_MAX_LEN = 100
 # 從 legacy room_type (single-select per photo) 退化為 v1 Zone
 ROOM_TYPE_TO_ZONE: dict[str, str] = {
+    "living":          "living",
     "living_room":     "living",
+    "dining":          "dining",
     "dining_room":     "dining",
     "bedroom":         "bedroom",
+    "study":           "study",
     "study_workspace": "study",
     "other_room":      "other",
 }
@@ -2267,7 +2270,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     best_idx = 0
                 flux_bases.append(image_paths[best_idx])
                 angle_labels.append("主視角")
-                angle_room_types.append(normalize_room_type(space_type))
+                # 單視角也以該照片的 PhotoMeta target_zone 為房型真相；
+                # space_type / rooms.room_type 只在 PhotoMeta 缺席時 fallback。
+                _single_rt_source = _best_pm_target_zone or space_type
+                angle_room_types.append(normalize_room_type(_single_rt_source))
             elif base_video:
                 frame_path = str(job_dir / "frame_main.jpg")
                 extract_frame(base_video, frame_path, position=0.5)
@@ -3249,9 +3255,15 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             for r in dropped_failed_renders
         )
         living_incomplete = bool(_living_dropped and not _living_delivered)
+        _auto_repair_enabled = bool(
+            dropped_failed_renders
+            and os.environ.get("AUTO_REPAIR", "1").strip() != "0"
+        )
         if living_incomplete:
             result_json_payload["living_incomplete"] = True
-            print("[pipeline] living_incomplete=True — 客廳未交付，完件文案改為部分優化中")
+            print("[pipeline] living_incomplete=True — 客廳未交付，進入 repairing，不得標 completed")
+        if _auto_repair_enabled:
+            result_json_payload["repairing"] = True
         if dropped_failed_renders and not all_failed_repairing:
             result_json_payload["partial_delivery"] = True
 
@@ -3268,7 +3280,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             completed_msg = "部分設計仍在為你優化中，我們會盡快補上"
         else:
             completed_msg = "設計方案生成完畢！"
-        completed_payload = {"job_id": job_id, "status": "completed", "progress": 100,
+        if _auto_repair_enabled:
+            _delivery_status = "repairing"
+        elif living_incomplete or all_failed_repairing:
+            _delivery_status = "incomplete"
+        else:
+            _delivery_status = "completed"
+        completed_payload = {"job_id": job_id, "status": _delivery_status, "progress": 100,
                              "message": completed_msg,
                              "result_json": result_json_payload}
         # 全室等大 payload 可能寫不進去（之前 ED3B66EF 渲染到 92% 卻卡在 result_upsert）。
@@ -3301,7 +3319,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         }
         if rooms_for_json:
             slim_result_json["rooms"] = rooms_for_json
-        if all_failed_repairing:
+        if result_json_payload.get("repairing"):
             slim_result_json["repairing"] = True
         if dropped_failed_renders:
             slim_result_json["needs_regen"] = result_json_payload.get("needs_regen", [])
@@ -3336,7 +3354,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "build_tag": "fullmode-rewrite-v2",
             "payload_trimmed": True,
         }
-        if all_failed_repairing:
+        if result_json_payload.get("repairing"):
             minimal_result_json["repairing"] = True
         if living_incomplete:
             minimal_result_json["living_incomplete"] = True
@@ -3357,23 +3375,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             _tiers = [result_json_payload, result_json_payload, slim_result_json, minimal_result_json]
 
         for _attempt in range(4):
-            payload = {"job_id": job_id, "status": "completed", "progress": 100,
+            payload = {"job_id": job_id, "status": _delivery_status, "progress": 100,
                        "message": completed_msg, "result_json": _tiers[_attempt]}
             # 根因修復：信任 POST 的 2xx 回傳。大 row 的 sb_get 讀回常逾時 → 過去誤判
             # 「寫入未生效」→ 外層 except 把『其實已完成』的單標成 failed。寫入成功就收工。
             if sb_upsert(payload, timeout=25):
                 completed_flag = True
                 break
-            # POST 非 2xx（可能逾時卻已寫入）→ 讀回確認一次，仍 completed 就算成功。
+            # POST 非 2xx（可能逾時卻已寫入）→ 讀回確認目標狀態。
             verify_row = sb_get(job_id) or {}
-            if verify_row.get("status") == "completed":
+            if verify_row.get("status") == _delivery_status:
                 completed_flag = True
                 break
-            print(f"[pipeline] completed 寫入未生效（第 {_attempt + 1} 次，tier{_attempt}），"
+            print(f"[pipeline] {_delivery_status} 寫入未生效（第 {_attempt + 1} 次，tier{_attempt}），"
                   f"狀態={verify_row.get('status')!r}，重試…")
         if not completed_flag:
             raise RuntimeError(
-                "completed DB write verification failed after retries; "
+                f"{_delivery_status} DB write verification failed after retries; "
                 f"current status={(sb_get(job_id) or {}).get('status')!r}"
             )
 
@@ -3390,7 +3408,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         #   策略 B：換渲染模型（gpt-image-2 ↔ nano-banana，卡死時最後一招）
         # 任一張過驗證 → 立即補寫 result_json（結果頁輪詢自動出現）。
         # 全程 best-effort：任何例外不影響已交付內容。
-        if dropped_failed_renders and os.environ.get("AUTO_REPAIR", "1").strip() != "0":
+        if _auto_repair_enabled:
             try:
                 for idx in range(len(final)):
                     r = final[idx]
@@ -3517,6 +3535,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                     and d.get("room_type") == fixed.get("room_type"))
                         ]
                         rj["validation_summary"] = vs
+                        if fixed.get("room_type") == "living":
+                            rj.pop("living_incomplete", None)
+                        if int(vs.get("dropped") or 0) == 0:
+                            rj.pop("partial_delivery", None)
                         rj["needs_regen"] = [
                             n for n in (rj.get("needs_regen") or [])
                             if not (n.get("style") == fixed.get("style")
@@ -3525,7 +3547,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         if not rj["needs_regen"]:
                             rj.pop("repairing", None)
                             rj.pop("needs_regen", None)
-                        sb_upsert({"job_id": job_id, "status": "completed", "progress": 100,
+                        _repair_status = "repairing" if rj.get("needs_regen") else "completed"
+                        sb_upsert({"job_id": job_id, "status": _repair_status, "progress": 100,
                                    "message": "設計方案生成完畢！" if not rj.get("needs_regen")
                                               else "部分設計仍在為你優化中，我們會盡快補上",
                                    "result_json": rj}, timeout=25)
@@ -3535,6 +3558,25 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         print(f"[pipeline] Phase3 補寫 DB 失敗: {str(db_e)[:150]}")
             except Exception as p3_outer:
                 print(f"[pipeline] Phase3 例外（不影響已交付）: {str(p3_outer)[:200]}")
+
+            # Phase3 已跑完仍有缺圖，就明確收斂成 incomplete；不可永遠 repairing，
+            # 更不可把主客廳缺圖寫成 completed。
+            try:
+                _post_repair_row = sb_get(job_id) or {}
+                if _post_repair_row.get("status") == "repairing":
+                    _post_rj = (_post_repair_row.get("result_json")
+                                if isinstance(_post_repair_row.get("result_json"), dict) else {})
+                    _post_rj.pop("repairing", None)
+                    _post_rj["repair_incomplete"] = True
+                    sb_upsert({
+                        "job_id": job_id,
+                        "status": "incomplete",
+                        "progress": 100,
+                        "message": "主空間仍未通過配置驗收，請聯絡客服重新處理",
+                        "result_json": _post_rj,
+                    }, timeout=25)
+            except Exception as _finalize_repair_error:
+                print(f"[pipeline] Phase3 incomplete 收尾失敗: {str(_finalize_repair_error)[:150]}")
 
     except Exception as e:
         # C2.6 失敗收尾: merge 現有 result_json 不蓋既有 analysis / zoning / partial renders
@@ -3579,7 +3621,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             try:
                 cur = sb_get(job_id) or {}
                 cur_status = cur.get("status")
-                if cur_status not in ("completed", "failed"):
+                if cur_status not in ("completed", "failed", "incomplete"):
                     cur_rj = cur.get("result_json") if isinstance(cur.get("result_json"), dict) else {}
                     merged_finally = {
                         **(cur_rj or {}),
@@ -3944,7 +3986,7 @@ def get_status(job_id: str):
     if row:
         # 懶 watchdog：非終態但太久沒進度更新（跨過啟動掃描後才卡死的單）→ 當場標 failed，
         # 讓前端 polling 拿到明確失敗而不是永遠轉圈
-        if row.get("status") not in ("completed", "failed"):
+        if row.get("status") not in ("completed", "failed", "incomplete"):
             try:
                 from datetime import datetime, timezone
                 upd = row.get("updated_at") or ""

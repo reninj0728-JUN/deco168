@@ -321,7 +321,9 @@
     'analyzing': 2,
     'matching':  3,
     'rendering': 4,
+    'repairing': 4,
     'completed': 5,
+    'incomplete': 5,
     'failed':    2
   };
 
@@ -357,13 +359,20 @@
         if (!data) return;
         var step = STATUS_STEP[data.status] || 2;
         updateSteps(step);
-        // status 進入 completed / failed 才覆蓋輪播；其餘狀態維持服務感文案
-        if (data.status === 'completed') {
+        // completed / repairing / incomplete 都是可開結果頁的終端呈現狀態；
+        // repairing 由結果頁接手輪詢，incomplete 明確顯示缺圖，不再偽裝 completed。
+        if (data.status === 'completed' || data.status === 'repairing' || data.status === 'incomplete') {
           stopRotate();
           clearInterval(pollTimer);
-          updateSteps(5);
-          document.getElementById('step5').className = 'proc-step done';
-          document.getElementById('timerText').textContent = '提案完成，正在為你打開設計頁…';
+          if (data.status === 'completed') {
+            updateSteps(5);
+            document.getElementById('step5').className = 'proc-step done';
+            document.getElementById('timerText').textContent = '提案完成，正在為你打開設計頁…';
+          } else if (data.status === 'repairing') {
+            document.getElementById('timerText').textContent = '部分設計正在修正，先為你打開結果頁…';
+          } else {
+            document.getElementById('timerText').textContent = '主空間仍未通過驗收，正在打開處理說明…';
+          }
           setTimeout(function() {
             window.location.href = PUBLIC_WEB_BASE + '/result?job=' + encodeURIComponent(JOB_ID);
           }, 1500);
