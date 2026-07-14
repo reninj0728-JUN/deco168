@@ -1420,9 +1420,18 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
     door_clear = None
     if entrance_bbox:
         dx0, dy0, dx1, _dy1 = [int(v) for v in entrance_bbox]
+        door_w = max(1, dx1 - dx0)
+        clear_x0 = dx0 - margin_x
+        clear_x1 = dx1 + margin_x
+        # 生成指令要求「過門後留一個完整門寬」，constraint map 也必須畫同一件事。
+        # 舊版只加 2% margin，2879173D 四輪都把 TV 櫃放回門框旁。
+        if focal == ent == "left":
+            clear_x1 += door_w
+        elif focal == ent == "right":
+            clear_x0 -= door_w
         door_clear = (
-            max(0, dx0 - margin_x), max(0, dy0 - int(H * 0.04)),
-            min(W, dx1 + margin_x), H,
+            max(0, clear_x0), max(0, dy0 - int(H * 0.04)),
+            min(W, clear_x1), H,
         )
     elif ent == "left":
         door_clear = (0, int(H * 0.28), int(W * 0.30), H)

@@ -213,6 +213,16 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertIn("ONE FULL visible door-width", layout_prompt)
         self.assertIn("focal/TV wall is LEFT", layout_prompt)
         self.assertIn("sofa belongs on the RIGHT", layout_prompt)
+        guide_2879 = api._layout_guide_plan(
+            1000, 700, sofa_side="free", entrance_side="left",
+            entrance_bbox=(120, 227, 320, 665), focal_side=focal_side,
+            auto_float=False,
+        )
+        # 紅色門區要包含門框後「一個完整門寬」，不能只多畫 2% margin。
+        self.assertGreaterEqual(guide_2879["door_clear"][2], 520)
+        validator_src = (Path(__file__).parent / "gemini_analyze.py").read_text(encoding="utf-8")
+        self.assertIn("仍有約 80–90 cm 寬的連續可走路徑", validator_src)
+        self.assertNotIn("只要行走需繞過就填 true", validator_src)
         # 若唯一實牆跟入口同側，TV 仍必須被推過門淨空，不能藍紅重疊。
         conflict = api._layout_guide_plan(
             1000, 700, sofa_side="free", entrance_side="left",
