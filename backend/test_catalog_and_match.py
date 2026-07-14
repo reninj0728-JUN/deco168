@@ -517,6 +517,7 @@ def test_door_adjacency_geometry():
 
     fixture = Path(__file__).parent / "fixtures" / "living_layout_calibration.json"
     cases = json.loads(fixture.read_text(encoding="utf-8"))
+    assert "never ask" in cases["runtime_policy"].lower()
 
     for case in cases["accepted"]:
         violation = ga._door_adjacency_violation(case["render_bboxes"])

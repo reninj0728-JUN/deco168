@@ -2,6 +2,7 @@
   "schema_version": 1,
   "coordinate_format": "normalized_0_1000_ymin_xmin_ymax_xmax",
   "policy": "Every hard geometry gate change must pass all accepted cases and reject all rejected cases.",
+  "runtime_policy": "Offline golden benchmark only. Production orders never ask the site owner or customer for a verdict; they auto-validate, auto-retry, then mark incomplete when exhausted.",
   "accepted": [
     {
       "case_id": "21CCB9AF-nordic-living",
