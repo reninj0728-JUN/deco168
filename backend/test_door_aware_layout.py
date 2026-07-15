@@ -267,8 +267,9 @@ class DoorAwareLayoutTests(unittest.TestCase):
             "reason": "沙發正對大門",
         })
         self.assertIn("MOVE ONLY THE SOFA", edit_prompt)
-        self.assertIn("0.6 to 0.8 sofa-length shift is only an estimate", edit_prompt)
-        self.assertIn("normal line MUST pass exactly through the TV-screen centre", edit_prompt)
+        self.assertIn("SOFA-TV FACE-TO-FACE HARD CONTRACT", edit_prompt)
+        self.assertIn("the exact centre directly in front of the sofa MUST be the TV-screen centre", edit_prompt)
+        self.assertIn("NEVER move the TV closer to a stationary sofa", edit_prompt)
         self.assertIn("LOCK the TV", edit_prompt)
         self.assertNotIn("coffee-table centre", edit_prompt)
         self.assertNotIn("whole living group", edit_prompt.lower())

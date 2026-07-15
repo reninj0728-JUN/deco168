@@ -999,6 +999,20 @@ QUALITY_TAIL = (
     "no people, no text, no logos, no watermarks."
 )
 
+SOFA_TV_FACE_TO_FACE_CONTRACT = (
+    "SOFA-TV FACE-TO-FACE HARD CONTRACT: "
+    "the exact centre directly in front of the sofa MUST be the TV-screen centre. "
+    "The sofa and the TV/media console MUST be perfectly face-to-face on one shared "
+    "perpendicular centreline; the sofa-seat forward normal must hit the TV-screen centre, "
+    "and the TV-screen normal must point back to the sofa-seat centre. "
+    "The sofa's straight-ahead view must NEVER land on the entrance door, an empty wall, "
+    "a walkway, a window, or any other furniture. "
+    "Treat the sofa and TV/media console as one inseparable paired layout: if the TV/media "
+    "console is repositioned for any reason, reposition the sofa in the same operation until "
+    "this exact face-to-face centreline is restored. NEVER move the TV closer to a stationary "
+    "sofa to fake alignment. A render that violates this contract is invalid."
+)
+
 CRITICAL_RULES = (
     "CRITICAL: "
     "(a) Do not invent walls, doors, or windows that are not in the ROOM reference. "
@@ -1470,15 +1484,13 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
         return " ".join([
             "LOCAL ALIGNMENT EDIT — image_1 is the previous furnished render, not an empty room.",
             "MOVE ONLY THE SOFA. Keep the sofa on the same RIGHT side wall and slide it deeper "
-            "along that wall toward the rear of the room. A 0.6 to 0.8 sofa-length shift is only "
-            "an estimate; stop ONLY at exact TV alignment.",
+            "along that wall toward the rear of the room until exact TV alignment is reached.",
             "LOCK the TV, media console, entrance door, walls, windows, camera, rug, coffee table, "
             "lighting, decor, colours and every other object in their exact current positions.",
             "Do not move, resize, replace or redesign the TV or media console; they are already correct.",
-            "After moving, the sofa-seat centre's straight-ahead normal line MUST pass exactly through "
-            "the TV-screen centre. The TV-screen normal must point back to the sofa-seat centre. "
-            "The entrance door must fall clearly to the side of "
-            "that axis, never in the seated viewer's straight-ahead view.",
+            SOFA_TV_FACE_TO_FACE_CONTRACT,
+            "The entrance door must fall clearly to the side of that sofa-TV centreline, never in the "
+            "seated viewer's straight-ahead view.",
             "Preserve the original room geometry pixel-for-pixel outside the sofa's old and new area.",
         ])
     sofa_pct = retry_context.get("sofa_pct")
@@ -1926,7 +1938,7 @@ def build_nano_banana_inputs(
         sections.append(customer_sec)
     if retry_sec:
         sections.append(retry_sec)
-    sections.extend([CRITICAL_RULES, QUALITY_TAIL])
+    sections.extend([SOFA_TV_FACE_TO_FACE_CONTRACT, CRITICAL_RULES, QUALITY_TAIL])
 
     prompt = "\n\n".join(sections)
 
@@ -2062,8 +2074,8 @@ def build_anchored_inputs(
         "Do not reinterpret image 2 as furniture.",
         "This is an edit of images 1 and 2, not a new room generation.",
         f"Style: {style_label}.",
-        "Place the sofa against the back/window-side wall (the deep half of the room) when applicable.",
-        "Place a low media console / TV cabinet on the opposite wall, aligned with the sofa.",
+        SOFA_TV_FACE_TO_FACE_CONTRACT,
+        "Place a low media console / TV cabinet on the wall opposite the sofa.",
         "Coffee table in front of sofa, rug under coffee table.",
         "Photorealistic interior editorial photography.",
     ]

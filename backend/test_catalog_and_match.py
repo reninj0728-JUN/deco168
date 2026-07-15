@@ -721,6 +721,31 @@ def test_layout_guide_pipeline_wiring():
     assert "LAYOUT GUIDE" not in inputs2["prompt"]
 
 
+def test_sofa_tv_face_to_face_contract_is_fixed_in_every_living_prompt():
+    """客廳初稿、retry 與 anchored 都必須帶同一份文字硬契約，不靠 guide 圖猜。"""
+    import prompt_builder as pb
+
+    entry = {
+        "style": "luxury",
+        "style_label": "現代輕奢",
+        "matched_furniture": [],
+        "flux_prompt": "dark luxury living room",
+    }
+    prompts = [
+        pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg")["prompt"],
+        pb.build_nano_banana_inputs(
+            entry, None, "https://x/room.jpg",
+            retry_context={"sofa_alignment_edit": True},
+        )["prompt"],
+        pb.build_anchored_inputs(entry, "https://x/room.jpg")["prompt"],
+    ]
+    for prompt in prompts:
+        assert "SOFA-TV FACE-TO-FACE HARD CONTRACT" in prompt
+        assert "the exact centre directly in front of the sofa MUST be the TV-screen centre" in prompt
+        assert "perfectly face-to-face on one shared perpendicular centreline" in prompt
+        assert "NEVER move the TV closer to a stationary sofa" in prompt
+
+
 def test_room_crop_disarms_c24_depth_gate():
     """只有真正依 living-zone bbox 裁出的單房底圖，才能放寬 C2.4 深度閘門。"""
     import inspect
