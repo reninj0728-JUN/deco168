@@ -703,11 +703,16 @@ def test_layout_guide_pipeline_wiring():
                                  "furniture_placement_rules": {}}) == "right"
     assert api._guide_sofa_side({}) == "right"
     # 3) prompt：guide url 進 image_urls + LAYOUT GUIDE 圖例段
-    entry = {"style": "muji", "style_label": "無印極簡", "matched_furniture": [],
-             "flux_prompt": "warm oak"}
+    entry = {"style": "muji", "style_label": "無印極簡", "matched_furniture": [
+        {"category_en": "sofa", "image_url": "https://x/sofa.jpg", "name_zh": "沙發"},
+        {"category_en": "coffee_table", "image_url": "https://x/table.jpg", "name_zh": "茶几"},
+        {"category_en": "rug", "image_url": "https://x/rug.jpg", "name_zh": "地毯"},
+    ], "flux_prompt": "warm oak"}
     inputs = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg",
                                          layout_guide_url="https://x/guide.jpg")
     assert "https://x/guide.jpg" in inputs["image_urls"]
+    assert inputs["image_urls"][1] == "https://x/guide.jpg"
+    assert inputs["reference_map"][1]["kind"] == "LAYOUT_GUIDE"
     assert "LAYOUT CONSTRAINT MAP" in inputs["prompt"]
     assert "RED forbidden zones only" in inputs["prompt"]
     assert "Do NOT copy boxes" in inputs["prompt"]

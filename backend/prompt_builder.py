@@ -1740,6 +1740,46 @@ def build_nano_banana_inputs(
     image_urls: list[str] = [room_image_url]
 
     next_idx = 2
+    # 配置禁區圖必須緊跟原始房間，優先於所有家具商品參考。
+    # 2879173D 實測：排在第 9 張時模型連續忽略門後淨空；第 2 張才是結構級參考。
+    layout_guide_sec = ""
+    if layout_guide_url:
+        _guide_idx = next_idx
+        reference_map.append({
+            "index": _guide_idx, "role": "LAYOUT GUIDE", "url": layout_guide_url,
+            "cat_en": None, "name_zh": None, "id": None, "kind": "LAYOUT_GUIDE",
+        })
+        image_urls.append(layout_guide_url)
+        next_idx += 1
+        _guide_mode = (layout_guide_mode or entry.get("_layout_guide_mode") or "bound").strip().lower()
+        _is_auto_guide = (_guide_mode == "free" or _guide_mode.startswith("auto_"))
+        if _is_auto_guide:
+            _choice_note = (
+                "The customer has no left/right preference. Independently choose the safest sofa and "
+                "TV/focal-wall arrangement from the actual doors, main window, solid walls and floor "
+                "perspective; this is not a random draw. "
+            )
+            _float_note = (
+                "A floating sofa is allowed only if the visible floor area remains generous after all "
+                "red constraints are respected. " if _guide_mode == "auto_float" else
+                "Do not force a floating sofa; prefer a compact layout unless the room clearly has "
+                "enough usable floor area. "
+            )
+        else:
+            _choice_note = (
+                "The customer's left/right sofa-side choice in USER-CONFIRMED LAYOUT is binding. "
+                "Choose the exact floor position and TV alignment while preserving that chosen side. "
+            )
+            _float_note = "Do not float or flip the sofa away from the customer's chosen side. "
+        layout_guide_sec = (
+            f"LAYOUT CONSTRAINT MAP: reference image #{_guide_idx} is the SAME room photo with RED "
+            "forbidden zones only. " + _choice_note + _float_note +
+            "Every RED ENTRANCE, WALKWAY or NO FURNITURE zone must remain completely EMPTY. "
+            "The sofa and TV console must stand on the real floor / real wall plane, follow the "
+            "photograph's perspective, face each other, and face neither the entrance door nor any "
+            "main window. Do NOT copy boxes, lines or labels into the output."
+        )
+
     for cat in MUST_HAVE_CATS:
         if cat in selected:
             it = selected[cat]
@@ -1780,46 +1820,6 @@ def build_nano_banana_inputs(
         })
         image_urls.append(it.get("image_url"))
         next_idx += 1
-
-    # 版面引導（用戶提案，2026-07-13 實測 4/4 全中）：底圖副本上畫沙發/電視櫃/
-    # 淨空框當參考圖——模型看不懂「離門半個門寬」，但看得懂圖上畫的框。
-    layout_guide_sec = ""
-    if layout_guide_url:
-        _guide_idx = next_idx
-        reference_map.append({
-            "index": _guide_idx, "role": "LAYOUT GUIDE", "url": layout_guide_url,
-            "cat_en": None, "name_zh": None, "id": None, "kind": "LAYOUT_GUIDE",
-        })
-        image_urls.append(layout_guide_url)
-        next_idx += 1
-        _guide_mode = (layout_guide_mode or entry.get("_layout_guide_mode") or "bound").strip().lower()
-        _is_auto_guide = (_guide_mode == "free" or _guide_mode.startswith("auto_"))
-        if _is_auto_guide:
-            _choice_note = (
-                "The customer has no left/right preference. Independently choose the safest sofa and "
-                "TV/focal-wall arrangement from the actual doors, main window, solid walls and floor "
-                "perspective; this is not a random draw. "
-            )
-            _float_note = (
-                "A floating sofa is allowed only if the visible floor area remains generous after all "
-                "red constraints are respected. " if _guide_mode == "auto_float" else
-                "Do not force a floating sofa; prefer a compact layout unless the room clearly has "
-                "enough usable floor area. "
-            )
-        else:
-            _choice_note = (
-                "The customer's left/right sofa-side choice in USER-CONFIRMED LAYOUT is binding. "
-                "Choose the exact floor position and TV alignment while preserving that chosen side. "
-            )
-            _float_note = "Do not float or flip the sofa away from the customer's chosen side. "
-        layout_guide_sec = (
-            f"LAYOUT CONSTRAINT MAP: reference image #{_guide_idx} is the SAME room photo with RED "
-            "forbidden zones only. " + _choice_note + _float_note +
-            "Every RED ENTRANCE, WALKWAY or NO FURNITURE zone must remain completely EMPTY. "
-            "The sofa and TV console must stand on the real floor / real wall plane, follow the "
-            "photograph's perspective, face each other, and face neither the entrance door nor any "
-            "main window. Do NOT copy boxes, lines or labels into the output."
-        )
 
     inputs_sec = _build_inputs_section(reference_map)
 
