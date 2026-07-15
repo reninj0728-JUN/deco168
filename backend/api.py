@@ -1851,6 +1851,149 @@ def _guide_sofa_side(zoning_result: dict | None) -> str:
     return "right"
 
 
+def _zoning_payload_for_layout_contract(
+    zoning_result: dict | None,
+    user_zoning_v2: dict | None,
+) -> dict:
+    """把正式 zoning 轉成 Phase0 契約需要的 v2 形狀（不改正式 zoning）。"""
+    if isinstance(user_zoning_v2, dict) and (
+        user_zoning_v2.get("existing_zones") or user_zoning_v2.get("proposed_zones")
+    ):
+        return user_zoning_v2
+    z = zoning_result or {}
+    zones = z.get("zones") or {}
+    return {
+        "existing_zones": {
+            "entrance_zone": zones.get("entrance_zone") or {},
+            "walkway": zones.get("walkway") or {},
+            "living_zone": zones.get("living_zone") or {},
+        },
+        "proposed_zones": {
+            "living_zone": zones.get("living_zone") or {},
+            "no_large_furniture_zone": zones.get("no_go_zone") or {},
+        },
+        "spatial_synthesis": z.get("spatial_synthesis") or {},
+        "overall_confidence": z.get("confidence") or "medium",
+    }
+
+
+def _run_layout_contract_shadow(
+    *,
+    job_id: str,
+    job_dir: Path,
+    photo_path: str,
+    view_index: int,
+    zoning_result: dict | None,
+    user_zoning_v2: dict | None,
+    analysis: dict | None,
+    sofa_mode: str,
+    can_float: bool,
+) -> dict | None:
+    """Shadow mode：只算契約、存檔、回傳摘要。不擋生圖、不改交付。
+
+    LAYOUT_CONTRACT_SHADOW=0 可關。
+    """
+    if os.environ.get("LAYOUT_CONTRACT_SHADOW", "1").strip() == "0":
+        return None
+    if not photo_path or not Path(photo_path).exists():
+        return {
+            "view_index": view_index,
+            "status": "skipped",
+            "reason": "photo_missing",
+            "affects_delivery": False,
+        }
+    try:
+        import _proto_layout_contract as plc
+        from PIL import Image
+        with Image.open(photo_path) as im:
+            W, H = im.size
+        payload = _zoning_payload_for_layout_contract(zoning_result, user_zoning_v2)
+        # 若上游未來帶 struct_keypoints 就用；沒有則走 walkway fallback
+        kp = None
+        if isinstance(user_zoning_v2, dict):
+            kp = user_zoning_v2.get("struct_keypoints")
+        if not kp and isinstance(zoning_result, dict):
+            kp = zoning_result.get("struct_keypoints")
+        mode = str(sofa_mode or "free").strip().lower()
+        if mode not in ("left", "right", "free"):
+            mode = "free"
+        out_dir = Path(job_dir) / "layout_contract_shadow"
+        tag = f"{job_id}_v{view_index:02d}_{mode}"
+        contract = plc.build_contract_with_crop(
+            payload, W, H,
+            struct_keypoints=kp,
+            sofa_mode=mode,
+            can_float=bool(can_float),
+        )
+        paths = {}
+        try:
+            paths = plc.render_overlays(
+                photo_path, contract, contract.get("crop") or {},
+                str(out_dir), tag,
+            )
+        except Exception as re:
+            print(f"[pipeline] layout_contract shadow overlay 失敗: {type(re).__name__}: {re}")
+        slim_candidates = [
+            {
+                "id": c.get("id"),
+                "pass": bool(c.get("pass")),
+                "score": c.get("score"),
+                "sofa_side": c.get("sofa_side"),
+                "tv_side": c.get("tv_side"),
+                "fail_reasons": list(c.get("fail_reasons") or []),
+                "depth_delta": c.get("depth_delta"),
+            }
+            for c in (contract.get("candidates") or [])
+        ]
+        summary = {
+            "view_index": view_index,
+            "photo": Path(photo_path).name,
+            "sofa_mode": mode,
+            "can_float": bool(can_float),
+            "chosen": contract.get("chosen"),
+            "safe_layout": bool(contract.get("safe_layout")),
+            "disposition": contract.get("disposition"),
+            "door_side": contract.get("door_side"),
+            "candidates": slim_candidates,
+            "crop_invariants": contract.get("crop_invariants"),
+            "notes": list(contract.get("notes") or [])[:12],
+            "overlay_paths": {
+                "chosen_original": paths.get("chosen_original") if isinstance(paths, dict) else None,
+                "chosen_crop": paths.get("chosen_crop") if isinstance(paths, dict) else None,
+            },
+            "affects_delivery": False,
+            "status": "ok",
+        }
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_json = out_dir / f"contract_{tag}.json"
+        # 完整契約另存，result_json 只帶 summary 避免膨脹
+        full = dict(contract)
+        full["shadow_summary"] = summary
+        try:
+            out_json.write_text(
+                json.dumps(full, ensure_ascii=False, indent=2, default=list),
+                encoding="utf-8",
+            )
+            summary["contract_json"] = str(out_json)
+        except Exception as we:
+            print(f"[pipeline] layout_contract shadow 寫檔失敗: {we}")
+        print(
+            f"[pipeline] layout_contract shadow[{view_index}] "
+            f"mode={mode} float={bool(can_float)} chosen={summary.get('chosen')} "
+            f"safe={summary.get('safe_layout')} disp={summary.get('disposition')} "
+            f"(delivery untouched)"
+        )
+        return summary
+    except Exception as e:
+        print(f"[pipeline] layout_contract shadow 例外（不阻斷）: {type(e).__name__}: {e}")
+        return {
+            "view_index": view_index,
+            "status": "error",
+            "reason": f"{type(e).__name__}: {str(e)[:160]}",
+            "affects_delivery": False,
+        }
+
+
 def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
     """把清單主沙發座位數寫進 layout_ctx，供 validate_render 產品一致驗收（護城河）。"""
     if not isinstance(entry_or_render, dict):
@@ -2747,6 +2890,40 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     living_bbox=_living_bbox_crop,
                 )
 
+        # ── Phase0 格局契約 shadow（只記錄，不擋生圖、不改交付）──
+        layout_contract_shadows: list[dict] = []
+        try:
+            _sofa_mode_shadow = _guide_sofa_side(zoning_result)
+            _can_float_shadow = bool(
+                zoning_result.get("_auto_can_float")
+                if isinstance(zoning_result, dict) and "_auto_can_float" in zoning_result
+                else (
+                    _sofa_mode_shadow == "free"
+                    and _room_can_float_sofa(analysis, zoning_result)
+                )
+            )
+            for _vi, (_bp, _rt) in enumerate(zip(flux_bases, angle_room_types)):
+                if _rt != "living":
+                    continue
+                # 優先用裁切前原圖做契約（門／牆腳完整）；沒有就用當前底圖
+                _shadow_photo = uncropped_bases.get(_vi) or crop_source_paths[_vi] or _bp
+                _sum = _run_layout_contract_shadow(
+                    job_id=job_id,
+                    job_dir=job_dir,
+                    photo_path=_shadow_photo,
+                    view_index=_vi,
+                    zoning_result=zoning_result,
+                    user_zoning_v2=user_zoning_v2,
+                    analysis=analysis,
+                    sofa_mode=_sofa_mode_shadow,
+                    can_float=_can_float_shadow,
+                )
+                if _sum:
+                    layout_contract_shadows.append(_sum)
+        except Exception as _shadow_err:
+            print(f"[pipeline] layout_contract shadow 批次例外（不阻斷）: {_shadow_err}")
+            layout_contract_shadows = []
+
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
@@ -3143,6 +3320,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "ng_reasons": ng_reasons,
             "retry_count": retry_n,
         }
+        # shadow 契約摘要：只觀測，不影響 ok/ng/交付
+        if layout_contract_shadows:
+            validation_summary["layout_contract_shadow"] = {
+                "count": len(layout_contract_shadows),
+                "items": layout_contract_shadows,
+                "affects_delivery": False,
+            }
         print(f"[pipeline] 驗證統計 total={len(final)} ok={ok_n} ng={ng_n} retried={retry_n}")
 
         # ── Phase 2 硬傷補生 (2026-06-21)：只對「硬傷」風格做一次帶完整錯誤原因的補生。
@@ -3499,6 +3683,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "validation_summary": validation_summary,
             "customer_inputs":    customer_inputs,            # Phase A
         }
+        # Phase0 格局契約 shadow：完整摘要進 result_json，前端可忽略
+        if layout_contract_shadows:
+            result_json_payload["layout_contract_shadow"] = {
+                "version": "phase0_v3",
+                "affects_delivery": False,
+                "items": layout_contract_shadows,
+            }
         if top_render_mode:
             result_json_payload["render_mode"] = top_render_mode
         if rooms_for_json:
