@@ -1197,6 +1197,32 @@ def _phase3_base_strategies(entry: dict) -> list[tuple[str, str, None]]:
     return strategies[:3]
 
 
+def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
+                               room_type: str = "living") -> str | None:
+    """沙發對門但結構與 TV 已正確時，回傳上一張 render 做局部位移底圖。"""
+    v = validation or {}
+    r = render or {}
+    if (room_type or "living") != "living":
+        return None
+    if not (v.get("sofa_facing_entrance_door") is True
+            or v.get("focal_anchor_misaligned_with_sofa") is True):
+        return None
+    if v.get("focal_anchor_past_door_in_depth") is not True:
+        return None
+    if v.get("camera_axis_preserved") is False or v.get("passage_openings_preserved") is False:
+        return None
+    if any(v.get(k) for k in (
+        "spatial_fidelity_fail", "windows_changed", "walls_changed", "ceiling_changed",
+        "floor_changed", "offframe_room_invaded",
+    )):
+        return None
+    rb = v.get("render_bboxes") or {}
+    if not rb.get("sofa") or not rb.get("focal_anchor"):
+        return None
+    path = str(r.get("render_path") or "")
+    return path if path and Path(path).exists() else None
+
+
 def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
     """全室：以使用者『這張照片主要是』(target_zone) 建 regions，一張照片＝一個房間。
     同房型多張候選時用 _score_photo_for_room 選最佳底圖（不再 first-wins）。
@@ -2788,7 +2814,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # DOOR-ON-A-LONG-WALL LAYOUT），不再需要重試才升級。
                     # 客廳保真失敗 → 優先換另一張 living 底圖（比同圖乾抽更穩、不失真）
                     base_for_gen = entry["_base_path"]
-                    if (entry.get("_room_type") or "living") == "living" and _should_try_alt_living_base(v):
+                    alignment_base = _sofa_alignment_edit_base(
+                        v, r, entry.get("_room_type", "living"))
+                    if alignment_base:
+                        retry_ctx = dict(retry_ctx or {})
+                        retry_ctx["sofa_alignment_edit"] = True
+                        base_for_gen = alignment_base
+                    elif ((entry.get("_room_type") or "living") == "living"
+                          and _should_try_alt_living_base(v)):
                         _nb = _switch_entry_to_next_living_base(entry)
                         if _nb:
                             base_for_gen = _nb
@@ -2918,7 +2951,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 write_status(job_id, job_dir, "rendering", 93, "為未通過的風格再生成一次…")
                 failed_stage = "phase2_hardfix_generate_renders"
                 base_for_gen = entry["_base_path"]
-                if (entry.get("_room_type") or "living") == "living" and _should_try_alt_living_base(v):
+                alignment_base = _sofa_alignment_edit_base(
+                    v, r, entry.get("_room_type", "living"))
+                if alignment_base:
+                    retry_ctx = dict(retry_ctx or {})
+                    retry_ctx["sofa_alignment_edit"] = True
+                    base_for_gen = alignment_base
+                elif ((entry.get("_room_type") or "living") == "living"
+                      and _should_try_alt_living_base(v)):
                     _nb = _switch_entry_to_next_living_base(entry)
                     if _nb:
                         base_for_gen = _nb
@@ -3430,7 +3470,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         continue
                     retry_ctx = _build_retry_ctx_from_validation(v0)
                     # AI-auto guide 綁在同一底圖，Phase3 不得換圖或改用未裁切原圖。
-                    strategies = _phase3_base_strategies(entry)
+                    alignment_base = _sofa_alignment_edit_base(
+                        v0, r, entry.get("_room_type", "living"))
+                    if alignment_base:
+                        retry_ctx = dict(retry_ctx or {})
+                        retry_ctx["sofa_alignment_edit"] = True
+                        strategies = [("沙發局部位移", alignment_base, None)]
+                    else:
+                        strategies = _phase3_base_strategies(entry)
                     fixed = None
                     for tag, base_p, model_ov in strategies:
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
@@ -3462,7 +3509,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             from gemini_analyze import validate_render
                             _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
                             _lc = _product_fidelity_into_layout_ctx(_lc, entry)
-                            v3 = validate_render(base_p, rpath, entry["_angle_label"],
+                            validation_base = entry["_base_path"] if alignment_base else base_p
+                            v3 = validate_render(validation_base, rpath, entry["_angle_label"],
                                                  layout_context=_lc,
                                                  room_type=entry.get("_room_type", "living"),
                                                  design_mode=design_mode)

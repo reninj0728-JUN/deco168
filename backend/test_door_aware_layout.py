@@ -230,6 +230,53 @@ class DoorAwareLayoutTests(unittest.TestCase):
         )
         self.assertFalse(api._rects_intersect(conflict["tv"], conflict["door_clear"]))
 
+    def test_sofa_facing_door_uses_previous_render_for_local_alignment_edit(self):
+        with tempfile.TemporaryDirectory() as td:
+            previous = Path(td) / "render_luxury_00.jpg"
+            previous.write_bytes(b"render")
+            validation = {
+                "sofa_facing_entrance_door": True,
+                "focal_anchor_past_door_in_depth": True,
+                "camera_axis_preserved": True,
+                "passage_openings_preserved": True,
+                "render_bboxes": {
+                    "sofa": [480, 620, 840, 940],
+                    "focal_anchor": [530, 260, 690, 400],
+                    "entrance_door": [220, 120, 860, 260],
+                },
+            }
+            self.assertEqual(
+                api._sofa_alignment_edit_base(validation, {"render_path": str(previous)}, "living"),
+                str(previous),
+            )
+            validation["camera_axis_preserved"] = False
+            self.assertIsNone(
+                api._sofa_alignment_edit_base(validation, {"render_path": str(previous)}, "living")
+            )
+            validation["camera_axis_preserved"] = True
+            validation["sofa_facing_entrance_door"] = False
+            validation["focal_anchor_misaligned_with_sofa"] = True
+            self.assertEqual(
+                api._sofa_alignment_edit_base(validation, {"render_path": str(previous)}, "living"),
+                str(previous),
+            )
+
+        edit_prompt = pb._build_retry_context_section({
+            "sofa_alignment_edit": True,
+            "failed_flags": ["sofa_facing_entrance_door"],
+            "reason": "沙發正對大門",
+        })
+        self.assertIn("MOVE ONLY THE SOFA", edit_prompt)
+        self.assertIn("0.6 to 0.8 sofa-length shift is only an estimate", edit_prompt)
+        self.assertIn("normal line MUST pass exactly through the TV-screen centre", edit_prompt)
+        self.assertIn("LOCK the TV", edit_prompt)
+        self.assertNotIn("coffee-table centre", edit_prompt)
+        self.assertNotIn("whole living group", edit_prompt.lower())
+        api_source = Path(api.__file__).read_text(encoding="utf-8")
+        # definition + Z3 + Phase2 + Phase3
+        self.assertGreaterEqual(api_source.count("_sofa_alignment_edit_base("), 4)
+        self.assertIn('validation_base = entry["_base_path"] if alignment_base else base_p', api_source)
+
     def test_wide_crop_keeps_left_or_right_edge_door(self):
         left = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(0, 100, 220, 850))
         right = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(1380, 100, 1600, 850))

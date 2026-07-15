@@ -1466,6 +1466,21 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
     """
     if not isinstance(retry_context, dict):
         return ""
+    if retry_context.get("sofa_alignment_edit"):
+        return " ".join([
+            "LOCAL ALIGNMENT EDIT — image_1 is the previous furnished render, not an empty room.",
+            "MOVE ONLY THE SOFA. Keep the sofa on the same RIGHT side wall and slide it deeper "
+            "along that wall toward the rear of the room. A 0.6 to 0.8 sofa-length shift is only "
+            "an estimate; stop ONLY at exact TV alignment.",
+            "LOCK the TV, media console, entrance door, walls, windows, camera, rug, coffee table, "
+            "lighting, decor, colours and every other object in their exact current positions.",
+            "Do not move, resize, replace or redesign the TV or media console; they are already correct.",
+            "After moving, the sofa-seat centre's straight-ahead normal line MUST pass exactly through "
+            "the TV-screen centre. The TV-screen normal must point back to the sofa-seat centre. "
+            "The entrance door must fall clearly to the side of "
+            "that axis, never in the seated viewer's straight-ahead view.",
+            "Preserve the original room geometry pixel-for-pixel outside the sofa's old and new area.",
+        ])
     sofa_pct = retry_context.get("sofa_pct")
     anchor_pct = retry_context.get("anchor_pct")
     failed_flags = retry_context.get("failed_flags") or []
