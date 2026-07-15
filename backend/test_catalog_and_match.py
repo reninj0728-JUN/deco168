@@ -821,3 +821,31 @@ def test_conservative_decision_rules_prompt_too():
     z2 = {k: v for k, v in zoning.items() if k != "_layout_conservative"}
     sec2 = pb._build_layout_section(z2)
     assert "CONSERVATIVE arrangement" not in sec2
+
+
+def test_constitution_all_live_gates_respect_calibration():
+    """憲法測試（C63D5284 教訓：閘門逃過校準直接上線,殺掉接受組 4/5）——
+    所有「會置 hard_fail/ok=False 的客廳幾何閘門」必須逐一過校準庫:
+    接受組全放、拒絕組照其歷史裁決。新增閘門必須加進這裡,否則就是違憲。"""
+    import json as _json
+    from pathlib import Path as _P
+    import api
+    import gemini_analyze as ga
+    lib = _json.loads((_P(__file__).parent / "fixtures" /
+                       "living_layout_calibration.json").read_text(encoding="utf-8"))
+    # 閘門 1: 門距幾何(_door_adjacency_violation)
+    for c in lib["accepted"]:
+        assert ga._door_adjacency_violation(c["render_bboxes"] or {}) is None, \
+            f"門距閘門誤殺接受組 {c['case_id']}"
+    for c in lib["rejected"]:
+        rb = c["render_bboxes"] or {}
+        if rb.get("entrance_door") and (rb.get("focal_anchor") or rb.get("sofa")):
+            assert ga._door_adjacency_violation(rb) is not None, \
+                f"門距閘門漏放拒絕組 {c['case_id']}"
+    # 閘門 2: pair 中心差——已降級診斷,不得在任何案例上翻案 ok
+    for group in ("accepted", "rejected"):
+        for c in lib[group]:
+            v = {"ok": True, "render_bboxes": c["render_bboxes"] or {}}
+            out = api._fail_closed_validation(v, "living")
+            assert out.get("ok") is True, \
+                f"pair 中心差不得再置 hard_fail（{c['case_id']}）"

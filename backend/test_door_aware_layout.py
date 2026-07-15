@@ -305,7 +305,10 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertGreaterEqual(api_source.count("_activate_pair_alignment_edit("), 4)
         self.assertIn("if (pair_alignment_base or alignment_base) else base_p", api_source)
 
-    def test_pair_centre_delta_forces_hard_fail_and_builds_tv_correction_guide(self):
+    def test_pair_centre_delta_is_diagnostic_only(self):
+        """C63D5284 違憲拆除：y 中心差無分類力（校準庫接受組 32-89 與拒絕組
+        61-106 重疊，tolerance=25 實測殺掉接受組 4/5）——量測值保留為診斷欄位，
+        不得再影響 ok/hard_fail。"""
         validation = {
             "ok": True,
             "hard_fail": False,
@@ -318,19 +321,9 @@ class DoorAwareLayoutTests(unittest.TestCase):
             },
         }
         checked = api._fail_closed_validation(validation, "living")
-        self.assertFalse(checked["ok"])
-        self.assertTrue(checked["hard_fail"])
-        self.assertTrue(checked["focal_anchor_misaligned_with_sofa"])
-        self.assertEqual(checked["pair_center_delta_y"], -87)
-
-        aligned = {
-            **validation,
-            "render_bboxes": {
-                "sofa": [473, 228, 733, 417],
-                "focal_anchor": [500, 654, 706, 888],
-            },
-        }
-        self.assertTrue(api._fail_closed_validation(aligned, "living")["ok"])
+        self.assertTrue(checked["ok"])                      # 不再翻案
+        self.assertFalse(checked.get("hard_fail", False))
+        self.assertEqual(checked["pair_center_delta_y"], -87)  # 診斷值仍在
 
         with tempfile.TemporaryDirectory() as td:
             source = str(Path(td) / "render.jpg")

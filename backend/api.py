@@ -2089,21 +2089,14 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     ——判官斷線時燒 fal 重畫是純浪費（三單回測教訓）。"""
     if isinstance(v, dict) and v.get("ok") is not None:
         if (room_type or "living") == "living":
-            pair = _pair_center_delta(v)
+            # C63D5284 違憲拆除：y 中心差對「正對」無分類力（校準庫第三次證明：
+            # 接受組 32-89 與拒絕組 61-106 區間重疊，任何門檻都會誤殺接受組——
+            # tolerance=25 實測殺掉接受組 5 張中 4 張）。降級為純診斷欄位，
+            # 不得影響 ok/hard_fail。正對驗收交給判官語意題+引導框生成端保證。
+            pair = _pair_center_delta(v, tolerance=0)  # tolerance=0 → 永遠回量測值
             if pair:
-                base = dict(v)
-                base["ok"] = False
-                base["hard_fail"] = True
-                base["focal_anchor_misaligned_with_sofa"] = True
-                base["sofa_focal_face_each_other"] = False
-                base["pair_center_delta_y"] = pair["delta_y"]
-                previous = (base.get("reason") or "").strip()
-                pair_reason = (
-                    f"沙發與電視櫃中心未正對：中心差 {pair['abs_delta_y']}/1000，"
-                    f"上限 {PAIR_CENTER_TOLERANCE}/1000"
-                )
-                base["reason"] = f"{pair_reason}；{previous}" if previous else pair_reason
-                return base
+                v = dict(v)
+                v["pair_center_delta_y"] = pair["delta_y"]
         return v
     base = dict(v or {})
     base.setdefault("error", "validation crashed")
