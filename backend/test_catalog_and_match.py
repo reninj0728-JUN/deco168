@@ -697,6 +697,12 @@ def test_layout_guide_pipeline_wiring():
         assert p and os.path.exists(p)
         p2 = api._build_layout_guide_image(fake, td, 1, "left")
         assert p2 and os.path.exists(p2)
+        guide = cv2.imread(p2)
+        b, g, r = [guide[:, :, i].astype(int) for i in range(3)]
+        green_sofa = (g > r + 45) & (g > b + 45)
+        blue_tv = (b > r + 45) & (b > g + 25)
+        assert green_sofa.sum() > 250, "guide must visibly draw the GREEN sofa target"
+        assert blue_tv.sum() > 250, "guide must visibly draw the BLUE TV target"
     # 2) 沙發側決策：綁邊優先；未綁邊 → 無門側；未知 → right
     assert api._guide_sofa_side({"furniture_placement_rules": {"sofa_side": "left"}}) == "left"
     assert api._guide_sofa_side({"spatial_synthesis": {"entrance_position": "左側前段大門"},
@@ -714,7 +720,9 @@ def test_layout_guide_pipeline_wiring():
     assert inputs["image_urls"][1] == "https://x/guide.jpg"
     assert inputs["reference_map"][1]["kind"] == "LAYOUT_GUIDE"
     assert "LAYOUT CONSTRAINT MAP" in inputs["prompt"]
-    assert "RED forbidden zones only" in inputs["prompt"]
+    assert "GREEN SOFA TARGET" in inputs["prompt"]
+    assert "BLUE TV / MEDIA-CONSOLE TARGET" in inputs["prompt"]
+    assert "shared cross-room centreline is binding" in inputs["prompt"]
     assert "Do NOT copy boxes" in inputs["prompt"]
     # 沒帶 guide → prompt 無圖例段（不影響原行為）
     inputs2 = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg")

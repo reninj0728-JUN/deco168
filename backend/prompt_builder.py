@@ -1811,12 +1811,16 @@ def build_nano_banana_inputs(
             )
             _float_note = "Do not float or flip the sofa away from the customer's chosen side. "
         layout_guide_sec = (
-            f"LAYOUT CONSTRAINT MAP: reference image #{_guide_idx} is the SAME room photo with RED "
-            "forbidden zones only. " + _choice_note + _float_note +
-            "Every RED ENTRANCE, WALKWAY or NO FURNITURE zone must remain completely EMPTY. "
-            "The sofa and TV console must stand on the real floor / real wall plane, follow the "
-            "photograph's perspective, face each other, and face neither the entrance door nor any "
-            "main window. Do NOT copy boxes, lines or labels into the output."
+            f"LAYOUT CONSTRAINT MAP: reference image #{_guide_idx} is the SAME room photo with "
+            "three binding overlays. Every RED ENTRANCE, WALKWAY or NO FURNITURE zone must remain "
+            "completely EMPTY. RED = forbidden entrance, walkway or no-furniture zones. "
+            "GREEN SOFA TARGET = the sofa body must occupy that exact target zone. "
+            "BLUE TV / MEDIA-CONSOLE TARGET = the TV and media console must occupy that "
+            "exact target zone. The GREEN and BLUE target centres must sit on one shared cross-room "
+            "centreline. That shared cross-room centreline is binding: keep both furniture centres "
+            "on that line, perfectly face-to-face, with no forward/back depth offset. " + _choice_note + _float_note +
+            "Follow the real floor and wall planes and the photograph's perspective. Do NOT copy boxes, "
+            "colours, lines or labels into the output."
         )
 
     for cat in MUST_HAVE_CATS:

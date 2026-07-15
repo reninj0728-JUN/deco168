@@ -386,14 +386,22 @@ class DoorAwareLayoutTests(unittest.TestCase):
             )
             self.assertTrue(out and Path(out).exists())
             image = cv2.imread(out)
-            # 必須有紅色入口／走道標記，但 AI auto 不得畫綠色沙發或藍色 TV 框。
+            # 必須同時有紅色禁區、綠色沙發框與藍色 TV 框。
             px = image.astype(np.int16)
             reddish = (px[:, :, 2] > px[:, :, 1] + 45) & (px[:, :, 2] > px[:, :, 0] + 45)
             self.assertGreater(int(reddish.sum()), 100)
             greenish = (px[:, :, 1] > px[:, :, 0] + 35) & (px[:, :, 1] > px[:, :, 2] + 35)
             blueish = (px[:, :, 0] > px[:, :, 1] + 45) & (px[:, :, 0] > px[:, :, 2] + 45)
-            self.assertEqual(int(greenish.sum()), 0)
-            self.assertEqual(int(blueish.sum()), 0)
+            self.assertGreater(int(greenish.sum()), 250)
+            self.assertGreater(int(blueish.sum()), 250)
+            plan = api._layout_guide_plan(
+                1000, 700, sofa_side="free", entrance_side="left",
+                entrance_bbox=(10, 220, 300, 690), focal_side="right",
+                auto_float=False,
+            )
+            sofa_y = (plan["sofa"][1] + plan["sofa"][3]) // 2
+            tv_y = (plan["tv"][1] + plan["tv"][3]) // 2
+            self.assertEqual(sofa_y, tv_y)
 
     def test_synthetic_e72_geometry_crop_guide_prompt_share_one_contract(self):
         """可提交的合成回歸｜bbox 判門→保門裁切→guide→prompt，不依賴私有照片。"""

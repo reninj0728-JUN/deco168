@@ -1538,7 +1538,8 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             sy0 = int(H * yf)
             sy1 = min(H, sy0 + sh)
             tv_h = int(H * min(0.26, sofa_h))
-            ty0 = sy0
+            # 沙發與 TV 目標框的垂直中心必須一致，形成真正同一條 cross-axis。
+            ty0 = max(0, sy0 + (sh - tv_h) // 2)
             ty1 = min(H, ty0 + tv_h)
             for sxf in sx_starts:
                 sx0 = int(W * sxf)
@@ -1630,6 +1631,35 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
         entrance_point = _mark_entrance(plan["door_clear"])
         for _blocked in plan.get("blocked") or []:
             _floor_zone(_blocked, "ENTRANCE APPROACH / WALKWAY")
+
+        def _target_box(rect, colour, label):
+            if not rect:
+                return None
+            x0, y0, x1, y1 = [int(v) for v in rect]
+            overlay = img.copy()
+            cv2.rectangle(overlay, (x0, y0), (x1, y1), colour, -1)
+            cv2.addWeighted(overlay, 0.16, img, 0.84, 0, img)
+            cv2.rectangle(img, (x0, y0), (x1, y1), colour,
+                          max(6, W // 320), cv2.LINE_AA)
+            cv2.putText(img, label, (x0 + 12, max(35, y0 + 42)),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.75, W / 1600),
+                        colour, max(3, W // 520), cv2.LINE_AA)
+            return ((x0 + x1) // 2, (y0 + y1) // 2)
+
+        # 不能只計算不畫出來：模型必須看到成對的精確位置與共同中心軸。
+        sofa_c = _target_box(plan.get("sofa"), (40, 210, 60), "GREEN SOFA TARGET")
+        tv_c = _target_box(plan.get("tv"), (230, 110, 40), "BLUE TV / MEDIA-CONSOLE TARGET")
+        if sofa_c and tv_c:
+            axis_colour = (0, 215, 255)
+            cv2.line(img, sofa_c, tv_c, axis_colour,
+                     max(5, W // 380), cv2.LINE_AA)
+            cv2.circle(img, sofa_c, max(8, W // 220), axis_colour, -1, cv2.LINE_AA)
+            cv2.circle(img, tv_c, max(8, W // 220), axis_colour, -1, cv2.LINE_AA)
+            mid = ((sofa_c[0] + tv_c[0]) // 2, (sofa_c[1] + tv_c[1]) // 2)
+            cv2.putText(img, "BINDING FACE-TO-FACE CENTRELINE",
+                        (max(15, mid[0] - int(W * 0.18)), max(45, mid[1] - 18)),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.62, W / 1900),
+                        axis_colour, max(3, W // 650), cv2.LINE_AA)
         if entrance_point and plan.get("blocked"):
             bx0, by0, bx1, by1 = plan["blocked"][0]
             if entrance_point[0] < W // 2:
