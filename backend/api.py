@@ -2862,7 +2862,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             zoning_result, _sofa_side_for_guide, _focal_side_for_guide)
         if _conservative_layout_reason:
             print(f"[pipeline] living 佈局保守模式：{_conservative_layout_reason}"
-                  "——不畫 binding guide，交由文字合約+驗收閘門把關")
+                  "——不畫 binding guide，交由保守文字合約+驗收閘門把關")
+            # 決策是唯一主人：prompt 的 auto 分支也必須跟著轉保守，
+            # 不得再用文字指示被裁決否決的配置（沙發上門牆等）
+            if isinstance(zoning_result, dict):
+                zoning_result["_layout_conservative"] = _conservative_layout_reason
         _entrance_zone_for_guide = ((zoning_result.get("zones") or {}).get("entrance_zone") or {})
         _entrance_bbox_1000 = _entrance_zone_for_guide.get("bbox_on_best_photo")
         layout_guide_paths: dict[int, str | None] = {}

@@ -797,3 +797,27 @@ def test_auto_layout_safety_check_iron_rules():
     assert "2879173D" in api._auto_layout_safety_check(Z_DOOR_L, "free", "right")
     # 用戶綁邊 = 法律,不檢
     assert api._auto_layout_safety_check(Z_WIN_R, "right", "left") == ""
+
+
+def test_conservative_decision_rules_prompt_too():
+    """殘黨清除：決策層判保守時，prompt 的 auto 分支不得再文字指示
+    「沙發放門牆過門框」（決策是唯一主人，2879173D 裁決不可被文字繞過）。"""
+    import prompt_builder as pb
+    zoning = {
+        "_origin": "user_confirmed_v2", "_layout_choice": "A", "_sofa_layout": "free",
+        "_auto_focal_side": "right",   # focal=right → auto 沙發=left=門牆 → 決策層已判保守
+        "_layout_conservative": "沙發牆(left)即大門牆——依 2879173D 裁決不自動採用",
+        "spatial_synthesis": {"room_shape": "長條型格局",
+                              "entrance_position": "左側前段大門"},
+        "zones": {"living_zone": {"where": "客廳前段區域。"},
+                  "entrance_zone": {"where": "左側大門周邊",
+                                     "bbox_on_best_photo": [300, 50, 900, 300]}},
+        "furniture_placement_rules": {"sofa_wall": "x", "sofa_side": "", "tv_side": ""},
+    }
+    sec = pb._build_layout_section(zoning)
+    assert "CONSERVATIVE" in sec
+    assert "past the outer door frame and clear of the visible door swing arc" not in sec
+    # 未標保守時,原 auto 行為不變
+    z2 = {k: v for k, v in zoning.items() if k != "_layout_conservative"}
+    sec2 = pb._build_layout_section(z2)
+    assert "CONSERVATIVE arrangement" not in sec2

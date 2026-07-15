@@ -366,7 +366,17 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 "Do NOT force a floating layout; use a compact placement that preserves the central "
                 "route to the rear. "
             )
-            if _auto_focal in _SIDE_EN:
+            if zoning.get("_layout_conservative"):
+                # 決策層判定無安全左右配置（沙發牆=門牆/窗牆、或無安全焦點牆）
+                # → prompt 同步保守，嚴禁文字自行指示沙發上門牆（2879173D 裁決）
+                _auto_choice = (
+                    "no safe left/right pairing exists in this room (the candidate sofa wall "
+                    "contains the entrance door or the main window). Use a CONSERVATIVE "
+                    "arrangement instead: a compact sofa on a safe solid segment or a safe "
+                    "angled arrangement chosen from the actual photo, a slim low media console "
+                    "on a solid wall the sofa can face, and never force either unsafe side. "
+                )
+            elif _auto_focal in _SIDE_EN:
                 _auto_sofa = "left" if _auto_focal == "right" else "right"
                 _auto_choice = (
                     f"the recommended focal/TV wall is {_SIDE_EN[_auto_focal]}, so the sofa belongs "
