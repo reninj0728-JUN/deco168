@@ -428,8 +428,9 @@ def _preferred_focal_side(zoning: dict | None) -> str:
     # 交回 AI 改找前／後實牆或斜向配置，不硬猜其中一邊。
     if entrance in ("left", "right") and window in ("left", "right") and entrance != window:
         return ""
-    # 一側是入口、對側是無開口完整實牆，完整牆優先給沙發當穩定背牆；
-    # focal/TV 留在入口側「過門後的實牆段」。這可避免 E72 把沙發塞在大門旁。
+    # 一側是入口、對側是無開口完整實牆時：完整牆給 TV/焦點；
+    # 沙發放入口側「過門後」牆段，讓門落在沙發背後，正前方只剩 TV。
+    # 舊版把沙發放完整牆、TV 放門牆 → 沙發正前方永遠掃到門。
     if entrance in ("left", "right") and window not in ("left", "right"):
         opposite = "right" if entrance == "left" else "left"
         for wall in syn.get("wall_inventory") or []:
@@ -437,7 +438,7 @@ def _preferred_focal_side(zoning: dict | None) -> str:
             side = "left" if ("左" in txt or "left" in txt.lower()) else (
                 "right" if ("右" in txt or "right" in txt.lower()) else "")
             if side == opposite and wall.get("has_opening") is False:
-                return entrance
+                return opposite
     scores = {"left": 0, "right": 0}
     found = False
     for wall in syn.get("wall_inventory") or []:
@@ -1450,10 +1451,11 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         clear_x0 = dx0 - margin_x
         clear_x1 = dx1 + margin_x
         # 生成指令要求「過門後留一個完整門寬」，constraint map 也必須畫同一件事。
-        # 舊版只加 2% margin，2879173D 四輪都把 TV 櫃放回門框旁。
-        if focal == ent == "left":
+        # 舊版只加 2% margin，2879173D 四輪都把家具放回門框旁。
+        # 無論 TV 還是沙發在門牆，入口側都必須延伸一整個門寬禁放區。
+        if ent == "left":
             clear_x1 += door_w
-        elif focal == ent == "right":
+        elif ent == "right":
             clear_x0 -= door_w
         door_clear = (
             max(0, clear_x0), max(0, dy0 - int(H * 0.04)),
@@ -1513,12 +1515,24 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
     for candidate_side in side_candidates:
         sw, sh = int(W * sofa_w), int(H * sofa_h)
         if candidate_side == "left":
-            sx_starts = (0.32, 0.08, 0.50)
-            tx_starts = (0.72, 0.52)
+            # 門在左時，沙發候選必須從 door_clear 終點之後開始，
+            # 不能再從門框旁抽樣。
+            min_left = 0.08
+            if door_clear and ent == "left":
+                min_left = max(min_left, door_clear[2] / max(1, W) + 0.01)
+            sx_starts = tuple(x for x in (min_left, 0.32, 0.50) if x + sofa_w <= 0.98)
+            if not sx_starts:
+                sx_starts = (min(0.70, min_left),)
+            tx_starts = (0.72, 0.82, 0.52)
             facing = "right"
         else:
-            sx_starts = (1 - 0.32 - sofa_w, 1 - 0.08 - sofa_w, 1 - 0.50 - sofa_w)
-            tx_starts = (0.04, 0.28)
+            max_right = 1 - 0.08 - sofa_w
+            if door_clear and ent == "right":
+                max_right = min(max_right, door_clear[0] / max(1, W) - sofa_w - 0.01)
+            sx_starts = tuple(x for x in (max_right, 1 - 0.32 - sofa_w, 1 - 0.50 - sofa_w) if x >= 0.02)
+            if not sx_starts:
+                sx_starts = (max(0.02, max_right),)
+            tx_starts = (0.04, 0.18, 0.28)
             facing = "left"
         for yf in y_starts:
             sy0 = int(H * yf)

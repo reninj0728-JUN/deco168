@@ -180,8 +180,8 @@ class DoorAwareLayoutTests(unittest.TestCase):
                 ],
             },
         }
-        # 無主窗時，完整右牆優先給沙發；左側只在過門後放 TV。
-        self.assertEqual(api._preferred_focal_side(no_window), "left")
+        # 無主窗時，完整右牆給 TV；沙發放左牆過門後，門在沙發背後。
+        self.assertEqual(api._preferred_focal_side(no_window), "right")
         job_2879173d = {
             "_entrance_side": "left",
             "_window_side": "back",
@@ -195,10 +195,10 @@ class DoorAwareLayoutTests(unittest.TestCase):
                 ],
             },
         }
-        # 2879173D：後窗不占左右長牆；右側完整牆仍應留給沙發，
-        # TV 放左側過門後牆段。舊版誤回 right，讓四輪沙發都貼大門。
+        # 2879173D：沙發若放右牆會正對左門牆 → 門永遠進視線。
+        # 正確：TV 放右牆完整實牆；沙發放左牆過門後，門在沙發背後。
         focal_side = api._preferred_focal_side(job_2879173d)
-        self.assertEqual(focal_side, "left")
+        self.assertEqual(focal_side, "right")
         prompt_z = {
             **job_2879173d,
             "_origin": "user_confirmed_v2",
@@ -211,15 +211,22 @@ class DoorAwareLayoutTests(unittest.TestCase):
         }
         layout_prompt = pb._build_layout_section(prompt_z)
         self.assertIn("ONE FULL visible door-width", layout_prompt)
-        self.assertIn("focal/TV wall is LEFT", layout_prompt)
-        self.assertIn("sofa belongs on the RIGHT", layout_prompt)
+        self.assertIn("focal/TV wall is RIGHT", layout_prompt)
+        self.assertIn("sofa belongs on the LEFT", layout_prompt)
+        self.assertIn("entrance door stays behind the sofa back", layout_prompt)
         guide_2879 = api._layout_guide_plan(
             1000, 700, sofa_side="free", entrance_side="left",
             entrance_bbox=(120, 227, 320, 665), focal_side=focal_side,
             auto_float=False,
         )
+        self.assertEqual(guide_2879["chosen_sofa_side"], "left")
+        self.assertEqual(guide_2879["sofa_facing"], "right")
         # 紅色門區要包含門框後「一個完整門寬」，不能只多畫 2% margin。
         self.assertGreaterEqual(guide_2879["door_clear"][2], 520)
+        # 沙發必須整組過門後；門在沙發背後，不能再跟門區重疊。
+        self.assertGreaterEqual(guide_2879["sofa"][0], guide_2879["door_clear"][2])
+        self.assertFalse(api._rects_intersect(guide_2879["sofa"], guide_2879["door_clear"]))
+        self.assertFalse(api._rects_intersect(guide_2879["tv"], guide_2879["door_clear"]))
         validator_src = (Path(__file__).parent / "gemini_analyze.py").read_text(encoding="utf-8")
         self.assertIn("仍有約 80–90 cm 寬的連續可走路徑", validator_src)
         self.assertNotIn("只要行走需繞過就填 true", validator_src)

@@ -377,6 +377,18 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                         "cross-room sightline. Never solve this by pulling the TV back toward the entrance. "
                         "The seated viewer's primary sightline must land on the TV, never the entrance. "
                     )
+                elif _auto_sofa == _entr_side:
+                    _auto_choice += (
+                        "Because the sofa wall also contains the entrance door, move the ENTIRE sofa "
+                        "deeper along that wall: the sofa back starts at least ONE FULL visible door-width "
+                        "past the outer door frame, never beside or touching the entrance. The entrance "
+                        "door stays behind the sofa back, completely outside the seated viewer's forward "
+                        "field of view. Keep the wall segment from the door through that full door-width "
+                        "completely bare. Place the TV/media console on the opposite solid wall so the "
+                        "sofa-seat normal and TV-screen normal point directly at each other on one clear "
+                        "cross-room sightline. Never solve this by moving only the TV toward a stationary "
+                        "sofa. The seated viewer's primary sightline must land on the TV, never the entrance. "
+                    )
             else:
                 _auto_choice = (
                     "the left/right walls are both constrained by the entrance and main window. "
@@ -1483,14 +1495,14 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
     if retry_context.get("sofa_alignment_edit"):
         return " ".join([
             "LOCAL ALIGNMENT EDIT — image_1 is the previous furnished render, not an empty room.",
-            "MOVE ONLY THE SOFA. Keep the sofa on the same RIGHT side wall and slide it deeper "
+            "MOVE ONLY THE SOFA. Keep the sofa on the same side wall it already occupies and slide it deeper "
             "along that wall toward the rear of the room until exact TV alignment is reached.",
             "LOCK the TV, media console, entrance door, walls, windows, camera, rug, coffee table, "
             "lighting, decor, colours and every other object in their exact current positions.",
             "Do not move, resize, replace or redesign the TV or media console; they are already correct.",
             SOFA_TV_FACE_TO_FACE_CONTRACT,
-            "The entrance door must fall clearly to the side of that sofa-TV centreline, never in the "
-            "seated viewer's straight-ahead view.",
+            "The entrance door must fall clearly to the side of that sofa-TV centreline, or behind the sofa "
+            "back, never in the seated viewer's straight-ahead view.",
             "Preserve the original room geometry pixel-for-pixel outside the sofa's old and new area.",
         ])
     sofa_pct = retry_context.get("sofa_pct")
