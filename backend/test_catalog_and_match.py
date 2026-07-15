@@ -774,3 +774,26 @@ def test_room_crop_disarms_c24_depth_gate():
     # 驗收端：C2.4 區塊有讓位分支
     src = inspect.getsource(ga.validate_render)
     assert "base_is_room_crop" in src
+
+
+def test_auto_layout_safety_check_iron_rules():
+    """用戶最終目標鐵則（2026-07-15 收斂定案）：auto 模式下——
+    沙發正對電視櫃；沙發/電視櫃永不對門、不對窗。任一不安全 → 保守模式
+    （回原因字串、不畫 binding guide、不准預設值偷補）。綁邊訂單不受檢。"""
+    import api
+    Z_DOOR_L = {"spatial_synthesis": {"entrance_position": "左側前段大門",
+                                      "main_window_wall": "主空間無直接對外窗"},
+                "zones": {"entrance_zone": {"bbox_on_best_photo": [300, 50, 900, 300]}}}
+    # 正常:門左、無窗側 → focal=left(門牆) → 沙發牆=right,安全
+    assert api._auto_layout_safety_check(Z_DOOR_L, "free", "left") == ""
+    # 洞①:無安全焦點牆 → 不准偷猜
+    assert "無安全焦點牆" in api._auto_layout_safety_check(Z_DOOR_L, "free", "")
+    # 沙發牆=主窗牆 → 保守
+    Z_WIN_R = {"spatial_synthesis": {"entrance_position": "左側前段大門",
+                                     "main_window_wall": "右側整面採光窗"},
+               "zones": {"entrance_zone": {"bbox_on_best_photo": [300, 50, 900, 300]}}}
+    assert "主窗牆" in api._auto_layout_safety_check(Z_WIN_R, "free", "left")
+    # 2879173D 政策:沙發牆=大門牆 → 保守(focal=right → 沙發=left=門牆)
+    assert "2879173D" in api._auto_layout_safety_check(Z_DOOR_L, "free", "right")
+    # 用戶綁邊 = 法律,不檢
+    assert api._auto_layout_safety_check(Z_WIN_R, "right", "left") == ""

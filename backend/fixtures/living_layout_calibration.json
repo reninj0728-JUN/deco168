@@ -1,109 +1,269 @@
 {
-  "schema_version": 1,
-  "coordinate_format": "normalized_0_1000_ymin_xmin_ymax_xmax",
-  "policy": "Every hard geometry gate change must pass all accepted cases and reject all rejected cases.",
-  "runtime_policy": "Offline golden benchmark only. Production orders never ask the site owner or customer for a verdict; they auto-validate, auto-retry, then mark incomplete when exhausted.",
-  "accepted": [
-    {
-      "case_id": "21CCB9AF-nordic-living",
-      "source": "historical_user_accepted",
-      "render_bboxes": {
-        "sofa": [476, 577, 765, 825],
-        "focal_anchor": [492, 276, 650, 396],
-        "main_window": [342, 429, 477, 464]
-      },
-      "note": "Historical validator did not return an entrance bbox; door-gap gate must fail open when evidence is absent."
-    },
-    {
-      "case_id": "21CCB9AF-modern-living",
-      "source": "historical_user_accepted",
-      "render_bboxes": {
-        "sofa": [504, 594, 780, 831],
-        "focal_anchor": [524, 250, 696, 375]
-      },
-      "note": "Historical validator did not return an entrance bbox."
-    },
-    {
-      "case_id": "1164DFC6-nordic-living",
-      "source": "historical_user_accepted",
-      "render_bboxes": {
-        "sofa": [485, 566, 650, 712],
-        "focal_anchor": [508, 335, 606, 410],
-        "entrance_door": [323, 122, 853, 272],
-        "main_window": [380, 517, 477, 544]
-      }
-    },
-    {
-      "case_id": "A08E612D-muji-living",
-      "source": "historical_user_accepted",
-      "render_bboxes": {
-        "sofa": [513, 589, 856, 874],
-        "focal_anchor": [524, 298, 668, 388],
-        "entrance_door": [238, 120, 836, 258]
-      }
-    },
-    {
-      "case_id": "A08E612D-nordic-living",
-      "source": "historical_user_accepted",
-      "render_bboxes": {
-        "sofa": [484, 615, 770, 893],
-        "focal_anchor": [501, 307, 633, 401],
-        "entrance_door": [164, 144, 804, 269]
-      }
-    }
-  ],
-  "rejected": [
-    {
-      "case_id": "6DA08412-modern-living",
-      "source": "historical_user_rejected",
-      "render_bboxes": {
-        "sofa": [455, 592, 850, 903],
-        "focal_anchor": [479, 260, 614, 377],
-        "entrance_door": [156, 76, 831, 222]
-      },
-      "expected_violation_target": "focal_anchor"
-    },
-    {
-      "case_id": "BB034AB8-muji-living",
-      "source": "historical_user_rejected_with_reconstructed_door_bbox",
-      "render_bboxes": {
-        "sofa": [482, 584, 826, 856],
-        "focal_anchor": [513, 262, 674, 381],
-        "entrance_door": [330, 60, 830, 240]
-      },
-      "expected_violation_target": "focal_anchor"
-    },
-    {
-      "case_id": "BB034AB8-nordic-living",
-      "source": "historical_user_rejected_with_reconstructed_door_bbox",
-      "render_bboxes": {
-        "sofa": [512, 625, 906, 981],
-        "focal_anchor": [422, 94, 840, 369],
-        "entrance_door": [300, 80, 860, 250]
-      },
-      "expected_violation_target": "focal_anchor"
-    },
-    {
-      "case_id": "DEA3A864-muji-living",
-      "source": "historical_logged_measurement_reconstruction",
-      "render_bboxes": {
-        "sofa": [400, 228, 850, 520],
-        "entrance_door": [200, 80, 860, 219]
-      },
-      "expected_violation_target": "sofa",
-      "note": "Reconstructs the logged geometry exactly: sofa gap 9, door width 139."
-    },
-    {
-      "case_id": "6F13FD58-muji-living",
-      "source": "explicit_user_rejection_in_current_session",
-      "render_bboxes": {
-        "sofa": [515, 608, 860, 893],
-        "focal_anchor": [535, 265, 683, 386],
-        "entrance_door": [215, 96, 835, 255],
-        "main_window": [360, 447, 503, 480]
-      },
-      "expected_violation_target": "focal_anchor",
-      "note": "User explicitly rejected this render because the sofa sightline still addressed the entrance instead of the TV."
-    }
-  ]
+ "schema_version": 1,
+ "coordinate_format": "normalized_0_1000_ymin_xmin_ymax_xmax",
+ "policy": "Every hard geometry gate change must pass all accepted cases and reject all rejected cases.",
+ "runtime_policy": "Offline golden benchmark only. Production orders never ask the site owner or customer for a verdict; they auto-validate, auto-retry, then mark incomplete when exhausted.",
+ "accepted": [
+  {
+   "case_id": "21CCB9AF-nordic-living",
+   "source": "historical_user_accepted",
+   "render_bboxes": {
+    "sofa": [
+     476,
+     577,
+     765,
+     825
+    ],
+    "focal_anchor": [
+     492,
+     276,
+     650,
+     396
+    ],
+    "main_window": [
+     342,
+     429,
+     477,
+     464
+    ]
+   },
+   "note": "Historical validator did not return an entrance bbox; door-gap gate must fail open when evidence is absent."
+  },
+  {
+   "case_id": "21CCB9AF-modern-living",
+   "source": "historical_user_accepted",
+   "render_bboxes": {
+    "sofa": [
+     504,
+     594,
+     780,
+     831
+    ],
+    "focal_anchor": [
+     524,
+     250,
+     696,
+     375
+    ]
+   },
+   "note": "Historical validator did not return an entrance bbox."
+  },
+  {
+   "case_id": "1164DFC6-nordic-living",
+   "source": "historical_user_accepted",
+   "render_bboxes": {
+    "sofa": [
+     485,
+     566,
+     650,
+     712
+    ],
+    "focal_anchor": [
+     508,
+     335,
+     606,
+     410
+    ],
+    "entrance_door": [
+     323,
+     122,
+     853,
+     272
+    ],
+    "main_window": [
+     380,
+     517,
+     477,
+     544
+    ]
+   }
+  },
+  {
+   "case_id": "A08E612D-muji-living",
+   "source": "historical_user_accepted",
+   "render_bboxes": {
+    "sofa": [
+     513,
+     589,
+     856,
+     874
+    ],
+    "focal_anchor": [
+     524,
+     298,
+     668,
+     388
+    ],
+    "entrance_door": [
+     238,
+     120,
+     836,
+     258
+    ]
+   }
+  },
+  {
+   "case_id": "A08E612D-nordic-living",
+   "source": "historical_user_accepted",
+   "render_bboxes": {
+    "sofa": [
+     484,
+     615,
+     770,
+     893
+    ],
+    "focal_anchor": [
+     501,
+     307,
+     633,
+     401
+    ],
+    "entrance_door": [
+     164,
+     144,
+     804,
+     269
+    ]
+   }
+  }
+ ],
+ "rejected": [
+  {
+   "case_id": "6DA08412-modern-living",
+   "source": "historical_user_rejected",
+   "render_bboxes": {
+    "sofa": [
+     455,
+     592,
+     850,
+     903
+    ],
+    "focal_anchor": [
+     479,
+     260,
+     614,
+     377
+    ],
+    "entrance_door": [
+     156,
+     76,
+     831,
+     222
+    ]
+   },
+   "expected_violation_target": "focal_anchor"
+  },
+  {
+   "case_id": "BB034AB8-muji-living",
+   "source": "historical_user_rejected_with_reconstructed_door_bbox",
+   "render_bboxes": {
+    "sofa": [
+     482,
+     584,
+     826,
+     856
+    ],
+    "focal_anchor": [
+     513,
+     262,
+     674,
+     381
+    ],
+    "entrance_door": [
+     330,
+     60,
+     830,
+     240
+    ]
+   },
+   "expected_violation_target": "focal_anchor"
+  },
+  {
+   "case_id": "BB034AB8-nordic-living",
+   "source": "historical_user_rejected_with_reconstructed_door_bbox",
+   "render_bboxes": {
+    "sofa": [
+     512,
+     625,
+     906,
+     981
+    ],
+    "focal_anchor": [
+     422,
+     94,
+     840,
+     369
+    ],
+    "entrance_door": [
+     300,
+     80,
+     860,
+     250
+    ]
+   },
+   "expected_violation_target": "focal_anchor"
+  },
+  {
+   "case_id": "DEA3A864-muji-living",
+   "source": "historical_logged_measurement_reconstruction",
+   "render_bboxes": {
+    "sofa": [
+     400,
+     228,
+     850,
+     520
+    ],
+    "entrance_door": [
+     200,
+     80,
+     860,
+     219
+    ]
+   },
+   "expected_violation_target": "sofa",
+   "note": "Reconstructs the logged geometry exactly: sofa gap 9, door width 139."
+  },
+  {
+   "case_id": "6F13FD58-muji-living",
+   "source": "explicit_user_rejection_in_current_session",
+   "render_bboxes": {
+    "sofa": [
+     515,
+     608,
+     860,
+     893
+    ],
+    "focal_anchor": [
+     535,
+     265,
+     683,
+     386
+    ],
+    "entrance_door": [
+     215,
+     96,
+     835,
+     255
+    ],
+    "main_window": [
+     360,
+     447,
+     503,
+     480
+    ]
+   },
+   "expected_violation_target": "focal_anchor",
+   "note": "User explicitly rejected this render because the sofa sightline still addressed the entrance instead of the TV."
+  }
+ ],
+ "policy_cases": [
+  {
+   "case_id": "2879173D-luxury-living",
+   "source": "historical_user_rejected_no_bbox",
+   "verdict": "rejected",
+   "reason": "邊几與沙發緊鄰大門擺放，擋住大門開闔與進出動線",
+   "policy": "auto 模式沙發牆不得等於大門牆（即使過門框）；由 api._auto_layout_safety_check 強制",
+   "note": "丟棄圖無 render_bboxes 可存——以政策規則+單元測試入庫"
+  }
+ ]
 }

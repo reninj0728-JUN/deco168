@@ -1834,6 +1834,30 @@ def _activate_pair_alignment_edit(validation: dict | None, render: dict | None,
     return str(base)
 
 
+def _auto_layout_safety_check(zoning_result: dict | None,
+                              sofa_side: str, focal_side: str) -> str:
+    """鐵則守門（auto/未綁邊限定）：沙發正對電視櫃、兩者永不對門不對窗。
+    回不安全原因字串；空字串=安全。用戶明確綁邊時不呼叫（用戶選擇是法律）。
+
+    - 無安全焦點牆（_preferred_focal_side 回空）→ 保守，不准預設值偷補（Hermes 洞①）
+    - 沙發牆=主窗牆 → 沙發背窗，保守
+    - 沙發牆=大門牆 → 2879173D 裁決（沙發過門框仍吃落腳區），保守
+    """
+    if sofa_side != "free":
+        return ""
+    entrance = _entrance_side_from_zoning(zoning_result)
+    window = _window_side_from_zoning(zoning_result)
+    sofa_wall = ("left" if focal_side == "right"
+                 else "right" if focal_side == "left" else "")
+    if not focal_side:
+        return "無安全焦點牆（入口與主窗分占兩側或牆面資料不足）"
+    if sofa_wall and sofa_wall == window:
+        return f"沙發牆({sofa_wall})即主窗牆——沙發不可背窗"
+    if sofa_wall and sofa_wall == entrance:
+        return f"沙發牆({sofa_wall})即大門牆——依 2879173D 裁決不自動採用"
+    return ""
+
+
 def _guide_sofa_side(zoning_result: dict | None) -> str:
     """明確 left/right 照用戶；free 保持 free；其餘才依門側給舊預設。"""
     z = zoning_result or {}
@@ -2831,12 +2855,24 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         _auto_float_for_guide = (
             _sofa_side_for_guide == "free" and _room_can_float_sofa(analysis, zoning_result)
         )
+        # ── 鐵則守門（用戶最終目標：沙發正對電視櫃；沙發/電視櫃永不對門、不對窗）──
+        # auto（未綁邊）時逐項驗證，任何一項不安全 → 保守模式：不畫 binding guide、
+        # 不硬猜。用戶明確綁邊 = 法律，照舊不動。
+        _conservative_layout_reason = _auto_layout_safety_check(
+            zoning_result, _sofa_side_for_guide, _focal_side_for_guide)
+        if _conservative_layout_reason:
+            print(f"[pipeline] living 佈局保守模式：{_conservative_layout_reason}"
+                  "——不畫 binding guide，交由文字合約+驗收閘門把關")
         _entrance_zone_for_guide = ((zoning_result.get("zones") or {}).get("entrance_zone") or {})
         _entrance_bbox_1000 = _entrance_zone_for_guide.get("bbox_on_best_photo")
         layout_guide_paths: dict[int, str | None] = {}
         layout_guide_modes: dict[int, str] = {}
         for _vi, (_bp, _rt) in enumerate(zip(flux_bases, angle_room_types)):
             if _rt == "living" and os.environ.get("LAYOUT_GUIDE", "1").strip() != "0":
+                if _conservative_layout_reason:
+                    layout_guide_paths[_vi] = None
+                    layout_guide_modes[_vi] = "conservative_no_binding"
+                    continue
                 layout_guide_modes[_vi] = (
                     "auto_float" if _sofa_side_for_guide == "free" and _auto_float_for_guide
                     else "auto_constraints" if _sofa_side_for_guide == "free"
@@ -2907,6 +2943,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     continue
                 # 優先用裁切前原圖做契約（門／牆腳完整）；沒有就用當前底圖
                 _shadow_photo = uncropped_bases.get(_vi) or crop_source_paths[_vi] or _bp
+                # 照片來源綁定（Hermes 洞③）：zoning bbox 只屬於 best_photo 那張，
+                # 不得跨照片套座標——guide 路徑已有此護欄，shadow 補上同一條。
+                if user_zoning_v2 and not _zoning_bbox_matches_source(
+                        _shadow_photo, image_paths, user_zoning_v2 or {}):
+                    layout_contract_shadows.append({
+                        "view_index": _vi, "status": "skipped",
+                        "reason": "photo_not_zoning_best_photo",
+                        "affects_delivery": False,
+                    })
+                    continue
                 _sum = _run_layout_contract_shadow(
                     job_id=job_id,
                     job_dir=job_dir,
