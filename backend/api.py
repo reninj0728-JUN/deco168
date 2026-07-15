@@ -1692,6 +1692,140 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
         return None
 
 
+PAIR_CENTER_TOLERANCE = 25
+
+
+def _pair_center_delta(validation: dict | None,
+                       tolerance: int = PAIR_CENTER_TOLERANCE) -> dict | None:
+    """以驗收 bbox 做確定性中心差檢查；座標格式 [ymin,xmin,ymax,xmax] / 0..1000。"""
+    if not isinstance(validation, dict):
+        return None
+    boxes = validation.get("render_bboxes") or {}
+    sofa = boxes.get("sofa")
+    focal = boxes.get("focal_anchor")
+    if not (isinstance(sofa, (list, tuple)) and len(sofa) == 4
+            and isinstance(focal, (list, tuple)) and len(focal) == 4):
+        return None
+    try:
+        sy0, sx0, sy1, sx1 = [float(v) for v in sofa]
+        fy0, fx0, fy1, fx1 = [float(v) for v in focal]
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= sy0 < sy1 <= 1000 and 0 <= sx0 < sx1 <= 1000
+            and 0 <= fy0 < fy1 <= 1000 and 0 <= fx0 < fx1 <= 1000):
+        return None
+    sofa_cy = (sy0 + sy1) / 2
+    focal_cy = (fy0 + fy1) / 2
+    raw_delta = sofa_cy - focal_cy
+    delta = int(raw_delta + 0.5) if raw_delta >= 0 else int(raw_delta - 0.5)
+    if abs(delta) <= int(tolerance):
+        return None
+    return {
+        "delta_y": delta,
+        "abs_delta_y": abs(delta),
+        "sofa_center_y": round(sofa_cy, 1),
+        "focal_center_y": round(focal_cy, 1),
+        "sofa_bbox": [sy0, sx0, sy1, sx1],
+        "focal_bbox": [fy0, fx0, fy1, fx1],
+    }
+
+
+def _build_pair_alignment_guide_image(base_path: str, job_dir: str, idx: int,
+                                      validation: dict | None) -> str | None:
+    """依上一張實圖 bbox 畫校正圖：綠框鎖沙發、紅框是舊 TV、藍框是同軸新 TV。"""
+    pair = _pair_center_delta(validation)
+    if not pair:
+        return None
+    try:
+        import cv2
+        img = cv2.imread(base_path)
+        if img is None:
+            return None
+        H, W = img.shape[:2]
+
+        def _px(box):
+            y0, x0, y1, x1 = box
+            return [int(x0 / 1000 * W), int(y0 / 1000 * H),
+                    int(x1 / 1000 * W), int(y1 / 1000 * H)]
+
+        sofa_rect = _px(pair["sofa_bbox"])
+        old_tv = _px(pair["focal_bbox"])
+        shift_px = int(pair["delta_y"] / 1000 * H)
+        target_tv = [old_tv[0], old_tv[1] + shift_px,
+                     old_tv[2], old_tv[3] + shift_px]
+        if target_tv[1] < 0:
+            adjust = -target_tv[1]
+            target_tv[1] += adjust
+            target_tv[3] += adjust
+        if target_tv[3] > H:
+            adjust = target_tv[3] - H
+            target_tv[1] -= adjust
+            target_tv[3] -= adjust
+
+        def _box(rect, colour, label, fill=False):
+            x0, y0, x1, y1 = rect
+            if fill:
+                overlay = img.copy()
+                cv2.rectangle(overlay, (x0, y0), (x1, y1), colour, -1)
+                cv2.addWeighted(overlay, 0.16, img, 0.84, 0, img)
+            cv2.rectangle(img, (x0, y0), (x1, y1), colour,
+                          max(6, W // 320), cv2.LINE_AA)
+            cv2.putText(img, label, (x0 + 10, max(40, y0 + 38)),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.68, W / 1800),
+                        colour, max(3, W // 580), cv2.LINE_AA)
+            return ((x0 + x1) // 2, (y0 + y1) // 2)
+
+        sofa_c = _box(sofa_rect, (40, 210, 60), "GREEN SOFA TARGET - LOCK", True)
+        _box(old_tv, (45, 45, 230), "OLD TV - REMOVE", False)
+        tv_c = _box(target_tv, (230, 110, 40), "BLUE TV TARGET - MOVE HERE", True)
+        axis = (0, 215, 255)
+        cv2.line(img, sofa_c, tv_c, axis, max(5, W // 380), cv2.LINE_AA)
+        cv2.circle(img, sofa_c, max(8, W // 220), axis, -1, cv2.LINE_AA)
+        cv2.circle(img, tv_c, max(8, W // 220), axis, -1, cv2.LINE_AA)
+        cv2.putText(img, "MOVE ONLY TV + CONSOLE; KEEP SOFA FIXED",
+                    (max(20, W // 40), max(55, H // 22)),
+                    cv2.FONT_HERSHEY_SIMPLEX, max(0.72, W / 1750),
+                    axis, max(3, W // 600), cv2.LINE_AA)
+        out = str(Path(job_dir) / f"guide_pair_align_{idx:02d}.jpg")
+        if not cv2.imwrite(out, img):
+            return None
+        print(f"[pipeline] pair alignment guide: delta_y={pair['delta_y']} → {Path(out).name}")
+        return out
+    except Exception as e:
+        print(f"[pipeline] pair alignment guide 失敗: {type(e).__name__}: {str(e)[:100]}")
+        return None
+
+
+def _activate_pair_alignment_edit(validation: dict | None, render: dict | None,
+                                  entry: dict | None, job_dir: str,
+                                  idx: int) -> str | None:
+    """中心差超標且房間結構正常時，切換成「上一張成品 + 校正 guide」局部 TV 修正。"""
+    v = validation or {}
+    r = render or {}
+    e = entry or {}
+    if (e.get("_room_type") or "living") != "living":
+        return None
+    if v.get("sofa_facing_entrance_door") is True:
+        return None
+    if v.get("camera_axis_preserved") is False or v.get("passage_openings_preserved") is False:
+        return None
+    if any(v.get(k) for k in (
+            "walls_changed", "windows_changed", "spatial_fidelity_fail",
+            "recessed_space_added", "offframe_room_invaded")):
+        return None
+    if not _pair_center_delta(v):
+        return None
+    base = r.get("render_path")
+    if not base or not Path(str(base)).exists():
+        return None
+    guide = _build_pair_alignment_guide_image(str(base), job_dir, idx, v)
+    if not guide:
+        return None
+    e["_layout_guide"] = guide
+    e["_layout_guide_mode"] = "pair_alignment"
+    return str(base)
+
+
 def _guide_sofa_side(zoning_result: dict | None) -> str:
     """明確 left/right 照用戶；free 保持 free；其餘才依門側給舊預設。"""
     z = zoning_result or {}
@@ -1779,6 +1913,22 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     額度斷線（429）另掛 validation_outage：交付層照樣擋，但重試鏈跳過
     ——判官斷線時燒 fal 重畫是純浪費（三單回測教訓）。"""
     if isinstance(v, dict) and v.get("ok") is not None:
+        if (room_type or "living") == "living":
+            pair = _pair_center_delta(v)
+            if pair:
+                base = dict(v)
+                base["ok"] = False
+                base["hard_fail"] = True
+                base["focal_anchor_misaligned_with_sofa"] = True
+                base["sofa_focal_face_each_other"] = False
+                base["pair_center_delta_y"] = pair["delta_y"]
+                previous = (base.get("reason") or "").strip()
+                pair_reason = (
+                    f"沙發與電視櫃中心未正對：中心差 {pair['abs_delta_y']}/1000，"
+                    f"上限 {PAIR_CENTER_TOLERANCE}/1000"
+                )
+                base["reason"] = f"{pair_reason}；{previous}" if previous else pair_reason
+                return base
         return v
     base = dict(v or {})
     base.setdefault("error", "validation crashed")
@@ -2858,13 +3008,26 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # DOOR-ON-A-LONG-WALL LAYOUT），不再需要重試才升級。
                     # 客廳保真失敗 → 優先換另一張 living 底圖（比同圖乾抽更穩、不失真）
                     base_for_gen = entry["_base_path"]
-                    alignment_base = _sofa_alignment_edit_base(
-                        v, r, entry.get("_room_type", "living"))
+                    pair_alignment_base = _activate_pair_alignment_edit(
+                        v, r, entry, str(job_dir), idx)
+                    alignment_base = None
+                    if pair_alignment_base:
+                        retry_ctx = dict(retry_ctx or {})
+                        retry_ctx["tv_alignment_edit"] = True
+                        base_for_gen = pair_alignment_base
+                        retry_reason = (
+                            f"TV/sofa pair centre correction "
+                            f"(delta={v.get('pair_center_delta_y')}/1000)"
+                        )
+                    else:
+                        alignment_base = _sofa_alignment_edit_base(
+                            v, r, entry.get("_room_type", "living"))
                     if alignment_base:
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["sofa_alignment_edit"] = True
                         base_for_gen = alignment_base
-                    elif ((entry.get("_room_type") or "living") == "living"
+                    elif (not pair_alignment_base
+                          and (entry.get("_room_type") or "living") == "living"
                           and _should_try_alt_living_base(v)):
                         _nb = _switch_entry_to_next_living_base(entry)
                         if _nb:
@@ -2995,13 +3158,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 write_status(job_id, job_dir, "rendering", 93, "為未通過的風格再生成一次…")
                 failed_stage = "phase2_hardfix_generate_renders"
                 base_for_gen = entry["_base_path"]
-                alignment_base = _sofa_alignment_edit_base(
-                    v, r, entry.get("_room_type", "living"))
+                pair_alignment_base = _activate_pair_alignment_edit(
+                    v, r, entry, str(job_dir), idx)
+                alignment_base = None
+                if pair_alignment_base:
+                    retry_ctx = dict(retry_ctx or {})
+                    retry_ctx["tv_alignment_edit"] = True
+                    base_for_gen = pair_alignment_base
+                else:
+                    alignment_base = _sofa_alignment_edit_base(
+                        v, r, entry.get("_room_type", "living"))
                 if alignment_base:
                     retry_ctx = dict(retry_ctx or {})
                     retry_ctx["sofa_alignment_edit"] = True
                     base_for_gen = alignment_base
-                elif ((entry.get("_room_type") or "living") == "living"
+                elif (not pair_alignment_base
+                      and (entry.get("_room_type") or "living") == "living"
                       and _should_try_alt_living_base(v)):
                     _nb = _switch_entry_to_next_living_base(entry)
                     if _nb:
@@ -3514,14 +3686,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         continue
                     retry_ctx = _build_retry_ctx_from_validation(v0)
                     # AI-auto guide 綁在同一底圖，Phase3 不得換圖或改用未裁切原圖。
-                    alignment_base = _sofa_alignment_edit_base(
-                        v0, r, entry.get("_room_type", "living"))
-                    if alignment_base:
+                    pair_alignment_base = _activate_pair_alignment_edit(
+                        v0, r, entry, str(job_dir), idx)
+                    alignment_base = None
+                    if pair_alignment_base:
                         retry_ctx = dict(retry_ctx or {})
-                        retry_ctx["sofa_alignment_edit"] = True
-                        strategies = [("沙發局部位移", alignment_base, None)]
+                        retry_ctx["tv_alignment_edit"] = True
+                        strategies = [("TV中心軸局部校正", pair_alignment_base, None)]
                     else:
-                        strategies = _phase3_base_strategies(entry)
+                        alignment_base = _sofa_alignment_edit_base(
+                            v0, r, entry.get("_room_type", "living"))
+                        if alignment_base:
+                            retry_ctx = dict(retry_ctx or {})
+                            retry_ctx["sofa_alignment_edit"] = True
+                            strategies = [("沙發局部位移", alignment_base, None)]
+                        else:
+                            strategies = _phase3_base_strategies(entry)
                     fixed = None
                     for tag, base_p, model_ov in strategies:
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
@@ -3553,11 +3733,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             from gemini_analyze import validate_render
                             _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
                             _lc = _product_fidelity_into_layout_ctx(_lc, entry)
-                            validation_base = entry["_base_path"] if alignment_base else base_p
+                            validation_base = (
+                                entry["_base_path"]
+                                if (pair_alignment_base or alignment_base) else base_p
+                            )
                             v3 = validate_render(validation_base, rpath, entry["_angle_label"],
                                                  layout_context=_lc,
                                                  room_type=entry.get("_room_type", "living"),
                                                  design_mode=design_mode)
+                            v3 = _fail_closed_validation(
+                                v3, entry.get("_room_type", "living"))
                         except Exception as v_e:
                             print(f"[pipeline] Phase3 驗證例外（{tag}）: {str(v_e)[:120]}")
                             continue

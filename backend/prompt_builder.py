@@ -160,6 +160,12 @@ def _build_inputs_section(reference_map: list[dict]) -> str:
         idx = ref["index"]
         if role == "ROOM":
             lines.append(f"Reference image {idx} is the ROOM (base scene to stage).")
+        elif ref.get("kind") == "LAYOUT_GUIDE":
+            lines.append(
+                f"Reference image {idx} is the layout constraint map (NOT a product). "
+                "Use its coloured target zones and centreline only for exact furniture placement; "
+                "never copy its colours, boxes, arrows, lines or labels into the render."
+            )
         elif ref.get("kind") == "SOFT":
             display = role
             lines.append(
@@ -1492,6 +1498,18 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
     """
     if not isinstance(retry_context, dict):
         return ""
+    if retry_context.get("tv_alignment_edit"):
+        return " ".join([
+            "PAIR ALIGNMENT EDIT — image_1 is the previous furnished render and image_2 is the correction map.",
+            "MOVE ONLY THE TV AND MEDIA CONSOLE as one rigid pair along their current wall.",
+            "The GREEN sofa target stays fixed exactly where it is; do not move, rotate, resize or redesign the sofa.",
+            "Move the TV and console from the old red location into the BLUE TV / media-console target.",
+            "The TV-screen centre must land exactly on the binding centreline through the sofa-seat centre.",
+            "LOCK the entrance door, walls, windows, camera, sofa, rug, coffee table, lighting, decor, "
+            "colours and every other object in their exact current positions.",
+            "Remove the old TV/console completely; never leave a duplicate, shadow, ghost or second cabinet.",
+            SOFA_TV_FACE_TO_FACE_CONTRACT,
+        ])
     if retry_context.get("sofa_alignment_edit"):
         return " ".join([
             "LOCAL ALIGNMENT EDIT — image_1 is the previous furnished render, not an empty room.",

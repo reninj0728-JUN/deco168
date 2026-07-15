@@ -719,6 +719,8 @@ def test_layout_guide_pipeline_wiring():
     assert "https://x/guide.jpg" in inputs["image_urls"]
     assert inputs["image_urls"][1] == "https://x/guide.jpg"
     assert inputs["reference_map"][1]["kind"] == "LAYOUT_GUIDE"
+    assert "layout constraint map (NOT a product)" in inputs["prompt"]
+    assert "LAYOUT GUIDE PRODUCT" not in inputs["prompt"]
     assert "LAYOUT CONSTRAINT MAP" in inputs["prompt"]
     assert "GREEN SOFA TARGET" in inputs["prompt"]
     assert "BLUE TV / MEDIA-CONSOLE TARGET" in inputs["prompt"]

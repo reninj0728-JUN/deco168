@@ -283,7 +283,53 @@ class DoorAwareLayoutTests(unittest.TestCase):
         api_source = Path(api.__file__).read_text(encoding="utf-8")
         # definition + Z3 + Phase2 + Phase3
         self.assertGreaterEqual(api_source.count("_sofa_alignment_edit_base("), 4)
-        self.assertIn('validation_base = entry["_base_path"] if alignment_base else base_p', api_source)
+        self.assertGreaterEqual(api_source.count("_activate_pair_alignment_edit("), 4)
+        self.assertIn("if (pair_alignment_base or alignment_base) else base_p", api_source)
+
+    def test_pair_centre_delta_forces_hard_fail_and_builds_tv_correction_guide(self):
+        validation = {
+            "ok": True,
+            "hard_fail": False,
+            "sofa_facing_entrance_door": False,
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "sofa": [473, 228, 733, 417],
+                "focal_anchor": [570, 654, 809, 888],
+            },
+        }
+        checked = api._fail_closed_validation(validation, "living")
+        self.assertFalse(checked["ok"])
+        self.assertTrue(checked["hard_fail"])
+        self.assertTrue(checked["focal_anchor_misaligned_with_sofa"])
+        self.assertEqual(checked["pair_center_delta_y"], -87)
+
+        aligned = {
+            **validation,
+            "render_bboxes": {
+                "sofa": [473, 228, 733, 417],
+                "focal_anchor": [500, 654, 706, 888],
+            },
+        }
+        self.assertTrue(api._fail_closed_validation(aligned, "living")["ok"])
+
+        with tempfile.TemporaryDirectory() as td:
+            source = str(Path(td) / "render.jpg")
+            cv2.imwrite(source, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            guide = api._build_pair_alignment_guide_image(source, td, 0, validation)
+            self.assertTrue(guide and Path(guide).exists())
+            image = cv2.imread(guide).astype(np.int16)
+            green = ((image[:, :, 1] > image[:, :, 0] + 35)
+                     & (image[:, :, 1] > image[:, :, 2] + 35))
+            blue = ((image[:, :, 0] > image[:, :, 1] + 45)
+                    & (image[:, :, 0] > image[:, :, 2] + 45))
+            self.assertGreater(int(green.sum()), 250)
+            self.assertGreater(int(blue.sum()), 250)
+
+        edit_prompt = pb._build_retry_context_section({"tv_alignment_edit": True})
+        self.assertIn("MOVE ONLY THE TV AND MEDIA CONSOLE", edit_prompt)
+        self.assertIn("GREEN sofa target stays fixed", edit_prompt)
+        self.assertIn("BLUE TV / media-console target", edit_prompt)
 
     def test_wide_crop_keeps_left_or_right_edge_door(self):
         left = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(0, 100, 220, 850))
