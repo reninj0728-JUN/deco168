@@ -1450,12 +1450,12 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         door_w = max(1, dx1 - dx0)
         clear_x0 = dx0 - margin_x
         clear_x1 = dx1 + margin_x
-        # 生成指令要求「過門後留一個完整門寬」，constraint map 也必須畫同一件事。
-        # 舊版只加 2% margin，2879173D 四輪都把家具放回門框旁。
-        # 無論 TV 還是沙發在門牆，入口側都必須延伸一整個門寬禁放區。
-        if ent == "left":
+        # TV 與入口同牆時才多保留一個完整門寬，避免櫃體貼門。
+        # 沙發與入口同牆、門留在沙發背後時，使用者已確認只需過外門框與開門弧；
+        # 再多延伸一整個門寬會把 2879173D 的合法沙發位整段吃掉。
+        if focal == ent == "left":
             clear_x1 += door_w
-        elif ent == "right":
+        elif focal == ent == "right":
             clear_x0 -= door_w
         door_clear = (
             max(0, clear_x0), max(0, dy0 - int(H * 0.04)),
@@ -1479,7 +1479,12 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         clean = _ordered(rect)
         if clean:
             blocked.append(clean)
-    forbidden = blocked + ([door_clear] if door_clear else [])
+    is_auto = side == "free"
+    # AI-auto 的 sofa/TV 框是牆邊家具「視覺外框」，walkway/no-go 是地面投影。
+    # 透視圖中兩者 2D bbox 重疊不等於實體擋路；2879173D 的合法左牆沙發因此被誤殺。
+    # auto 只用門框／開門弧與 living-zone 中心約束選位，地面走道仍交給紅區與驗收。
+    forbidden = ([door_clear] if door_clear else []) if is_auto else (
+        blocked + ([door_clear] if door_clear else []))
     allowed = _ordered(living_bbox)
 
     def _safe(rect, require_living=False):
@@ -1493,7 +1498,6 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
                 return False
         return True
 
-    is_auto = side == "free"
     mode = ("auto_float" if auto_float else "auto_compact") if is_auto else "bound"
     preferred = "left" if focal == "right" else "right"
     # focal_side 已由完整牆／門窗資料決定。若該對向找不到安全矩形就略過 guide，
@@ -1504,8 +1508,9 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         y_starts = (0.48, 0.12, 0.62)
     elif mode == "auto_compact":
         sofa_w, sofa_h = 0.18, 0.24
-        # 0.22 是門後、主走道上方的中前段安全帶；E72 真實 bbox 需要這一格。
-        y_starts = (0.70, 0.36, 0.22, 0.08)
+        # 2879173D 已接受沙發約在畫面 y-centre 0.60；先試 0.48 起點，
+        # 讓 sofa/TV 中心同在 0.60，再退到其他安全帶。
+        y_starts = (0.48, 0.36, 0.22, 0.08, 0.70)
     else:
         sofa_w, sofa_h = 0.38, 0.48
         y_starts = (0.38, 0.08)
@@ -1629,8 +1634,11 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
                         red, max(3, W // 600), cv2.LINE_AA)
 
         entrance_point = _mark_entrance(plan["door_clear"])
-        for _blocked in plan.get("blocked") or []:
-            _floor_zone(_blocked, "ENTRANCE APPROACH / WALKWAY")
+        # auto 的 walkway/no-go bbox 是地面投影，與牆邊家具視覺框會在透視圖上假重疊；
+        # 不畫成 binding 紅框，避免同一 guide 同時要求「放這裡」與「這裡禁放」。
+        if not str(plan.get("mode") or "").startswith("auto_"):
+            for _blocked in plan.get("blocked") or []:
+                _floor_zone(_blocked, "ENTRANCE APPROACH / WALKWAY")
 
         def _target_box(rect, colour, label):
             if not rect:

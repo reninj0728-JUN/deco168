@@ -385,15 +385,14 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                     )
                 elif _auto_sofa == _entr_side:
                     _auto_choice += (
-                        "Because the sofa wall also contains the entrance door, move the ENTIRE sofa "
-                        "deeper along that wall: the sofa back starts at least ONE FULL visible door-width "
-                        "past the outer door frame, never beside or touching the entrance. The entrance "
-                        "door stays behind the sofa back, completely outside the seated viewer's forward "
-                        "field of view. Keep the wall segment from the door through that full door-width "
-                        "completely bare. Place the TV/media console on the opposite solid wall so the "
-                        "sofa-seat normal and TV-screen normal point directly at each other on one clear "
-                        "cross-room sightline. Never solve this by moving only the TV toward a stationary "
-                        "sofa. The seated viewer's primary sightline must land on the TV, never the entrance. "
+                        "Because the sofa wall also contains the entrance door, place the ENTIRE sofa "
+                        "past the outer door frame and clear of the visible door swing arc, never in "
+                        "front of or touching the entrance. The entrance door stays behind the sofa "
+                        "back, completely outside the seated viewer's forward field of view. Place the "
+                        "TV/media console on the opposite solid wall so the sofa-seat normal and "
+                        "TV-screen normal point directly at each other on one clear cross-room sightline. "
+                        "Never solve this by moving only the TV toward a stationary sofa. The seated "
+                        "viewer’s primary sightline must land on the TV, never the entrance. "
                     )
             else:
                 _auto_choice = (

@@ -65,7 +65,11 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertEqual(plan["sofa_facing"], "right")
         self.assertLessEqual(plan["door_clear"][2], plan["sofa"][0])
         self.assertLess(plan["sofa"][2], plan["tv"][0])
-        self.assertGreaterEqual(plan["sofa"][1], int(700 * 0.70))
+        self.assertAlmostEqual(plan["sofa"][1], int(700 * 0.48), delta=2)
+        self.assertEqual(
+            (plan["sofa"][1] + plan["sofa"][3]) // 2,
+            (plan["tv"][1] + plan["tv"][3]) // 2,
+        )
         self.assertFalse(api._rects_intersect(plan["sofa"], plan["door_clear"]))
         self.assertFalse(api._rects_intersect(plan["tv"], plan["door_clear"]))
         walkway = (300, 385, 600, 686)
@@ -75,7 +79,9 @@ class DoorAwareLayoutTests(unittest.TestCase):
             auto_float=False, blocked_rects=[walkway],
         )
         self.assertTrue(safe["valid"])
-        self.assertFalse(api._rects_intersect(safe["sofa"], walkway))
+        # 透視畫面中的牆邊家具視覺框可以與地面 walkway 投影重疊；
+        # 不可再因此把整張成對 guide 丟掉。
+        self.assertTrue(api._rects_intersect(safe["sofa"], walkway))
         self.assertFalse(api._rects_intersect(safe["tv"], walkway))
 
     def test_invalid_wide_door_never_returns_reversed_or_overlapping_boxes(self):
@@ -210,7 +216,7 @@ class DoorAwareLayoutTests(unittest.TestCase):
             "furniture_placement_rules": {"sofa_side": "", "tv_side": ""},
         }
         layout_prompt = pb._build_layout_section(prompt_z)
-        self.assertIn("ONE FULL visible door-width", layout_prompt)
+        self.assertIn("past the outer door frame and clear of the visible door swing arc", layout_prompt)
         self.assertIn("focal/TV wall is RIGHT", layout_prompt)
         self.assertIn("sofa belongs on the LEFT", layout_prompt)
         self.assertIn("entrance door stays behind the sofa back", layout_prompt)
@@ -221,12 +227,25 @@ class DoorAwareLayoutTests(unittest.TestCase):
         )
         self.assertEqual(guide_2879["chosen_sofa_side"], "left")
         self.assertEqual(guide_2879["sofa_facing"], "right")
-        # 紅色門區要包含門框後「一個完整門寬」，不能只多畫 2% margin。
-        self.assertGreaterEqual(guide_2879["door_clear"][2], 520)
+        # 沙發在門牆且門留在背後時，只需過外門框與開門弧；不可再多吃一整個門寬。
+        self.assertLessEqual(guide_2879["door_clear"][2], 350)
         # 沙發必須整組過門後；門在沙發背後，不能再跟門區重疊。
         self.assertGreaterEqual(guide_2879["sofa"][0], guide_2879["door_clear"][2])
         self.assertFalse(api._rects_intersect(guide_2879["sofa"], guide_2879["door_clear"]))
         self.assertFalse(api._rects_intersect(guide_2879["tv"], guide_2879["door_clear"]))
+        # 2879173D 真實 bbox：粗糙的地面 walkway 矩形不可否決牆邊家具視覺框。
+        actual_guide = api._layout_guide_plan(
+            1000, 1000, sofa_side="free", entrance_side="left",
+            entrance_bbox=(120, 325, 320, 850), focal_side="right",
+            auto_float=False,
+            blocked_rects=[(300, 550, 600, 990)],
+            living_bbox=(150, 450, 950, 990),
+        )
+        self.assertTrue(actual_guide["valid"])
+        self.assertEqual(actual_guide["chosen_sofa_side"], "left")
+        sofa_cy = (actual_guide["sofa"][1] + actual_guide["sofa"][3]) // 2
+        tv_cy = (actual_guide["tv"][1] + actual_guide["tv"][3]) // 2
+        self.assertEqual(sofa_cy, tv_cy)
         validator_src = (Path(__file__).parent / "gemini_analyze.py").read_text(encoding="utf-8")
         self.assertIn("仍有約 80–90 cm 寬的連續可走路徑", validator_src)
         self.assertNotIn("只要行走需繞過就填 true", validator_src)
