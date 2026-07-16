@@ -1948,10 +1948,12 @@ def _run_layout_contract_shadow(
     analysis: dict | None,
     sofa_mode: str,
     can_float: bool,
+    image_paths: list | None = None,
 ) -> dict | None:
     """Shadow mode：只算契約、存檔、回傳摘要。不擋生圖、不改交付。
 
     LAYOUT_CONTRACT_SHADOW=0 可關。
+    image_paths：用於證明 shadow 底圖 == zoning best_photo；缺則 v1 bbox 不 map。
     """
     if os.environ.get("LAYOUT_CONTRACT_SHADOW", "1").strip() == "0":
         return None
@@ -1968,6 +1970,13 @@ def _run_layout_contract_shadow(
         with Image.open(photo_path) as im:
             W, H = im.size
         payload = _zoning_payload_for_layout_contract(zoning_result, user_zoning_v2)
+        # S1｜bbox 只屬於 best_photo。沒有完整 image_paths 可比對 → 預設未驗證（fail closed）。
+        _bind_src = user_zoning_v2 if isinstance(user_zoning_v2, dict) else payload
+        _paths_for_bind = [p for p in (image_paths or []) if p]
+        legacy_bbox_binding_verified = bool(
+            _paths_for_bind
+            and _zoning_bbox_matches_source(photo_path, _paths_for_bind, _bind_src)
+        )
         # 若上游未來帶 struct_keypoints 就用；沒有則走 walkway fallback
         kp = None
         if isinstance(user_zoning_v2, dict):
@@ -2037,11 +2046,57 @@ def _run_layout_contract_shadow(
             summary["contract_json"] = str(out_json)
         except Exception as we:
             print(f"[pipeline] layout_contract shadow 寫檔失敗: {we}")
+
+        # S1｜Shared Geometry Contract v1 dual-write。只觀測，不接 guide / paid gate / delivery。
+        if os.environ.get("LAYOUT_CONTRACT_V1_SHADOW", "1").strip() == "0":
+            summary["contract_v1"] = {
+                "status": "disabled",
+                "affects_delivery": False,
+            }
+        else:
+            try:
+                import layout_contract_v1 as lcv1
+                contract_v1 = lcv1.build_layout_contract(
+                    job_id=job_id,
+                    photo_path=photo_path,
+                    photo_key=canonical_photo_key(str(photo_path)) or Path(photo_path).name,
+                    view_index=view_index,
+                    legacy_zoning=payload,
+                    legacy_shadow=contract,
+                    legacy_bbox_binding_verified=legacy_bbox_binding_verified,
+                )
+                out_v1_json = out_dir / f"contract_v1_{tag}.json"
+                out_v1_json.write_text(
+                    json.dumps(contract_v1, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                version_chain = contract_v1["version_chain"]
+                decision_v1 = contract_v1["decision"]
+                summary["contract_v1"] = {
+                    "status": "ok",
+                    "schema_version": contract_v1["schema_version"],
+                    "contract_id": version_chain["contract_id"],
+                    "contract_hash": version_chain["contract_hash"],
+                    "contract_json": str(out_v1_json),
+                    "disposition": decision_v1["disposition"],
+                    "pre_generation_eligible": bool(decision_v1["pre_generation_eligible"]),
+                    "legacy_bbox_binding_verified": bool(legacy_bbox_binding_verified),
+                    "affects_delivery": False,
+                }
+            except Exception as v1e:
+                print(f"[pipeline] layout_contract v1 shadow 例外（不阻斷）: {type(v1e).__name__}: {v1e}")
+                summary["contract_v1"] = {
+                    "status": "error",
+                    "reason": f"{type(v1e).__name__}: {str(v1e)[:160]}",
+                    "affects_delivery": False,
+                }
+
+        _v1s = (summary.get("contract_v1") or {}).get("status")
         print(
             f"[pipeline] layout_contract shadow[{view_index}] "
             f"mode={mode} float={bool(can_float)} chosen={summary.get('chosen')} "
             f"safe={summary.get('safe_layout')} disp={summary.get('disposition')} "
-            f"(delivery untouched)"
+            f"v1={_v1s} bind={legacy_bbox_binding_verified} (delivery untouched)"
         )
         return summary
     except Exception as e:
@@ -3005,6 +3060,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     analysis=analysis,
                     sofa_mode=_sofa_mode_shadow,
                     can_float=_can_float_shadow,
+                    image_paths=image_paths,
                 )
                 if _sum:
                     layout_contract_shadows.append(_sum)

@@ -10,13 +10,14 @@
 
 ## 0｜目前產品狀態
 
-目前正式系統仍是 `pre-contract / legacy fail-closed`。
+正式交付仍是 `pre-contract / legacy fail-closed`。S1已接入v1 Contract shadow dual-write，但不控制guide、付費生成、retry、validation或delivery。
 
 | 現行機制 | v1 前定位 |
 |---|---|
 | AI auto 沒有有效 `_layout_guide` → `LayoutPreflightBlocked` | Legacy 付費前止血，保留 |
 | 紅／綠／藍 `_layout_guide` | 非 authoritative 提示層，不是 LayoutContract |
-| `_proto_layout_contract.py` A／B／F | Shadow prototype，`affects_delivery=false` |
+| `_proto_layout_contract.py` A／B／F | Legacy shadow prototype，`affects_delivery=false` |
+| `layout_contract_v1.build_layout_contract` | S1 shadow writer；固定BLOCKED，`affects_delivery=false` |
 | `validation.hard_fail` | ContractValidationReport 的 legacy 雛形 |
 | `safe_layout` | Deprecated 相容欄位；目前不可視為交付真相 |
 
