@@ -428,9 +428,12 @@ def _preferred_focal_side(zoning: dict | None) -> str:
     # 交回 AI 改找前／後實牆或斜向配置，不硬猜其中一邊。
     if entrance in ("left", "right") and window in ("left", "right") and entrance != window:
         return ""
-    # 一側是入口、對側是無開口完整實牆時：完整牆給 TV/焦點；
-    # 沙發放入口側「過門後」牆段，讓門落在沙發背後，正前方只剩 TV。
-    # 舊版把沙發放完整牆、TV 放門牆 → 沙發正前方永遠掃到門。
+    # 一側是入口、對側是無開口完整實牆時：【憲法配置】完整牆給沙發當穩定背牆，
+    # focal/TV 留在入口側「過門後的實牆段」（TV-門間距由 0.28 門寬閘門把關）。
+    # 依據＝用戶裁決庫：接受組全部是此配置（21CCB9AF/1164DFC6/A08E612D，
+    # 間距 0.29-0.42）；反向配置（沙發放門牆過門）被 2879173D 明確拒絕
+    # （沙發吃掉進門落腳區），且與 _auto_layout_safety_check 相斥——
+    # 先前反轉導致「決策選B→守門擋B→保守模式→無引導框→沙發貼門」連鎖（48B75FBF）。
     if entrance in ("left", "right") and window not in ("left", "right"):
         opposite = "right" if entrance == "left" else "left"
         for wall in syn.get("wall_inventory") or []:
@@ -438,7 +441,7 @@ def _preferred_focal_side(zoning: dict | None) -> str:
             side = "left" if ("左" in txt or "left" in txt.lower()) else (
                 "right" if ("右" in txt or "right" in txt.lower()) else "")
             if side == opposite and wall.get("has_opening") is False:
-                return opposite
+                return entrance
     scores = {"left": 0, "right": 0}
     found = False
     for wall in syn.get("wall_inventory") or []:

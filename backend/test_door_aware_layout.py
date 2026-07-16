@@ -186,8 +186,10 @@ class DoorAwareLayoutTests(unittest.TestCase):
                 ],
             },
         }
-        # 無主窗時，完整右牆給 TV；沙發放左牆過門後，門在沙發背後。
-        self.assertEqual(api._preferred_focal_side(no_window), "right")
+        # 憲法配置（用戶裁決庫）：無左右窗約束時，完整右牆給「沙發」當背牆，
+        # TV/焦點留在門牆過門段（21CCB9AF/A08E612D 接受組佈局；
+        # 反向=2879173D 被拒的沙發過門佈局）。
+        self.assertEqual(api._preferred_focal_side(no_window), "left")
         job_2879173d = {
             "_entrance_side": "left",
             "_window_side": "back",
@@ -201,10 +203,12 @@ class DoorAwareLayoutTests(unittest.TestCase):
                 ],
             },
         }
-        # 2879173D：沙發若放右牆會正對左門牆 → 門永遠進視線。
-        # 正確：TV 放右牆完整實牆；沙發放左牆過門後，門在沙發背後。
+        # 憲法配置（用戶裁決庫裁定）：門左+窗後 → TV/焦點留在門牆過門段、
+        # 沙發拿右側完整實牆。此為接受組全體佈局（21CCB9AF/1164DFC6/A08E612D,
+        # TV-門間距 0.29-0.42 由 0.28 閘門把關）；「沙發放門牆過門」正是
+        # 2879173D 被用戶拒絕的配置,不得再當成期望值。
         focal_side = api._preferred_focal_side(job_2879173d)
-        self.assertEqual(focal_side, "right")
+        self.assertEqual(focal_side, "left")
         prompt_z = {
             **job_2879173d,
             "_origin": "user_confirmed_v2",
@@ -216,21 +220,19 @@ class DoorAwareLayoutTests(unittest.TestCase):
             "furniture_placement_rules": {"sofa_side": "", "tv_side": ""},
         }
         layout_prompt = pb._build_layout_section(prompt_z)
-        self.assertIn("past the outer door frame and clear of the visible door swing arc", layout_prompt)
-        self.assertIn("focal/TV wall is RIGHT", layout_prompt)
-        self.assertIn("sofa belongs on the LEFT", layout_prompt)
-        self.assertIn("entrance door stays behind the sofa back", layout_prompt)
+        self.assertIn("focal/TV wall is LEFT", layout_prompt)
+        self.assertIn("sofa belongs on the RIGHT", layout_prompt)
+        # 門牆放 TV：櫃體必須整組過門框一個門寬,門邊留空牆
+        self.assertIn("past the outer door frame", layout_prompt)
+        self.assertIn("never the entrance", layout_prompt)
         guide_2879 = api._layout_guide_plan(
             1000, 700, sofa_side="free", entrance_side="left",
             entrance_bbox=(120, 227, 320, 665), focal_side=focal_side,
             auto_float=False,
         )
-        self.assertEqual(guide_2879["chosen_sofa_side"], "left")
-        self.assertEqual(guide_2879["sofa_facing"], "right")
-        # 沙發在門牆且門留在背後時，只需過外門框與開門弧；不可再多吃一整個門寬。
-        self.assertLessEqual(guide_2879["door_clear"][2], 350)
-        # 沙發必須整組過門後；門在沙發背後，不能再跟門區重疊。
-        self.assertGreaterEqual(guide_2879["sofa"][0], guide_2879["door_clear"][2])
+        self.assertEqual(guide_2879["chosen_sofa_side"], "right")
+        self.assertEqual(guide_2879["sofa_facing"], "left")
+        # 沙發在右實牆,不得碰門淨空;TV 在門牆必須過門淨空
         self.assertFalse(api._rects_intersect(guide_2879["sofa"], guide_2879["door_clear"]))
         self.assertFalse(api._rects_intersect(guide_2879["tv"], guide_2879["door_clear"]))
         # 2879173D 真實 bbox：粗糙的地面 walkway 矩形不可否決牆邊家具視覺框。

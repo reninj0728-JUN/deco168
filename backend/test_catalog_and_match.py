@@ -849,3 +849,23 @@ def test_constitution_all_live_gates_respect_calibration():
             out = api._fail_closed_validation(v, "living")
             assert out.get("ok") is True, \
                 f"pair 中心差不得再置 hard_fail（{c['case_id']}）"
+
+
+def test_focal_side_back_window_uses_accepted_layout():
+    """48B75FBF 根修：門在左+窗在「後方」→ 電視必須留在門牆（過門段）、
+    沙發拿右側實牆——用戶裁決庫全綠佈局。舊條件把後窗當成左右約束，
+    焦點牆被翻到右邊→沙發被迫上門牆→保守模式→文字生成→沙發貼門。"""
+    import api
+    Z = {"spatial_synthesis": {
+            "entrance_position": "入口即為客廳與玄關大廳",
+            "main_window_wall": "房間擁有獨立對外窗，後方採光",
+            "wall_inventory": [
+                {"name": "左側長牆", "description": "設大門", "has_opening": True},
+                {"name": "右側長牆", "description": "完整實牆", "has_opening": False}]},
+         "zones": {"entrance_zone": {"bbox_on_best_photo": [300, 50, 900, 300]}}}
+    assert api._window_side_from_zoning(Z) == "back"
+    assert api._entrance_side_from_zoning(Z) == "left"
+    focal = api._preferred_focal_side(Z)
+    assert focal == "left", f"焦點牆應留在門牆(left),實得 {focal}"
+    # 鐵則守門對此配置必須放行（沙發牆=right=實牆,安全）
+    assert api._auto_layout_safety_check(Z, "free", focal) == ""
