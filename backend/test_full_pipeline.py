@@ -855,6 +855,36 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
 
     results = []
     for idx, render in enumerate(enriched_renders):
+        # AI 自動客廳若沒有有效 binding guide，代表 planner 無法證明沙發／TV
+        # 能同時落在安全位置。過去仍送 FAL，造成同一錯格局反覆付費重試。
+        # 每次 retry 都會再次經過本守門，因此 fail closed 不會產生任何付費呼叫。
+        _guide_mode = str(render.get("_layout_guide_mode") or "")
+        _guide_path = render.get("_layout_guide")
+        _guide_enabled = os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
+        _has_valid_guide = bool(
+            _guide_enabled and _guide_path and os.path.exists(str(_guide_path)))
+        if (use_nano and room_type == "living" and _guide_mode.startswith("auto_")
+                and not _has_valid_guide):
+            _reason = (
+                "[格局前檢] AI自動客廳缺少可驗證的沙發／TV配置引導；"
+                "未證明家具落在真實牆面且避開門與走道，已在付費生成前停止"
+            )
+            print(f"  [layout-preflight] BLOCKED: {_reason}")
+            results.append({
+                **render,
+                "render_path": None,
+                "error": _reason,
+                "error_type": "LayoutPreflightBlocked",
+                "validation": {
+                    "ok": False,
+                    "hard_fail": True,
+                    "spatial_fidelity_fail": True,
+                    "reason": _reason,
+                },
+                "pipeline_version": "layout-preflight-v1",
+                "render_mode": "preflight_blocked",
+            })
+            continue
         style = render.get("style", "unknown")
         label = render.get("style_label", style)
         flux_prompt = render.get("flux_prompt", "")

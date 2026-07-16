@@ -6,6 +6,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -522,19 +523,47 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
             blocked_rects=r["blocked"], living_bbox=r["living"],
         )
 
-    def test_wide_entrance_zone_still_yields_valid_plan(self):
+    def test_wide_entrance_zone_without_wall_plane_fails_closed(self):
         plan = self._plan()
-        self.assertTrue(plan["valid"], plan["reason"])
-        self.assertIsNotNone(plan["sofa"])
-        self.assertIsNotNone(plan["tv"])
-        # TV 必須整支越過 door_clear（含半 bbox 寬緩衝），且不與門實框重疊
-        self.assertGreaterEqual(plan["tv"][0], plan["door_clear"][2])
-        door_w = self.REAL["door_crop"][2] - self.REAL["door_crop"][0]
-        gap = plan["tv"][0] - self.REAL["door_crop"][2]
-        # bbox 是落塵區（≈1.8 倍實體門），0.15 bbox 寬 ≈ 0.27 實體門寬起跳
-        self.assertGreaterEqual(gap / door_w, 0.15)
-        # 沙發在對側實牆，不撞禁區
-        self.assertFalse(api._rects_intersect(plan["sofa"], plan["door_clear"]))
+        # 10AAED25 實圖證明：把固定 TV 矩形推到 door_clear 右邊，仍可能浮在
+        # 中央走道而非入口側的真實牆面。沒有牆面 polygon / usable segment 時，
+        # 不得把「螢幕矩形沒相交」冒充物理可配置。
+        self.assertFalse(plan["valid"])
+        self.assertIsNone(plan["tv"])
+
+    def test_auto_living_without_valid_guide_never_calls_paid_renderer(self):
+        import test_full_pipeline as tfp
+
+        with tempfile.TemporaryDirectory() as td:
+            base = str(Path(td) / "room.jpg")
+            cv2.imwrite(base, np.full((700, 1000, 3), 210, dtype=np.uint8))
+            valid_guide = str(Path(td) / "guide.jpg")
+            cv2.imwrite(valid_guide, np.full((700, 1000, 3), 180, dtype=np.uint8))
+            zoning = {"_sofa_layout": "free"}
+            cases = (
+                (None, "1", "guide is None"),
+                (str(Path(td) / "missing-guide.jpg"), "1", "guide path is missing"),
+                (valid_guide, "0", "guide feature is disabled"),
+            )
+            for guide_path, guide_flag, label in cases:
+                with self.subTest(label):
+                    entry = {
+                        "style": "modern", "style_label": "現代",
+                        "_room_type": "living",
+                        "_layout_guide_mode": "auto_constraints",
+                        "_layout_guide": guide_path,
+                        "matched_furniture": [],
+                    }
+                    with patch.dict("os.environ", {
+                            "USE_NANO_BANANA": "1", "LAYOUT_GUIDE": guide_flag}), \
+                            patch.object(tfp, "_fal_subscribe_timed",
+                                         side_effect=AssertionError(
+                                             "paid renderer must not be called")):
+                        result = tfp.generate_renders(
+                            base, [entry], output_dir=td,
+                            zoning=zoning, room_type="living")
+                    self.assertEqual(result[0]["error_type"], "LayoutPreflightBlocked")
+                    self.assertTrue(result[0]["validation"]["hard_fail"])
 
     def test_invalid_plan_never_emits_degenerate_guide(self):
         # 建構必然無解的場景：door_clear 幾乎蓋滿畫面
