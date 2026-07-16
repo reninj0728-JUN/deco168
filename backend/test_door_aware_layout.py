@@ -502,5 +502,53 @@ class DoorAwareLayoutTests(unittest.TestCase):
             self.assertNotIn("DOOR-ON-A-LONG-WALL LAYOUT", prompt)
 
 
+class WideEntranceZonePlannerRegression(unittest.TestCase):
+    """48B75FBF/10AAED25 根因回歸｜玄關落塵區 bbox 極寬（實體門 1.8 倍）時，
+    規劃器不得無解——無解 → 退化引導圖（只剩門箭頭）→ 模型往門邊畫，六連燒。
+    數字全部來自該單真實 crop（W=4032 H=2688、door_crop、walkway、living bbox）。"""
+
+    REAL = dict(
+        W=4032, H=2688,
+        door_crop=(40, 631, 1128, 2264),
+        blocked=[(1008, 873, 2620, 2657)],
+        living=(201, 1024, 3830, 2657),
+    )
+
+    def _plan(self):
+        r = self.REAL
+        return api._layout_guide_plan(
+            r["W"], r["H"], "free", "left", r["door_crop"],
+            focal_side="left", auto_float=False,
+            blocked_rects=r["blocked"], living_bbox=r["living"],
+        )
+
+    def test_wide_entrance_zone_still_yields_valid_plan(self):
+        plan = self._plan()
+        self.assertTrue(plan["valid"], plan["reason"])
+        self.assertIsNotNone(plan["sofa"])
+        self.assertIsNotNone(plan["tv"])
+        # TV 必須整支越過 door_clear（含半 bbox 寬緩衝），且不與門實框重疊
+        self.assertGreaterEqual(plan["tv"][0], plan["door_clear"][2])
+        door_w = self.REAL["door_crop"][2] - self.REAL["door_crop"][0]
+        gap = plan["tv"][0] - self.REAL["door_crop"][2]
+        # bbox 是落塵區（≈1.8 倍實體門），0.15 bbox 寬 ≈ 0.27 實體門寬起跳
+        self.assertGreaterEqual(gap / door_w, 0.15)
+        # 沙發在對側實牆，不撞禁區
+        self.assertFalse(api._rects_intersect(plan["sofa"], plan["door_clear"]))
+
+    def test_invalid_plan_never_emits_degenerate_guide(self):
+        # 建構必然無解的場景：door_clear 幾乎蓋滿畫面
+        with tempfile.TemporaryDirectory() as td:
+            fake = str(Path(td) / "room.jpg")
+            cv2.imwrite(fake, np.full((700, 1000, 3), 210, dtype=np.uint8))
+            out = api._build_layout_guide_image(
+                fake, td, 0, "free",
+                entrance_side="left",
+                entrance_bbox=(0, 10, 940, 690),   # 門區蓋掉 94% 寬
+                focal_side="left", auto_float=False,
+            )
+            self.assertIsNone(out)   # 寧可沒有 guide，也不給「只剩門箭頭」的反引導
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

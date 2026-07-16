@@ -1453,13 +1453,17 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         door_w = max(1, dx1 - dx0)
         clear_x0 = dx0 - margin_x
         clear_x1 = dx1 + margin_x
-        # TV 與入口同牆時才多保留一個完整門寬，避免櫃體貼門。
+        # TV 與入口同牆時多保留半個 bbox 寬，避免櫃體貼門。
+        # entrance bbox 是整個玄關落塵區（48B75FBF 實測寬達實體門 1.8 倍），
+        # 延伸整個 bbox 寬會讓禁區吃掉 57% 畫面 → 規劃器無解 → 退化引導圖
+        # （只剩門箭頭）→ 模型往門邊畫（10AAED25 六連燒根因）。半寬仍深於
+        # 驗收門檻 0.28 實體門寬與所有接受組案例的實測間距。
         # 沙發與入口同牆、門留在沙發背後時，使用者已確認只需過外門框與開門弧；
-        # 再多延伸一整個門寬會把 2879173D 的合法沙發位整段吃掉。
+        # 再多延伸會把 2879173D 的合法沙發位整段吃掉。
         if focal == ent == "left":
-            clear_x1 += door_w
+            clear_x1 += door_w // 2
         elif focal == ent == "right":
-            clear_x0 -= door_w
+            clear_x0 -= door_w // 2
         door_clear = (
             max(0, clear_x0), max(0, dy0 - int(H * 0.04)),
             min(W, clear_x1), H,
@@ -1532,6 +1536,12 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             if not sx_starts:
                 sx_starts = (min(0.70, min_left),)
             tx_starts = (0.72, 0.82, 0.52)
+            # 門在右（TV 側）時，TV 候選必須整支退到 door_clear 之前——
+            # 寫死的候選點全撞禁區時規劃器會無解（沙發早有此適應、TV 沒有）。
+            if door_clear and ent == "right":
+                tv_max = door_clear[0] / max(1, W) - 0.24 - 0.01
+                if tv_max >= 0.02:
+                    tx_starts = (tv_max,) + tuple(x for x in tx_starts if x < tv_max)
             facing = "right"
         else:
             max_right = 1 - 0.08 - sofa_w
@@ -1541,6 +1551,12 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             if not sx_starts:
                 sx_starts = (max(0.02, max_right),)
             tx_starts = (0.04, 0.18, 0.28)
+            # 門在左（TV 側）時，TV 候選必須從 door_clear 終點之後開始
+            # （48B75FBF：door_clear 佔畫面 43%，0.04/0.18/0.28 全撞禁區 → 無解）。
+            if door_clear and ent == "left":
+                tv_min = door_clear[2] / max(1, W) + 0.01
+                if tv_min + 0.24 <= 0.98:
+                    tx_starts = (tv_min,) + tuple(x for x in tx_starts if x > tv_min)
             facing = "left"
         for yf in y_starts:
             sy0 = int(H * yf)
@@ -1601,6 +1617,13 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
             focal_side=focal_side, auto_float=auto_float,
             blocked_rects=blocked_rects, living_bbox=living_bbox,
         )
+        if not plan.get("valid"):
+            # docstring 承諾「無安全方案就不輸出」但先前照樣輸出退化圖——
+            # 只剩 ENTRANCE DOOR 箭頭的「引導」等於指著門叫模型看
+            # （10AAED25 六連燒的實際輸入）。寧可沒有 guide 也不給反引導。
+            print(f"[pipeline] (i) living 版面引導圖略過（無安全配置）: "
+                  f"{plan.get('reason', '')[:80]}")
+            return None
 
         def _mark_entrance(rect):
             if not rect:
