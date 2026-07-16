@@ -1704,6 +1704,8 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
 
 
 PAIR_CENTER_TOLERANCE = 25
+# 極端錯位門檻（合憲：用戶接受組中心差最高 88,拒絕組有 106/110）
+PAIR_CENTER_EXTREME = 95
 
 
 def _pair_center_delta(validation: dict | None,
@@ -2092,14 +2094,23 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     ——判官斷線時燒 fal 重畫是純浪費（三單回測教訓）。"""
     if isinstance(v, dict) and v.get("ok") is not None:
         if (room_type or "living") == "living":
-            # C63D5284 違憲拆除：y 中心差對「正對」無分類力（校準庫第三次證明：
-            # 接受組 32-89 與拒絕組 61-106 區間重疊，任何門檻都會誤殺接受組——
-            # tolerance=25 實測殺掉接受組 5 張中 4 張）。降級為純診斷欄位，
-            # 不得影響 ok/hard_fail。正對驗收交給判官語意題+引導框生成端保證。
+            # 對齊閘門的合憲形態（31E341CF 用戶裁決復活）：中心差在「中間值」
+            # 無分類力（接受 10-88 與拒絕 60-106 重疊,25 門檻曾殺掉接受組 4/5），
+            # 但「極端值」有——接受組史上最高 88,拒絕組有 106 與 110。
+            # 門檻 95：接受組全放、極端錯位（電視在沙發斜前方掃向門）必擋。
+            # 中間值一律只記診斷，交給門距閘門與判官分工。
             pair = _pair_center_delta(v, tolerance=0)  # tolerance=0 → 永遠回量測值
             if pair:
                 v = dict(v)
                 v["pair_center_delta_y"] = pair["delta_y"]
+                if pair["abs_delta_y"] > PAIR_CENTER_EXTREME:
+                    v["ok"] = False
+                    v["hard_fail"] = True
+                    v["focal_anchor_misaligned_with_sofa"] = True
+                    _tag = (f"沙發與電視櫃深度錯位達極端值：中心差 {pair['abs_delta_y']}/1000"
+                            f"（合憲門檻 {PAIR_CENTER_EXTREME}；用戶接受組史上最高 88）")
+                    _prev = (v.get("reason") or "").strip()
+                    v["reason"] = f"{_tag}；{_prev}" if _prev and "皆合理" not in _prev else _tag
         return v
     base = dict(v or {})
     base.setdefault("error", "validation crashed")

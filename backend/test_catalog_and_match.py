@@ -524,6 +524,10 @@ def test_door_adjacency_geometry():
         assert violation is None, f"accepted case rejected: {case['case_id']} -> {violation}"
 
     for case in cases["rejected"]:
+        # 多閘門分工：標了 expected_gate 的案例由該閘門負責（如 31E341CF 是
+        # 極端對齊類，門距 0.45 本來就合格），總防線由憲法測試把關。
+        if case.get("expected_gate") and case["expected_gate"] != "door_adjacency":
+            continue
         violation = ga._door_adjacency_violation(case["render_bboxes"])
         assert violation is not None, f"rejected case passed: {case['case_id']}"
         assert violation[0] == case["expected_violation_target"], (
@@ -839,16 +843,29 @@ def test_constitution_all_live_gates_respect_calibration():
             f"門距閘門誤殺接受組 {c['case_id']}"
     for c in lib["rejected"]:
         rb = c["render_bboxes"] or {}
+        if c.get("expected_gate") and c["expected_gate"] != "door_adjacency":
+            continue   # 對齊類案例由極端對齊閘門負責（下方總防線驗證）
         if rb.get("entrance_door") and (rb.get("focal_anchor") or rb.get("sofa")):
             assert ga._door_adjacency_violation(rb) is not None, \
                 f"門距閘門漏放拒絕組 {c['case_id']}"
-    # 閘門 2: pair 中心差——已降級診斷,不得在任何案例上翻案 ok
-    for group in ("accepted", "rejected"):
-        for c in lib[group]:
-            v = {"ok": True, "render_bboxes": c["render_bboxes"] or {}}
-            out = api._fail_closed_validation(v, "living")
-            assert out.get("ok") is True, \
-                f"pair 中心差不得再置 hard_fail（{c['case_id']}）"
+    # 閘門 2: 極端對齊閘門（>95，31E341CF 用戶裁決復活）——接受組全放
+    # （接受組中心差史上最高 88），極端錯位（106/110）必擋
+    for c in lib["accepted"]:
+        v = {"ok": True, "render_bboxes": c["render_bboxes"] or {}}
+        out = api._fail_closed_validation(v, "living")
+        assert out.get("ok") is True, \
+            f"極端對齊閘門誤殺接受組（{c['case_id']}）"
+    # 總防線: 每個拒絕案必須被至少一道閘門擋住（門距 或 極端對齊）
+    for c in lib["rejected"]:
+        rb = c["render_bboxes"] or {}
+        if not rb:
+            continue   # 無 bbox 的政策案例由程式規則+單元測試把關
+        door_block = (bool(ga._door_adjacency_violation(rb))
+                      if rb.get("entrance_door") else False)
+        v = {"ok": True, "render_bboxes": rb}
+        pair_block = api._fail_closed_validation(v, "living").get("ok") is False
+        assert door_block or pair_block, \
+            f"拒絕案 {c['case_id']} 沒有任何閘門擋住（漏網）"
 
 
 def test_focal_side_back_window_uses_accepted_layout():

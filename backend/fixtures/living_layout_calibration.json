@@ -254,6 +254,32 @@
    },
    "expected_violation_target": "focal_anchor",
    "note": "User explicitly rejected this render because the sofa sightline still addressed the entrance instead of the TV."
+  },
+  {
+   "case_id": "31E341CF-modern-living-angle2",
+   "source": "explicit_user_rejection_in_current_session",
+   "render_bboxes": {
+    "sofa": [
+     488,
+     650,
+     856,
+     963
+    ],
+    "focal_anchor": [
+     501,
+     303,
+     624,
+     386
+    ],
+    "entrance_door": [
+     205,
+     100,
+     816,
+     240
+    ]
+   },
+   "note": "用戶原話:『沙發還是正對面門?沒有對這電視櫃』。門距 0.45 過閘,但沙發-電視深度中心差 110(接受組最高 88)——極端錯位,電視在沙發斜前方偏門側,坐沙發視線掃向門區。此案復活對齊閘門於合憲極端門檻 95。",
+   "expected_gate": "pair_alignment_extreme"
   }
  ],
  "policy_cases": [
