@@ -1,0 +1,951 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deco168.local/schemas/shared-geometry-contract-v1.schema.json",
+  "title": "DECO168 Shared Geometry Contract v1",
+  "description": "Frozen draft schema for immutable LayoutContract, ContractValidationReport, and ContractReconciliationReport.",
+  "oneOf": [
+    {"$ref": "#/$defs/layout_contract"},
+    {"$ref": "#/$defs/contract_validation_report"},
+    {"$ref": "#/$defs/contract_reconciliation_report"}
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "point": {
+      "type": "array",
+      "description": "Canonical v1 point order is [x, y].",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1}
+      }
+    },
+    "coordinate_space": {
+      "type": "string",
+      "enum": [
+        "source_px_xy",
+        "source_normalized_xy_1",
+        "legacy_source_normalized_yxyx_1000",
+        "crop_px_xy",
+        "guide_px_xy",
+        "model_input_px_xy",
+        "floor_plane_local_xy",
+        "render_normalized_xy_1",
+        "render_normalized_yxyx_1000",
+        "unknown"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "MISSING_PHOTO_BINDING",
+        "PHOTO_HASH_MISMATCH",
+        "CROSS_PHOTO_COORDS",
+        "SOURCE_SIZE_MISMATCH",
+        "MISSING_VIEW_INDEX",
+        "UNKNOWN_COORD_SPACE",
+        "TRANSFORM_CHAIN_INCOMPLETE",
+        "CROP_TRANSFORM_INVALID",
+        "MODEL_INPUT_TRANSFORM_UNKNOWN",
+        "MODEL_INPUT_HASH_MISMATCH",
+        "MISSING_DOOR",
+        "MISSING_DOOR_SIDE",
+        "MISSING_DOOR_FLOOR_CONTACT",
+        "MISSING_ENTRANCE_LANDING",
+        "MISSING_WALKWAY_EVIDENCE",
+        "MISSING_WALKWAY_POLYGON",
+        "MISSING_LIVING_ZONE",
+        "MISSING_LIVING_FLOOR",
+        "MISSING_NO_GO_EVIDENCE",
+        "MISSING_WALL_INVENTORY",
+        "MISSING_LEGACY_SIDE_HINT",
+        "MISSING_LEGACY_CONFIDENCE",
+        "NO_USABLE_WALL",
+        "MISSING_WALL_PLANE_EVIDENCE",
+        "LOW_CONFIDENCE_STRUCTURE",
+        "GEOMETRY_INVALID",
+        "GEOM_NOT_ELIGIBLE",
+        "NO_VIABLE_CANDIDATE",
+        "CANDIDATE_GEOMETRY_INCOMPLETE",
+        "WALKWAY_COLLISION",
+        "ENTRANCE_LANDING_COLLISION",
+        "DOOR_SWING_COLLISION",
+        "SOFA_OUTSIDE_FLOOR",
+        "TV_NOT_ON_WALL",
+        "VIEW_AXIS_INVALID",
+        "VIEW_AXIS_THROUGH_DOOR",
+        "ORIENTATION_MISMATCH",
+        "FLOAT_NOT_PROVEN",
+        "CONTRACT_VERSION_INVALID",
+        "GUIDE_MISSING",
+        "GUIDE_HASH_MISMATCH",
+        "GUIDE_CONTRACT_MISMATCH",
+        "GUIDE_TRANSFORM_INVALID",
+        "FORMAL_PLAN_MISMATCH",
+        "SHADOW_FORMAL_MISMATCH",
+        "RECONCILIATION_REPORT_INVALID",
+        "CONTRACT_BINDING_MISMATCH",
+        "RENDER_HASH_MISMATCH",
+        "VALIDATION_REPORT_INVALID",
+        "VALIDATION_UNAVAILABLE",
+        "RENDER_GEOMETRY_MISSING",
+        "DOOR_REMOVED_OR_MOVED",
+        "PASSAGE_NOT_PRESERVED",
+        "CAMERA_AXIS_CHANGED",
+        "WALLS_CHANGED",
+        "WINDOWS_CHANGED",
+        "FURNITURE_BLOCKS_WALKWAY",
+        "FURNITURE_BLOCKS_DOOR",
+        "SOFA_FACES_ENTRANCE",
+        "SOFA_TV_AXIS_VIOLATION",
+        "TV_WALL_CONTACT_VIOLATION"
+      ]
+    },
+    "candidate_check_code": {
+      "type": "string",
+      "enum": [
+        "PHOTO_BINDING_VALID",
+        "TRANSFORM_CHAIN_VALID",
+        "DOOR_FLOOR_CONTACT_VALID",
+        "ENTRANCE_LANDING_CLEAR",
+        "WALKWAY_CLEAR",
+        "LIVING_FLOOR_VALID",
+        "USABLE_WALL_VALID",
+        "WALL_PLANE_EVIDENCE_VALID",
+        "SOFA_INSIDE_LIVING_FLOOR",
+        "TV_ON_USABLE_WALL",
+        "VIEW_AXIS_VALID",
+        "VIEW_AXIS_CLEAR_OF_DOOR",
+        "ORIENTATIONS_ALIGNED",
+        "FLOAT_PROVEN"
+      ]
+    },
+    "validation_check_code": {
+      "type": "string",
+      "enum": [
+        "CONTRACT_BINDING_VALID",
+        "RENDER_GEOMETRY_AVAILABLE",
+        "DOOR_PRESERVED",
+        "PASSAGE_PRESERVED",
+        "CAMERA_AXIS_PRESERVED",
+        "WALLS_PRESERVED",
+        "WINDOWS_PRESERVED",
+        "WALKWAY_CLEAR",
+        "DOOR_CLEAR",
+        "SOFA_ENTRANCE_RELATION_VALID",
+        "SOFA_TV_AXIS_VALID",
+        "TV_WALL_CONTACT_VALID"
+      ]
+    },
+    "eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "policy_version", "passed_checks", "failed_checks"],
+      "properties": {
+        "status": {"enum": ["ELIGIBLE", "INELIGIBLE"]},
+        "policy_version": {"type": "string", "minLength": 1},
+        "passed_checks": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "failed_checks": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/reason_code"},
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "ELIGIBLE"}}},
+          "then": {"properties": {"failed_checks": {"maxItems": 0}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "INELIGIBLE"}}},
+          "then": {"properties": {"failed_checks": {"minItems": 1}}}
+        }
+      ]
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "model": {"type": ["string", "null"]}
+      }
+    },
+    "source_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["photo_key", "sha256", "size"],
+      "properties": {
+        "photo_key": {"type": "string", "minLength": 1},
+        "canonical_photo_key": {"type": ["string", "null"]},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size": {"$ref": "#/$defs/size"},
+        "view_index": {"type": ["integer", "null"], "minimum": 0},
+        "room_id": {"type": ["string", "null"]}
+      }
+    },
+    "transform_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_id", "type", "from_space", "to_space", "input_size", "output_size", "declared"],
+      "properties": {
+        "step_id": {"type": "string", "minLength": 1},
+        "type": {
+          "enum": ["identity", "crop", "resize", "pad", "affine", "homography", "guide_composite", "unknown"]
+        },
+        "from_space": {"$ref": "#/$defs/coordinate_space"},
+        "to_space": {"$ref": "#/$defs/coordinate_space"},
+        "input_size": {"$ref": "#/$defs/size"},
+        "output_size": {"$ref": "#/$defs/size"},
+        "declared": {"type": "boolean"},
+        "parameters": {"type": "object", "additionalProperties": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "unknown"}}},
+          "then": {"properties": {"declared": {"const": false}}}
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "confidence", "visibility", "producer"],
+      "properties": {
+        "mode": {"enum": ["observed", "inferred", "manual_fixture", "missing", "invalid"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "visibility": {"enum": ["full", "partial", "occluded", "inferred", "not_visible"]},
+        "producer": {"$ref": "#/$defs/producer"},
+        "notes": {"type": ["string", "null"]},
+        "legacy_source": {"type": ["string", "null"]}
+      }
+    },
+    "shape_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {"const": "point"},
+        "coordinates": {"$ref": "#/$defs/point"}
+      }
+    },
+    "shape_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {"const": "segment"},
+        "coordinates": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/point"},
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "shape_polyline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {"const": "polyline"},
+        "coordinates": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/point"},
+          "minItems": 2
+        }
+      }
+    },
+    "shape_polygon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {"const": "polygon"},
+        "coordinates": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/point"},
+          "minItems": 3
+        }
+      }
+    },
+    "shape_bbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {"const": "bbox_xyxy"},
+        "coordinates": {
+          "type": "array",
+          "prefixItems": [
+            {"type": "number"},
+            {"type": "number"},
+            {"type": "number"},
+            {"type": "number"}
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "shape_vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "origin", "direction"],
+      "properties": {
+        "type": {"const": "vector"},
+        "origin": {"$ref": "#/$defs/point"},
+        "direction": {"$ref": "#/$defs/point"}
+      }
+    },
+    "geometry_shape": {
+      "oneOf": [
+        {"$ref": "#/$defs/shape_point"},
+        {"$ref": "#/$defs/shape_segment"},
+        {"$ref": "#/$defs/shape_polyline"},
+        {"$ref": "#/$defs/shape_polygon"},
+        {"$ref": "#/$defs/shape_bbox"},
+        {"$ref": "#/$defs/shape_vector"}
+      ]
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "geometry_id", "kind", "status", "source_photo_key", "coordinate_space",
+        "shape", "evidence", "eligibility", "validation"
+      ],
+      "properties": {
+        "geometry_id": {"type": "string", "minLength": 1},
+        "kind": {
+          "enum": [
+            "legacy_door_bbox", "legacy_living_bbox", "legacy_walkway_bbox", "legacy_no_go_bbox",
+            "door_quad", "door_floor_contact_edge", "entrance_landing", "door_swing",
+            "walkway", "living_floor", "usable_wall_segment", "wall_floor_boundary",
+            "verified_wall_plane", "wall_contact_edge_observed", "sofa_footprint",
+            "tv_footprint", "tv_wall_contact", "view_axis", "sofa_orientation", "tv_orientation"
+          ]
+        },
+        "status": {"enum": ["available", "missing", "invalid"]},
+        "source_photo_key": {"type": "string", "minLength": 1},
+        "coordinate_space": {"$ref": "#/$defs/coordinate_space"},
+        "shape": {
+          "oneOf": [
+            {"$ref": "#/$defs/geometry_shape"},
+            {"type": "null"}
+          ]
+        },
+        "evidence": {"$ref": "#/$defs/evidence"},
+        "eligibility": {"$ref": "#/$defs/eligibility"},
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["in_bounds", "non_self_intersect", "minimum_measure", "transform_valid"],
+          "properties": {
+            "in_bounds": {"type": ["boolean", "null"]},
+            "non_self_intersect": {"type": ["boolean", "null"]},
+            "minimum_measure": {"type": ["boolean", "null"]},
+            "transform_valid": {"type": ["boolean", "null"]},
+            "notes": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "available"}}},
+          "then": {
+            "properties": {
+              "shape": {"$ref": "#/$defs/geometry_shape"},
+              "evidence": {
+                "properties": {"mode": {"enum": ["observed", "inferred", "manual_fixture"]}}
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "missing"}}},
+          "then": {
+            "properties": {
+              "shape": {"type": "null"},
+              "evidence": {"properties": {"mode": {"const": "missing"}}},
+              "eligibility": {
+                "allOf": [
+                  {"$ref": "#/$defs/eligibility"},
+                  {"properties": {"status": {"const": "INELIGIBLE"}}}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "invalid"}}},
+          "then": {
+            "properties": {
+              "evidence": {"properties": {"mode": {"const": "invalid"}}},
+              "eligibility": {
+                "allOf": [
+                  {"$ref": "#/$defs/eligibility"},
+                  {"properties": {"status": {"const": "INELIGIBLE"}}}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"coordinate_space": {"const": "unknown"}}},
+          "then": {
+            "properties": {
+              "eligibility": {
+                "allOf": [
+                  {"$ref": "#/$defs/eligibility"},
+                  {"properties": {"status": {"const": "INELIGIBLE"}}}
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "available_eligible_geometry": {
+      "type": "object",
+      "required": ["kind", "status", "eligibility"],
+      "properties": {
+        "status": {"const": "available"},
+        "eligibility": {
+          "allOf": [
+            {"$ref": "#/$defs/eligibility"},
+            {"properties": {"status": {"const": "ELIGIBLE"}}}
+          ]
+        }
+      }
+    },
+    "constraint_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check_code", "status", "failure_code", "geometry_ids"],
+      "properties": {
+        "check_code": {"$ref": "#/$defs/candidate_check_code"},
+        "status": {"enum": ["PASS", "FAIL", "UNKNOWN"]},
+        "failure_code": {
+          "oneOf": [
+            {"$ref": "#/$defs/reason_code"},
+            {"type": "null"}
+          ]
+        },
+        "geometry_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "details": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "PASS"}}},
+          "then": {"properties": {"failure_code": {"type": "null"}}},
+          "else": {"properties": {"failure_code": {"$ref": "#/$defs/reason_code"}}}
+        }
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id", "candidate_type", "sofa_footprint_geometry_id",
+        "tv_footprint_geometry_id", "tv_wall_contact_geometry_id", "view_axis_geometry_id",
+        "sofa_orientation_geometry_id", "tv_orientation_geometry_id", "constraints", "eligibility"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "candidate_type": {"enum": ["A", "B", "F"]},
+        "sofa_footprint_geometry_id": {"type": "string", "minLength": 1},
+        "tv_footprint_geometry_id": {"type": "string", "minLength": 1},
+        "tv_wall_contact_geometry_id": {"type": "string", "minLength": 1},
+        "view_axis_geometry_id": {"type": "string", "minLength": 1},
+        "sofa_orientation_geometry_id": {"type": "string", "minLength": 1},
+        "tv_orientation_geometry_id": {"type": "string", "minLength": 1},
+        "constraints": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/constraint_result"},
+          "minItems": 1
+        },
+        "eligibility": {"$ref": "#/$defs/eligibility"},
+        "score": {"type": ["number", "null"]},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eligibility": {
+                "properties": {"status": {"const": "ELIGIBLE"}},
+                "required": ["status"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "constraints": {
+                "minItems": 13,
+                "allOf": [
+                  {
+                    "not": {
+                      "contains": {
+                        "type": "object",
+                        "properties": {"status": {"enum": ["FAIL", "UNKNOWN"]}},
+                        "required": ["status"]
+                      }
+                    }
+                  },
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "PHOTO_BINDING_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "TRANSFORM_CHAIN_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "DOOR_FLOOR_CONTACT_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "ENTRANCE_LANDING_CLEAR"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "WALKWAY_CLEAR"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "LIVING_FLOOR_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "USABLE_WALL_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "WALL_PLANE_EVIDENCE_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "SOFA_INSIDE_LIVING_FLOOR"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "TV_ON_USABLE_WALL"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "VIEW_AXIS_VALID"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "VIEW_AXIS_CLEAR_OF_DOOR"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"check_code": {"const": "ORIENTATIONS_ALIGNED"}, "status": {"const": "PASS"}}, "required": ["check_code", "status"]}}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "candidate_type": {"const": "F"},
+              "eligibility": {
+                "properties": {"status": {"const": "ELIGIBLE"}},
+                "required": ["status"]
+              }
+            },
+            "required": ["candidate_type", "eligibility"]
+          },
+          "then": {
+            "properties": {
+              "constraints": {
+                "minItems": 14,
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "check_code": {"const": "FLOAT_PROVEN"},
+                    "status": {"const": "PASS"}
+                  },
+                  "required": ["check_code", "status"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chosen_candidate_id", "candidate_type", "disposition", "blocked_reason_class",
+        "unsafe_codes", "pre_generation_eligible", "eligibility"
+      ],
+      "properties": {
+        "chosen_candidate_id": {"type": ["string", "null"]},
+        "candidate_type": {"enum": ["A", "B", "F", null]},
+        "disposition": {"enum": ["SAFE_FOR_GENERATION", "BLOCKED"]},
+        "blocked_reason_class": {
+          "enum": [
+            "INSUFFICIENT_EVIDENCE", "NEEDS_ALTERNATE_ANGLE", "INVALID_GEOMETRY",
+            "NO_VIABLE_LAYOUT", "RECONCILIATION_REQUIRED", null
+          ]
+        },
+        "unsafe_codes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/reason_code"},
+          "uniqueItems": true
+        },
+        "pre_generation_eligible": {"type": "boolean"},
+        "eligibility": {"$ref": "#/$defs/eligibility"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"pre_generation_eligible": {"const": true}}},
+          "then": {
+            "properties": {
+              "disposition": {"const": "SAFE_FOR_GENERATION"},
+              "blocked_reason_class": {"type": "null"},
+              "unsafe_codes": {"maxItems": 0},
+              "chosen_candidate_id": {"type": "string", "minLength": 1},
+              "candidate_type": {"enum": ["A", "B", "F"]},
+              "eligibility": {
+                "allOf": [
+                  {"$ref": "#/$defs/eligibility"},
+                  {"properties": {"status": {"const": "ELIGIBLE"}}}
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "disposition": {"const": "BLOCKED"},
+              "blocked_reason_class": {
+                "enum": [
+                  "INSUFFICIENT_EVIDENCE", "NEEDS_ALTERNATE_ANGLE", "INVALID_GEOMETRY",
+                  "NO_VIABLE_LAYOUT", "RECONCILIATION_REQUIRED"
+                ]
+              },
+              "unsafe_codes": {"minItems": 1},
+              "eligibility": {
+                "allOf": [
+                  {"$ref": "#/$defs/eligibility"},
+                  {"properties": {"status": {"const": "INELIGIBLE"}}}
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "version_chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id", "contract_hash", "parent_contract_id", "version",
+        "schema_version", "builder", "eligibility_policy_version", "created_at",
+        "replan_reason_codes"
+      ],
+      "properties": {
+        "contract_id": {"type": "string", "minLength": 1},
+        "contract_hash": {"$ref": "#/$defs/sha256"},
+        "parent_contract_id": {"type": ["string", "null"]},
+        "version": {"type": "integer", "minimum": 1},
+        "schema_version": {"const": "1.0.0-draft"},
+        "builder": {"$ref": "#/$defs/producer"},
+        "eligibility_policy_version": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"},
+        "replan_reason_codes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/reason_code"},
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"version": {"const": 1}}},
+          "then": {
+            "properties": {
+              "parent_contract_id": {"type": "null"},
+              "replan_reason_codes": {"maxItems": 0}
+            }
+          },
+          "else": {
+            "properties": {
+              "parent_contract_id": {"type": "string", "minLength": 1},
+              "replan_reason_codes": {"minItems": 1}
+            }
+          }
+        }
+      ]
+    },
+    "legacy_inputs": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Audit-only migration payload. These fields are not authoritative geometry or decision."
+    },
+    "layout_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_type", "schema_version", "version_chain", "source", "transforms",
+        "geometry", "candidates", "decision"
+      ],
+      "properties": {
+        "object_type": {"const": "layout_contract"},
+        "schema_version": {"const": "1.0.0-draft"},
+        "version_chain": {"$ref": "#/$defs/version_chain"},
+        "source": {"$ref": "#/$defs/source_binding"},
+        "transforms": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/transform_step"},
+          "minItems": 1
+        },
+        "model_input": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["size", "sha256", "coordinate_space"],
+              "properties": {
+                "size": {"$ref": "#/$defs/size"},
+                "sha256": {"$ref": "#/$defs/sha256"},
+                "coordinate_space": {"const": "model_input_px_xy"}
+              }
+            },
+            {"type": "null"}
+          ]
+        },
+        "geometry": {"type": "array", "items": {"$ref": "#/$defs/geometry"}, "minItems": 1},
+        "candidates": {"type": "array", "items": {"$ref": "#/$defs/candidate"}},
+        "decision": {"$ref": "#/$defs/decision"},
+        "legacy_inputs": {"$ref": "#/$defs/legacy_inputs"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "properties": {"pre_generation_eligible": {"const": true}},
+                "required": ["pre_generation_eligible"]
+              }
+            }
+          },
+          "then": {
+            "required": ["model_input"],
+            "properties": {
+              "model_input": {"type": "object"},
+              "transforms": {
+                "not": {
+                  "contains": {
+                    "type": "object",
+                    "properties": {"type": {"const": "unknown"}},
+                    "required": ["type"]
+                  }
+                }
+              },
+              "candidates": {"minItems": 1},
+              "geometry": {
+                "allOf": [
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "door_floor_contact_edge"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "entrance_landing"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "walkway"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "living_floor"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "usable_wall_segment"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "sofa_footprint"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "tv_footprint"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "tv_wall_contact"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "view_axis"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "sofa_orientation"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "tv_orientation"}}, "required": ["kind"]}]}, "minContains": 1},
+                  {
+                    "anyOf": [
+                      {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "wall_floor_boundary"}}, "required": ["kind"]}]}, "minContains": 1},
+                      {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "verified_wall_plane"}}, "required": ["kind"]}]}, "minContains": 1},
+                      {"contains": {"allOf": [{"$ref": "#/$defs/available_eligible_geometry"}, {"properties": {"kind": {"const": "wall_contact_edge_observed"}}, "required": ["kind"]}]}, "minContains": 1}
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "artifact_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "artifact_type", "sha256", "size", "coordinate_space"],
+      "properties": {
+        "artifact_id": {"type": "string", "minLength": 1},
+        "artifact_type": {"enum": ["layout_guide", "mask", "formal_plan", "model_input", "render"]},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size": {"$ref": "#/$defs/size"},
+        "coordinate_space": {"$ref": "#/$defs/coordinate_space"},
+        "path": {"type": ["string", "null"]}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "status", "confidence"],
+      "properties": {
+        "code": {"$ref": "#/$defs/validation_check_code"},
+        "status": {"enum": ["PASS", "FAIL", "UNKNOWN"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "observed_geometry": {
+          "oneOf": [
+            {"$ref": "#/$defs/geometry_shape"},
+            {"type": "null"}
+          ]
+        },
+        "details": {"type": ["string", "null"]}
+      }
+    },
+    "violation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "contract_clause", "details"],
+      "properties": {
+        "code": {"$ref": "#/$defs/reason_code"},
+        "severity": {"enum": ["HARD", "SOFT"]},
+        "contract_clause": {"type": "string", "minLength": 1},
+        "details": {"type": "string", "minLength": 1},
+        "geometry_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "contract_validation_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_type", "schema_version", "report_id", "contract_id", "contract_hash",
+        "render", "validator", "validation_policy_version", "created_at", "observations",
+        "violations", "delivery_eligible"
+      ],
+      "properties": {
+        "object_type": {"const": "contract_validation_report"},
+        "schema_version": {"const": "1.0.0-draft"},
+        "report_id": {"type": "string", "minLength": 1},
+        "contract_id": {"type": "string", "minLength": 1},
+        "contract_hash": {"$ref": "#/$defs/sha256"},
+        "render": {
+          "allOf": [
+            {"$ref": "#/$defs/artifact_binding"},
+            {"properties": {"artifact_type": {"const": "render"}}}
+          ]
+        },
+        "validator": {"$ref": "#/$defs/producer"},
+        "validation_policy_version": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"},
+        "observations": {"type": "array", "items": {"$ref": "#/$defs/observation"}, "minItems": 1},
+        "violations": {"type": "array", "items": {"$ref": "#/$defs/violation"}},
+        "delivery_eligible": {"type": "boolean"},
+        "legacy_projection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hard_fail": {"type": "boolean"},
+            "reason": {"type": ["string", "null"]}
+          }
+        },
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"delivery_eligible": {"const": true}}},
+          "then": {
+            "properties": {
+              "observations": {
+                "minItems": 12,
+                "allOf": [
+                  {"contains": {"type": "object", "properties": {"code": {"const": "CONTRACT_BINDING_VALID"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "RENDER_GEOMETRY_AVAILABLE"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "DOOR_PRESERVED"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "PASSAGE_PRESERVED"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "CAMERA_AXIS_PRESERVED"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "WALLS_PRESERVED"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "WINDOWS_PRESERVED"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "WALKWAY_CLEAR"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "DOOR_CLEAR"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "SOFA_ENTRANCE_RELATION_VALID"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "SOFA_TV_AXIS_VALID"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}},
+                  {"contains": {"type": "object", "properties": {"code": {"const": "TV_WALL_CONTACT_VALID"}, "status": {"const": "PASS"}}, "required": ["code", "status"]}}
+                ]
+              },
+              "violations": {
+                "not": {
+                  "contains": {
+                    "type": "object",
+                    "properties": {"severity": {"const": "HARD"}},
+                    "required": ["severity"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"delivery_eligible": {"const": false}}},
+          "then": {"properties": {"violations": {"minItems": 1}}}
+        }
+      ]
+    },
+    "reconciliation_mismatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "details"],
+      "properties": {
+        "code": {"$ref": "#/$defs/reason_code"},
+        "details": {"type": "string", "minLength": 1},
+        "geometry_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "contract_reconciliation_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_type", "schema_version", "report_id", "contract_id", "contract_hash",
+        "formal_artifact", "formal_plan_hash", "reconciler", "reconciliation_policy_version",
+        "created_at", "consistent", "mismatches", "binding_eligible"
+      ],
+      "properties": {
+        "object_type": {"const": "contract_reconciliation_report"},
+        "schema_version": {"const": "1.0.0-draft"},
+        "report_id": {"type": "string", "minLength": 1},
+        "contract_id": {"type": "string", "minLength": 1},
+        "contract_hash": {"$ref": "#/$defs/sha256"},
+        "formal_artifact": {
+          "allOf": [
+            {"$ref": "#/$defs/artifact_binding"},
+            {
+              "properties": {
+                "artifact_type": {"enum": ["layout_guide", "mask", "formal_plan"]}
+              }
+            }
+          ]
+        },
+        "formal_plan_hash": {"$ref": "#/$defs/sha256"},
+        "reconciler": {"$ref": "#/$defs/producer"},
+        "reconciliation_policy_version": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"},
+        "consistent": {"type": "boolean"},
+        "mismatches": {"type": "array", "items": {"$ref": "#/$defs/reconciliation_mismatch"}},
+        "binding_eligible": {"type": "boolean"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"consistent": {"const": false}}},
+          "then": {
+            "properties": {
+              "mismatches": {"minItems": 1},
+              "binding_eligible": {"const": false}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"binding_eligible": {"const": true}}},
+          "then": {
+            "properties": {
+              "consistent": {"const": true},
+              "mismatches": {"maxItems": 0}
+            }
+          },
+          "else": {
+            "properties": {
+              "mismatches": {"minItems": 1}
+            }
+          }
+        }
+      ]
+    }
+  }
+}
