@@ -1637,6 +1637,27 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
                         red, max(3, W // 600), cv2.LINE_AA)
 
         entrance_point = _mark_entrance(plan["door_clear"])
+
+        def _door_keep_clear(rect):
+            # door_clear 由門框 bbox 直接推得（非地面投影），且 planner 已保證
+            # sofa/tv 目標框不與它相交——畫成紅色禁區不會與綠/藍框自打架。
+            # 標題寫「KEEP ALL RED ZONES EMPTY」卻沒畫紅區＝模型看不見門邊禁區，
+            # 電視櫃因此一再貼門（10AAED25 主視角 gap 0 教訓）。
+            if not rect:
+                return
+            x0, y0, x1, y1 = [int(v) for v in rect]
+            red = (50, 50, 230)
+            overlay = img.copy()
+            cv2.rectangle(overlay, (x0, y0), (x1, y1), red, -1)
+            cv2.addWeighted(overlay, 0.20, img, 0.80, 0, img)
+            cv2.rectangle(img, (x0, y0), (x1, y1), red,
+                          max(6, W // 320), cv2.LINE_AA)
+            cv2.putText(img, "RED DOOR ZONE - NO FURNITURE",
+                        (x0 + 12, min(H - 25, y1 - 30)),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.7, W / 1700),
+                        red, max(3, W // 600), cv2.LINE_AA)
+
+        _door_keep_clear(plan["door_clear"])
         # auto 的 walkway/no-go bbox 是地面投影，與牆邊家具視覺框會在透視圖上假重疊；
         # 不畫成 binding 紅框，避免同一 guide 同時要求「放這裡」與「這裡禁放」。
         if not str(plan.get("mode") or "").startswith("auto_"):

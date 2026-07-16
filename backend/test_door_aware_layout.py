@@ -449,7 +449,9 @@ class DoorAwareLayoutTests(unittest.TestCase):
             # 必須同時有紅色禁區、綠色沙發框與藍色 TV 框。
             px = image.astype(np.int16)
             reddish = (px[:, :, 2] > px[:, :, 1] + 45) & (px[:, :, 2] > px[:, :, 0] + 45)
-            self.assertGreater(int(reddish.sum()), 100)
+            # >100 連 ENTRANCE 箭頭細線都能混過；門邊禁區實心紅框的邊線
+            # 至少貢獻數千像素——沒畫紅框就該當掉（10AAED25 貼門教訓）。
+            self.assertGreater(int(reddish.sum()), 5000)
             greenish = (px[:, :, 1] > px[:, :, 0] + 35) & (px[:, :, 1] > px[:, :, 2] + 35)
             blueish = (px[:, :, 0] > px[:, :, 1] + 45) & (px[:, :, 0] > px[:, :, 2] + 45)
             self.assertGreater(int(greenish.sum()), 250)
