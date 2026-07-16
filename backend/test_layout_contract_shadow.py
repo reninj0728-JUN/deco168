@@ -175,6 +175,32 @@ class LayoutContractShadowTests(unittest.TestCase):
             self.assertFalse(full_v1["legacy_inputs"]["legacy_bbox_binding_verified"])
             self.assertFalse(any(g.get("status") == "available" for g in full_v1["geometry"]))
 
+    def test_v1_bbox_not_mapped_when_image_paths_has_sparse_slot_before_photo(self):
+        """best_photo_index 必須套原始陣列；不得先濾空值再重排 index。"""
+        photo = FIXTURES / "E72F4ADB.jpg"
+        payload = json.loads((FIXTURES / "E72F4ADB.json").read_text(encoding="utf-8"))
+        z2 = dict(payload["zoning_v2"])
+        z2["best_photo_index"] = 0
+        with tempfile.TemporaryDirectory() as td:
+            summary = api._run_layout_contract_shadow(
+                job_id="V1SPARSEPATHS",
+                job_dir=Path(td),
+                photo_path=str(photo),
+                view_index=0,
+                zoning_result=None,
+                user_zoning_v2=z2,
+                analysis={},
+                sofa_mode="free",
+                can_float=False,
+                image_paths=[None, str(photo)],
+            )
+            v1 = summary.get("contract_v1") or {}
+            self.assertEqual(v1.get("status"), "ok")
+            self.assertFalse(v1.get("legacy_bbox_binding_verified"))
+            full_v1 = json.loads(Path(v1["contract_json"]).read_text(encoding="utf-8"))
+            self.assertIn("MISSING_PHOTO_BINDING", full_v1["decision"]["unsafe_codes"])
+            self.assertFalse(any(g.get("status") == "available" for g in full_v1["geometry"]))
+
     def test_v1_bbox_not_mapped_without_image_paths(self):
         """缺 image_paths 時不得因「有 user_zoning」就當 binding verified。"""
         photo = FIXTURES / "E72F4ADB.jpg"

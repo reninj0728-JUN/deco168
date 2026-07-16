@@ -1972,7 +1972,8 @@ def _run_layout_contract_shadow(
         payload = _zoning_payload_for_layout_contract(zoning_result, user_zoning_v2)
         # S1｜bbox 只屬於 best_photo。沒有完整 image_paths 可比對 → 預設未驗證（fail closed）。
         _bind_src = user_zoning_v2 if isinstance(user_zoning_v2, dict) else payload
-        _paths_for_bind = [p for p in (image_paths or []) if p]
+        # best_photo_index 綁定原始陣列位置；不得濾空值或重排 index。
+        _paths_for_bind = list(image_paths or [])
         legacy_bbox_binding_verified = bool(
             _paths_for_bind
             and _zoning_bbox_matches_source(photo_path, _paths_for_bind, _bind_src)

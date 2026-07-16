@@ -101,6 +101,7 @@ legacy_bbox_binding_verified =
 - 只有`user_zoning_v2`存在就當 verified
 - 只有`best_photo_index`是 int 就 map bbox
 - 缺`image_paths`時預設 true
+- 在套用`best_photo_index`前filter空值或重排`image_paths`
 
 沒有合法legacy門bbox時再加
 
