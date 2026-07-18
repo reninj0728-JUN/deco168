@@ -3,6 +3,7 @@
 這是商業化的 CI 基線：任何人改了 furniture_match.py 或目錄資料，
 跑 `pytest backend/ -q` 就能在 push 前抓到「配對爆掉 / 目錄壞掉」。
 """
+import inspect
 import json
 from pathlib import Path
 
@@ -206,6 +207,15 @@ def test_spatial_fidelity_is_hard_fail_flag():
     """spatial_fidelity_fail 必須在硬傷清單，否則閘門形同虛設。"""
     import gemini_analyze as ga
     assert "spatial_fidelity_fail" in ga.HARD_FAIL_FLAGS
+
+
+def test_guide_overlay_is_explicit_production_hard_fail():
+    import gemini_analyze as ga
+
+    source = inspect.getsource(ga.validate_render)
+    assert "guide_overlay_present" in ga.HARD_FAIL_FLAGS
+    assert '"guide_overlay_present": bool' in source
+    assert "紅、綠、藍、黃色" in source
 
 
 def test_no_bunk_bed_in_bedroom(catalog):
@@ -729,7 +739,7 @@ def test_layout_guide_pipeline_wiring():
     assert "GREEN SOFA TARGET" in inputs["prompt"]
     assert "BLUE TV / MEDIA-CONSOLE TARGET" in inputs["prompt"]
     assert "shared cross-room centreline is binding" in inputs["prompt"]
-    assert "Do NOT copy boxes" in inputs["prompt"]
+    assert "ZERO red, green, blue, or yellow guide" in inputs["prompt"]
     # 沒帶 guide → prompt 無圖例段（不影響原行為）
     inputs2 = pb.build_nano_banana_inputs(entry, None, "https://x/room.jpg")
     assert "LAYOUT GUIDE" not in inputs2["prompt"]

@@ -1,6 +1,6 @@
 # DECO168 FastAPI Backend
 # 啟動: cd backend && python3.11 -m uvicorn api:app --reload --port 8000
-import os, re, sys, json, uuid, shutil, traceback
+import os, re, sys, json, uuid, shutil, traceback, hashlib
 
 # 清除環境變數可能的換行符（Railway 有時會多帶 \n）
 for _k in ("FAL_KEY", "GEMINI_API_KEY", "GOOGLE_AI_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
@@ -528,20 +528,32 @@ def _full_frame_3_2_crop_box(W: int, H: int,
     return (x0, 0, x0 + need_w, H)
 
 
+def _source_file_sha256(path: str | Path) -> str:
+    h = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def _zoning_bbox_matches_source(source_path: str, image_paths: list,
                                  zoning: dict | None) -> bool:
-    """zoning bbox 只屬於 best_photo_index 指向的那張原圖。"""
+    """Bind S2 geometry to the exact source bytes; array indexes are not evidence."""
     if not source_path or not image_paths or not isinstance(zoning, dict):
         return False
-    idx = zoning.get("best_photo_index")
-    if not isinstance(idx, int) or not (0 <= idx < len(image_paths)):
+    binding = zoning.get("_source_binding")
+    if not isinstance(binding, dict):
+        return False
+    expected_key = canonical_photo_key(binding.get("photo_key"))
+    expected_sha = str(binding.get("sha256") or "").strip().lower()
+    if not expected_key or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
         return False
     try:
-        src = os.path.normcase(os.path.abspath(str(source_path)))
-        truth = os.path.normcase(os.path.abspath(str(image_paths[idx])))
-        return src == truth
+        source = Path(source_path).resolve()
+        allowed = {Path(item).resolve() for item in image_paths if isinstance(item, str)}
+        return source in allowed and source.is_file() and _source_file_sha256(source) == expected_sha
     except Exception:
-        return str(source_path) == str(image_paths[idx])
+        return False
 
 
 def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
@@ -1209,7 +1221,8 @@ def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
     if (room_type or "living") != "living":
         return None
     if not (v.get("sofa_facing_entrance_door") is True
-            or v.get("focal_anchor_misaligned_with_sofa") is True):
+            or v.get("focal_anchor_misaligned_with_sofa") is True
+            or v.get("furniture_blocks_door") is True):
         return None
     if v.get("focal_anchor_past_door_in_depth") is not True:
         return None
@@ -1225,6 +1238,248 @@ def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
         return None
     path = str(r.get("render_path") or "")
     return path if path and Path(path).exists() else None
+
+
+def _s2_door_clearance_shift_px(validation: dict | None, width: int, sofa_side: str) -> int:
+    boxes = (validation or {}).get("render_bboxes") or {}
+    sofa = boxes.get("sofa")
+    door = boxes.get("entrance_door")
+    if (not isinstance(sofa, list) or len(sofa) != 4
+            or not isinstance(door, list) or len(door) != 4):
+        return 0
+    _, sofa_x0, _, sofa_x1 = [float(value) for value in sofa]
+    _, door_x0, _, door_x1 = [float(value) for value in door]
+    door_width = max(0.0, door_x1 - door_x0)
+    if sofa_side == "left":
+        current_gap = sofa_x0 - door_x1
+        shift_norm = max(0.0, 0.25 * door_width - current_gap) + 10.0
+        return round(shift_norm * width / 1000.0)
+    current_gap = door_x0 - sofa_x1
+    shift_norm = max(0.0, 0.25 * door_width - current_gap) + 10.0
+    return -round(shift_norm * width / 1000.0)
+
+
+def _s2_repair_target_box(
+    validation: dict | None,
+    width: int,
+    height: int,
+    sofa_side: str,
+    contract_target_points: list[tuple[float, float]],
+    compact_entry_mode: bool = False,
+) -> tuple[int, int, int, int] | None:
+    sofa = ((validation or {}).get("render_bboxes") or {}).get("sofa")
+    if not isinstance(sofa, list) or len(sofa) != 4 or not contract_target_points:
+        return None
+    sy0, sx0, sy1, sx1 = [float(value) for value in sofa]
+    old_x0, old_y0 = sx0 * width / 1000.0, sy0 * height / 1000.0
+    old_x1, old_y1 = sx1 * width / 1000.0, sy1 * height / 1000.0
+    old_w, old_h = max(1.0, old_x1 - old_x0), max(1.0, old_y1 - old_y0)
+    gain = 4 if compact_entry_mode else 1
+    shift_x = _s2_door_clearance_shift_px(validation, width, sofa_side) * gain
+    target_w = old_w * 0.83
+    target_h = old_h * 0.68
+    if sofa_side == "left":
+        x0 = old_x0 + max(0, shift_x)
+        x1 = x0 + target_w
+    else:
+        x1 = old_x1 + min(0, shift_x)
+        x0 = x1 - target_w
+    # Moving deeper along a perspective wall is both horizontal and upward in image space.
+    y1 = old_y1 - height * 0.102
+    y0 = y1 - target_h
+    return (
+        max(0, round(x0)), max(0, round(y0)),
+        min(width - 1, round(x1)), min(height - 1, round(y1)),
+    )
+
+
+def _build_s2_sofa_repair_guide(
+    previous_render_path: str,
+    contract_path: str,
+    output_path: str,
+    validation: dict | None = None,
+    compact_entry_mode: bool = False,
+) -> str | None:
+    """Overlay immutable Contract targets on the previous furnished render for local sofa repair."""
+    try:
+        from PIL import Image, ImageDraw
+
+        previous = Path(previous_render_path)
+        contract_file = Path(contract_path)
+        if not previous.is_file() or not contract_file.is_file():
+            return None
+        contract = json.loads(contract_file.read_text(encoding="utf-8"))
+        chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+        chosen = next(
+            (item for item in contract.get("candidates") or []
+             if item.get("candidate_id") == chosen_id),
+            None,
+        )
+        if not chosen:
+            return None
+        geometry = {
+            item.get("geometry_id"): item for item in contract.get("geometry") or []
+            if isinstance(item, dict)
+        }
+
+        def _coords(geometry_id):
+            return ((geometry.get(geometry_id) or {}).get("shape") or {}).get("coordinates")
+
+        sofa = _coords(chosen.get("sofa_footprint_geometry_id"))
+        tv = _coords(chosen.get("tv_footprint_geometry_id"))
+        axis = _coords(chosen.get("view_axis_geometry_id"))
+        landing_item = next(
+            (item for item in contract.get("geometry") or []
+             if item.get("kind") == "entrance_landing"),
+            None,
+        )
+        landing = ((landing_item or {}).get("shape") or {}).get("coordinates")
+        if not sofa or not tv or not axis or not landing:
+            return None
+        source_size = contract.get("source", {}).get("size") or {}
+        source_w = float(source_size.get("width") or 0)
+        source_h = float(source_size.get("height") or 0)
+        if source_w <= 0 or source_h <= 0:
+            return None
+        with Image.open(previous) as opened:
+            image = opened.convert("RGBA")
+        sx, sy = image.width / source_w, image.height / source_h
+
+        def _pts(points):
+            return [(round(float(x) * sx), round(float(y) * sy)) for x, y in points]
+
+        overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay, "RGBA")
+        landing_pts = _pts(landing)
+        sofa_pts = _pts(sofa)
+        tv_pts = _pts(tv)
+        axis_pts = _pts(axis)
+        draw.polygon(landing_pts, fill=(220, 25, 25, 125))
+        draw.line(landing_pts + [landing_pts[0]], fill=(240, 20, 20, 255), width=5)
+        sofa_side = next(
+            (str(note).split("=", 1)[1] for note in chosen.get("notes") or []
+             if str(note).startswith("sofa_side=")),
+            "",
+        )
+        shift_x = _s2_door_clearance_shift_px(validation, image.width, sofa_side)
+        sofa_pts = [(max(0, min(image.width - 1, x + shift_x)), y) for x, y in sofa_pts]
+        current_sofa = ((validation or {}).get("render_bboxes") or {}).get("sofa")
+        if isinstance(current_sofa, list) and len(current_sofa) == 4:
+            sy0, sx0, sy1, sx1 = [float(value) for value in current_sofa]
+            old_box = [
+                (round(sx0 * image.width / 1000), round(sy0 * image.height / 1000)),
+                (round(sx1 * image.width / 1000), round(sy1 * image.height / 1000)),
+            ]
+            draw.rectangle(old_box, fill=(220, 25, 25, 115), outline=(240, 20, 20, 255), width=5)
+        target_box = _s2_repair_target_box(
+            validation, image.width, image.height, sofa_side, sofa_pts,
+            compact_entry_mode=compact_entry_mode)
+        if target_box:
+            tx0, ty0, tx1, ty1 = target_box
+            sofa_pts = [(tx0, ty0), (tx1, ty0), (tx1, ty1), (tx0, ty1)]
+        draw.polygon(sofa_pts, fill=(30, 190, 80, 125))
+        draw.line(sofa_pts + [sofa_pts[0]], fill=(15, 155, 55, 255), width=6)
+        composed = Image.alpha_composite(image, overlay).convert("RGB")
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        composed.save(target, "JPEG", quality=92, optimize=True)
+        return str(target)
+    except Exception as exc:
+        print(f"[pipeline] S2 sofa repair guide failed: {type(exc).__name__}: {str(exc)[:120]}")
+        return None
+
+
+def _build_s2_sofa_edit_mask(
+    previous_render_path: str,
+    contract_path: str,
+    validation: dict | None,
+    output_path: str,
+    compact_entry_mode: bool = False,
+) -> str | None:
+    """Build RGBA mask: transparent sofa corridor, opaque architecture and entrance door."""
+    try:
+        from PIL import Image, ImageDraw
+
+        previous = Path(previous_render_path)
+        contract_file = Path(contract_path)
+        boxes = (validation or {}).get("render_bboxes") or {}
+        sofa_box = boxes.get("sofa")
+        door_box = boxes.get("entrance_door")
+        if (not previous.is_file() or not contract_file.is_file()
+                or not isinstance(sofa_box, list) or len(sofa_box) != 4
+                or not isinstance(door_box, list) or len(door_box) != 4):
+            return None
+        contract = json.loads(contract_file.read_text(encoding="utf-8"))
+        chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+        chosen = next((item for item in contract.get("candidates") or []
+                       if item.get("candidate_id") == chosen_id), None)
+        geometry = {item.get("geometry_id"): item for item in contract.get("geometry") or []
+                    if isinstance(item, dict)}
+        target_shape = ((geometry.get((chosen or {}).get("sofa_footprint_geometry_id")) or {})
+                        .get("shape") or {}).get("coordinates")
+        source_size = (contract.get("source") or {}).get("size") or {}
+        source_w = float(source_size.get("width") or 0)
+        source_h = float(source_size.get("height") or 0)
+        if not target_shape or source_w <= 0 or source_h <= 0:
+            return None
+        with Image.open(previous) as opened:
+            width, height = opened.size
+        sy0, sx0, sy1, sx1 = [float(value) for value in sofa_box]
+        target_points = [(float(x) * width / source_w, float(y) * height / source_h)
+                         for x, y in target_shape]
+        sofa_side = next(
+            (str(note).split("=", 1)[1] for note in (chosen or {}).get("notes") or []
+             if str(note).startswith("sofa_side=")),
+            "",
+        )
+        shift_x = _s2_door_clearance_shift_px(validation, width, sofa_side)
+        target_points = [(max(0, min(width - 1, x + shift_x)), y) for x, y in target_points]
+        current_x0, current_y0 = sx0 * width / 1000.0, sy0 * height / 1000.0
+        current_x1, current_y1 = sx1 * width / 1000.0, sy1 * height / 1000.0
+        target_box = _s2_repair_target_box(
+            validation, width, height, sofa_side, target_points,
+            compact_entry_mode=compact_entry_mode)
+        if not target_box:
+            return None
+        pad_x, pad_y = width * 0.006, height * 0.035
+        old_edit_box = (
+            max(0, int(current_x0 - pad_x)), max(0, int(current_y0 - pad_y)),
+            min(width, int(current_x1 + pad_x)), min(height, int(current_y1 + pad_y)),
+        )
+        tx0, ty0, tx1, ty1 = target_box
+        target_edit_box = (
+            max(0, int(tx0 - pad_x)), max(0, int(ty0 - pad_y)),
+            min(width, int(tx1 + pad_x)), min(height, int(ty1 + pad_y)),
+        )
+        mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+        draw = ImageDraw.Draw(mask, "RGBA")
+        draw.rectangle(old_edit_box, fill=(0, 0, 0, 0))
+        draw.rectangle(target_edit_box, fill=(0, 0, 0, 0))
+        dy0, dx0, dy1, dx1 = [float(value) for value in door_box]
+        door_pad_x, door_pad_y = width * 0.008, height * 0.008
+        locked_door = (
+            max(0, int(dx0 * width / 1000.0 - door_pad_x)),
+            max(0, int(dy0 * height / 1000.0 - door_pad_y)),
+            min(width, int(dx1 * width / 1000.0 + door_pad_x)),
+            min(height, int(dy1 * height / 1000.0 + door_pad_y)),
+        )
+        draw.rectangle(locked_door, fill=(0, 0, 0, 255))
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        mask.save(target, "PNG")
+        return str(target)
+    except Exception as exc:
+        print(f"[pipeline] S2 sofa edit mask failed: {type(exc).__name__}: {str(exc)[:120]}")
+        return None
+
+
+def _clear_s2_retry_edit_artifacts(entry: dict) -> None:
+    """Clear only dynamic S2 retry artifacts before selecting a new edit base."""
+    if entry.get("_s2_retry_artifacts_active") is not True:
+        return
+    entry.pop("_edit_mask_path", None)
+    entry.pop("_consistency_ref_path", None)
+    entry.pop("_s2_retry_artifacts_active", None)
 
 
 def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
@@ -1865,8 +2120,12 @@ def _activate_pair_alignment_edit(validation: dict | None, render: dict | None,
     guide = _build_pair_alignment_guide_image(str(base), job_dir, idx, v)
     if not guide:
         return None
-    e["_layout_guide"] = guide
-    e["_layout_guide_mode"] = "pair_alignment"
+    if e.get("_layout_contract_s2_required") is True:
+        e["_consistency_ref_path"] = guide
+        e["_s2_retry_artifacts_active"] = True
+    else:
+        e["_layout_guide"] = guide
+        e["_layout_guide_mode"] = "pair_alignment"
     return str(base)
 
 
@@ -2108,6 +2367,246 @@ def _run_layout_contract_shadow(
             "reason": f"{type(e).__name__}: {str(e)[:160]}",
             "affects_delivery": False,
         }
+
+
+def _image_edit_retry_enabled(renders: list[dict] | None) -> bool:
+    if os.environ.get("USE_NANO_BANANA", "0").strip() == "1":
+        return True
+    return any(
+        isinstance(render, dict)
+        and render.get("_layout_contract_s2_required") is True
+        for render in (renders or [])
+    )
+
+
+def _sync_s2_candidate_sides(zoning_result: dict | None, contract: dict | None) -> dict:
+    if not isinstance(zoning_result, dict) or not isinstance(contract, dict):
+        return {}
+    chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+    chosen = next(
+        (
+            candidate for candidate in (contract.get("candidates") or [])
+            if isinstance(candidate, dict) and candidate.get("candidate_id") == chosen_id
+        ),
+        None,
+    )
+    if not chosen:
+        return {}
+    values = {}
+    for note in chosen.get("notes") or []:
+        if not isinstance(note, str) or "=" not in note:
+            continue
+        key, value = note.split("=", 1)
+        if key in {"sofa_side", "tv_side"}:
+            values[key] = value.strip().lower()
+    sofa_side = values.get("sofa_side")
+    tv_side = values.get("tv_side")
+    if sofa_side not in {"left", "right", "free"} or tv_side not in {"left", "right"}:
+        return {}
+    rules = zoning_result.get("furniture_placement_rules")
+    if not isinstance(rules, dict):
+        rules = {}
+        zoning_result["furniture_placement_rules"] = rules
+    zoning_result["_sofa_layout"] = sofa_side
+    rules["sofa_side"] = sofa_side
+    rules["tv_side"] = tv_side
+    return {"sofa_side": sofa_side, "tv_side": tv_side}
+
+
+def _s2_compact_entry_mode(zoning_result: dict | None, contract: dict | None) -> bool:
+    """Enable the compact recipe when a B wall-sofa shares the entrance side."""
+    if not isinstance(zoning_result, dict) or not isinstance(contract, dict):
+        return False
+    chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+    chosen = next(
+        (candidate for candidate in (contract.get("candidates") or [])
+         if isinstance(candidate, dict) and candidate.get("candidate_id") == chosen_id),
+        None,
+    )
+    if not chosen or chosen.get("candidate_type") != "B":
+        return False
+    sofa_side = ""
+    for note in chosen.get("notes") or []:
+        if isinstance(note, str) and note.startswith("sofa_side="):
+            sofa_side = note.split("=", 1)[1].strip().lower()
+            break
+    entrance_side = str(zoning_result.get("_entrance_side") or "").strip().lower()
+    return bool(sofa_side in {"left", "right"} and sofa_side == entrance_side)
+
+
+def _layout_contract_s2_enabled() -> bool:
+    """S2 is opt-in until real-photo SAFE/BLOCKED calibration is complete."""
+    return os.environ.get("LAYOUT_CONTRACT_S2", "0").strip() == "1"
+
+
+def _run_layout_contract_s2(
+    *,
+    job_id: str,
+    job_dir: Path,
+    photo_path: str,
+    view_index: int,
+    user_zoning_v2: dict | None,
+    legacy_zoning: dict | None,
+    sofa_mode: str,
+    image_paths: list | None,
+    geometry_verifier=None,
+    floor_reference_estimator=None,
+) -> tuple[dict, dict]:
+    """Build authoritative S2 Contract + guide + reconciliation, fail closed."""
+    out_dir = Path(job_dir) / "layout_contract_s2"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    artifacts = {
+        "eligible": False,
+        "contract_path": None,
+        "contract_sha256": None,
+        "guide_path": None,
+        "guide_sha256": None,
+        "reconciliation_path": None,
+        "reconciliation_sha256": None,
+        "verification_path": None,
+        "verification_sha256": None,
+        "contract": None,
+    }
+    try:
+        import layout_contract_v1 as lcv1
+        import layout_geometry_s2 as lgs2
+        import layout_geometry_verifier_s2 as lgvs2
+        import layout_preflight_s2 as lps2
+        from PIL import Image, ImageOps
+
+        photo = Path(photo_path)
+        if not photo.is_file():
+            raise FileNotFoundError(str(photo))
+        with Image.open(photo) as image:
+            width, height = ImageOps.exif_transpose(image).size
+        zoning = user_zoning_v2 if isinstance(user_zoning_v2, dict) else {}
+        raw_struct = zoning.get("struct_geometry_v1")
+        mode = str(sofa_mode or "free").strip().lower()
+        if mode not in ("left", "right", "free"):
+            mode = "free"
+        _best_index = zoning.get("best_photo_index")
+        expected_source_index = (
+            _best_index if isinstance(_best_index, int) and not isinstance(_best_index, bool)
+            else view_index
+        )
+        tag = f"{job_id}_v{view_index:02d}_{mode}"
+        plan = lgs2.build_s2_plan(
+            raw_struct,
+            width=int(width),
+            height=int(height),
+            expected_source_photo_index=int(expected_source_index),
+            sofa_side=mode,
+        )
+        paths = list(image_paths or [])
+        binding_verified = bool(
+            paths and _zoning_bbox_matches_source(str(photo), paths, zoning)
+        )
+        verified_guide = None
+        if binding_verified and plan.get("pre_generation_eligible") is True:
+            verifier_result = lgvs2.verify_and_replan_s2(
+                raw_geometry=raw_struct,
+                photo_path=photo,
+                output_dir=out_dir / f"verification_{tag}",
+                expected_source_photo_index=int(expected_source_index),
+                sofa_side=mode,
+                verifier=geometry_verifier or lgvs2.verify_s2_guide_gemini,
+                floor_reference_estimator=floor_reference_estimator,
+            )
+            plan = verifier_result["plan"]
+            verified_guide = verifier_result.get("guide_artifact")
+            verification_path = out_dir / f"geometry_verification_s2_{tag}.json"
+            verification_path.write_text(
+                json.dumps({
+                    "verification": plan.get("geometry_verification"),
+                    "history": verifier_result.get("verification_history") or [],
+                }, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            artifacts["verification_path"] = str(verification_path)
+            artifacts["verification_sha256"] = _source_file_sha256(verification_path)
+        source_binding = zoning.get("_source_binding") if isinstance(zoning, dict) else {}
+        bound_photo_key = (
+            str((source_binding or {}).get("photo_key") or "").strip()
+            if binding_verified else ""
+        )
+        contract = lcv1.build_layout_contract_s2(
+            job_id=job_id,
+            photo_path=photo,
+            photo_key=bound_photo_key or canonical_photo_key(str(photo)) or photo.name,
+            view_index=view_index,
+            s2_plan=plan,
+            photo_binding_verified=binding_verified,
+            legacy_zoning=legacy_zoning,
+            legacy_shadow=None,
+        )
+        artifacts["contract"] = contract
+        contract_path = out_dir / f"contract_v1_s2_{tag}.json"
+        contract_path.write_text(
+            json.dumps(contract, ensure_ascii=False, indent=2), encoding="utf-8",
+        )
+        artifacts["contract_path"] = str(contract_path)
+        artifacts["contract_sha256"] = _source_file_sha256(contract_path)
+
+        decision = contract.get("decision") or {}
+        eligible = bool(
+            binding_verified
+            and decision.get("disposition") == "SAFE_FOR_GENERATION"
+            and decision.get("pre_generation_eligible") is True
+            and (plan.get("geometry_verification") or {}).get("status") == "pass"
+            and (plan.get("geometry_verification") or {}).get("unsafe_codes") == []
+            and (plan.get("transverse_reference") or {}).get("status") == "observed"
+            and bool(artifacts.get("verification_path"))
+            and isinstance(verified_guide, dict)
+        )
+        if eligible:
+            guide = verified_guide
+            reconciliation_path = out_dir / f"reconciliation_s2_{tag}.json"
+            lps2.write_reconciliation_report(
+                contract=contract,
+                guide_artifact=guide,
+                verification_artifact_path=artifacts["verification_path"],
+                out_path=reconciliation_path,
+            )
+            artifacts.update({
+                "eligible": True,
+                "guide_path": guide["path"],
+                "guide_sha256": guide["sha256"],
+                "reconciliation_path": str(reconciliation_path),
+                "reconciliation_sha256": _source_file_sha256(reconciliation_path),
+            })
+
+        summary = {
+            "view_index": view_index,
+            "photo": photo.name,
+            "status": "safe" if eligible else "blocked",
+            "contract_v1_disposition": decision.get("disposition"),
+            "pre_generation_eligible": bool(decision.get("pre_generation_eligible")),
+            "unsafe_codes": list(decision.get("unsafe_codes") or []),
+            "contract_id": (contract.get("version_chain") or {}).get("contract_id"),
+            "contract_hash": (contract.get("version_chain") or {}).get("contract_hash"),
+            "contract_json": str(contract_path),
+            "guide_path": artifacts["guide_path"],
+            "reconciliation_path": artifacts["reconciliation_path"],
+            "photo_binding_verified": binding_verified,
+            "affects_delivery": True,
+        }
+        print(
+            f"[pipeline] layout_contract S2[{view_index}] status={summary['status']} "
+            f"disp={summary['contract_v1_disposition']} bind={binding_verified} "
+            f"candidate={decision.get('chosen_candidate_id')}"
+        )
+        return summary, artifacts
+    except Exception as error:
+        print(f"[pipeline] layout_contract S2 fail-closed: {type(error).__name__}: {error}")
+        return ({
+            "view_index": view_index,
+            "status": "blocked",
+            "contract_v1_disposition": "BLOCKED",
+            "pre_generation_eligible": False,
+            "unsafe_codes": ["S2_PIPELINE_ERROR"],
+            "reason": f"{type(error).__name__}: {str(error)[:180]}",
+            "affects_delivery": True,
+        }, artifacts)
 
 
 def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
@@ -3024,8 +3523,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     living_bbox=_living_bbox_crop,
                 )
 
-        # ── Phase0 格局契約 shadow（只記錄，不擋生圖、不改交付）──
+        # ── S2 authoritative geometry Contract；flag off 時保留 S1 shadow ──
         layout_contract_shadows: list[dict] = []
+        layout_contract_artifacts: dict[int, dict] = {}
+        _s2_enabled = _layout_contract_s2_enabled()
         try:
             _sofa_mode_shadow = _guide_sofa_side(zoning_result)
             _can_float_shadow = bool(
@@ -3039,12 +3540,41 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             for _vi, (_bp, _rt) in enumerate(zip(flux_bases, angle_room_types)):
                 if _rt != "living":
                     continue
-                # 優先用裁切前原圖做契約（門／牆腳完整）；沒有就用當前底圖
-                _shadow_photo = uncropped_bases.get(_vi) or crop_source_paths[_vi] or _bp
-                # 照片來源綁定（Hermes 洞③）：zoning bbox 只屬於 best_photo 那張，
-                # 不得跨照片套座標——guide 路徑已有此護欄，shadow 補上同一條。
+                # S2 只在未裁切、包含大門與完整牆腳的原圖座標工作。
+                _contract_photo = uncropped_bases.get(_vi) or crop_source_paths[_vi] or _bp
+                if _s2_enabled:
+                    _sum, _artifacts = _run_layout_contract_s2(
+                        job_id=job_id,
+                        job_dir=job_dir,
+                        photo_path=_contract_photo,
+                        view_index=_vi,
+                        user_zoning_v2=user_zoning_v2,
+                        legacy_zoning=zoning_result,
+                        sofa_mode=_sofa_mode_shadow,
+                        image_paths=image_paths,
+                    )
+                    layout_contract_shadows.append(_sum)
+                    layout_contract_artifacts[_vi] = _artifacts
+                    if _artifacts.get("eligible"):
+                        _sync_s2_candidate_sides(
+                            zoning_result, _artifacts.get("contract") or {})
+                        # 座標與生成底圖保持同一張原圖；禁止 crop 把門或走道藏掉。
+                        flux_bases[_vi] = _contract_photo
+                        crop_flags[_vi] = False
+                        zone_crop_flags[_vi] = False
+                        crop_notes[_vi] = "s2_bound_uncropped_source"
+                        door_excluded_flags[_vi] = False
+                        layout_guide_paths[_vi] = _artifacts["guide_path"]
+                        layout_guide_modes[_vi] = "auto_s2_contract"
+                    else:
+                        # 禁止 S2 BLOCKED 時回退到前面產生的 legacy 固定矩形 guide。
+                        layout_guide_paths.pop(_vi, None)
+                        layout_guide_modes[_vi] = "s2_blocked"
+                    continue
+
+                # S1 fallback｜只觀測，不接正式交付。
                 if user_zoning_v2 and not _zoning_bbox_matches_source(
-                        _shadow_photo, image_paths, user_zoning_v2 or {}):
+                        _contract_photo, image_paths, user_zoning_v2 or {}):
                     layout_contract_shadows.append({
                         "view_index": _vi, "status": "skipped",
                         "reason": "photo_not_zoning_best_photo",
@@ -3054,7 +3584,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 _sum = _run_layout_contract_shadow(
                     job_id=job_id,
                     job_dir=job_dir,
-                    photo_path=_shadow_photo,
+                    photo_path=_contract_photo,
                     view_index=_vi,
                     zoning_result=zoning_result,
                     user_zoning_v2=user_zoning_v2,
@@ -3066,8 +3596,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if _sum:
                     layout_contract_shadows.append(_sum)
         except Exception as _shadow_err:
-            print(f"[pipeline] layout_contract shadow 批次例外（不阻斷）: {_shadow_err}")
-            layout_contract_shadows = []
+            # S2 開啟時後續 paid preflight 仍會因缺 artifact fail closed。
+            print(f"[pipeline] layout_contract 批次例外: {_shadow_err}")
 
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
@@ -3085,6 +3615,28 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_door_excluded"] = bool(door_excluded_flags[vi])  # 大門已裁出鏡
                 copy["_layout_guide"] = layout_guide_paths.get(vi)      # 版面引導參考圖
                 copy["_layout_guide_mode"] = layout_guide_modes.get(vi, "bound")
+                _s2_artifact = layout_contract_artifacts.get(vi) or {}
+                copy["_layout_contract_s2_required"] = bool(_s2_enabled and rt == "living")
+                copy["_s2_compact_entry_mode"] = False
+                _s2_contract_path = _s2_artifact.get("contract_path")
+                if copy["_layout_contract_s2_required"] and _s2_contract_path:
+                    try:
+                        _s2_contract_data = json.loads(
+                            Path(_s2_contract_path).read_text(encoding="utf-8")
+                        )
+                        copy["_s2_compact_entry_mode"] = _s2_compact_entry_mode(
+                            zoning_result, _s2_contract_data,
+                        )
+                    except Exception:
+                        copy["_s2_compact_entry_mode"] = False
+                copy["_room_type"] = rt
+                copy["_layout_contract_s2"] = _s2_contract_path
+                copy["_layout_contract_s2_sha256"] = _s2_artifact.get("contract_sha256")
+                copy["_layout_reconciliation_s2"] = _s2_artifact.get("reconciliation_path")
+                copy["_layout_reconciliation_s2_sha256"] = _s2_artifact.get("reconciliation_sha256")
+                copy["_layout_geometry_verification_s2"] = _s2_artifact.get("verification_path")
+                copy["_layout_geometry_verification_s2_sha256"] = _s2_artifact.get("verification_sha256")
+                copy["_layout_guide_s2_sha256"] = _s2_artifact.get("guide_sha256")
                 copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 if rt == "living" and _living_alt_paths:
@@ -3240,8 +3792,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     {"ok": None, "error": "validation step crashed"},
                     r.get("room_type", "living")))
 
-        # ── Z3: 結構失敗自動重試 1 次（僅 Nano Banana）──
-        use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
+        # ── Z3: multi-image renderer 結構失敗自動重試；S2 固定 GPT Image 2 ──
+        use_image_edit_retry = _image_edit_retry_enabled(final)
         retry_n = 0
         # C2.3：高嚴重度 layout flag → 允許第 2 次 retry。一般 fail 維持 1 次。
         # 每張 render 最多 retry 2 次（總共 3 次生成）
@@ -3256,6 +3808,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "sofa_faces_walkway",
             "sofa_on_wrong_side",
             "spatial_fidelity_fail",     # 2A520C25：整間房被重畫成別的空間
+            "guide_overlay_present",     # S2 guide 色線／色塊滲入正式成品
             "product_sofa_seating_mismatch",  # 1FC382CA：清單單人圖上雙人
             "product_visibility_fail",   # 50873CF0：清單商品圖上沒畫/畫成別件
             "sofa_facing_entrance_door",  # 1A3B0C68：沙發視線正對大門
@@ -3300,7 +3853,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     pass
             return ctx or None
 
-        if use_nano:
+        if use_image_edit_retry:
             failed_stage = "z3_retry"
             last_progress = 92
             # C2.6: anchored 白名單測試 retry 上限 = 1, legacy 維持 2
@@ -3337,6 +3890,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # 6DA08412 後：翻面已是門在長牆的「預設」佈局（見 prompt_builder
                     # DOOR-ON-A-LONG-WALL LAYOUT），不再需要重試才升級。
                     # 客廳保真失敗 → 優先換另一張 living 底圖（比同圖乾抽更穩、不失真）
+                    _clear_s2_retry_edit_artifacts(entry)
                     base_for_gen = entry["_base_path"]
                     pair_alignment_base = _activate_pair_alignment_edit(
                         v, r, entry, str(job_dir), idx)
@@ -3356,6 +3910,27 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["sofa_alignment_edit"] = True
                         base_for_gen = alignment_base
+                        if entry.get("_layout_contract_s2_required") is True:
+                            repair_guide = _build_s2_sofa_repair_guide(
+                                alignment_base,
+                                entry.get("_layout_contract_s2") or "",
+                                str(Path(job_dir) / f"guide_s2_sofa_repair_{idx:02d}_{current_rc + 1}.jpg"),
+                                validation=v,
+                                compact_entry_mode=entry.get("_s2_compact_entry_mode") is True,
+                            )
+                            if repair_guide:
+                                entry["_consistency_ref_path"] = repair_guide
+                            edit_mask = _build_s2_sofa_edit_mask(
+                                alignment_base,
+                                entry.get("_layout_contract_s2") or "",
+                                v,
+                                str(Path(job_dir) / f"mask_s2_sofa_repair_{idx:02d}_{current_rc + 1}.png"),
+                                compact_entry_mode=entry.get("_s2_compact_entry_mode") is True,
+                            )
+                            if edit_mask:
+                                entry["_edit_mask_path"] = edit_mask
+                            if repair_guide or edit_mask:
+                                entry["_s2_retry_artifacts_active"] = True
                     elif (not pair_alignment_base
                           and (entry.get("_room_type") or "living") == "living"
                           and _should_try_alt_living_base(v)):
@@ -3494,6 +4069,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                       f"— {(v.get('reason') or '')[:120]}")
                 write_status(job_id, job_dir, "rendering", 93, "為未通過的風格再生成一次…")
                 failed_stage = "phase2_hardfix_generate_renders"
+                phase2_retry_seq = int(r.get("retry_count") or 0) + 1
+                _clear_s2_retry_edit_artifacts(entry)
                 base_for_gen = entry["_base_path"]
                 pair_alignment_base = _activate_pair_alignment_edit(
                     v, r, entry, str(job_dir), idx)
@@ -3509,6 +4086,27 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     retry_ctx = dict(retry_ctx or {})
                     retry_ctx["sofa_alignment_edit"] = True
                     base_for_gen = alignment_base
+                    if entry.get("_layout_contract_s2_required") is True:
+                        repair_guide = _build_s2_sofa_repair_guide(
+                            alignment_base,
+                            entry.get("_layout_contract_s2") or "",
+                            str(Path(job_dir) / f"guide_s2_sofa_repair_{idx:02d}_{phase2_retry_seq}.jpg"),
+                            validation=v,
+                            compact_entry_mode=entry.get("_s2_compact_entry_mode") is True,
+                        )
+                        if repair_guide:
+                            entry["_consistency_ref_path"] = repair_guide
+                        edit_mask = _build_s2_sofa_edit_mask(
+                            alignment_base,
+                            entry.get("_layout_contract_s2") or "",
+                            v,
+                            str(Path(job_dir) / f"mask_s2_sofa_repair_{idx:02d}_{phase2_retry_seq}.png"),
+                            compact_entry_mode=entry.get("_s2_compact_entry_mode") is True,
+                        )
+                        if edit_mask:
+                            entry["_edit_mask_path"] = edit_mask
+                        if repair_guide or edit_mask:
+                            entry["_s2_retry_artifacts_active"] = True
                 elif (not pair_alignment_base
                       and (entry.get("_room_type") or "living") == "living"
                       and _should_try_alt_living_base(v)):
@@ -4024,6 +4622,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     if not _is_hard_fail(r) or idx >= len(expanded):
                         continue
                     entry = expanded[idx]
+                    _clear_s2_retry_edit_artifacts(entry)
                     v0 = r.get("validation") or {}
                     if v0.get("validation_outage"):
                         print("[pipeline] Gemini 額度斷線（429）——跳過 Phase3 補生，不燒 fal")
@@ -4715,6 +5314,7 @@ async def api_zoning(upload_id: str = Form(...),
             print(f"[/api/zoning] photo 排序解析失敗，忽略: {_e0}")
 
     local_photos: list[Path] = []
+    local_source_keys: list[str] = []
     for i, url in enumerate(ordered_urls[:4]):
         fname = (url.rsplit("/", 1)[-1] or f"photo_{i}.jpg")
         dest = tmp_dir / fname
@@ -4737,6 +5337,7 @@ async def api_zoning(upload_id: str = Form(...),
                 continue
         if dest.exists() and dest.stat().st_size > 1024:
             local_photos.append(dest)
+            local_source_keys.append(canonical_photo_key(url))
 
     if not local_photos:
         return JSONResponse(status_code=500, content={"error": "failed to download any photo from supabase"})
@@ -4768,9 +5369,8 @@ async def api_zoning(upload_id: str = Form(...),
     if zoning.get("error"):
         return JSONResponse(status_code=500, content={"error": f"gemini zoning failed: {zoning['error']}"})
 
-    # 4. 畫 overlay
-    # #1/#5: 分區圖優先畫在使用者標「客廳(living)」那張，不要用第一張(可能是餐廳)。
-    # photo_meta_json: {檔名: target_zone}，由前端從 deco_rooms 帶來。
+    # 4. 畫 overlay。S2 座標只屬於 Gemini 選定的 best_photo_index；
+    # 使用者 living metadata 只在模型 index 無效時 fallback，不能覆蓋座標來源。
     prefer_idx = None
     if photo_meta_json:
         try:
@@ -4783,10 +5383,22 @@ async def api_zoning(upload_id: str = Form(...),
                         break
         except Exception as _e:
             print(f"[/api/zoning] photo_meta_json 解析失敗，忽略: {_e}")
-    best_idx = prefer_idx if prefer_idx is not None else zoning.get("best_photo_index", 0)
-    if prefer_idx is not None:
-        print(f"[/api/zoning] 分區圖採用使用者標的客廳照片 idx={prefer_idx}")
-    best_photo = local_photos[best_idx] if 0 <= best_idx < len(local_photos) else local_photos[0]
+    _model_best_idx = zoning.get("best_photo_index")
+    if isinstance(_model_best_idx, int) and not isinstance(_model_best_idx, bool) \
+            and 0 <= _model_best_idx < len(local_photos):
+        best_idx = _model_best_idx
+        print(f"[/api/zoning] 分區圖採用 Gemini S2 best photo idx={best_idx}")
+    else:
+        best_idx = prefer_idx if prefer_idx is not None else 0
+        print(f"[/api/zoning] 模型 best index 無效，fallback photo idx={best_idx}")
+    best_photo = local_photos[best_idx]
+    best_source_key = local_source_keys[best_idx] if best_idx < len(local_source_keys) else ""
+    if not best_source_key:
+        return JSONResponse(status_code=500, content={"error": "zoning source key missing"})
+    zoning["_source_binding"] = {
+        "photo_key": best_source_key,
+        "sha256": _source_file_sha256(best_photo),
+    }
     existing_path = tmp_dir / "z_overlay_existing.png"
     proposed_path = tmp_dir / "z_overlay_proposed.png"
     try:

@@ -2,6 +2,7 @@
 """layout contract shadow 回歸｜不呼叫生圖、不改交付。"""
 import json
 import os
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,12 +11,29 @@ from unittest import mock
 from PIL import Image
 
 import api
+import layout_contract_v1
 
 
 FIXTURES = Path(__file__).parent / "_phase0_layout_contract" / "fixtures"
 
 
 class LayoutContractShadowTests(unittest.TestCase):
+    def test_contract_source_size_uses_exif_transposed_pixel_space(self):
+        with tempfile.TemporaryDirectory() as td:
+            photo = Path(td) / "orientation6.jpg"
+            exif = Image.Exif()
+            exif[274] = 6
+            Image.new("RGB", (40, 20), "white").save(photo, exif=exif)
+            contract = layout_contract_v1.build_layout_contract(
+                job_id="EXIFTEST01",
+                photo_path=photo,
+                photo_key="orientation6.jpg",
+                view_index=0,
+                legacy_zoning=None,
+                legacy_shadow=None,
+            )
+            self.assertEqual(contract["source"]["size"], {"width": 20, "height": 40})
+
     def test_shadow_writes_summary_and_never_affects_delivery(self):
         photo = FIXTURES / "E72F4ADB.jpg"
         payload = json.loads((FIXTURES / "E72F4ADB.json").read_text(encoding="utf-8"))
@@ -29,6 +47,10 @@ class LayoutContractShadowTests(unittest.TestCase):
                 zoning_result=None,
                 user_zoning_v2=payload["zoning_v2"] | {
                     "struct_keypoints": payload.get("struct_keypoints"),
+                    "_source_binding": {
+                        "photo_key": "fixtures/E72F4ADB.jpg",
+                        "sha256": hashlib.sha256(photo.read_bytes()).hexdigest(),
+                    },
                 },
                 analysis={"space_type": "living", "room_dimensions": {"confidence": "low"}},
                 sofa_mode="free",

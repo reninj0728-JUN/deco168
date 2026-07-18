@@ -57,6 +57,42 @@ class FalResultDownloadError(Exception):
     pass
 
 
+class LayoutPreflightBlocked(Exception):
+    """S2 Contract / source / guide binding failed before paid generation."""
+    pass
+
+
+def _enforce_s2_paid_preflight(base_local_path: str, render: dict, room_type: str) -> dict:
+    globally_required = os.environ.get("LAYOUT_CONTRACT_S2", "0").strip() == "1"
+    metadata_required = render.get("_layout_contract_s2_required") is True
+    declared_room_type = str(render.get("_room_type") or "").strip().lower()
+    if metadata_required and (
+        room_type != "living"
+        or (declared_room_type and declared_room_type != "living")
+    ):
+        raise LayoutPreflightBlocked("S2_LAYOUT_PREFLIGHT_BLOCKED:ROOM_TYPE_MISMATCH")
+    if room_type != "living":
+        return {"ok": True, "reason_codes": [], "skipped": True}
+    if not (globally_required or metadata_required):
+        return {"ok": True, "reason_codes": [], "skipped": True}
+    from layout_preflight_s2 import validate_s2_preflight
+    result = validate_s2_preflight(
+        contract_path=render.get("_layout_contract_s2") or "",
+        source_path=render.get("_base_path") or base_local_path,
+        guide_path=render.get("_layout_guide") or "",
+        verification_path=render.get("_layout_geometry_verification_s2") or "",
+        reconciliation_path=render.get("_layout_reconciliation_s2") or "",
+        expected_contract_sha256=render.get("_layout_contract_s2_sha256") or "",
+        expected_reconciliation_sha256=render.get("_layout_reconciliation_s2_sha256") or "",
+        expected_guide_sha256=render.get("_layout_guide_s2_sha256") or "",
+        expected_verification_sha256=render.get("_layout_geometry_verification_s2_sha256") or "",
+    )
+    if not result.get("ok"):
+        codes = ",".join(result.get("reason_codes") or ["UNKNOWN"])
+        raise LayoutPreflightBlocked(f"S2_LAYOUT_PREFLIGHT_BLOCKED:{codes}")
+    return result
+
+
 # 秒, 涵蓋 queue + 生成 + image download。Nano Banana Pro 在尖峰常 >180s，
 # 全室一次打 8 張時逾時機率被放大→整批掉圖。拉高到 300 並可用環境變數 FAL_TIMEOUT 覆蓋。
 try:
@@ -785,6 +821,63 @@ def _save_render_jpg(img_bytes: bytes, out_path: str) -> None:
             f.write(img_bytes)
 
 
+def _resolve_generation_mode(enriched_renders: list[dict], force_anchored: bool) -> tuple[bool, bool]:
+    """S2 requires multi-image GPT Image 2; Flux and Banana anchored are both invalid."""
+    s2_force_gpt_image2 = any(
+        bool(render.get("_layout_contract_s2_required"))
+        for render in (enriched_renders or [])
+        if isinstance(render, dict)
+    )
+    use_nano = (
+        os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
+        or s2_force_gpt_image2
+    )
+    use_anchored = use_nano and not s2_force_gpt_image2 and (
+        force_anchored
+        or os.environ.get("USE_ANCHORED_MODE", "0").strip() == "1"
+    )
+    return use_nano, use_anchored
+
+
+def _resolve_render_model(render: dict | None, override: str | None = None) -> str:
+    if isinstance(render, dict) and render.get("_layout_contract_s2_required") is True:
+        return "openai/gpt-image-2/edit"
+    return (
+        override or os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit")
+    ).strip()
+
+
+def _gpt_image2_mask_data_url(render: dict | None) -> str | None:
+    if not isinstance(render, dict) or render.get("_layout_contract_s2_required") is not True:
+        return None
+    mask_path = Path(str(render.get("_edit_mask_path") or ""))
+    if mask_path.suffix.lower() != ".png" or not mask_path.is_file():
+        return None
+    encoded = base64.b64encode(mask_path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def _gpt_image2_mask_repair_prompt(reference_map: list[dict]) -> str:
+    local_index = next(
+        (item.get("index") for item in reference_map
+         if item.get("kind") == "LOCAL_REPAIR_GUIDE"),
+        3,
+    )
+    return (
+        "MASKED LOCAL SOFA REPAIR ONLY. Image #1 is the previous furnished render. "
+        f"Image #{local_index} is the same render with a RED old-sofa zone and a GREEN new-sofa "
+        "body target. Inside the transparent mask, completely erase the old sofa from the RED "
+        "zone and reconstruct the exposed wall and floor. Add exactly one compact two-seat sofa, "
+        "fully contained inside the GREEN body target, facing the existing TV. The GREEN target is "
+        "intentionally offset farther into the room to compensate for prior under-movement; follow "
+        "it exactly and do not compromise toward the old location. The new sofa must not "
+        "occupy or touch the RED old-sofa zone or the entrance landing. Preserve every pixel "
+        "outside the transparent mask: double entrance door, intercom, TV, console, coffee table, "
+        "rug, walls, ceiling, floor, lighting, camera, perspective and passage openings. Do not "
+        "redesign the room. Output a clean photorealistic image with no red, green, mask or guide."
+    )
+
+
 def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output",
                      analysis: dict | None = None, design_mode: str = "furnish",
                      zoning: dict | None = None,
@@ -814,14 +907,16 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
     customer_notes / budget_tier: Phase A 帶入 Nano Banana prompt（仍只 USE_NANO_BANANA=1 時生效）
     retry_context: C2.3 第二次 retry 用，含前次 sofa_pct / anchor_pct，附加進 prompt
     """
-    use_nano = os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
-    use_anchored = use_nano and (
-        force_anchored
-        or os.environ.get("USE_ANCHORED_MODE", "0").strip() == "1"
+    use_nano, use_anchored = _resolve_generation_mode(enriched_renders, force_anchored)
+    s2_gpt_image2 = any(
+        isinstance(render, dict) and render.get("_layout_contract_s2_required") is True
+        for render in (enriched_renders or [])
     )
 
     print(f"\n{'='*56}")
-    if use_anchored:
+    if s2_gpt_image2:
+        print("[Step 3] GPT Image 2 multi-image S2 edit")
+    elif use_anchored:
         print("[Step 3] Nano Banana Pro ANCHORED MODE（USE_NANO_BANANA=1, USE_ANCHORED_MODE=1）")
     elif use_nano:
         print("[Step 3] Nano Banana Pro 生成渲染圖（USE_NANO_BANANA=1）")
@@ -855,11 +950,39 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
 
     results = []
     for idx, render in enumerate(enriched_renders):
+        base_image_url = img_urls[idx % len(img_urls)]
+        base_local_path = image_paths[idx % len(img_urls)]
+        _guide_path = render.get("_layout_guide")
+        _bound_guide_url = None
+        if _guide_path and os.path.exists(str(_guide_path)):
+            try:
+                _bound_guide_url = _to_data_url(str(_guide_path))
+            except Exception:
+                _bound_guide_url = None
+        try:
+            _enforce_s2_paid_preflight(base_local_path, render, room_type)
+        except LayoutPreflightBlocked as preflight_error:
+            _reason = str(preflight_error)
+            print(f"  [layout-preflight-s2] BLOCKED: {_reason}")
+            results.append({
+                **render,
+                "render_path": None,
+                "error": _reason,
+                "error_type": "LayoutPreflightBlocked",
+                "validation": {
+                    "ok": False,
+                    "hard_fail": True,
+                    "spatial_fidelity_fail": True,
+                    "reason": _reason,
+                },
+                "pipeline_version": "layout-contract-s2-preflight-v1",
+                "render_mode": "preflight_blocked",
+            })
+            continue
         # AI 自動客廳若沒有有效 binding guide，代表 planner 無法證明沙發／TV
         # 能同時落在安全位置。過去仍送 FAL，造成同一錯格局反覆付費重試。
         # 每次 retry 都會再次經過本守門，因此 fail closed 不會產生任何付費呼叫。
         _guide_mode = str(render.get("_layout_guide_mode") or "")
-        _guide_path = render.get("_layout_guide")
         _guide_enabled = os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
         _has_valid_guide = bool(
             _guide_enabled and _guide_path and os.path.exists(str(_guide_path)))
@@ -888,8 +1011,6 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         style = render.get("style", "unknown")
         label = render.get("style_label", style)
         flux_prompt = render.get("flux_prompt", "")
-        base_image_url = img_urls[idx % len(img_urls)]
-        base_local_path = image_paths[idx % len(img_urls)]
         print(f"  風格 {idx+1} ({label}) 用角度: {Path(base_local_path).name}")
 
         # 家具描述（家具產品圖暫不直接傳，因為 multi endpoint 會做合成而非參考）
@@ -919,6 +1040,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 src_dims = _source_dims(base_path)
                 a_inputs = build_anchored_inputs(
                     render, base_image_url, source_dims=src_dims,
+                    layout_guide_url=_bound_guide_url,
+                    retry_context=retry_context,
                 )
                 print(f"  Nano Banana ANCHORED refs: {len(a_inputs['image_urls'])} 張 "
                       f"(prompt {len(a_inputs['prompt'])} chars, "
@@ -983,16 +1106,12 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     _cons_url = _to_data_url(str(_cons_path))
                 except Exception as _ce:
                     print(f"  [consistency] 參考圖轉換失敗，略過: {_ce}")
-            # 版面引導參考圖（用戶提案，4/4 實測）：畫了沙發/電視櫃/淨空框的底圖副本。
-            # LAYOUT_GUIDE=0 可急關；讀不到檔就靜默略過（不影響主流程）。
-            _guide_url = None
-            _gp = render.get("_layout_guide")
-            if (_gp and os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
-                    and os.path.exists(_gp)):
-                try:
-                    _guide_url = _to_data_url(_gp)
-                except Exception as _ge:
-                    print(f"  [layout-guide] 讀取失敗，略過: {_ge}")
+            # 版面引導在 preflight 前已讀成固定 data URL；檢查後只使用同一份 bytes。
+            _guide_url = (
+                _bound_guide_url
+                if os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
+                else None
+            )
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,
@@ -1005,7 +1124,9 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                                               consistency_ref_url=_cons_url,
                                               layout_guide_url=_guide_url,
                                               layout_guide_mode=render.get("_layout_guide_mode"))
-            print(f"  Nano Banana refs: {len(inputs['image_urls'])} 張 "
+            _is_s2_gpt = render.get("_layout_contract_s2_required") is True
+            _renderer_label = "GPT Image 2 S2" if _is_s2_gpt else "Nano Banana"
+            print(f"  {_renderer_label} refs: {len(inputs['image_urls'])} 張 "
                   f"(prompt {len(inputs['prompt'])} chars)")
             log_ctx = {
                 "job_id":           job_id,
@@ -1020,8 +1141,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             # RENDER_MODEL 預設 fal-ai/nano-banana-pro/edit (現況). 改為
             # openai/gpt-image-2/edit 啟用 GPT Image 2 medium 降成本.
             # 兩組 args 不同, 不能用同一份 payload 餵.
-            render_model = (render_model_override
-                            or os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit")).strip()
+            render_model = _resolve_render_model(render, render_model_override)
             if render_model == "openai/gpt-image-2/edit":
                 # gpt-image-2 傾向 auto zoom-in / 重構成 staged 室內攝影棚.
                 # 補硬性 camera constraints 鎖原圖視角 + 廣角縱深 + 前景地板.
@@ -1061,6 +1181,13 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     # 交付尺寸標準化：auto 會複製輸入圖比例（裁切框 2.3:1 → 輸出超寬圖）
                     "image_size":    _gpt_image_size_for(base_local_path),
                 }
+                _mask_url = _gpt_image2_mask_data_url(render)
+                if _mask_url:
+                    fal_args["mask_url"] = _mask_url
+                    fal_args["prompt"] = _gpt_image2_mask_repair_prompt(
+                        inputs.get("reference_map") or [])
+                    print(f"  GPT Image 2 local edit mask: enabled "
+                          f"(short prompt {len(fal_args['prompt'])} chars)")
             else:
                 fal_args = {
                     "image_urls":    inputs["image_urls"],
@@ -1086,9 +1213,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "reference_map": inputs["reference_map"],
                         "notes": inputs["notes"],
                         "unmatched_visual_items": inputs["unmatched_visual_items"],
-                        "pipeline_version": "nano-banana-v1",
+                        "pipeline_version": (
+                            "gpt-image-2-s2-v1" if _is_s2_gpt else "nano-banana-v1"
+                        ),
                         "render_model": render_model,   # 實際用的模型（banana / gpt-image-2），方便 debug
-                        "render_mode": "legacy",
+                        "render_mode": "gpt-image-2-s2" if _is_s2_gpt else "legacy",
                     })
                     _last_err = None
                     break
@@ -1131,9 +1260,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "reference_map": inputs.get("reference_map", []),
                     "notes": inputs.get("notes", ""),
                     "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
-                    "pipeline_version": "nano-banana-v1",
+                    "pipeline_version": (
+                        "gpt-image-2-s2-v1" if _is_s2_gpt else "nano-banana-v1"
+                    ),
                     "render_model": render_model,
-                    "render_mode": "legacy",
+                    "render_mode": "gpt-image-2-s2" if _is_s2_gpt else "legacy",
                 })
             continue   # 跳過底下的 Flux 分支
 

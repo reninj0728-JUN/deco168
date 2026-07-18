@@ -3,6 +3,7 @@
 
 不呼叫 Gemini / FAL。先鎖住資料流與引導圖契約，再改正式程式。
 """
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 import cv2
 import numpy as np
+from PIL import Image
 
 import api
 import prompt_builder as pb
@@ -289,6 +291,12 @@ class DoorAwareLayoutTests(unittest.TestCase):
                 api._sofa_alignment_edit_base(validation, {"render_path": str(previous)}, "living"),
                 str(previous),
             )
+            validation["focal_anchor_misaligned_with_sofa"] = False
+            validation["furniture_blocks_door"] = True
+            self.assertEqual(
+                api._sofa_alignment_edit_base(validation, {"render_path": str(previous)}, "living"),
+                str(previous),
+            )
 
         edit_prompt = pb._build_retry_context_section({
             "sofa_alignment_edit": True,
@@ -346,17 +354,67 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertIn("GREEN sofa target stays fixed", edit_prompt)
         self.assertIn("BLUE TV / media-console target", edit_prompt)
 
+    def test_s2_pair_alignment_preserves_formal_guide_and_uses_dynamic_ref(self):
+        validation = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "sofa": [473, 228, 733, 417],
+                "focal_anchor": [570, 654, 809, 888],
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            source = str(Path(td) / "render.jpg")
+            formal_guide = str(Path(td) / "formal-s2-guide.jpg")
+            cv2.imwrite(source, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            cv2.imwrite(formal_guide, np.full((1000, 1500, 3), 180, dtype=np.uint8))
+            entry = {
+                "_room_type": "living",
+                "_layout_contract_s2_required": True,
+                "_layout_guide": formal_guide,
+                "_layout_guide_mode": "auto_s2_contract",
+                "_layout_guide_s2_sha256": "formal-hash",
+            }
+            base = api._activate_pair_alignment_edit(
+                validation, {"render_path": source}, entry, td, 0)
+            self.assertEqual(base, source)
+            self.assertEqual(entry["_layout_guide"], formal_guide)
+            self.assertEqual(entry["_layout_guide_mode"], "auto_s2_contract")
+            self.assertTrue(Path(entry["_consistency_ref_path"]).exists())
+            self.assertTrue(entry["_s2_retry_artifacts_active"])
+            api._clear_s2_retry_edit_artifacts(entry)
+            self.assertEqual(entry["_layout_guide"], formal_guide)
+            self.assertEqual(entry["_layout_guide_s2_sha256"], "formal-hash")
+            self.assertNotIn("_consistency_ref_path", entry)
+
     def test_wide_crop_keeps_left_or_right_edge_door(self):
         left = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(0, 100, 220, 850))
         right = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(1380, 100, 1600, 850))
         self.assertEqual(left, (0, 0, 1350, 900))
         self.assertEqual(right, (250, 0, 1600, 900))
 
-    def test_zoning_bbox_only_applies_to_its_source_photo(self):
-        paths = ["C:/tmp/photo0.jpg", "C:/tmp/photo1.jpg"]
-        zoning = {"best_photo_index": 0}
-        self.assertTrue(api._zoning_bbox_matches_source(paths[0], paths, zoning))
-        self.assertFalse(api._zoning_bbox_matches_source(paths[1], paths, zoning))
+    def test_zoning_bbox_requires_stable_source_hash_not_array_index(self):
+        import hashlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            p0 = Path(tmp) / "photo0.jpg"
+            p1 = Path(tmp) / "photo1.jpg"
+            p0.write_bytes(b"photo-zero-content")
+            p1.write_bytes(b"photo-one-content")
+            zoning = {
+                "best_photo_index": 0,
+                "_source_binding": {
+                    "photo_key": "upload/photo0.jpg",
+                    "sha256": hashlib.sha256(p0.read_bytes()).hexdigest(),
+                },
+            }
+            paths = [str(p1), str(p0)]
+            self.assertTrue(api._zoning_bbox_matches_source(str(p0), paths, zoning))
+            self.assertFalse(api._zoning_bbox_matches_source(str(p1), paths, zoning))
+            self.assertFalse(api._zoning_bbox_matches_source(
+                str(p0), paths, {"best_photo_index": 1},
+            ))
 
     def test_ui_keeps_three_choices_without_public_ai_wording(self):
         html = (Path(__file__).parent.parent / "zoning-confirm.html").read_text(encoding="utf-8")
@@ -577,6 +635,90 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
                 focal_side="left", auto_float=False,
             )
             self.assertIsNone(out)   # 寧可沒有 guide，也不給「只剩門箭頭」的反引導
+
+    def test_s2_door_clearance_shift_uses_validator_gap_without_weakening_threshold(self):
+        validation = {
+            "render_bboxes": {
+                "sofa": [540, 260, 738, 408],
+                "entrance_door": [326, 122, 857, 256],
+            }
+        }
+        # gap=4, required=0.25*134=33.5, plus 10/1000 repair safety.
+        self.assertEqual(api._s2_door_clearance_shift_px(validation, 1536, "left"), 61)
+        target = api._s2_repair_target_box(
+            validation, 1536, 1024, "left", [(500.0, 600.0)],
+            compact_entry_mode=True)
+        self.assertEqual(target[0], round(260 * 1536 / 1000) + 4 * 61)
+        self.assertLess(target[1], round(540 * 1024 / 1000))
+        self.assertLess(target[2] - target[0], round((408 - 260) * 1536 / 1000))
+        self.assertLess(target[3] - target[1], round((738 - 540) * 1024 / 1000))
+
+        normal_target = api._s2_repair_target_box(
+            validation, 1536, 1024, "left", [(500.0, 600.0)],
+            compact_entry_mode=False)
+        self.assertEqual(normal_target[0], round(260 * 1536 / 1000) + 61)
+
+    def test_retry_artifacts_are_cleared_before_each_new_base_decision(self):
+        entry = {
+            "_s2_retry_artifacts_active": True,
+            "_edit_mask_path": "old-mask.png",
+            "_consistency_ref_path": "old-guide.jpg",
+            "_base_path": "original.jpg",
+        }
+        api._clear_s2_retry_edit_artifacts(entry)
+        self.assertNotIn("_edit_mask_path", entry)
+        self.assertNotIn("_consistency_ref_path", entry)
+        self.assertNotIn("_s2_retry_artifacts_active", entry)
+        self.assertEqual(entry["_base_path"], "original.jpg")
+
+        formal_entry = {"_consistency_ref_path": "formal-product-ref.jpg"}
+        api._clear_s2_retry_edit_artifacts(formal_entry)
+        self.assertEqual(formal_entry["_consistency_ref_path"], "formal-product-ref.jpg")
+
+        source = Path(api.__file__).read_text(encoding="utf-8")
+        phase3 = source.split("# ── Phase 3", 1)[1]
+        self.assertLess(
+            phase3.index("_clear_s2_retry_edit_artifacts(entry)"),
+            phase3.index("_activate_pair_alignment_edit("),
+        )
+
+    def test_s2_sofa_edit_mask_unlocks_sofa_corridor_but_locks_door(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            previous = root / "previous.png"
+            contract_path = root / "contract.json"
+            mask_path = root / "mask.png"
+            Image.new("RGB", (100, 100), "white").save(previous)
+            contract_path.write_text(json.dumps({
+                "source": {"size": {"width": 1000, "height": 1000}},
+                "decision": {"chosen_candidate_id": "b-compact"},
+                "candidates": [{
+                    "candidate_id": "b-compact",
+                    "sofa_footprint_geometry_id": "sofa-target",
+                    "notes": ["sofa_side=left"],
+                }],
+                "geometry": [{
+                    "geometry_id": "sofa-target",
+                    "shape": {"coordinates": [
+                        [600, 500], [700, 500], [700, 700], [600, 700],
+                    ]},
+                }],
+            }), encoding="utf-8")
+            validation = {
+                "render_bboxes": {
+                    "sofa": [500, 250, 750, 450],
+                    "entrance_door": [300, 100, 800, 240],
+                }
+            }
+
+            result = api._build_s2_sofa_edit_mask(
+                str(previous), str(contract_path), validation, str(mask_path))
+
+            self.assertEqual(result, str(mask_path))
+            alpha = Image.open(mask_path).getchannel("A")
+            self.assertEqual(alpha.getpixel((35, 62)), 0)
+            self.assertEqual(alpha.getpixel((17, 55)), 255)
+            self.assertEqual(alpha.getpixel((95, 5)), 255)
 
 
 if __name__ == "__main__":

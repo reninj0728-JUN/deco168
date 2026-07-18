@@ -53,8 +53,10 @@ PROMPT = """\
     如果 existing 模糊（例如空屋長條沒有任何家具線索），proposed_zones 要在 evidence 註明
     「此區屋主可選 X 或 Y」並把雙方案都列出來。
 
-【沙發靠哪一面長牆（sofa_side）— 長型房間必填，這是渲染與驗收共用的唯一依據】
-針對「主視角照片（index 0）的觀看者視角」（畫面左 = left，畫面右 = right）判斷:
+【沙發靠哪一面長牆（sofa_side）】
+先選一張最能同時看見大門落地處、入口地面、主要走道、客廳地板與左右牆腳線的照片，
+把它的索引寫入 best_photo_index。後續所有 bbox 與 struct_geometry_v1 座標都只能屬於這張照片。
+針對 best_photo_index 的觀看者視角（畫面左 = left，畫面右 = right）判斷:
   - sofa_side: 沙發椅背應該貼「左側長牆」還是「右側長牆」。回 "left" 或 "right"。
     判斷依據（綜合考量，不要只看單一條件）:
       1. 哪一面長牆有「最長的連續實牆」可以完整靠一張沙發的背（沙發不該擋到門/開口）。
@@ -72,13 +74,34 @@ PROMPT = """\
     若方案 B 的沙發側與方案 A 相同就照填相同值。
 
 【bounding box（畫 overlay 用）】
-請對「主視角照片」（index 0，第 1 張）每個 zone 給一個 normalized bounding box，
+請對 best_photo_index 指定的同一張照片，每個 zone 給一個 normalized bounding box，
 格式 [ymin, xmin, ymax, xmax]，數值 0–1000。
-這是給後續 cv2 在主視角上畫透明色塊用，所以 bbox 應該標在「該 zone 在主視角畫面中佔的區域」。
+這是給後續 cv2 在同一張照片上畫透明色塊用。
+
+【S2 結構觀測｜不可猜、不可跨照片】
+輸出 struct_geometry_v1。source_photo_index 必須等於 best_photo_index，所有座標都使用
+該照片的 [y, x] 0–1000；不可跨照片拼接座標，也不可把另一張照片看見的門套到這張。
+每一項都要有 status="observed/inferred/missing"、confidence="high/medium/low"、
+visibility="full/partial/occluded/not_visible"。只有邊界在該照片中真的看得見才能標 observed；
+看不見就標 missing，不可用常識補線。
+
+elements 必須逐項回覆：
+  - door_quad.polygon_yx1000：大門可見四邊形
+  - door_floor_contact.segment_yx1000：大門與地板接觸的可見線段
+  - entrance_landing.polygon_yx1000：門內第一個不可擺家具的入口落腳地面
+  - walkway.polygon_yx1000：從大門通往室內的主要通行地面
+  - living_floor.polygon_yx1000：客廳可用地板範圍
+  - left_wall_floor.segment_yx1000：左牆與地板交線，第一點近鏡頭、第二點深處
+  - right_wall_floor.segment_yx1000：右牆與地板交線，第一點近鏡頭、第二點深處
+
+usable_wall_segments 只能列 observed 的連續實牆。每段包含 id、side="left/right"、
+status、confidence、visibility、t_start、t_end。t 是沿同側 wall_floor 線由近端 0 到深端 1；
+門、窗、走道開口所在範圍不可列為 usable。若任何必需結構看不清，struct_geometry_v1.status
+必須是 partial 或 missing，並在 uncertainty_notes 說明需要補拍哪個角度。
 
 【輸出 JSON】
 {{
-  "best_photo_index": 0,
+  "best_photo_index": 整數（你選出的單一結構主視角索引）,
   "spatial_synthesis": {{
     "room_shape": "...",
     "main_window_wall": "...",
@@ -121,6 +144,22 @@ PROMPT = """\
       "bbox_on_best_photo": [ymin, xmin, ymax, xmax]
     }}
   }},
+  "struct_geometry_v1": {{
+    "schema_version": "struct-geometry-v1",
+    "source_photo_index": 與 best_photo_index 完全相同的整數,
+    "status": "observed/partial/missing",
+    "elements": {{
+      "door_quad": {{"kind":"door_quad","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","polygon_yx1000":[[y,x], ...]}},
+      "door_floor_contact": {{"kind":"door_floor_contact_edge","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","segment_yx1000":[[y,x],[y,x]]}},
+      "entrance_landing": {{"kind":"entrance_landing","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","polygon_yx1000":[[y,x], ...]}},
+      "walkway": {{"kind":"walkway","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","polygon_yx1000":[[y,x], ...]}},
+      "living_floor": {{"kind":"living_floor","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","polygon_yx1000":[[y,x], ...]}},
+      "left_wall_floor": {{"kind":"wall_floor_boundary","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","segment_yx1000":[[y,x],[y,x]]}},
+      "right_wall_floor": {{"kind":"wall_floor_boundary","status":"observed/inferred/missing","confidence":"high/medium/low","visibility":"full/partial/occluded/not_visible","segment_yx1000":[[y,x],[y,x]]}}
+    }},
+    "usable_wall_segments": [{{"id":"...","side":"left/right","status":"observed","confidence":"high/medium","visibility":"full/partial","t_start":0.0,"t_end":1.0}}],
+    "uncertainty_notes": "..."
+  }},
   "overall_confidence": "high/medium/low",
   "overall_uncertainty": "整體上有哪些是 AI 不能保證的事（例：空屋無家具線索 → 客餐廳分配是建議而非事實）",
   "needs_user_input": ["如果需要屋主回答的問題，列在這裡。例：『請問您希望靠窗那端做客廳還是餐廳？』"]
@@ -136,6 +175,99 @@ def _resolve_mime(p: Path) -> str:
         ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".png": "image/png",  ".webp": "image/webp",
     }.get(ext, "image/jpeg")
+
+
+def normalize_struct_geometry_payload(result: dict, photo_count: int) -> dict:
+    """Fail-closed normalization for Gemini's S2 geometry envelope.
+
+    This function never creates geometry. It only validates photo binding and
+    makes a missing/invalid state explicit so downstream code cannot mistake an
+    absent model field for usable evidence.
+    """
+    normalized = dict(result or {})
+    best = normalized.get("best_photo_index")
+    best_valid = (
+        not isinstance(best, bool)
+        and isinstance(best, int)
+        and 0 <= best < max(0, int(photo_count))
+    )
+    if not best_valid:
+        best = None
+        normalized["best_photo_index"] = None
+
+    raw = normalized.get("struct_geometry_v1")
+    if not isinstance(raw, dict):
+        normalized["struct_geometry_v1"] = {
+            "schema_version": "struct-geometry-v1",
+            "source_photo_index": best,
+            "status": "missing" if best is not None else "invalid",
+            "elements": {},
+            "usable_wall_segments": [],
+            "uncertainty_notes": "Gemini 未回傳 S2 結構觀測。",
+            "validation_errors": [] if best is not None else ["INVALID_BEST_PHOTO_INDEX"],
+        }
+        return normalized
+
+    struct = dict(raw)
+    struct.setdefault("schema_version", "struct-geometry-v1")
+    struct.setdefault("elements", {})
+    struct.setdefault("usable_wall_segments", [])
+    errors = list(struct.get("validation_errors") or [])
+    source_index = struct.get("source_photo_index")
+    source_valid = (
+        not isinstance(source_index, bool)
+        and isinstance(source_index, int)
+        and 0 <= source_index < max(0, int(photo_count))
+    )
+    if not source_valid:
+        errors.append("INVALID_SOURCE_PHOTO_INDEX")
+    if best is None:
+        errors.append("INVALID_BEST_PHOTO_INDEX")
+    elif source_index != best:
+        errors.append("CROSS_PHOTO_COORDS")
+    if struct.get("schema_version") != "struct-geometry-v1":
+        errors.append("INVALID_STRUCT_SCHEMA_VERSION")
+    if errors:
+        struct["status"] = "invalid"
+    elif struct.get("status") not in ("observed", "partial", "missing"):
+        struct["status"] = "partial"
+    struct["validation_errors"] = list(dict.fromkeys(errors))
+    normalized["struct_geometry_v1"] = struct
+    return normalized
+
+
+def _generate_json_with_retry(
+    *, client, types_module, parts: list, model: str, max_attempts: int = 2,
+) -> dict:
+    """Request strict JSON, retrying once only for malformed/empty model output."""
+    last_error = None
+    for attempt in range(max(1, int(max_attempts))):
+        contents = list(parts)
+        if attempt:
+            contents.append(
+                "Your previous response was malformed JSON. Return the same answer again as one "
+                "complete strict JSON object only. Do not add markdown or commentary."
+            )
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=types_module.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        text = (response.text or "").strip()
+        if not text:
+            last_error = json.JSONDecodeError("empty response", "", 0)
+            continue
+        try:
+            try:
+                result = json.loads(text)
+            except json.JSONDecodeError:
+                result, _ = json.JSONDecoder().raw_decode(text)
+            if not isinstance(result, dict):
+                raise json.JSONDecodeError("top-level JSON must be an object", text, 0)
+            return result
+        except json.JSONDecodeError as exc:
+            last_error = exc
+    raise last_error or json.JSONDecodeError("invalid JSON response", "", 0)
 
 
 def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) -> dict:
@@ -195,22 +327,16 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) ->
     print(f"[zoning_v2] photos={len(valid_photos)} video_frames={len(valid_videos)}")
     t0 = time.time()
     try:
-        resp = client.models.generate_content(
+        result = _generate_json_with_retry(
+            client=client,
+            types_module=types,
+            parts=parts,
             model="gemini-3.5-flash",
-            contents=parts,
-            config=types.GenerateContentConfig(response_mime_type="application/json"),
+            max_attempts=2,
         )
         elapsed = time.time() - t0
         print(f"[zoning_v2] Gemini 耗時 {elapsed:.1f}s")
-        text = (resp.text or "").strip()
-        if not text:
-            return {"error": "empty response", "overall_confidence": "none"}
-        # Gemini 偶爾在合法 JSON 後追加 garbage → 用 raw_decode 只取第一個 valid JSON
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            result, _ = json.JSONDecoder().raw_decode(text)
-            return result
+        return normalize_struct_geometry_payload(result, photo_count=len(valid_photos))
     except json.JSONDecodeError as e:
         return {"error": f"json decode: {str(e)[:200]}", "overall_confidence": "none"}
     except Exception as e:

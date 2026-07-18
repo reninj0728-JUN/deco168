@@ -132,14 +132,12 @@ SYSTEM_PROMPT = (
     "leave that opening and at least 60cm in front of it completely empty — a person must be able "
     "to walk through without stepping over or around any furniture. "
     "8) SOFA FACING DIRECTION: "
-    "The sofa's FRONT side (where people sit and look) MUST face either (a) the TV wall / focal "
-    "wall (typically the opposite long wall in the living zone), (b) the window for a view, "
-    "or (c) the long axis of the room toward the window end. "
-    "The sofa MUST NOT face directly toward a corridor opening, side doorway "
-    "(bedroom/bathroom door), or the walkway. Sitting on the sofa should never feel like "
-    "staring at someone walking by from another room. If the TV wall is on the same wall as "
-    "a corridor opening, the TV must be placed on the SOLID portion of that wall (not on the "
-    "opening), and the sofa faces the TV portion — not the opening portion."
+    "The sofa MUST face the TV/media console directly: its straight-ahead front and seated "
+    "viewing axis must terminate at the TV/media-console centre. The TV/media console must face "
+    "back toward the sofa on the same centreline. The sofa MUST NOT face a window, balcony glass, "
+    "the apartment entrance door, a corridor opening, side doorway, or the walkway. "
+    "If the TV wall is on the same wall as an opening, place the TV on the SOLID portion and shift "
+    "the sofa-TV pair together until the seated forward axis stays outside every opening."
 )
 
 
@@ -1458,6 +1456,10 @@ _RETRY_FLAG_FIX_EN = {
         "Anchor on the entrance door: after its far frame edge, leave at least one full "
         "door-width of bare wall and empty floor BEFORE any console/cabinet begins. The "
         "sofa belongs on the opposite solid wall, directly across from the console.",
+    "guide_overlay_present":
+        "Previous render leaked the S2 guide into the final image. Start again from the clean room "
+        "photo and output a photorealistic room with ZERO red, green, blue, or yellow guide fills, "
+        "outlines, dots, labels, arrows, centreline marks, or geometry overlays.",
     "sofa_faces_walkway":
         "The sofa faced the walkway instead of the focal anchor. Turn the sofa to face "
         "the TV cabinet / focal wall, not the corridor.",
@@ -1783,7 +1785,8 @@ def build_nano_banana_inputs(
             consistency_ref_url=consistency_ref_url,
         )
 
-    matched = entry.get("matched_furniture") or []
+    compact_entry_mode = entry.get("_s2_compact_entry_mode") is True
+    matched = [] if compact_entry_mode else (entry.get("matched_furniture") or [])
 
     # 過濾出 must_have 且有 image_url 的商品（順序固定 sofa → coffee_table → rug）
     selected: dict[str, dict] = {}
@@ -1846,8 +1849,34 @@ def build_nano_banana_inputs(
             "exact target zone. The GREEN and BLUE target centres must sit on one shared cross-room "
             "centreline. That shared cross-room centreline is binding: keep both furniture centres "
             "on that line, perfectly face-to-face, with no forward/back depth offset. " + _choice_note + _float_note +
-            "Follow the real floor and wall planes and the photograph's perspective. Do NOT copy boxes, "
-            "colours, lines or labels into the output."
+            "Follow the real floor and wall planes and the photograph's perspective. The final output "
+            "must be a clean photorealistic room with ZERO red, green, blue, or yellow guide fills, "
+            "outlines, dots, labels, arrows, centrelines, boxes, or geometry overlays."
+        )
+
+    local_repair_sec = ""
+    if (consistency_ref_url
+            and isinstance(retry_context, dict)
+            and retry_context.get("sofa_alignment_edit") is True):
+        _repair_idx = next_idx
+        reference_map.append({
+            "index": _repair_idx,
+            "role": "LOCAL REPAIR GUIDE",
+            "url": consistency_ref_url,
+            "cat_en": None,
+            "name_zh": None,
+            "id": None,
+            "kind": "LOCAL_REPAIR_GUIDE",
+        })
+        image_urls.append(consistency_ref_url)
+        next_idx += 1
+        local_repair_sec = (
+            f"LOCAL SOFA REPAIR: reference image #{_repair_idx} is the previous furnished render "
+            "with a local repair guide drawn in the same camera coordinates. MOVE ONLY THE SOFA "
+            "fully into its GREEN target and completely outside every RED entrance/landing zone. "
+            "LOCK the TV, media console, doors, walls, windows, ceiling, floor, camera, lighting, "
+            "passage openings, and every other furnished object exactly as in image #1. Do not "
+            "regenerate the room. Remove every guide colour, line, label, dot, and overlay from output."
         )
 
     for cat in MUST_HAVE_CATS:
@@ -1872,7 +1901,10 @@ def build_nano_banana_inputs(
             next_idx += 1
 
     # 組 prompt 段落
-    soft_candidates = _select_soft_ref_candidates(entry.get("soft_furnishing") or [])
+    soft_candidates = (
+        [] if compact_entry_mode
+        else _select_soft_ref_candidates(entry.get("soft_furnishing") or [])
+    )
 
     for soft_ref_count, it in enumerate(soft_candidates):
         if soft_ref_count >= MAX_SOFT_REFERENCE_IMAGES:
@@ -1905,6 +1937,8 @@ def build_nano_banana_inputs(
         layout_sec = _build_fallback_layout_section()
     if layout_guide_sec:
         layout_sec = (layout_sec + "\n\n" + layout_guide_sec) if layout_sec else layout_guide_sec
+    if local_repair_sec:
+        layout_sec = (layout_sec + "\n\n" + local_repair_sec) if layout_sec else local_repair_sec
 
     product_sec = _build_product_placement_section(reference_map)
     style_sec = _build_style_section(entry)
@@ -1942,7 +1976,7 @@ def build_nano_banana_inputs(
                        ("長條", "狹長", "深長", "長型", "窄", "狹", "long", "elongated", "narrow")) \
                    or bool(entry.get("_is_long_room"))
     soft_furnishing_sec = _build_soft_furnishing_section(
-        entry.get("soft_furnishing") or [],
+        [] if compact_entry_mode else (entry.get("soft_furnishing") or []),
         reference_map=reference_map,
         narrow_mode=_narrow_long,
     )
@@ -1956,6 +1990,16 @@ def build_nano_banana_inputs(
     if target_note_sec:
         sections.append(target_note_sec)
     sections.extend([layout_sec, product_sec, style_sec])
+    if compact_entry_mode:
+        sections.append(
+            "S2 COMPACT ENTRANCE MODE (binding): Generate one very compact armless 120–140 cm "
+            "two-seat loveseat fully inside the GREEN SOFA TARGET and one slim compact TV/console "
+            "fully inside the BLUE target. The sofa and TV centres must remain on the same cross-room "
+            "centreline and face each other. Keep the complete entrance landing and the wall below the "
+            "intercom empty bare floor. No rug, coffee table, side table, plant, vase, or floor lamp "
+            "may be generated in the entrance half of the room. Product-image matching is disabled "
+            "for this render because geometry compliance has priority."
+        )
     # 客戶選「交給 AI 自動配置」｜不是強制浮置；是否離牆由空間尺寸判斷。
     if isinstance(zoning, dict) and zoning.get("_sofa_layout") == "free":
         _auto_float_text = (
@@ -2019,6 +2063,7 @@ _ANCHORED_LABEL = {
     "sofa":         "sofa",
     "coffee_table": "coffee table",
     "rug":          "rug",
+    "media_console": "TV/media console",
 }
 
 # fal-ai/nano-banana-pro/edit aspect_ratio 官方 enum（2026-06 schema）
@@ -2054,6 +2099,8 @@ def build_anchored_inputs(
     entry: dict,
     room_image_url: str,
     source_dims: tuple[int, int] | None = None,
+    layout_guide_url: str | None = None,
+    retry_context: dict | None = None,
 ) -> dict:
     """
     D' verified Nano Banana anchored mode 配方（USE_ANCHORED_MODE=1 時使用）。
@@ -2087,8 +2134,26 @@ def build_anchored_inputs(
          "cat_en": None, "name_zh": None, "id": None},
     ]
 
-    add_lines: list[str] = []
+    guide_lines: list[str] = []
     next_idx = 3
+    if layout_guide_url:
+        image_urls.append(layout_guide_url)
+        reference_map.append({
+            "index": 3, "role": "LAYOUT_GUIDE", "url": layout_guide_url,
+            "cat_en": None, "name_zh": None, "id": None,
+        })
+        guide_lines.append(
+            "Image 3 is an instruction-only S2 layout guide derived from the same source room, NOT "
+            "a visual target and NEVER the output canvas. Red areas are forbidden entrance/door/walkway "
+            "zones; the green polygon is the sofa footprint; the blue polygon is the TV/media-console "
+            "footprint; the yellow line is the single seated viewing axis. Place the sofa and TV on "
+            "those footprints, make their fronts face each other along the yellow line, and keep all "
+            "furniture outside red. The final image must be a clean photorealistic edit of Image 1 with "
+            "ZERO guide graphics: no red/green/blue/yellow fills, outlines, dots, labels, or lines."
+        )
+        next_idx = 4
+
+    add_lines: list[str] = []
     for cat in MUST_HAVE_CATS:
         if cat in selected:
             it = selected[cat]
@@ -2106,11 +2171,44 @@ def build_anchored_inputs(
             add_lines.append(f"Add the {label} shown in image {next_idx}.")
             next_idx += 1
 
+    retry_lines: list[str] = []
+    if isinstance(retry_context, dict) and retry_context:
+        flags = set(retry_context.get("failed_flags") or [])
+        retry_lines.append(
+            "CORRECTION PASS: the previous output failed validation. Start again from Image 1, not "
+            "from the failed output or the guide. Preserve the exact camera viewpoint, room dimensions, "
+            "wall/opening layout, door count, door-leaf count, door frames, hardware, intercom, ceiling, "
+            "and floor. Do not add, remove, merge, relocate, or restyle any architectural door/opening."
+        )
+        if flags & {"spatial_fidelity_fail"}:
+            retry_lines.append(
+                "Previous failure: room geometry and viewpoint changed. Match Image 1 architecture "
+                "pixel-for-pixel as closely as possible; add movable furniture only."
+            )
+        if flags & {"furniture_blocks_door", "furniture_blocks_walkway", "sofa_intrudes_walkway", "coffee_table_in_walkway"}:
+            retry_lines.append(
+                "Previous failure: furniture obstructed doors or circulation. Keep the complete entrance "
+                "door swing area and the continuous entrance-to-interior walkway empty, including sofa, "
+                "coffee table, rug, TV console, plants, and cabinets."
+            )
+        if flags & {"sofa_facing_entrance_door", "focal_anchor_misaligned_with_sofa"}:
+            retry_lines.append(
+                "Previous failure: seating orientation. Sofa seats must face the TV/media console directly "
+                "and must not face the entrance door."
+            )
+        if "guide_overlay_present" in flags:
+            retry_lines.append(
+                "Previous failure: S2 guide graphics leaked into the render. Output a clean photograph "
+                "with absolutely no red, green, blue, or yellow guide fills, outlines, dots, labels, or lines."
+            )
+
     style_label = entry.get("style_label") or entry.get("style") or ""
 
     prompt_parts = [
         "Image 1 and image 2 are identical copies of the source room and together "
         "define the base canvas.",
+        *retry_lines,
+        *guide_lines,
         *add_lines,
         "Preserve the source room geometry, camera perspective, walls, doors, windows, "
         "ceiling, floor direction and fixed fixtures.",
