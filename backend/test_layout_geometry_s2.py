@@ -189,6 +189,61 @@ def test_safe_candidate_faces_tv_and_keeps_door_off_axis():
         assert chosen[key]
 
 
+def test_seven_point_living_floor_from_60b89463_remains_plannable():
+    raw = _safe_geometry()
+    elements = raw["elements"]
+    elements["door_quad"]["polygon_yx1000"] = [
+        [330, 120], [380, 258], [740, 258], [850, 128],
+    ]
+    elements["door_floor_contact"]["segment_yx1000"] = [
+        [850, 128], [740, 258],
+    ]
+    elements["entrance_landing"]["polygon_yx1000"] = [
+        [850, 128], [740, 258], [830, 380], [1000, 200],
+    ]
+    elements["walkway"]["polygon_yx1000"] = [
+        [740, 258], [580, 430], [580, 500], [1000, 400],
+    ]
+    elements["living_floor"]["polygon_yx1000"] = [
+        [850, 128], [580, 430], [560, 450], [560, 580],
+        [620, 615], [1000, 970], [1000, 150],
+    ]
+    elements["left_wall_floor"]["segment_yx1000"] = [
+        [850, 128], [580, 430],
+    ]
+    elements["right_wall_floor"]["segment_yx1000"] = [
+        [1000, 970], [620, 615],
+    ]
+    raw["usable_wall_segments"] = [
+        {
+            "id": "right_continuous_wall", "side": "right",
+            "status": "observed", "confidence": "high", "visibility": "full",
+            "t_start": 0.0, "t_end": 1.0,
+        },
+        {
+            "id": "left_wall_past_door", "side": "left",
+            "status": "observed", "confidence": "high", "visibility": "full",
+            "t_start": 0.35, "t_end": 1.0,
+        },
+    ]
+
+    plan = s2.build_s2_plan(
+        raw, width=1536, height=1024,
+        expected_source_photo_index=0, sofa_side="free",
+    )
+
+    assert plan["disposition"] == "SAFE_FOR_GENERATION"
+    assert plan["unsafe_codes"] == []
+    chosen = next(
+        candidate for candidate in plan["candidates"]
+        if candidate["candidate_id"] == plan["chosen_candidate_id"]
+    )
+    assert chosen["eligible"] is True
+    assert chosen["invariants"]["entrance_landing_clear"] is True
+    assert chosen["invariants"]["walkway_clear"] is True
+    assert chosen["invariants"]["view_axis_clear_of_door"] is True
+
+
 def test_inferred_geometry_can_veto_but_never_grant():
     raw = _safe_geometry()
     raw["elements"]["entrance_landing"]["status"] = "inferred"

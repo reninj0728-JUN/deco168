@@ -373,11 +373,11 @@ def _line_intersection(a, b, c, d):
 
 
 def _floor_corners(living_floor):
-    if len(living_floor) != 4:
+    if len(living_floor) < 4:
         return None
     ordered_by_y = sorted(living_floor, key=lambda point: point[1])
     deep_pair = ordered_by_y[:2]
-    near_pair = ordered_by_y[2:]
+    near_pair = ordered_by_y[-2:]
     deep_left, deep_right = sorted(deep_pair, key=lambda point: point[0])
     near_left, near_right = sorted(near_pair, key=lambda point: point[0])
     return near_left, near_right, deep_right, deep_left
