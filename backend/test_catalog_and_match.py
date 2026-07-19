@@ -896,3 +896,36 @@ def test_focal_side_back_window_uses_accepted_layout():
     assert focal == "left", f"焦點牆應留在門牆(left),實得 {focal}"
     # 鐵則守門對此配置必須放行（沙發牆=right=實牆,安全）
     assert api._auto_layout_safety_check(Z, "free", focal) == ""
+
+
+def test_non_furniture_never_enters_recommendations():
+    """客訴根修：「簡約風刀具砧板架」被當收納櫃推薦給客戶。
+    非家具商品（廚具/耗材/家電/曬衣雜物）在載入目錄時就必須被擋掉。"""
+    junk = [
+        "簡約風刀具砧板架", "日式檜木砧板", "黑色不沾鍋平底鍋", "五件套不沾鍋組",
+        "多功能瀝水碗盤架", "NITORI 除塵紙捲替換帶 3入", "竹炭除臭包",
+        "柔軟超細纖維清潔布", "10入組白色塑膠衣架", "多層折疊式不鏽鋼晾衣架",
+        "Panasonic 黑色微波爐", "IKEA 壁掛式無痕掛鉤組", "白色極簡設計澆花器",
+        "波浪紋粉色塑料垃圾桶", "不鏽鋼牙刷架", "【享樂券】《1罐》全家FMC-菊花茶",
+    ]
+    for name in junk:
+        assert fm.is_non_furniture(name), f"應攔截卻放行: {name}"
+
+    # 合法家具絕不可誤傷——尤其含「架/櫃/几」的家具本體
+    legit = [
+        "輕奢風收納抽屜茶几", "北歐風附輪置物移動茶几", "工業風雙層茶几",
+        "白色書架層架附掛勾", "簡約多功能開放式衣架", "原木風多層抽屜衣架櫃",
+        "現代工業風附抽屜衣架", "空間特工 免螺絲角鋼電視櫃", "床頭櫃 小型臥室家用",
+        "北歐風實木餐桌", "L型絨布沙發", "日式榻榻米床架", "簡約落地立燈",
+        "遮光窗簾", "手工編織地毯", "壁掛式收納櫃", "玄關鞋櫃", "電視櫃",
+    ]
+    for name in legit:
+        assert not fm.is_non_furniture(name), f"合法家具被誤殺: {name}"
+
+
+def test_load_catalog_filters_non_furniture():
+    """load_catalog 是唯一入口——擋在這裡，下游配對/軟裝/清單都碰不到雜物。"""
+    catalog = fm.load_catalog()
+    assert catalog, "目錄不可為空"
+    bad = [x for x in catalog if fm.is_non_furniture(x.get("name_zh"))]
+    assert not bad, f"載入後仍有非家具商品 {len(bad)} 件: {[x.get('name_zh') for x in bad[:5]]}"
