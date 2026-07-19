@@ -4052,7 +4052,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── Phase 2 硬傷補生 (2026-06-21)：只對「硬傷」風格做一次帶完整錯誤原因的補生。
         # 不重跑已通過 / 軟傷的風格；補生成功就納入交付，仍硬傷則部分交付並記 needs_regen。
         # 不重構 pipeline，附加在交付閘門之前；非 nano 路徑不動。
-        if use_nano:
+        if use_image_edit_retry:
             for idx in range(len(final)):
                 r = final[idx]
                 v = r.get("validation") or {}

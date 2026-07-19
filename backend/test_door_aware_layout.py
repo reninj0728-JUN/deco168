@@ -682,6 +682,12 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
             phase3.index("_activate_pair_alignment_edit("),
         )
 
+    def test_phase2_uses_the_resolved_image_edit_retry_flag(self):
+        source = Path(api.__file__).read_text(encoding="utf-8")
+        phase2 = source.split("# ── Phase 2", 1)[1].split("# Delivery gate", 1)[0]
+        self.assertIn("if use_image_edit_retry:", phase2)
+        self.assertNotIn("if use_nano:", phase2)
+
     def test_s2_sofa_edit_mask_unlocks_sofa_corridor_but_locks_door(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
