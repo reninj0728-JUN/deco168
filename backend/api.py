@@ -2751,6 +2751,161 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     return base
 
 
+def _record_validation_attempt(
+    render: dict,
+    *,
+    job_id: str,
+    stage: str,
+    attempt: int,
+    validation: dict | None = None,
+    error: Exception | None = None,
+) -> dict:
+    """保存成品驗證的原始結果，並輸出可供 Railway 搜尋的結構化事件。
+
+    診斷絕不可改變主流程判定：呼叫點多半在 try 區塊內，這裡若自己噴錯就會被
+    同一個 except 抓走、記成「驗證失敗」——診斷 bug 偽裝成驗證失敗是最糟的
+    除錯體驗。因此整段自保，失敗只印一行、回空 dict。
+    """
+    try:
+        return _record_validation_attempt_inner(
+            render, job_id=job_id, stage=stage, attempt=attempt,
+            validation=validation, error=error)
+    except Exception as _diag_err:      # noqa: BLE001 — 診斷失敗不得影響交付
+        print(f"[validation] 診斷記錄失敗（不影響判定）: "
+              f"{type(_diag_err).__name__}: {str(_diag_err)[:120]}")
+        return {}
+
+
+def _record_validation_attempt_inner(
+    render: dict,
+    *,
+    job_id: str,
+    stage: str,
+    attempt: int,
+    validation: dict | None = None,
+    error: Exception | None = None,
+) -> dict:
+    raw = dict(validation or {})
+    exception_type = type(error).__name__ if error is not None else raw.get("exception_type")
+    exception_message = str(error) if error is not None else raw.get("error")
+    failure_message = str(exception_message or "")
+    failure_text = failure_message.lower()
+    if (_is_quota_outage(failure_message)
+            or exception_type in {"FalGenerationTimeout", "FalResultDownloadError", "TimeoutError",
+                                  "ConnectionError"}
+            or any(token in failure_text for token in
+                   ("timed out", "timeout", "service unavailable", "bad gateway",
+                    "connection reset", "http 500", "http 502", "http 503"))):
+        failure_class = "infrastructure"
+    elif exception_type or raw.get("ok") is None:
+        failure_class = "validator_exception"
+    elif raw.get("ok") is False:
+        failure_class = "render_quality"
+    else:
+        failure_class = None
+    event = {
+        "validation_stage": stage,
+        "attempt": int(attempt),
+        "ok": raw.get("ok"),
+        "hard_fail": raw.get("hard_fail"),
+        "failure_class": failure_class,
+        "exception_type": exception_type,
+        "exception_message": failure_message[:500] or None,
+        "raw_verdict": json.loads(json.dumps(raw, ensure_ascii=False, default=str)),
+    }
+    render.setdefault("validation_history", []).append(event)
+    log_event = {
+        "event": "render_validation_attempt",
+        "job_id": job_id,
+        "style": render.get("style"),
+        "room_type": render.get("room_type") or render.get("_room_type") or "living",
+        **event,
+    }
+    print("[validation] " + json.dumps(log_event, ensure_ascii=False, default=str))
+    return event
+
+
+def _validation_diagnostics(render: dict) -> dict:
+    """整理可安全寫入 result_json 的驗證歷程與最終狀態。"""
+    history = list(render.get("validation_history") or [])
+    validation = render.get("validation") or {}
+    error_type = render.get("error_type")
+    error_text = str(render.get("error") or render.get("render_error")
+                     or validation.get("error") or render.get("retry_reason") or "")
+    if (error_type in {"FalGenerationTimeout", "FalResultDownloadError"}
+            or render.get("error") or render.get("render_error")
+            or _is_quota_outage(error_text)):
+        failure_class = "infrastructure"
+    elif history:
+        failure_class = history[-1].get("failure_class")
+    elif validation.get("validation_unavailable"):
+        failure_class = "validator_exception"
+    elif validation.get("ok") is False:
+        failure_class = "render_quality"
+    else:
+        failure_class = None
+    return {
+        "failure_class": failure_class,
+        "validation_stage": history[-1].get("validation_stage") if history else None,
+        "validation_attempt_count": len(history),
+        "validation_history": history,
+        "validation_final": {
+            "ok": validation.get("ok"),
+            "hard_fail": validation.get("hard_fail"),
+            "validation_unavailable": validation.get("validation_unavailable"),
+            "validation_outage": validation.get("validation_outage"),
+            "exception_type": validation.get("exception_type") or error_type,
+            "exception_message": str(validation.get("error") or error_text)[:500] or None,
+        },
+    }
+
+
+def _slim_validation_summary(summary: dict | None) -> dict | None:
+    """精簡／極簡 payload 專用的 validation_summary：只留死因摘要，丟掉 raw_verdict。
+
+    精簡 payload 存在的唯一理由是「小到一定寫得進去」（ED3B66EF：完整版卡在
+    result_upsert，渲染到 92% 交不出去）——它本來就刻意捨棄逐圖 validation。
+    完整 validation_history 每個 event 都帶一份完整判官輸出（實測 1,567 bytes），
+    3 視角 × 6 次重試 ≈ 28KB，正好是「重試最多、最需要診斷」的單最肥。
+    那會讓救命的退路自己寫不進去，客戶連圖都拿不到。
+    所以這裡只留 failure_class / stage / attempt / exception —— 三層 payload
+    都查得到死在哪層、為什麼，完整證據鏈留在完整版與 Railway log。
+    """
+    if not isinstance(summary, dict):
+        return summary
+    slim = {k: v for k, v in summary.items() if k not in ("dropped_renders",)}
+    dropped = []
+    for d in (summary.get("dropped_renders") or []):
+        if not isinstance(d, dict):
+            continue
+        final = d.get("validation_final") or {}
+        dropped.append({
+            **{k: d.get(k) for k in
+               ("style", "style_label", "angle_label", "room_type", "timeout", "reason",
+                "failure_class", "validation_stage", "validation_attempt_count")},
+            "validation_final": {
+                **{k: final.get(k) for k in
+                   ("ok", "hard_fail", "validation_unavailable", "validation_outage",
+                    "exception_type")},
+                "exception_message": str(final.get("exception_message") or "")[:200] or None,
+            },
+            # 逐次嘗試只留「哪一階段、第幾次、什麼死因」，不帶 raw_verdict
+            "validation_trail": [
+                {k: h.get(k) for k in
+                 ("validation_stage", "attempt", "failure_class", "exception_type")}
+                for h in (d.get("validation_history") or [])
+            ],
+        })
+    if dropped:
+        slim["dropped_renders"] = dropped
+    # shadow 契約明細同樣是純觀測用的大物件，精簡版只留件數
+    _shadow = slim.get("layout_contract_shadow")
+    if isinstance(_shadow, dict) and _shadow.get("items"):
+        slim["layout_contract_shadow"] = {
+            "count": _shadow.get("count"), "affects_delivery": False, "items_trimmed": True}
+    return slim
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -3818,20 +3973,35 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                 layout_context=_lc,
                                                 room_type=r.get("room_type", "living"),
                                                 design_mode=design_mode)
+                            _record_validation_attempt(
+                                r, job_id=job_id, stage="post_render", attempt=_v_try + 1,
+                                validation=v)
                             break
                         except Exception as ve:
-                            v = {"ok": None, "error": str(ve)[:200]}
+                            v = {"ok": None, "error": str(ve)[:500],
+                                 "exception_type": type(ve).__name__}
+                            _record_validation_attempt(
+                                r, job_id=job_id, stage="post_render", attempt=_v_try + 1,
+                                validation=v, error=ve)
                             print(f"[pipeline] 驗證崩潰（第 {_v_try+1} 次）"
                                   f"{r.get('style')}/{r.get('room_type')}: {str(ve)[:100]}")
                 else:
-                    v = {"ok": None, "error": "missing base or render path"}
+                    v = {"ok": None, "error": "missing base or render path",
+                         "exception_type": "MissingRenderPath"}
+                    _record_validation_attempt(
+                        r, job_id=job_id, stage="post_render", attempt=1, validation=v)
                 r["validation"] = _fail_closed_validation(v, r.get("room_type", "living"))
         except Exception as outer:
             print(f"[pipeline] 驗證階段例外: {outer}")
             for r in final:
-                r.setdefault("validation", _fail_closed_validation(
-                    {"ok": None, "error": "validation step crashed"},
-                    r.get("room_type", "living")))
+                if "validation" not in r:
+                    _outer_v = {"ok": None, "error": str(outer)[:500],
+                                "exception_type": type(outer).__name__}
+                    _record_validation_attempt(
+                        r, job_id=job_id, stage="post_render", attempt=1,
+                        validation=_outer_v, error=outer)
+                    r["validation"] = _fail_closed_validation(
+                        _outer_v, r.get("room_type", "living"))
 
         # ── Z3: multi-image renderer 結構失敗自動重試；S2 固定 GPT Image 2 ──
         use_image_edit_retry = _image_edit_retry_enabled(final)
@@ -4021,6 +4191,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         r["retry_reason"] = f"{retry_reason} | retry returned empty"
                         break
                     new_r = retry_results[0]
+                    new_r["validation_history"] = list(r.get("validation_history") or [])
                     # 改名加 _retry / _retry2
                     if new_r.get("render_path"):
                         src_p = Path(new_r["render_path"])
@@ -4045,9 +4216,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                     room_type=entry.get("_room_type", "living"),
                                                     design_mode=design_mode)
                         else:
-                            new_v = {"ok": None, "error": "missing base or render path after retry"}
+                            new_v = {"ok": None, "error": "missing base or render path after retry",
+                                     "exception_type": "MissingRenderPath"}
+                        _record_validation_attempt(
+                            new_r, job_id=job_id, stage="z3", attempt=current_rc + 1,
+                            validation=new_v)
                     except Exception as ve:
-                        new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:200]}"}
+                        new_v = {"ok": None, "error": f"revalidate failed: {str(ve)[:500]}",
+                                 "exception_type": type(ve).__name__}
+                        _record_validation_attempt(
+                            new_r, job_id=job_id, stage="z3", attempt=current_rc + 1,
+                            validation=new_v, error=ve)
                     new_r["validation"]   = _fail_closed_validation(new_v, entry.get("_room_type", "living"))
                     new_r["angle_label"]  = entry["_angle_label"]
                     # 重試換掉 r 時務必補回房型，否則 new_r 帶的是 Gemini 廣角圖的 living，
@@ -4185,6 +4364,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if not fix_results:
                     continue
                 new_r = fix_results[0]
+                new_r["validation_history"] = list(r.get("validation_history") or [])
                 if new_r.get("render_path"):
                     src_p = Path(new_r["render_path"])
                     new_p = src_p.parent / f"render_{entry.get('style','x')}_{idx:02d}_hardfix{src_p.suffix}"
@@ -4205,9 +4385,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                 room_type=entry.get("_room_type", "living"),
                                                 design_mode=design_mode)
                     else:
-                        new_v = {"ok": None, "error": "missing path after hardfix"}
+                        new_v = {"ok": None, "error": "missing path after hardfix",
+                                 "exception_type": "MissingRenderPath"}
+                    _record_validation_attempt(
+                        new_r, job_id=job_id, stage="phase2", attempt=1,
+                        validation=new_v)
                 except Exception as ve:
-                    new_v = {"ok": None, "error": f"revalidate hardfix failed: {str(ve)[:200]}"}
+                    new_v = {"ok": None, "error": f"revalidate hardfix failed: {str(ve)[:500]}",
+                             "exception_type": type(ve).__name__}
+                    _record_validation_attempt(
+                        new_r, job_id=job_id, stage="phase2", attempt=1,
+                        validation=new_v, error=ve)
                 new_r["validation"]   = _fail_closed_validation(new_v, entry.get("_room_type", "living"))
                 new_r["angle_label"]  = entry["_angle_label"]
                 # 同 Z3 retry：補回房型，避免結果頁用 living 濾掉該房家具。
@@ -4224,6 +4412,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     final[idx] = new_r
                     print(f"[pipeline] Phase2 補生成功 render[{idx}] style={new_r.get('style')}")
                 else:
+                    r["validation_history"] = list(new_r.get("validation_history") or [])
                     print(f"[pipeline] Phase2 補生仍硬傷 render[{idx}] style={r.get('style')}")
 
         # Delivery gate (2026-06-21, partial delivery + 硬傷分級):
@@ -4284,6 +4473,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "room_type":   r.get("room_type"),
                 "timeout":     bool(_is_timeout),         # 前端可顯示友善「生成逾時」文案
                 "reason":      str(reason)[:240],
+                **_validation_diagnostics(r),
             })
 
         # 全部硬傷時：不再打成 failed（客戶不該看到「處理失敗」）。
@@ -4563,6 +4753,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "analysis": {k: (analysis or {}).get(k) for k in
                          ("design_analysis", "design_analysis_source", "space_type", "lighting", "layout_notes")},
             "customer_inputs": customer_inputs,
+            "validation_summary": _slim_validation_summary(validation_summary),
             "payload_trimmed": True,
         }
         if rooms_for_json:
@@ -4599,6 +4790,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "analysis": {"space_type": (analysis or {}).get("space_type"),
                          "design_analysis_source": (analysis or {}).get("design_analysis_source")},
             "customer_inputs": customer_inputs,
+            "validation_summary": _slim_validation_summary(validation_summary),
             "build_tag": "fullmode-rewrite-v2",
             "payload_trimmed": True,
         }
@@ -4687,7 +4879,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         else:
                             strategies = _phase3_base_strategies(entry)
                     fixed = None
-                    for tag, base_p, model_ov in strategies:
+                    for _p3_attempt, (tag, base_p, model_ov) in enumerate(strategies, start=1):
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
                               f"style={r.get('style')} 策略={tag}")
                         try:
@@ -4712,7 +4904,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         cand = (p3 or [{}])[0]
                         rpath = cand.get("render_path")
                         if not rpath:
+                            _missing_v = {"ok": None, "error": "missing render path after phase3",
+                                          "exception_type": "MissingRenderPath"}
+                            _record_validation_attempt(
+                                r, job_id=job_id, stage="phase3", attempt=_p3_attempt,
+                                validation=_missing_v)
                             continue
+                        cand["validation_history"] = list(r.get("validation_history") or [])
                         try:
                             from gemini_analyze import validate_render
                             _lc = layout_ctx if (entry.get("_room_type") or "living") == "living" else None
@@ -4725,11 +4923,21 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                  layout_context=_lc,
                                                  room_type=entry.get("_room_type", "living"),
                                                  design_mode=design_mode)
+                            _record_validation_attempt(
+                                cand, job_id=job_id, stage="phase3", attempt=_p3_attempt,
+                                validation=v3)
                             v3 = _fail_closed_validation(
                                 v3, entry.get("_room_type", "living"))
                         except Exception as v_e:
+                            _error_v = {"ok": None, "error": str(v_e)[:500],
+                                        "exception_type": type(v_e).__name__}
+                            _record_validation_attempt(
+                                cand, job_id=job_id, stage="phase3", attempt=_p3_attempt,
+                                validation=_error_v, error=v_e)
+                            r["validation_history"] = list(cand.get("validation_history") or [])
                             print(f"[pipeline] Phase3 驗證例外（{tag}）: {str(v_e)[:120]}")
                             continue
+                        r["validation_history"] = list(cand.get("validation_history") or [])
                         if (v3 or {}).get("hard_fail"):
                             print(f"[pipeline] Phase3 {tag} 仍硬傷: {(v3.get('reason') or '')[:100]}")
                             continue
@@ -4776,6 +4984,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                                      fixed.get("room_type", "living")),
                             "soft_furnishing":   fixed.get("soft_furnishing", []),
                             "validation":        fixed.get("validation"),
+                            "validation_history": fixed.get("validation_history", []),
                             "pipeline_version":  fixed.get("pipeline_version", "flux-v1"),
                             "reference_map":     _slim_refmap(fixed.get("reference_map")),
                             "notes":             fixed.get("notes", ""),
@@ -4836,6 +5045,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if _post_repair_row.get("status") == "repairing":
                     _post_rj = (_post_repair_row.get("result_json")
                                 if isinstance(_post_repair_row.get("result_json"), dict) else {})
+                    _post_vs = _post_rj.get("validation_summary") or {}
+                    for _dropped in (_post_vs.get("dropped_renders") or []):
+                        for _final_r in final:
+                            if (_dropped.get("style") == _final_r.get("style")
+                                    and _dropped.get("room_type")
+                                    == (_final_r.get("room_type") or _final_r.get("_room_type"))):
+                                _history = list(_final_r.get("validation_history") or [])
+                                _dropped["validation_history"] = _history
+                                _dropped["validation_attempt_count"] = len(_history)
+                                if _history:
+                                    _dropped["validation_stage"] = _history[-1].get("validation_stage")
+                                break
+                    _post_rj["validation_summary"] = _post_vs
                     _post_rj.pop("repairing", None)
                     _post_rj["repair_incomplete"] = True
                     sb_upsert({
