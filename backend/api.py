@@ -2465,6 +2465,7 @@ def _run_layout_contract_s2(
         "reconciliation_sha256": None,
         "verification_path": None,
         "verification_sha256": None,
+        "verification_history": [],
         "contract": None,
     }
     try:
@@ -2514,16 +2515,18 @@ def _run_layout_contract_s2(
             )
             plan = verifier_result["plan"]
             verified_guide = verifier_result.get("guide_artifact")
+            verification_history = verifier_result.get("verification_history") or []
             verification_path = out_dir / f"geometry_verification_s2_{tag}.json"
             verification_path.write_text(
                 json.dumps({
                     "verification": plan.get("geometry_verification"),
-                    "history": verifier_result.get("verification_history") or [],
+                    "history": verification_history,
                 }, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
             artifacts["verification_path"] = str(verification_path)
             artifacts["verification_sha256"] = _source_file_sha256(verification_path)
+            artifacts["verification_history"] = verification_history
         source_binding = zoning.get("_source_binding") if isinstance(zoning, dict) else {}
         bound_photo_key = (
             str((source_binding or {}).get("photo_key") or "").strip()
@@ -2575,6 +2578,9 @@ def _run_layout_contract_s2(
                 "reconciliation_sha256": _source_file_sha256(reconciliation_path),
             })
 
+        verification = plan.get("geometry_verification") or {}
+        verification_history = list(artifacts.get("verification_history") or [])
+        verification_failed_fields = dict(verification.get("failed_fields") or {})
         summary = {
             "view_index": view_index,
             "photo": photo.name,
@@ -2588,12 +2594,39 @@ def _run_layout_contract_s2(
             "guide_path": artifacts["guide_path"],
             "reconciliation_path": artifacts["reconciliation_path"],
             "photo_binding_verified": binding_verified,
+            "verification_status": verification.get("status"),
+            "verification_attempt_count": verification.get("attempt_count", 0),
+            "verification_corrected": bool(verification.get("corrected")),
+            "verification_retry_reason": verification.get("retry_reason"),
+            "verification_failed_fields": verification_failed_fields,
+            "verification_exception_type": verification.get("exception_type"),
+            "verification_unsafe_codes": list(verification.get("unsafe_codes") or []),
+            "verification_history": verification_history,
             "affects_delivery": True,
         }
+        if verification.get("status") == "fail":
+            reason_parts = []
+            if verification_failed_fields:
+                reason_parts.append(
+                    "fields=" + ",".join(
+                        f"{field}:{status}"
+                        for field, status in verification_failed_fields.items()
+                    )
+                )
+            if verification.get("exception_type"):
+                reason_parts.append(f"exception={verification['exception_type']}")
+            reason_parts.append(
+                f"attempts={verification.get('attempt_count', 0)}"
+            )
+            summary["reason"] = "layout verifier blocked: " + " ".join(reason_parts)
         print(
             f"[pipeline] layout_contract S2[{view_index}] status={summary['status']} "
             f"disp={summary['contract_v1_disposition']} bind={binding_verified} "
-            f"candidate={decision.get('chosen_candidate_id')}"
+            f"candidate={decision.get('chosen_candidate_id')} "
+            f"verify={summary['verification_status']} "
+            f"attempts={summary['verification_attempt_count']} "
+            f"failed_fields={','.join(f'{field}:{status}' for field, status in verification_failed_fields.items())} "
+            f"exception={summary['verification_exception_type']}"
         )
         return summary, artifacts
     except Exception as error:
@@ -2605,6 +2638,14 @@ def _run_layout_contract_s2(
             "pre_generation_eligible": False,
             "unsafe_codes": ["S2_PIPELINE_ERROR"],
             "reason": f"{type(error).__name__}: {str(error)[:180]}",
+            "verification_status": "fail",
+            "verification_attempt_count": 0,
+            "verification_corrected": False,
+            "verification_retry_reason": None,
+            "verification_failed_fields": {},
+            "verification_exception_type": type(error).__name__,
+            "verification_unsafe_codes": ["S2_PIPELINE_ERROR"],
+            "verification_history": [],
             "affects_delivery": True,
         }, artifacts)
 

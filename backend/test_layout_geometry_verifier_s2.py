@@ -299,6 +299,41 @@ def test_failed_wall_alignment_applies_one_correction_and_reverifies(tmp_path):
     assert calls[0][1] == 1 and calls[1][1] == 2
 
 
+def test_uncertain_verdict_retries_same_plan_and_second_pass_is_accepted(tmp_path):
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    uncertain = copy.deepcopy(HARD_PASS)
+    uncertain["sofa_back_contact"] = "uncertain"
+    uncertain["overall"] = "fail"
+    uncertain["unsafe_codes"] = ["SOFA_WALL_CONTACT_UNCERTAIN"]
+    responses = [uncertain, copy.deepcopy(HARD_PASS)]
+    calls = []
+
+    def fake_verifier(_photo, _guide, attempt_number, _plan=None):
+        calls.append(attempt_number)
+        return responses.pop(0)
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="right",
+        verifier=fake_verifier,
+        floor_reference_estimator=_observed_floor_reference,
+    )
+
+    verification = result["plan"]["geometry_verification"]
+    assert result["plan"]["disposition"] == "SAFE_FOR_GENERATION"
+    assert calls == [1, 2]
+    assert verification["attempt_count"] == 2
+    assert verification["corrected"] is False
+    assert verification["retry_reason"] == "uncertain_verdict"
+    assert [item["outcome"] for item in result["verification_history"]] == [
+        "uncertain", "pass",
+    ]
+
+
 def test_uncertain_verifier_result_blocks_every_candidate(tmp_path):
     photo = tmp_path / "room.jpg"
     Image.new("RGB", (1000, 700), "white").save(photo)
@@ -307,13 +342,19 @@ def test_uncertain_verifier_result_blocks_every_candidate(tmp_path):
     uncertain["overall"] = "fail"
     uncertain["unsafe_codes"] = ["SOFA_WALL_CONTACT_UNCERTAIN"]
 
+    calls = []
+
+    def fake_verifier(_photo, _guide, attempt_number, _plan=None):
+        calls.append(attempt_number)
+        return copy.deepcopy(uncertain)
+
     result = verifier_s2.verify_and_replan_s2(
         raw_geometry=_safe_geometry(),
         photo_path=photo,
         output_dir=tmp_path,
         expected_source_photo_index=0,
         sofa_side="right",
-        verifier=lambda *_: uncertain,
+        verifier=fake_verifier,
         floor_reference_estimator=_observed_floor_reference,
     )
 
@@ -322,6 +363,91 @@ def test_uncertain_verifier_result_blocks_every_candidate(tmp_path):
     assert "GEOM_NOT_ELIGIBLE" in result["plan"]["unsafe_codes"]
     assert all(not candidate["eligible"] for candidate in result["plan"]["candidates"])
     assert result["guide_artifact"] is None
+    assert calls == [1, 2]
+    verification = result["plan"]["geometry_verification"]
+    assert verification["attempt_count"] == 2
+    assert verification["corrected"] is False
+    assert verification["failed_fields"] == {"sofa_back_contact": "uncertain"}
+    assert len(result["verification_history"]) == 2
+
+
+def test_retryable_exception_retries_same_plan_and_second_pass_is_accepted(tmp_path):
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    calls = []
+
+    def fake_verifier(_photo, _guide, attempt_number, _plan=None):
+        calls.append(attempt_number)
+        if attempt_number == 1:
+            raise TimeoutError("Gemini request timed out")
+        return copy.deepcopy(HARD_PASS)
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="right",
+        verifier=fake_verifier,
+        floor_reference_estimator=_observed_floor_reference,
+    )
+
+    verification = result["plan"]["geometry_verification"]
+    assert result["plan"]["disposition"] == "SAFE_FOR_GENERATION"
+    assert calls == [1, 2]
+    assert verification["retry_reason"] == "retryable_exception"
+    assert verification["corrected"] is False
+    assert result["verification_history"][0] == {
+        "attempt_number": 1,
+        "outcome": "exception",
+        "exception_type": "TimeoutError",
+        "exception_message": "Gemini request timed out",
+        "retryable": True,
+    }
+
+
+def test_hard_fail_without_safe_wall_correction_blocks_without_retry(tmp_path):
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    hard_fail = copy.deepcopy(HARD_PASS)
+    hard_fail["sofa_back_contact"] = "fail"
+    hard_fail["overall"] = "fail"
+    hard_fail["unsafe_codes"] = ["SOFA_WALL_CONTACT_FAIL"]
+    calls = []
+
+    def fake_verifier(_photo, _guide, attempt_number, _plan=None):
+        calls.append(attempt_number)
+        return copy.deepcopy(hard_fail)
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="right",
+        verifier=fake_verifier,
+        floor_reference_estimator=_observed_floor_reference,
+    )
+
+    assert result["plan"]["disposition"] == "BLOCKED"
+    assert calls == [1]
+    verification = result["plan"]["geometry_verification"]
+    assert verification["attempt_count"] == 1
+    assert verification["failed_fields"] == {"sofa_back_contact": "fail"}
+    assert verification["corrected"] is False
+
+
+@pytest.mark.parametrize("error", [
+    RuntimeError("429 resource exhausted"),
+    RuntimeError("503 service unavailable"),
+])
+def test_known_transient_verifier_errors_are_retryable(error):
+    assert verifier_s2._is_retryable_verifier_exception(error) is True
+
+
+def test_exhausted_malformed_json_is_not_retried_twice_again():
+    error = verifier_s2.VerifierResponseError("malformed JSON after internal retry")
+    assert verifier_s2._is_retryable_verifier_exception(error) is False
 
 
 def test_missing_transverse_floor_reference_blocks_before_verifier_call(tmp_path):

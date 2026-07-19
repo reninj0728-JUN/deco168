@@ -25,6 +25,24 @@ _REQUIRED_PASS_FIELDS = (
     "cross_axis_matches_floor_transverse",
 )
 
+_RETRYABLE_VERIFIER_ERROR_MARKERS = (
+    "429",
+    "500",
+    "502",
+    "503",
+    "504",
+    "deadline",
+    "rate limit",
+    "ratelimit",
+    "resource exhausted",
+    "resourceexhausted",
+    "service unavailable",
+    "serviceunavailable",
+    "temporarily unavailable",
+    "timeout",
+    "timed out",
+)
+
 
 class VerifierResponseError(ValueError):
     """Verifier output is malformed or incomplete and therefore unsafe."""
@@ -88,6 +106,65 @@ def verification_passes(result: dict) -> bool:
     if not isinstance(result, dict) or result.get("overall") != "pass":
         return False
     return all(result.get(field) == "pass" for field in _REQUIRED_PASS_FIELDS)
+
+
+def _verifier_failed_fields(result: dict | None) -> dict:
+    if not isinstance(result, dict):
+        return {}
+    return {
+        field: result.get(field, "missing")
+        for field in _REQUIRED_PASS_FIELDS
+        if result.get(field) != "pass"
+    }
+
+
+def _verifier_has_hard_fail(result: dict | None) -> bool:
+    return any(
+        status == "fail"
+        for status in _verifier_failed_fields(result).values()
+    )
+
+
+def _is_retryable_verifier_exception(error: Exception) -> bool:
+    # verify_s2_guide_gemini already retries malformed JSON once internally;
+    # do not multiply that path into four paid model calls here.
+    if isinstance(error, (TimeoutError, ConnectionError)):
+        return True
+    signature = f"{type(error).__name__}: {error}".lower()
+    return any(marker in signature for marker in _RETRYABLE_VERIFIER_ERROR_MARKERS)
+
+
+def _format_failed_fields(result: dict | None) -> str:
+    return ",".join(
+        f"{field}:{status}"
+        for field, status in _verifier_failed_fields(result).items()
+    )
+
+
+def _verdict_history_entry(verdict: dict, attempt_number: int) -> dict:
+    entry = copy.deepcopy(verdict)
+    entry["attempt_number"] = attempt_number
+    entry["outcome"] = (
+        "pass" if verification_passes(verdict)
+        else "hard_fail" if _verifier_has_hard_fail(verdict)
+        else "uncertain"
+    )
+    entry["failed_fields"] = _verifier_failed_fields(verdict)
+    return entry
+
+
+def _exception_history_entry(
+    error: Exception,
+    attempt_number: int,
+    retryable: bool,
+) -> dict:
+    return {
+        "attempt_number": attempt_number,
+        "outcome": "exception",
+        "exception_type": type(error).__name__,
+        "exception_message": str(error)[:240],
+        "retryable": retryable,
+    }
 
 
 def _valid_segment_yx1000(value) -> bool:
@@ -310,6 +387,29 @@ def _blocked_after_verification(plan: dict, verdict: dict | None, detail: str) -
             "detail": detail,
         },
     })
+    return blocked
+
+
+def _finalize_blocked_verification(
+    plan: dict,
+    verdict: dict | None,
+    detail: str,
+    *,
+    attempt_number: int,
+    correction_applied: bool,
+    retry_reason: str | None = None,
+    error: Exception | None = None,
+) -> dict:
+    blocked = _blocked_after_verification(plan, verdict, detail)
+    verification = blocked["geometry_verification"]
+    verification["attempt_count"] = attempt_number
+    verification["corrected"] = correction_applied
+    verification["failed_fields"] = _verifier_failed_fields(verdict)
+    if retry_reason:
+        verification["retry_reason"] = retry_reason
+    if error is not None:
+        verification["exception_type"] = type(error).__name__
+        verification["exception_message"] = str(error)[:240]
     return blocked
 
 
@@ -550,28 +650,41 @@ def verify_and_replan_s2(
         }
 
     history = []
+    correction_applied = False
+    retry_reason = None
     for attempt_number in (1, 2):
         attempt_path = target_dir / f"layout_guide_s2_attempt{attempt_number}.jpg"
         lgs2.render_s2_guide(source, attempt_path, plan)
         try:
             verdict = verifier(source, attempt_path, attempt_number, plan)
+            if not isinstance(verdict, dict):
+                raise VerifierResponseError("verifier returned a non-object")
         except Exception as exc:
-            blocked = _blocked_after_verification(plan, None, f"verifier exception: {type(exc).__name__}")
+            retryable = _is_retryable_verifier_exception(exc)
+            history.append(_exception_history_entry(exc, attempt_number, retryable))
+            print(
+                f"[layout-verifier] attempt={attempt_number} outcome=exception "
+                f"type={type(exc).__name__} retryable={retryable}"
+            )
+            if attempt_number == 1 and retryable:
+                retry_reason = "retryable_exception"
+                continue
+            blocked = _finalize_blocked_verification(
+                plan,
+                None,
+                f"verifier exception: {type(exc).__name__}",
+                attempt_number=attempt_number,
+                correction_applied=correction_applied,
+                retry_reason=retry_reason,
+                error=exc,
+            )
             return {
                 "plan": blocked,
                 "raw_geometry": active_raw,
                 "guide_artifact": None,
                 "verification_history": history,
             }
-        if not isinstance(verdict, dict):
-            blocked = _blocked_after_verification(plan, None, "verifier returned a non-object")
-            return {
-                "plan": blocked,
-                "raw_geometry": active_raw,
-                "guide_artifact": None,
-                "verification_history": history,
-            }
-        history.append(copy.deepcopy(verdict))
+        history.append(_verdict_history_entry(verdict, attempt_number))
         if verification_passes(verdict):
             final_path = target_dir / "layout_guide_s2_final.jpg"
             artifact = lgs2.render_s2_guide(source, final_path, plan)
@@ -579,17 +692,21 @@ def verify_and_replan_s2(
             verified_plan["geometry_verification"] = {
                 "status": "pass",
                 "attempt_count": attempt_number,
-                "corrected": attempt_number > 1,
+                "corrected": correction_applied,
                 "unsafe_codes": [],
+                "failed_fields": {},
                 "detail": "all hard verifier checks passed",
             }
+            if retry_reason:
+                verified_plan["geometry_verification"]["retry_reason"] = retry_reason
             return {
                 "plan": verified_plan,
                 "raw_geometry": active_raw,
                 "guide_artifact": artifact,
                 "verification_history": history,
             }
-        if attempt_number == 1:
+        hard_fail = _verifier_has_hard_fail(verdict)
+        if attempt_number == 1 and hard_fail:
             active_raw, changed = _apply_wall_corrections(active_raw, verdict)
             if changed:
                 plan = lgs2.build_s2_plan(
@@ -602,10 +719,38 @@ def verify_and_replan_s2(
                     transverse_reference=floor_reference,
                 )
                 if plan.get("pre_generation_eligible"):
+                    correction_applied = True
+                    retry_reason = "wall_correction"
+                    print(
+                        "[layout-verifier] attempt=1 outcome=hard_fail "
+                        "action=wall_correction_retry"
+                    )
                     continue
-        blocked = _blocked_after_verification(plan, verdict, "hard verifier checks did not pass")
-        blocked["geometry_verification"]["attempt_count"] = attempt_number
-        blocked["geometry_verification"]["corrected"] = attempt_number > 1
+        if attempt_number == 1 and not hard_fail:
+            retry_reason = "uncertain_verdict"
+            print(
+                "[layout-verifier] attempt=1 outcome=uncertain "
+                f"failed_fields={_format_failed_fields(verdict)} "
+                "action=same_plan_retry"
+            )
+            continue
+        detail = (
+            "hard verifier checks failed"
+            if hard_fail else "verifier remained uncertain after retry"
+        )
+        blocked = _finalize_blocked_verification(
+            plan,
+            verdict,
+            detail,
+            attempt_number=attempt_number,
+            correction_applied=correction_applied,
+            retry_reason=retry_reason,
+        )
+        print(
+            f"[layout-verifier] attempt={attempt_number} outcome=blocked "
+            f"hard_fail={hard_fail} "
+            f"failed_fields={_format_failed_fields(verdict)}"
+        )
         return {
             "plan": blocked,
             "raw_geometry": active_raw,

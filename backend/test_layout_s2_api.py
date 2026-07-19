@@ -116,6 +116,57 @@ def test_run_layout_contract_s2_writes_safe_bound_artifacts(tmp_path):
     assert generation_zoning["_sofa_layout"] == expected_sofa
 
 
+def test_run_layout_contract_s2_exposes_verifier_exception_and_history(tmp_path):
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    zoning = {
+        "best_photo_index": 0,
+        "_source_binding": {
+            "photo_key": "upload/room.jpg",
+            "sha256": hashlib.sha256(photo.read_bytes()).hexdigest(),
+        },
+        "struct_geometry_v1": _safe_geometry(),
+    }
+
+    def timeout_verifier(*_args):
+        raise TimeoutError("Gemini verifier timed out")
+
+    summary, artifacts = api._run_layout_contract_s2(
+        job_id="job-s2-timeout",
+        job_dir=tmp_path,
+        photo_path=str(photo),
+        view_index=0,
+        user_zoning_v2=zoning,
+        legacy_zoning=zoning,
+        sofa_mode="right",
+        image_paths=[str(photo)],
+        geometry_verifier=timeout_verifier,
+        floor_reference_estimator=lambda *_: {
+            "status": "observed",
+            "confidence": "high",
+            "direction_xy": [1.0, 0.0],
+            "angle_degrees": 0.0,
+            "support_count": 20,
+            "unsafe_codes": [],
+        },
+    )
+
+    assert summary["status"] == "blocked"
+    assert summary["verification_status"] == "fail"
+    assert summary["verification_attempt_count"] == 2
+    assert summary["verification_corrected"] is False
+    assert summary["verification_retry_reason"] == "retryable_exception"
+    assert summary["verification_exception_type"] == "TimeoutError"
+    assert "exception=TimeoutError" in summary["reason"]
+    assert len(summary["verification_history"]) == 2
+    assert summary["verification_history"] == artifacts["verification_history"]
+    saved = json.loads(
+        Path(artifacts["verification_path"]).read_text(encoding="utf-8")
+    )
+    assert len(saved["history"]) == 2
+    assert saved["history"][-1]["exception_type"] == "TimeoutError"
+
+
 @pytest.mark.parametrize("orientation", [6, 8])
 def test_run_layout_contract_s2_uses_exif_transposed_dimensions(tmp_path, orientation):
     photo = tmp_path / f"orientation{orientation}.jpg"
