@@ -2893,6 +2893,22 @@ def _validation_diagnostics(render: dict) -> dict:
     }
 
 
+def _incomplete_message(validation_summary: dict | None) -> str:
+    """交不出圖時給客戶的文案要對得上真實死因。
+
+    2026-07-19 fal 餘額耗盡，一張圖都沒生出來，客戶看到的卻是
+    「主空間仍未通過配置驗收」——把系統問題說成設計問題，害人往格局方向查了
+    一整天。沒有圖可驗的時候絕不能說「驗收沒過」。
+    """
+    dropped = [d for d in ((validation_summary or {}).get("dropped_renders") or [])
+               if isinstance(d, dict)]
+    classes = {d.get("failure_class") for d in dropped}
+    system_only = bool(classes) and classes <= {"infrastructure", "validator_exception"}
+    if system_only:
+        return "系統暫時無法完成生成（非設計問題），我們已收到通知，請聯絡客服協助重跑"
+    return "主空間仍未通過配置驗收，請聯絡客服重新處理"
+
+
 def _slim_validation_summary(summary: dict | None) -> dict | None:
     """精簡／極簡 payload 專用的 validation_summary：只留死因摘要，丟掉 raw_verdict。
 
@@ -5166,7 +5182,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         "job_id": job_id,
                         "status": "incomplete",
                         "progress": 100,
-                        "message": "主空間仍未通過配置驗收，請聯絡客服重新處理",
+                        "message": _incomplete_message(_post_vs),
                         "result_json": _post_rj,
                     }, timeout=25)
             except Exception as _finalize_repair_error:

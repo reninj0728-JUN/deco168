@@ -983,3 +983,40 @@ def test_retry_metrics_normalise_door_gap_by_door_width():
     assert any(k.startswith("door_gap") for k in m) or "pair_align" in m
     for k, val in m.items():
         assert isinstance(val, float)
+
+
+def test_wardrobe_never_fills_the_tv_console_slot():
+    """E401B756：電視櫃槽位配到「白色組合式衣櫃與低櫃」，參考圖是雙門高衣櫃，
+    模型被告知那是電視櫃 → 判官判 media_console:different。"""
+    for name in ("白色組合式衣櫃與低櫃", "北歐風三門衣櫃", "簡約衣櫥附鏡",
+                 "White modular wardrobe", "walk-in closet unit"):
+        assert fm.violates_slot_guard("media_console", "living", name), f"應擋: {name}"
+        assert fm.violates_slot_guard("coffee_table", "living", name), f"應擋: {name}"
+
+    # 真正的電視櫃/茶几不可被誤擋
+    for name in ("現代簡約象牙白電視櫃", "工業風雙層茶几", "北歐風附輪置物移動茶几"):
+        assert not fm.violates_slot_guard("media_console", "living", name) or "茶几" in name
+    assert not fm.violates_slot_guard("media_console", "living", "現代簡約象牙白電視櫃")
+    assert not fm.violates_slot_guard("coffee_table", "living", "工業風雙層茶几")
+
+
+def test_bundle_detector_catches_cabinet_pairs_and_attached_pieces():
+    """E401B756 兩個漏網：連接式清單沒有櫃體名詞、「附X」沒有連接詞也沒有組套字。"""
+    bundles = [
+        "白色組合式衣櫃與低櫃",                                  # 衣櫃＋低櫃
+        "文創集 絲莉岩板4.3尺二抽大茶几(二色可選附收納椅凳單張)",   # 茶几＋椅凳
+        "北歐實木餐桌附長凳",
+        "電視櫃與邊櫃",
+        "L型沙發+升降茶几",
+    ]
+    for name in bundles:
+        assert fm.is_multi_piece_bundle(name), f"應判多件合照: {name}"
+
+    # 單件家具的複合命名不可誤傷（附抽屜/附輪/附層板是零件不是另一件家具）
+    singles = [
+        "輕奢風收納抽屜茶几", "北歐風附輪置物移動茶几", "組合式書桌",
+        "現代簡約象牙白電視櫃", "工業風雙層茶几", "白色簡約三抽斗櫃",
+        "簡約布藝扶手椅", "日式檜木餐桌附層板",
+    ]
+    for name in singles:
+        assert not fm.is_multi_piece_bundle(name), f"單件家具被誤判: {name}"

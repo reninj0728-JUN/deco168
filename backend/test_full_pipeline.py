@@ -62,6 +62,23 @@ class LayoutPreflightBlocked(Exception):
     pass
 
 
+# fal 帳戶層級的硬失敗：重試多少次都不會過，必須立刻停並且講人話。
+# 2026-07-19 餘額耗盡時，錯誤字串是 "User is locked. Reason: Exhausted balance."
+# ——開頭跟 1164DFC6 的暫時性假鎖一模一樣，於是走了退避重試那條路，
+# 最後被記成「主空間仍未通過配置驗收」，四張真單全滅、沒人知道是沒錢。
+FAL_ACCOUNT_BLOCKED_TOKENS = (
+    "exhausted balance", "top up your balance", "insufficient balance",
+    "insufficient credit", "quota exceeded", "payment required",
+    "account suspended", "billing",
+)
+
+
+def _is_fal_account_blocked(error) -> bool:
+    """帳戶沒錢／被停用（硬失敗）vs 瞬時假鎖（值得重試）。"""
+    text = str(error or "").lower()
+    return any(token in text for token in FAL_ACCOUNT_BLOCKED_TOKENS)
+
+
 def _enforce_s2_paid_preflight(base_local_path: str, render: dict, room_type: str) -> dict:
     globally_required = os.environ.get("LAYOUT_CONTRACT_S2", "0").strip() == "1"
     metadata_required = render.get("_layout_contract_s2_required") is True
@@ -1240,6 +1257,15 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         print(f"  [render] fal 無法下載 {len(bad)} 張參考圖，移除後重試")
                         attempt_args = {**attempt_args, "image_urls": keep}
                         continue
+                    # fal 餘額耗盡也是「User is locked」開頭，但它不是抖動、重試
+                    # 一百次也不會過。2026-07-19 帳戶沒錢時，四張真單被這條路徑
+                    # 記成「主空間仍未通過配置驗收」，用戶花了一整天以為是格局
+                    # 問題——沒有任何地方喊過「你的 fal 沒錢了」。硬失敗要立刻停、
+                    # 並且把原因原樣留在錯誤字串裡讓診斷層標成 infrastructure。
+                    if _is_fal_account_blocked(e):
+                        print(f"  [render] ⛔ fal 帳戶不可用（非暫時性，停止重試）：{str(e)[:120]}")
+                        _last_err = e
+                        break
                     # 1164DFC6：fal 暫時性假鎖（User is locked）/ 5xx 與成功呼叫「交錯」
                     # 出現（同分鐘其他請求都過、帳戶有錢）——0.5s 內被瞬間拒絕。
                     # 單次 5s 退避重試，別讓瞬時抖動白吃一次生成、還留下誤導性錯誤字串。

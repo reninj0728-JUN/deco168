@@ -492,11 +492,16 @@ _TV_NAME_KW       = ("電視櫃", "電視機櫃", "電視中空櫃", "tv cabinet
 _ENTRANCE_NAME_KW = ("鞋櫃", "玄關櫃", "穿鞋椅", "衣帽架")
 _DESK_NAME_KW     = ("書桌", "電腦桌", "辦公桌", "工作桌", "會議桌", "電競桌")
 _SIDE_TABLE_NAME_KW = ("邊几", "角几", "邊桌", "side table")
+# E401B756：客廳電視櫃槽位配到「白色組合式衣櫃與低櫃」——參考圖是一座雙門高衣櫃
+# 加旁邊一個矮櫃。模型被告知「這是你的電視櫃」卻拿到衣櫃照片，判官當然判
+# media_console:different。衣櫃／衣櫥／收納櫃體不是電視櫃，也不是茶几。
+_WARDROBE_NAME_KW = ("衣櫃", "衣櫥", "衣物櫃", "吊衣櫃", "被櫥", "wardrobe", "closet")
 
 # 槽位 → {"any": 任何房型都排除, "<room>": 該房型額外排除}
 SLOT_NAME_GUARDS: dict = {
-    "coffee_table": {"any": _TV_NAME_KW + _ENTRANCE_NAME_KW + _DESK_NAME_KW + _SIDE_TABLE_NAME_KW},
-    "media_console": {"any": _ENTRANCE_NAME_KW},
+    "coffee_table": {"any": _TV_NAME_KW + _ENTRANCE_NAME_KW + _DESK_NAME_KW
+                            + _SIDE_TABLE_NAME_KW + _WARDROBE_NAME_KW},
+    "media_console": {"any": _ENTRANCE_NAME_KW + _WARDROBE_NAME_KW},
     # 6F1BFC19：書房 storage 槽沒守衛，「9.7尺L型電視中空櫃」進了書房——
     # 電視櫃/玄關櫃在 bedroom 和 study 的收納槽都不合理，一起擋。
     "storage":      {"bedroom": _TV_NAME_KW + _ENTRANCE_NAME_KW,
@@ -539,11 +544,16 @@ _BUNDLE_HINT_RE = re.compile(r"(套組|組合|件套|全套|超值組|[桌櫃椅
 # 「A與B」「A+B」連接式合售（例：「極簡白色電視櫃與方形茶几」「L型沙發+升降茶几」）
 # ——兩種不同家具本體直接用連接詞串起，沒有組/套字也算多件合照。
 # 連接詞必須存在（「日式茶几沙發墊」這種純並列行銷詞不誤傷）。
+# E401B756 補洞：連接式清單漏了衣櫃／低櫃／高櫃等櫃體名詞——
+# 「白色組合式衣櫃與低櫃」逃過偵測，參考圖是衣櫃＋矮櫃兩件，被當單一電視櫃餵給模型。
+_BUNDLE_PIECE = (r"茶几|電視櫃|沙發|餐桌|書桌|床架|邊几|餐椅|斗櫃|邊櫃|"
+                 r"衣櫃|衣櫥|低櫃|高櫃|矮櫃|書櫃|收納櫃|置物櫃|椅凳|腳凳|長凳|穿鞋椅")
 _BUNDLE_CONJ_RE = re.compile(
-    r"(茶几|電視櫃|沙發|餐桌|書桌|床架|邊几|餐椅|斗櫃|邊櫃)"
-    r"\s*[與+及]\s*[^，。;；、\s]{0,6}?"
-    r"(茶几|電視櫃|沙發|餐桌|書桌|床架|邊几|餐椅|斗櫃|邊櫃)"
-)
+    rf"({_BUNDLE_PIECE})\s*[與+及]\s*[^，。;；、\s]{{0,6}}?({_BUNDLE_PIECE})")
+# E401B756 補洞二：「…大茶几(二色可選附收納椅凳單張)」沒有連接詞也沒有組/套字，
+# 但商品照裡確實是茶几＋收納椅凳兩件。「附＋另一種家具本體」＝合售多件。
+# 「附抽屜」「附輪」「附層板」這種零件不算，只認家具本體名詞。
+_BUNDLE_ATTACHED_RE = re.compile(rf"附[^，。;；、\s]{{0,4}}?({_BUNDLE_PIECE})")
 
 
 def is_multi_piece_bundle(name: str) -> bool:
@@ -555,6 +565,8 @@ def is_multi_piece_bundle(name: str) -> bool:
         return True
     m = _BUNDLE_CONJ_RE.search(nm)
     if m and m.group(1) != m.group(2):   # 「沙發與沙發墊」同 token 不算
+        return True
+    if _BUNDLE_ATTACHED_RE.search(nm):
         return True
     types_hit = {t for t in _FURN_TYPE_TOKENS if t in nm}
     return len(types_hit) >= 2 and bool(_BUNDLE_HINT_RE.search(nm))

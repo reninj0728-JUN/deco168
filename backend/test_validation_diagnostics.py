@@ -243,3 +243,49 @@ def test_trimmed_payload_drops_shadow_contract_items():
     assert slim["layout_contract_shadow"]["items_trimmed"] is True
     assert "items" not in slim["layout_contract_shadow"]
     assert len(json.dumps(slim, ensure_ascii=False)) < 500
+
+
+def test_fal_balance_exhaustion_is_not_treated_as_transient():
+    """2026-07-19：餘額耗盡的錯誤字串跟 1164DFC6 的瞬時假鎖同樣以 locked 開頭，
+    走了退避重試那條路，四張真單全滅還被記成「配置驗收失敗」。"""
+    import test_full_pipeline as tfp
+
+    hard = [
+        "User is locked. Reason: Exhausted balance. Top up your balance.",
+        "402 Payment Required",
+        "Insufficient balance for this request",
+        "Account suspended",
+        "billing issue: card declined",
+    ]
+    for msg in hard:
+        assert tfp._is_fal_account_blocked(Exception(msg)), f"應判硬失敗: {msg}"
+
+    # 真的瞬時抖動仍必須重試（否則會退回 1164DFC6 那次白吃失敗）
+    transient = [
+        "User is locked",
+        "Internal Server Error",
+        "Service Unavailable",
+        "Too Many Requests",
+    ]
+    for msg in transient:
+        assert not tfp._is_fal_account_blocked(Exception(msg)), f"不該判硬失敗: {msg}"
+
+
+def test_incomplete_message_matches_the_real_cause():
+    """沒有圖可驗時絕不能對客戶說「驗收沒過」——那是把系統問題說成設計問題。"""
+    system = {"dropped_renders": [
+        {"failure_class": "infrastructure"}, {"failure_class": "validator_exception"}]}
+    assert "系統" in api._incomplete_message(system)
+    assert "配置驗收" not in api._incomplete_message(system)
+
+    quality = {"dropped_renders": [{"failure_class": "render_quality"}]}
+    assert "配置驗收" in api._incomplete_message(quality)
+
+    # 混合（有真的爛圖）→ 仍講配置，不可拿系統問題當藉口掩蓋品質問題
+    mixed = {"dropped_renders": [
+        {"failure_class": "infrastructure"}, {"failure_class": "render_quality"}]}
+    assert "配置驗收" in api._incomplete_message(mixed)
+
+    # 沒有資料時維持原文案，不亂改
+    assert "配置驗收" in api._incomplete_message({})
+    assert "配置驗收" in api._incomplete_message(None)
