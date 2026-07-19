@@ -2906,6 +2906,60 @@ def _slim_validation_summary(summary: dict | None) -> dict | None:
     return slim
 
 
+def _retry_metrics(validation: dict | None) -> dict:
+    """抽出「可以比較進退」的量測值——重試有沒有在收斂,只能看數字。
+
+    真實資料（199 次生成 → 54 張交付,47% 是重試）顯示重試不是全然浪費:
+    單視角客廳 6 張交付裡有 5 張是靠重試救回來的,所以不能一刀砍重試上限。
+    真正的浪費是「卡在同一個閘門、數字完全沒動」的那種——10AAED25 的門距
+    三次都是 0（毫無進展）,但同一張的成對錯位 92→87→85→74→72（在收斂）。
+    所以判準是「這個閘門的數字有沒有變好」,不是「重試過幾次」。
+    """
+    if not isinstance(validation, dict):
+        return {}
+    metrics: dict[str, float] = {}
+    boxes = validation.get("render_bboxes") or {}
+    try:
+        from gemini_analyze import _door_adjacency_violation
+        viol = _door_adjacency_violation(boxes)
+        if viol:
+            name, gap, door_w, _thr = viol
+            # 以門寬正規化,不同房型/裁切之間才可比
+            metrics[f"door_gap_{name}"] = float(gap) / max(1.0, float(door_w))
+    except Exception:
+        pass
+    pair = _pair_center_delta(validation, tolerance=0)
+    if pair:
+        # 錯位越小越好 → 取負值統一成「越大越好」
+        metrics["pair_align"] = -float(pair.get("abs_delta_y") or 0)
+    return metrics
+
+
+# 進步門檻：小於這個幅度視為原地踏步（門距以門寬為單位、錯位以 1000 分之一為單位）
+RETRY_PROGRESS_EPS = {"door_gap": 0.02, "pair_align": 3.0}
+
+
+def _retry_is_stuck(prev: dict | None, cur: dict | None) -> tuple[bool, str]:
+    """同一個閘門連兩次擋、數字沒有變好 → 再生一次也是同樣結果,別燒。
+
+    只有「兩次都量得到的同一個指標」才拿來比；任何一項有進步就放行重試。
+    量不到（判官沒給 bbox、換了失敗原因）一律放行——省錢不得優先於交付。
+    """
+    if not isinstance(prev, dict) or not isinstance(cur, dict):
+        return False, ""
+    shared = [k for k in cur if k in prev]
+    if not shared:
+        return False, ""
+    stalled = []
+    for k in shared:
+        eps = RETRY_PROGRESS_EPS["door_gap"] if k.startswith("door_gap") else \
+            RETRY_PROGRESS_EPS.get(k, 0.0)
+        if float(cur[k]) - float(prev[k]) > eps:
+            return False, ""          # 任一指標真的變好 → 值得再試
+        stalled.append(f"{k} {prev[k]:.2f}→{cur[k]:.2f}")
+    return True, "；".join(stalled)
+
+
 def z3_needs_retry(validation: dict | None) -> tuple[bool, str]:
     """
     Z3: 判斷一張 render 是否需要重試。
@@ -4087,6 +4141,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     if current_rc >= 1 and not _has_high_severity(v):
                         print(f"[pipeline] Z3 skip 2nd retry render[{idx}] — 非高嚴重度 flag")
                         break
+                    # 省錢閘門：同一個閘門連兩次擋且量測值沒變好 → 再生也是同一張。
+                    # 只在已經重試過一次之後才判（第一次沒有比較基準）。
+                    _cur_metrics = _retry_metrics(v)
+                    if current_rc >= 1:
+                        _stuck, _detail = _retry_is_stuck(r.get("_retry_metrics_prev"), _cur_metrics)
+                        if _stuck:
+                            print(f"[pipeline] Z3 停止重試 render[{idx}] — 量測無進展（{_detail}），"
+                                  "不再燒 fal/判官")
+                            r["retry_reason"] = (
+                                f"{r.get('retry_reason') or ''} | 重試無進展停止：{_detail}").strip(" |")
+                            break
+                    r["_retry_metrics_prev"] = _cur_metrics
                     if idx >= len(expanded):
                         break
                     entry = expanded[idx]
@@ -4192,6 +4258,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         break
                     new_r = retry_results[0]
                     new_r["validation_history"] = list(r.get("validation_history") or [])
+                    # 量測基準必須跟著 render 走——final[idx] 換成 new_r 之後,
+                    # 下一圈才比得出「這次有沒有比上次好」。
+                    new_r["_retry_metrics_prev"] = r.get("_retry_metrics_prev")
                     # 改名加 _retry / _retry2
                     if new_r.get("render_path"):
                         src_p = Path(new_r["render_path"])

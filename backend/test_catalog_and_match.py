@@ -929,3 +929,57 @@ def test_load_catalog_filters_non_furniture():
     assert catalog, "目錄不可為空"
     bad = [x for x in catalog if fm.is_non_furniture(x.get("name_zh"))]
     assert not bad, f"載入後仍有非家具商品 {len(bad)} 件: {[x.get('name_zh') for x in bad[:5]]}"
+
+
+def test_retry_stops_only_when_measurements_stall():
+    """省錢閘門｜真實資料：199 次生成→54 張交付，47% 是重試，但單視角客廳
+    6 張交付有 5 張靠重試救回——不能一刀砍重試上限。只砍「數字完全沒動」的。"""
+    import api
+
+    # 10AAED25 實況：門距三次都是 0（毫無進展）→ 該停
+    stuck_prev = {"door_gap_focal_anchor": 0.0}
+    stuck_cur = {"door_gap_focal_anchor": 0.0}
+    is_stuck, detail = api._retry_is_stuck(stuck_prev, stuck_cur)
+    assert is_stuck is True
+    assert "door_gap" in detail
+
+    # 同一張的成對錯位 92→72（在收斂）→ 必須放行，不可誤砍會成功的重試
+    conv_prev = {"pair_align": -92.0}
+    conv_cur = {"pair_align": -72.0}
+    assert api._retry_is_stuck(conv_prev, conv_cur)[0] is False
+
+    # 微幅抖動（門距 0.10→0.11）不算進步 → 停
+    assert api._retry_is_stuck({"door_gap_focal_anchor": 0.10},
+                               {"door_gap_focal_anchor": 0.11})[0] is True
+    # 真的拉開（0.10→0.20）→ 放行
+    assert api._retry_is_stuck({"door_gap_focal_anchor": 0.10},
+                               {"door_gap_focal_anchor": 0.20})[0] is False
+    # 變更糟 → 停
+    assert api._retry_is_stuck({"pair_align": -70.0}, {"pair_align": -110.0})[0] is True
+
+
+def test_retry_stall_check_never_blocks_when_it_cannot_measure():
+    """量不到就放行——省錢不得優先於交付（沒 bbox／換了失敗原因都算量不到）。"""
+    import api
+
+    assert api._retry_is_stuck(None, {"pair_align": -50.0})[0] is False
+    assert api._retry_is_stuck({}, {})[0] is False
+    assert api._retry_is_stuck({"pair_align": -50.0}, {})[0] is False
+    # 前後量到的是不同指標（上次擋門、這次錯位）→ 無從比較 → 放行
+    assert api._retry_is_stuck({"door_gap_focal_anchor": 0.0},
+                               {"pair_align": -80.0})[0] is False
+
+
+def test_retry_metrics_normalise_door_gap_by_door_width():
+    """門距要除以門寬才可比——不同房型/裁切的絕對像素沒有可比性。"""
+    import api
+
+    v = {"render_bboxes": {
+        "sofa": [650, 488, 963, 856],
+        "focal_anchor": [303, 501, 386, 624],
+        "entrance_door": [100, 205, 240, 816]}}
+    m = api._retry_metrics(v)
+    assert m, "應該量得到指標"
+    assert any(k.startswith("door_gap") for k in m) or "pair_align" in m
+    for k, val in m.items():
+        assert isinstance(val, float)
