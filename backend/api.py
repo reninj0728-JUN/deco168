@@ -1701,6 +1701,15 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
     ent = entrance_side if entrance_side in ("left", "right") else ""
     focal = focal_side if focal_side in ("left", "right") else (
         "right" if ent == "left" else "left" if ent == "right" else "right")
+    # 沙發與電視櫃互相正對＝物理上不可能同一面牆。使用者綁邊時焦點牆就已經
+    # 被決定成對牆，呼叫端傳進來的 _preferred_focal_side 是「自動模式該選哪面
+    # 牆」的判斷，對綁邊訂單不適用，硬套會自打架。
+    # 5DDC650F/E401B756 實例：用戶綁沙發左牆、大門也在左，呼叫端傳 focal=left
+    # → 觸發「電視櫃與入口同牆」的加寬禁區 → 禁區吃掉 71% 畫面 → planner 無解
+    # → 沒有引導圖 → 三次純文字生成、沙發全部貼門（間距 0）。成品判官反而證明
+    # 電視櫃真的在右牆。改成綁邊時焦點牆＝對牆後，禁區降到 37%，配置有解。
+    if side in ("left", "right"):
+        focal = "right" if side == "left" else "left"
     margin_x = int(W * 0.02)
     door_clear = None
     if entrance_bbox:

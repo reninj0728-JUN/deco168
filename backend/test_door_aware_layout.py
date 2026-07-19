@@ -729,3 +729,61 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class BoundSofaFocalWallInvariant(unittest.TestCase):
+    """5DDC650F/E401B756｜沙發與電視櫃互相正對＝不可能同一面牆。
+    綁邊訂單的焦點牆由綁邊決定，呼叫端的自動模式判斷不得覆蓋。"""
+
+    # 該單真實裁切數字（4032x2688，玄關區 bbox 佔畫面 34% 寬）
+    REAL = dict(W=4032, H=2688, door=(40, 646, 1411, 2536), living=(40, 1327, 3991, 2657))
+
+    def _plan(self, sofa_side, focal_side):
+        r = self.REAL
+        return api._layout_guide_plan(
+            r["W"], r["H"], sofa_side, "left", r["door"],
+            focal_side=focal_side, auto_float=False,
+            blocked_rects=[], living_bbox=r["living"])
+
+    def test_bound_sofa_left_now_yields_a_plan_with_tv_opposite(self):
+        """5DDC650F 本案：沙發綁左牆、大門也在左 → 電視櫃在右，配置必須有解。"""
+        plan = self._plan("left", focal_side="left")   # 呼叫端誤傳同一面牆
+        self.assertTrue(plan["valid"], plan["reason"])
+        sofa_cx = (plan["sofa"][0] + plan["sofa"][2]) / 2
+        tv_cx = (plan["tv"][0] + plan["tv"][2]) / 2
+        self.assertGreater(tv_cx, sofa_cx, "電視櫃必須在沙發對面（右）")
+
+    def test_bound_sofa_right_puts_tv_on_the_door_wall_and_may_fail_closed(self):
+        """沙發綁右牆＋門在左 → 電視櫃只能上門牆。此時完整門寬禁區是刻意的
+        （縮禁區會讓 TV 框浮在中央走道），找不到安全位置就無解、由付費前閘門擋，
+        不得為了湊出 valid 而縮禁區。這裡只鎖住「TV 不會跑到沙發同一面牆」。"""
+        plan = self._plan("right", focal_side="right")  # 呼叫端誤傳同一面牆
+        if plan["valid"]:
+            sofa_cx = (plan["sofa"][0] + plan["sofa"][2]) / 2
+            tv_cx = (plan["tv"][0] + plan["tv"][2]) / 2
+            self.assertLess(tv_cx, sofa_cx, "電視櫃必須在沙發對面（左）")
+        else:
+            self.assertIn("no safe", plan["reason"])
+
+    def test_wrong_focal_no_longer_starves_the_planner(self):
+        """生產實際傳的 focal=left 曾讓禁區吃掉 71% 畫面 → 無解 → 沒引導圖 → 燒三張。"""
+        plan = self._plan("left", focal_side="left")
+        door_clear_ratio = (plan["door_clear"][2] - plan["door_clear"][0]) / self.REAL["W"]
+        self.assertLess(door_clear_ratio, 0.5,
+                        f"門禁區仍吃掉 {door_clear_ratio:.0%} 畫面")
+        self.assertTrue(plan["valid"])
+        self.assertIsNotNone(plan["sofa"])
+        self.assertIsNotNone(plan["tv"])
+
+    def test_free_mode_still_uses_the_callers_focal_decision(self):
+        """auto／free 沒有綁邊，焦點牆仍由決策層（_preferred_focal_side）說了算。"""
+        r = self.REAL
+        for focal in ("left", "right"):
+            plan = api._layout_guide_plan(
+                r["W"], r["H"], "free", "left", r["door"],
+                focal_side=focal, auto_float=False,
+                blocked_rects=[], living_bbox=r["living"])
+            self.assertEqual(plan["mode"], "auto_compact")
+            if plan["valid"]:
+                expect = "left" if focal == "right" else "right"
+                self.assertEqual(plan["chosen_sofa_side"], expect)
