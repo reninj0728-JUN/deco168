@@ -1689,6 +1689,10 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         return base_path, False, f"例外: {type(e).__name__}", False
 
 
+# 綁邊靠牆家具允許越過畫面中線的比例（透視下牆面會內收，留一點寬容）
+BOUND_WALL_HALF_TOLERANCE = 0.08
+
+
 def _layout_guide_plan(W: int, H: int, sofa_side: str,
                        entrance_side: str = "",
                        entrance_bbox: tuple | None = None,
@@ -1757,9 +1761,28 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         blocked + ([door_clear] if door_clear else []))
     allowed = _ordered(living_bbox)
 
-    def _safe(rect, require_living=False):
+    def _hugs_bound_wall(rect, wall_side: str) -> bool:
+        """綁邊沙發必須真的靠在那面牆上——不得跨過畫面中線飄到房間中央。
+
+        E401B756 教訓：門禁區把沙發起點推到畫面 38%，框子橫跨到 76%，
+        「不碰禁區＋中心在客廳區」兩項檢查都過，畫出來卻是一張沙發浮在中央
+        走道、還蓋住通往後方房間的門口。框子通過檢查不等於配置正確。
+        靠牆家具留在自己那半邊是可驗證的最低要求；做不到就該無解、
+        由付費前閘門擋下，不得畫出會誤導模型的引導圖。
+        """
+        if wall_side not in ("left", "right"):
+            return True
+        x0, _y0, x1, _y1 = rect
+        limit = W * (0.5 + BOUND_WALL_HALF_TOLERANCE)
+        if wall_side == "left":
+            return x1 <= limit
+        return x0 >= W - limit
+
+    def _safe(rect, require_living=False, wall_side: str = ""):
         clean = _ordered(rect)
         if not clean or any(_rects_intersect(clean, bad) for bad in forbidden):
+            return False
+        if wall_side and not _hugs_bound_wall(clean, wall_side):
             return False
         if require_living and allowed:
             cx = (clean[0] + clean[2]) / 2
@@ -1819,7 +1842,8 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             for sxf in sx_starts:
                 sx0 = int(W * sxf)
                 srect = (sx0, sy0, sx0 + sw, sy1)
-                if not _safe(srect, require_living=True):
+                if not _safe(srect, require_living=True,
+                             wall_side="" if is_auto else candidate_side):
                     continue
                 for txf in tx_starts:
                     tx0 = int(W * txf)

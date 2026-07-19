@@ -745,13 +745,17 @@ class BoundSofaFocalWallInvariant(unittest.TestCase):
             focal_side=focal_side, auto_float=False,
             blocked_rects=[], living_bbox=r["living"])
 
-    def test_bound_sofa_left_now_yields_a_plan_with_tv_opposite(self):
-        """5DDC650F 本案：沙發綁左牆、大門也在左 → 電視櫃在右，配置必須有解。"""
-        plan = self._plan("left", focal_side="left")   # 呼叫端誤傳同一面牆
-        self.assertTrue(plan["valid"], plan["reason"])
-        sofa_cx = (plan["sofa"][0] + plan["sofa"][2]) / 2
-        tv_cx = (plan["tv"][0] + plan["tv"][2]) / 2
-        self.assertGreater(tv_cx, sofa_cx, "電視櫃必須在沙發對面（右）")
+    def test_bound_sofa_no_longer_inflates_the_door_zone(self):
+        """5DDC650F 本案：沙發綁左牆、大門也在左，呼叫端卻傳 focal=left，
+        觸發「電視櫃與入口同牆」的加寬條款 → 禁區吃掉 71% 畫面。
+        綁邊時焦點牆＝對牆，該條款不該被誤觸。"""
+        plan = self._plan("left", focal_side="left")
+        ratio = (plan["door_clear"][2] - plan["door_clear"][0]) / self.REAL["W"]
+        self.assertLess(ratio, 0.5, f"門禁區仍吃掉 {ratio:.0%} 畫面")
+        if plan["valid"]:
+            sofa_cx = (plan["sofa"][0] + plan["sofa"][2]) / 2
+            tv_cx = (plan["tv"][0] + plan["tv"][2]) / 2
+            self.assertGreater(tv_cx, sofa_cx, "電視櫃必須在沙發對面（右）")
 
     def test_bound_sofa_right_puts_tv_on_the_door_wall_and_may_fail_closed(self):
         """沙發綁右牆＋門在左 → 電視櫃只能上門牆。此時完整門寬禁區是刻意的
@@ -765,15 +769,34 @@ class BoundSofaFocalWallInvariant(unittest.TestCase):
         else:
             self.assertIn("no safe", plan["reason"])
 
-    def test_wrong_focal_no_longer_starves_the_planner(self):
-        """生產實際傳的 focal=left 曾讓禁區吃掉 71% 畫面 → 無解 → 沒引導圖 → 燒三張。"""
+    def test_bound_sofa_never_floats_across_the_room(self):
+        """靠牆家具必須留在自己那半邊。門禁區把起點推過中線時就該無解——
+        「不碰禁區＋中心在客廳區」兩項都過，畫出來卻是沙發浮在中央走道、
+        蓋住通往後方房間的門口（本案實際畫出來過，模型只會被誤導）。"""
         plan = self._plan("left", focal_side="left")
-        door_clear_ratio = (plan["door_clear"][2] - plan["door_clear"][0]) / self.REAL["W"]
-        self.assertLess(door_clear_ratio, 0.5,
-                        f"門禁區仍吃掉 {door_clear_ratio:.0%} 畫面")
-        self.assertTrue(plan["valid"])
-        self.assertIsNotNone(plan["sofa"])
-        self.assertIsNotNone(plan["tv"])
+        if plan["valid"]:
+            limit = self.REAL["W"] * (0.5 + api.BOUND_WALL_HALF_TOLERANCE)
+            self.assertLessEqual(plan["sofa"][2], limit,
+                                 "綁左牆的沙發不得跨過畫面中線")
+        else:
+            self.assertIn("no safe", plan["reason"])
+
+    def test_wall_hug_rule_rejects_a_midline_crossing_sofa(self):
+        """靠牆規則本身：同樣的房間、門很小時放得下；門把起點推過中線時擋掉。"""
+        r = self.REAL
+        small_door = (40, 646, 500, 2536)          # 窄門 → 沙發貼得住左牆
+        ok = api._layout_guide_plan(
+            r["W"], r["H"], "left", "left", small_door, focal_side="left",
+            auto_float=False, blocked_rects=[], living_bbox=r["living"])
+        self.assertTrue(ok["valid"], ok["reason"])
+        limit = r["W"] * (0.5 + api.BOUND_WALL_HALF_TOLERANCE)
+        self.assertLessEqual(ok["sofa"][2], limit)
+
+        wide_door = (40, 646, 2300, 2536)          # 寬玄關區 → 起點被推過中線
+        blocked_plan = api._layout_guide_plan(
+            r["W"], r["H"], "left", "left", wide_door, focal_side="left",
+            auto_float=False, blocked_rects=[], living_bbox=r["living"])
+        self.assertFalse(blocked_plan["valid"])
 
     def test_free_mode_still_uses_the_callers_focal_decision(self):
         """auto／free 沒有綁邊，焦點牆仍由決策層（_preferred_focal_side）說了算。"""

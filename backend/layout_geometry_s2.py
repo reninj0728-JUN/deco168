@@ -13,7 +13,29 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+
+
+_LABEL_FONT_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+)
+
+
+def _label_font(size: int):
+    """引導圖標籤字型；找不到 truetype 就退回預設點陣字（仍比沒有標籤好）。"""
+    for path in _LABEL_FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size=size)
+    except Exception:
+        return ImageFont.load_default()
 
 
 STRUCT_SCHEMA_VERSION = "struct-geometry-v1"
@@ -989,6 +1011,27 @@ def render_s2_guide(photo_path: str | Path, out_path: str | Path, plan: dict) ->
     draw.line(sofa_points + [sofa_points[0]], fill=(15, 150, 55, 255), width=6)
     draw.polygon(tv_points, fill=(30, 105, 230, 112))
     draw.line(tv_points + [tv_points[0]], fill=(15, 75, 210, 255), width=6)
+
+    # 只在畫面最上方的天花板留白帶加圖例，不碰任何家具／牆腳區域。
+    # S2 的 sofa/tv 目標是地面投影：4032x3024 實測沙發只佔畫面 0.27%、
+    # 電視櫃 0.14%，而且原本一個字都沒有。使用者親自直測 4/4 全中的格式是
+    # 「方框＋文字標籤」。模型不是不服從，是看不見要它把家具放哪
+    # （E401B756：沙發被畫到大門旁，間距 0）。
+    # 標籤一律留在頂部，因為蓋住牆腳線會讓 S2 幾何驗證誤判
+    # （實測 left_wall_floor_alignment／sofa_back_contact 直接變 fail）。
+    legend_font = _label_font(max(26, width // 46))
+    legend_lines = (
+        ("PUT THE SOFA INSIDE THE GREEN FLOOR SHAPE", (60, 245, 110, 255)),
+        ("PUT THE TV CONSOLE INSIDE THE BLUE FLOOR SHAPE", (90, 175, 255, 255)),
+        ("KEEP EVERY RED ZONE COMPLETELY EMPTY", (255, 95, 95, 255)),
+    )
+    lx, ly = max(20, width // 60), max(20, height // 60)
+    line_h = max(34, width // 40)
+    draw.rectangle(
+        (lx - 14, ly - 14, lx + int(width * 0.62), ly + line_h * len(legend_lines) + 10),
+        fill=(0, 0, 0, 170))
+    for index, (text, colour) in enumerate(legend_lines):
+        draw.text((lx, ly + index * line_h), text, font=legend_font, fill=colour)
 
     axis = _integer_points(chosen["view_axis"])
     draw.line(axis, fill=(255, 210, 20, 255), width=5)
