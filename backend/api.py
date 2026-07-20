@@ -2964,8 +2964,11 @@ def _slim_validation_summary(summary: dict | None) -> dict | None:
         final = d.get("validation_final") or {}
         dropped.append({
             **{k: d.get(k) for k in
+               # layout_mode 必須留：incomplete 文案靠它判斷要不要叫客戶正面重拍。
+               # 掉了就會退回通用的「配置驗收」，客戶又去重跑同一張斜角照片。
                ("style", "style_label", "angle_label", "room_type", "timeout", "reason",
-                "failure_class", "validation_stage", "validation_attempt_count")},
+                "failure_class", "validation_stage", "validation_attempt_count",
+                "layout_mode")},
             "validation_final": {
                 **{k: final.get(k) for k in
                    ("ok", "hard_fail", "validation_unavailable", "validation_outage",

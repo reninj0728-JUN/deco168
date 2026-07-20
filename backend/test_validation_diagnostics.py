@@ -310,3 +310,24 @@ def test_incomplete_message_tells_the_customer_to_reshoot_when_angle_is_unmodell
     infra = {"dropped_renders": [
         {"failure_class": "infrastructure", "layout_mode": "s2_contract"}]}
     assert "系統" in api._incomplete_message(infra)
+
+
+def test_layout_mode_survives_the_trimmed_payload():
+    """精簡 payload 會丟掉未列名的欄位。layout_mode 掉了，incomplete 文案就退回
+    通用的「配置驗收」，客戶又去重跑同一張斜角照片——正是這輪要消滅的行為。"""
+    full = {
+        "total": 1, "ok": 0, "ng": 1,
+        "dropped_renders": [{
+            "style": "cream", "room_type": "living", "reason": "x",
+            "failure_class": "render_quality", "layout_mode": "legacy_fallback",
+            "validation_stage": "phase2", "validation_attempt_count": 3,
+            "validation_history": [{"validation_stage": "phase2", "attempt": 1,
+                                    "raw_verdict": {"blob": "y" * 3000}}],
+        }],
+    }
+    slim = api._slim_validation_summary(full)
+    assert slim["dropped_renders"][0]["layout_mode"] == "legacy_fallback"
+    # 精簡版仍要能導出正確文案
+    assert "正面" in api._incomplete_message(slim)
+    # 而且仍然是精簡的（raw_verdict 不得混進來）
+    assert "raw_verdict" not in json.dumps(slim, ensure_ascii=False)
