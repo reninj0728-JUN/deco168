@@ -361,14 +361,16 @@ def test_uncertain_verifier_result_blocks_every_candidate(tmp_path):
     assert result["plan"]["disposition"] == "BLOCKED"
     assert result["plan"]["pre_generation_eligible"] is False
     assert "GEOM_NOT_ELIGIBLE" in result["plan"]["unsafe_codes"]
+    # uncertain 一路 uncertain 仍然擋死（uncertain is not pass），只是多問幾次
+    assert len(calls) == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
     assert all(not candidate["eligible"] for candidate in result["plan"]["candidates"])
     assert result["guide_artifact"] is None
-    assert calls == [1, 2]
+    assert calls == list(range(1, verifier_s2.S2_VERIFY_MAX_ATTEMPTS + 1))
     verification = result["plan"]["geometry_verification"]
-    assert verification["attempt_count"] == 2
+    assert verification["attempt_count"] == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
     assert verification["corrected"] is False
     assert verification["failed_fields"] == {"sofa_back_contact": "uncertain"}
-    assert len(result["verification_history"]) == 2
+    assert len(result["verification_history"]) == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
 
 
 def test_retryable_exception_retries_same_plan_and_second_pass_is_accepted(tmp_path):
@@ -406,7 +408,81 @@ def test_retryable_exception_retries_same_plan_and_second_pass_is_accepted(tmp_p
     }
 
 
-def test_hard_fail_without_safe_wall_correction_blocks_without_retry(tmp_path):
+def test_flaky_hard_fail_is_rechecked_and_passes(tmp_path):
+    """D85B8525｜同一張照片＋同一份合約連跑 8 次得到 3 pass / 5 fail，
+    5 次失敗給出 5 種互不相同的欄位組合＝判官雜訊。舊行為讓這個約 37%
+    通過率的骰子擋在付費生成前，已付費的單一張圖都生不出來。
+    同一份幾何再問一次只是 flash 呼叫，且發生在任何 fal 花費之前。"""
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    noisy = copy.deepcopy(HARD_PASS)
+    noisy["sofa_back_contact"] = "fail"
+    noisy["overall"] = "fail"
+    noisy["unsafe_codes"] = ["SOFA_WALL_CONTACT_FAIL"]
+    calls = []
+
+    def flaky_verifier(_photo, _guide, attempt_number, _plan=None):
+        calls.append(attempt_number)
+        if attempt_number >= 3:
+            return copy.deepcopy(HARD_PASS)
+        # 真實雜訊的樣態：每次抱怨的欄位都不一樣（D85B8525 實測 walkway /
+        # cross_axis / right_wall / tv_wall 忽有忽無）
+        verdict = copy.deepcopy(noisy)
+        if attempt_number == 2:
+            verdict["walkway_connected"] = "fail"
+            verdict["unsafe_codes"] = ["SOFA_WALL_CONTACT_FAIL", "WALKWAY_BLOCKED"]
+        return verdict
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="right",
+        verifier=flaky_verifier,
+        floor_reference_estimator=_observed_floor_reference,
+    )
+
+    assert result["plan"]["geometry_verification"]["status"] == "pass"
+    assert result["plan"]["pre_generation_eligible"] is True
+    assert result["guide_artifact"] is not None
+    assert len(calls) >= 3, "硬失敗必須重問，不可一次就擋死"
+
+
+def test_persistent_hard_fail_blocks_early_without_burning_rechecks(tmp_path):
+    """重問不等於放水，也不該白燒：同一組欄位連兩次失敗＝穩定的真問題
+    （D85B8525 的 left_wall_floor_alignment 與 sofa_back_contact 12/12 都失敗，
+    連牆面修正都救不回），立刻定讞，不再問到上限。"""
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    hard_fail = copy.deepcopy(HARD_PASS)
+    hard_fail["sofa_back_contact"] = "fail"
+    hard_fail["overall"] = "fail"
+    hard_fail["unsafe_codes"] = ["SOFA_WALL_CONTACT_FAIL"]
+    calls = []
+
+    def always_fails(_photo, _guide, attempt_number, _plan=None):
+        calls.append(attempt_number)
+        return copy.deepcopy(hard_fail)
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="right",
+        verifier=always_fails,
+        floor_reference_estimator=_observed_floor_reference,
+    )
+
+    assert result["plan"]["disposition"] == "BLOCKED"
+    assert result["plan"]["pre_generation_eligible"] is False
+    assert len(calls) < verifier_s2.S2_VERIFY_MAX_ATTEMPTS, "穩定失敗不該問到上限"
+    assert result["plan"]["geometry_verification"]["failed_fields"] == {
+        "sofa_back_contact": "fail"}
+
+
+def _legacy_hard_fail_blocks_without_retry(tmp_path):
     photo = tmp_path / "room.jpg"
     Image.new("RGB", (1000, 700), "white").save(photo)
     hard_fail = copy.deepcopy(HARD_PASS)

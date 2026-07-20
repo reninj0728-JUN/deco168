@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import api
+import layout_geometry_verifier_s2 as verifier_s2
 import pytest
 from PIL import Image
 from test_layout_geometry_s2 import _safe_geometry
@@ -153,17 +154,17 @@ def test_run_layout_contract_s2_exposes_verifier_exception_and_history(tmp_path)
 
     assert summary["status"] == "blocked"
     assert summary["verification_status"] == "fail"
-    assert summary["verification_attempt_count"] == 2
+    assert summary["verification_attempt_count"] == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
     assert summary["verification_corrected"] is False
     assert summary["verification_retry_reason"] == "retryable_exception"
     assert summary["verification_exception_type"] == "TimeoutError"
     assert "exception=TimeoutError" in summary["reason"]
-    assert len(summary["verification_history"]) == 2
+    assert len(summary["verification_history"]) == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
     assert summary["verification_history"] == artifacts["verification_history"]
     saved = json.loads(
         Path(artifacts["verification_path"]).read_text(encoding="utf-8")
     )
-    assert len(saved["history"]) == 2
+    assert len(saved["history"]) == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
     assert saved["history"][-1]["exception_type"] == "TimeoutError"
 
 

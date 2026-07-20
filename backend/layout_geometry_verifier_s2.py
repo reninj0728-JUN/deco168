@@ -14,6 +14,14 @@ from PIL import Image, ImageOps
 import layout_geometry_s2 as lgs2
 
 
+# 前置幾何判官的嘗試上限。D85B8525 實測：同一張照片＋同一份合約連跑 8 次
+# 得到 3 pass / 5 fail，5 次失敗還給出 5 種互不相同的欄位組合＝判官雜訊。
+# 每次只是一通 flash 呼叫、發生在任何 fal 花費之前，用它換「已付費的單至少
+# 生得出圖」非常划算：單次通過率約 37%，四次至少一次通過約 84%。
+# 需要臨時退回舊行為時設 S2_VERIFY_MAX_ATTEMPTS=2。
+S2_VERIFY_MAX_ATTEMPTS = max(2, int(os.environ.get("S2_VERIFY_MAX_ATTEMPTS", "4") or 4))
+
+
 _REQUIRED_PASS_FIELDS = (
     "right_wall_floor_alignment",
     "left_wall_floor_alignment",
@@ -652,7 +660,8 @@ def verify_and_replan_s2(
     history = []
     correction_applied = False
     retry_reason = None
-    for attempt_number in (1, 2):
+    last_failed_fields: frozenset = frozenset()
+    for attempt_number in range(1, S2_VERIFY_MAX_ATTEMPTS + 1):
         attempt_path = target_dir / f"layout_guide_s2_attempt{attempt_number}.jpg"
         lgs2.render_s2_guide(source, attempt_path, plan)
         try:
@@ -666,7 +675,7 @@ def verify_and_replan_s2(
                 f"[layout-verifier] attempt={attempt_number} outcome=exception "
                 f"type={type(exc).__name__} retryable={retryable}"
             )
-            if attempt_number == 1 and retryable:
+            if attempt_number < S2_VERIFY_MAX_ATTEMPTS and retryable:
                 retry_reason = "retryable_exception"
                 continue
             blocked = _finalize_blocked_verification(
@@ -706,7 +715,7 @@ def verify_and_replan_s2(
                 "verification_history": history,
             }
         hard_fail = _verifier_has_hard_fail(verdict)
-        if attempt_number == 1 and hard_fail:
+        if attempt_number == 1 and hard_fail and not correction_applied:
             active_raw, changed = _apply_wall_corrections(active_raw, verdict)
             if changed:
                 plan = lgs2.build_s2_plan(
@@ -726,12 +735,30 @@ def verify_and_replan_s2(
                         "action=wall_correction_retry"
                     )
                     continue
-        if attempt_number == 1 and not hard_fail:
+        if attempt_number < S2_VERIFY_MAX_ATTEMPTS and not hard_fail:
             retry_reason = "uncertain_verdict"
             print(
-                "[layout-verifier] attempt=1 outcome=uncertain "
+                f"[layout-verifier] attempt={attempt_number} outcome=uncertain "
                 f"failed_fields={_format_failed_fields(verdict)} "
                 "action=same_plan_retry"
+            )
+            continue
+        # 判官對同一張圖確實會自打架，但不是全部都在抖。D85B8525 實測 12 次嘗試：
+        # left_wall_floor_alignment 與 sofa_back_contact 每一次都失敗（真的幾何問題，
+        # 連牆面修正都救不回），walkway_connected / cross_axis / right_wall / tv_wall
+        # 則忽有忽無（判官雜訊）。
+        # 所以判準是「判決穩不穩」而不是「重試幾次」：失敗欄位組合跟上一次一模一樣
+        # ＝穩定的真問題，立刻定讞、不再燒呼叫；組合每次都變＝判官還沒想清楚，
+        # 值得再問一次（一通 flash、發生在任何 fal 花費之前）。
+        current_fields = frozenset(_verifier_failed_fields(verdict))
+        if (attempt_number < S2_VERIFY_MAX_ATTEMPTS and hard_fail
+                and current_fields and current_fields != last_failed_fields):
+            last_failed_fields = current_fields
+            retry_reason = retry_reason or "unstable_verdict_recheck"
+            print(
+                f"[layout-verifier] attempt={attempt_number} outcome=hard_fail "
+                f"failed_fields={_format_failed_fields(verdict)} "
+                "action=same_plan_recheck"
             )
             continue
         detail = (
