@@ -2932,6 +2932,11 @@ def _incomplete_message(validation_summary: dict | None) -> str:
     dropped = [d for d in ((validation_summary or {}).get("dropped_renders") or [])
                if isinstance(d, dict)]
     classes = {d.get("failure_class") for d in dropped}
+    # 斜角／碎牆房：幾何模型描述不了這個視角，同一張照片再重跑幾次都一樣，
+    # 唯一有效的動作是改用正面拍攝。不講清楚的話客服和客戶只會一直重跑。
+    if any(d.get("layout_mode") == "legacy_fallback" for d in dropped):
+        return ("這個拍攝角度我們的空間建模無法完整判讀（斜角或牆面被多個門切斷），"
+                "建議站在客廳一端、鏡頭順著長邊正面重拍一張再試，成功率最高")
     system_only = bool(classes) and classes <= {"infrastructure", "validator_exception"}
     if system_only:
         return "系統暫時無法完成生成（非設計問題），我們已收到通知，請聯絡客服協助重跑"
@@ -3961,6 +3966,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 _s2_artifact = layout_contract_artifacts.get(vi) or {}
                 copy["_layout_contract_s2_required"] = bool(
                     _s2_enabled and rt == "living" and vi not in layout_contract_s2_waived)
+                # 交付紀錄要分得出這張圖是走 S2 幾何合約還是 legacy 回退——
+                # 兩者品質保證不同，混在一起看不出模型覆蓋率夠不夠。
+                copy["_layout_mode"] = (
+                    "legacy_fallback" if vi in layout_contract_s2_waived
+                    else "s2_contract" if layout_guide_modes.get(vi) == "auto_s2_contract"
+                    else layout_guide_modes.get(vi) or "legacy")
                 copy["_s2_compact_entry_mode"] = False
                 _s2_contract_path = _s2_artifact.get("contract_path")
                 if copy["_layout_contract_s2_required"] and _s2_contract_path:
@@ -4636,6 +4647,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "room_type":   r.get("room_type"),
                 "timeout":     bool(_is_timeout),         # 前端可顯示友善「生成逾時」文案
                 "reason":      str(reason)[:240],
+                "layout_mode": r.get("_layout_mode") or "legacy",
                 **_validation_diagnostics(r),
             })
 

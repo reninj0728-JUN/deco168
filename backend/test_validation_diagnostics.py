@@ -289,3 +289,24 @@ def test_incomplete_message_matches_the_real_cause():
     # 沒有資料時維持原文案，不亂改
     assert "配置驗收" in api._incomplete_message({})
     assert "配置驗收" in api._incomplete_message(None)
+
+
+def test_incomplete_message_tells_the_customer_to_reshoot_when_angle_is_unmodellable():
+    """3135DE37｜斜角方正房 S2 建模不了 → 回退 legacy。這種單再重跑幾次都一樣，
+    唯一有效的動作是正面重拍。文案不講清楚，客服和客戶只會一直重跑。"""
+    waived = {"dropped_renders": [
+        {"failure_class": "render_quality", "layout_mode": "legacy_fallback"}]}
+    msg = api._incomplete_message(waived)
+    assert "正面" in msg and "重拍" in msg
+    assert "配置驗收" not in msg
+
+    # S2 正常路徑的品質失敗 → 仍講配置驗收，不可叫客戶重拍
+    s2 = {"dropped_renders": [
+        {"failure_class": "render_quality", "layout_mode": "s2_contract"}]}
+    assert "配置驗收" in api._incomplete_message(s2)
+    assert "重拍" not in api._incomplete_message(s2)
+
+    # 系統問題仍優先講系統（但 legacy_fallback 更具體，排在前面）
+    infra = {"dropped_renders": [
+        {"failure_class": "infrastructure", "layout_mode": "s2_contract"}]}
+    assert "系統" in api._incomplete_message(infra)
