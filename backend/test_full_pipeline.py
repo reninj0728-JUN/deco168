@@ -1003,8 +1003,15 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
         _guide_enabled = os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
         _has_valid_guide = bool(
             _guide_enabled and _guide_path and os.path.exists(str(_guide_path)))
+        # 例外：兩套規劃器都描述不了這個房型（斜角／碎牆房）時，客人已經付了錢，
+        # 完全不生圖等於拿錢不辦事。這道閘門原本要擋的是「同一錯格局反覆付費重試」，
+        # 不是「一次都不准試」——所以放行單張、由 api 端關掉所有重試，
+        # 成品仍要過門距／對門／商品那幾道生成後閘門才交付。
+        _single_shot = bool(render.get("_allow_single_shot_without_guide"))
+        if _single_shot:
+            print("  [layout-preflight] 無引導但已付費 → 放行單張（不重試）")
         if (use_nano and room_type == "living" and _guide_mode.startswith("auto_")
-                and not _has_valid_guide):
+                and not _has_valid_guide and not _single_shot):
             _reason = (
                 "[格局前檢] AI自動客廳缺少可驗證的沙發／TV配置引導；"
                 "未證明家具落在真實牆面且避開門與走道，已在付費生成前停止"

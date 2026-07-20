@@ -295,3 +295,24 @@ def test_s2_model_not_applicable_is_distinguished_from_unsafe_verdict():
     assert api._s2_model_not_applicable({
         "verification_status": None, "verification_attempt_count": 0,
         "unsafe_codes": ["NO_USABLE_WALL", "SOFA_WALL_CONTACT_FAIL"]}) is False
+
+
+def test_unmodellable_room_gets_one_paid_shot_but_no_retries():
+    """928AD8B4｜S2 豁免後仍然零圖——legacy 那條路自己也有一道「沒有引導圖就
+    不准付費生成」的閘門，同樣的房型同樣擋。客人已付費，完全不生等於拿錢不辦事；
+    但那道閘門原本要防的是「同一錯格局反覆付費重試」，所以放行單張、關掉重試。"""
+    source = Path(api.__file__).read_text(encoding="utf-8")
+
+    # 旗標只在「S2 豁免 + 客廳 + 真的沒有引導圖」三個條件同時成立時才掛
+    assert 'copy["_allow_single_shot_without_guide"] = bool(' in source
+    assert "vi in layout_contract_s2_waived" in source
+    assert "not layout_guide_paths.get(vi)" in source
+
+    # 三個補生管道都必須認這個旗標，否則又退回反覆付費
+    assert source.count('_allow_single_shot_without_guide"):') >= 3
+
+    pipeline = (Path(api.__file__).parent / "test_full_pipeline.py").read_text(
+        encoding="utf-8")
+    # 付費前閘門要放行，但只放行有旗標的
+    assert "_single_shot = bool(render.get(\"_allow_single_shot_without_guide\"))" in pipeline
+    assert "and not _single_shot" in pipeline

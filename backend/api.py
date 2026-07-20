@@ -3975,6 +3975,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     "legacy_fallback" if vi in layout_contract_s2_waived
                     else "s2_contract" if layout_guide_modes.get(vi) == "auto_s2_contract"
                     else layout_guide_modes.get(vi) or "legacy")
+                # 兩套規劃器都描述不了這個房型、又沒有引導圖時：客人已付費，
+                # 生一張總比零張好；但把重試全部關掉，避免退回「同一錯格局
+                # 反覆付費」的老問題。成品照樣要過生成後那幾道閘門。
+                copy["_allow_single_shot_without_guide"] = bool(
+                    vi in layout_contract_s2_waived
+                    and rt == "living"
+                    and not layout_guide_paths.get(vi))
                 copy["_s2_compact_entry_mode"] = False
                 _s2_contract_path = _s2_artifact.get("contract_path")
                 if copy["_layout_contract_s2_required"] and _s2_contract_path:
@@ -4238,6 +4245,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     current_rc = int(r.get("retry_count") or 0)
                     if current_rc >= MAX_RETRY:
                         break  # 硬上限
+                    if r.get("_allow_single_shot_without_guide"):
+                        # 無引導的單張放行單：重試只會拿同樣的文字條件再抽一次，
+                        # 那正是這道閘門當初要防的燒錢模式。
+                        print(f"[pipeline] render[{idx}] 無引導單張模式 → 不重試")
+                        break
                     v = r.get("validation") or {}
                     if v.get("validation_outage"):
                         print(f"[pipeline] Gemini 額度斷線（429）——跳過 Z3 重試，不燒 fal（{r.get('style')}/{r.get('room_type')}）")
@@ -4457,6 +4469,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     continue
                 if v.get("validation_outage"):
                     print("[pipeline] Gemini 額度斷線（429）——跳過 Phase2 補生，不燒 fal")
+                    continue
+                if r.get("_allow_single_shot_without_guide"):
+                    print(f"[pipeline] render[{idx}] 無引導單張模式 → 跳過 Phase2 補生")
                     continue
                 if idx >= len(expanded):
                     continue
@@ -5037,6 +5052,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     v0 = r.get("validation") or {}
                     if v0.get("validation_outage"):
                         print("[pipeline] Gemini 額度斷線（429）——跳過 Phase3 補生，不燒 fal")
+                        continue
+                    if r.get("_allow_single_shot_without_guide"):
+                        print(f"[pipeline] render[{idx}] 無引導單張模式 → 跳過 Phase3 補生")
                         continue
                     retry_ctx = _build_retry_ctx_from_validation(v0)
                     # AI-auto guide 綁在同一底圖，Phase3 不得換圖或改用未裁切原圖。
