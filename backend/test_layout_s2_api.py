@@ -259,3 +259,39 @@ def test_s2_compact_entry_mode_only_for_b_candidate_on_entrance_side():
 
     contract["candidates"][0]["candidate_type"] = "F"
     assert api._s2_compact_entry_mode({"_entrance_side": "left"}, contract) is False
+
+
+def test_s2_model_not_applicable_is_distinguished_from_unsafe_verdict():
+    """3135DE37｜S2 的幾何模型要「兩面相對長牆」，斜角拍的方正房（左落地窗牆、
+    中間兩扇臥室門與牆垛、右大門）根本沒有這種結構 → NO_USABLE_WALL 直接擋死，
+    判官連叫都沒叫，已付費的客戶一張圖都拿不到。
+    「模型化不了」必須跟「驗過判定不安全」分開處理。"""
+    not_applicable = {
+        "verification_status": None,
+        "verification_attempt_count": 0,
+        "unsafe_codes": ["GEOM_NOT_ELIGIBLE", "NO_USABLE_WALL",
+                         "CANDIDATE_GEOMETRY_INCOMPLETE"],
+    }
+    assert api._s2_model_not_applicable(not_applicable) is True
+
+    # 判官真的驗過並判不安全 → 不得回退
+    verified_unsafe = {
+        "verification_status": "fail",
+        "verification_attempt_count": 2,
+        "unsafe_codes": ["GEOM_NOT_ELIGIBLE"],
+    }
+    assert api._s2_model_not_applicable(verified_unsafe) is False
+
+    # 判官驗過而且通過 → 本來就不是 blocked
+    assert api._s2_model_not_applicable({
+        "verification_status": "pass", "verification_attempt_count": 1,
+        "unsafe_codes": []}) is False
+
+    # 沒有任何碼 / 非 dict → 保守回 False（不豁免）
+    assert api._s2_model_not_applicable({"unsafe_codes": []}) is False
+    assert api._s2_model_not_applicable(None) is False
+
+    # 混進非結構類的碼（例如判官語意碼）→ 不豁免
+    assert api._s2_model_not_applicable({
+        "verification_status": None, "verification_attempt_count": 0,
+        "unsafe_codes": ["NO_USABLE_WALL", "SOFA_WALL_CONTACT_FAIL"]}) is False

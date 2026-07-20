@@ -94,9 +94,16 @@ elements 必須逐項回覆：
   - left_wall_floor.segment_yx1000：左牆與地板交線，第一點近鏡頭、第二點深處
   - right_wall_floor.segment_yx1000：右牆與地板交線，第一點近鏡頭、第二點深處
 
-usable_wall_segments 只能列 observed 的連續實牆。每段包含 id、side="left/right"、
+usable_wall_segments 只能列 observed 的實牆。每段包含 id、side="left/right"、
 status、confidence、visibility、t_start、t_end。t 是沿同側 wall_floor 線由近端 0 到深端 1；
-門、窗、走道開口所在範圍不可列為 usable。若任何必需結構看不清，struct_geometry_v1.status
+門、窗、走道開口「所在的那一段範圍」不可列為 usable。
+
+**同一側可以、而且應該列出多段。**牆被門或開口切斷時，請把開口之間剩下的每一段實牆
+各列一段，不要因為「不是一整片連續實牆」就整側留空。臥室門與通道之間的隔間牆垛、
+兩個開口中間的短牆，只要牆面本身是實的、看得見牆與地板的交線，就要列出來——
+那種牆垛常常正是唯一能放電視櫃的位置。整側完全沒有任何實牆段時才留空。
+
+若任何必需結構看不清，struct_geometry_v1.status
 必須是 partial 或 missing，並在 uncertainty_notes 說明需要補拍哪個角度。
 
 【輸出 JSON】

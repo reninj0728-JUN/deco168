@@ -2893,6 +2893,35 @@ def _validation_diagnostics(render: dict) -> dict:
     }
 
 
+# S2 幾何模型「不適用這個房型」的碼——跟「驗過而且不安全」必須分開。
+# 這些碼代表規劃器連候選都造不出來（缺相對長牆／結構元素不足／座標無效），
+# 判官從來沒被叫起來（verification_attempt_count = 0）。
+S2_MODEL_NOT_APPLICABLE_CODES = {
+    "NO_USABLE_WALL", "CANDIDATE_GEOMETRY_INCOMPLETE", "NO_VIABLE_LAYOUT",
+    "MISSING_DOOR", "MISSING_DOOR_FLOOR_CONTACT", "MISSING_ENTRANCE_LANDING",
+    "MISSING_WALKWAY_POLYGON", "MISSING_LIVING_FLOOR",
+    "MISSING_WALL_PLANE_EVIDENCE", "INVALID_GEOMETRY",
+}
+
+
+def _s2_model_not_applicable(summary: dict | None) -> bool:
+    """S2 是「模型化不了這個房型」還是「驗過判定不安全」。
+
+    只有前者才准回退 legacy 引導——後者是判官真的看過圖並判不安全，必須照擋。
+    判準：判官從未執行（attempt_count 0、verification_status 空）且所有 unsafe 碼
+    都屬於結構不足類。
+    """
+    if not isinstance(summary, dict):
+        return False
+    if summary.get("verification_status") in ("pass", "fail"):
+        return False
+    if int(summary.get("verification_attempt_count") or 0) > 0:
+        return False
+    codes = {str(c) for c in (summary.get("unsafe_codes") or [])}
+    codes.discard("GEOM_NOT_ELIGIBLE")      # 伴隨碼，本身不表示判官判過
+    return bool(codes) and codes <= S2_MODEL_NOT_APPLICABLE_CODES
+
+
 def _incomplete_message(validation_summary: dict | None) -> str:
     """交不出圖時給客戶的文案要對得上真實死因。
 
@@ -3825,6 +3854,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── S2 authoritative geometry Contract；flag off 時保留 S1 shadow ──
         layout_contract_shadows: list[dict] = []
         layout_contract_artifacts: dict[int, dict] = {}
+        # S2 模型化不了的視角：豁免付費前 S2 強制，改走 legacy 門感知引導
+        layout_contract_s2_waived: set[int] = set()
         _s2_enabled = _layout_contract_s2_enabled()
         try:
             _sofa_mode_shadow = _guide_sofa_side(zoning_result)
@@ -3865,8 +3896,21 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         door_excluded_flags[_vi] = False
                         layout_guide_paths[_vi] = _artifacts["guide_path"]
                         layout_guide_modes[_vi] = "auto_s2_contract"
+                    elif _s2_model_not_applicable(_sum):
+                        # S2 的幾何模型建立在「兩面相對長牆＋共同深度軸」上，只吃
+                        # 正面拍攝的長條房。3135DE37 是斜角拍的方正房（左邊落地窗
+                        # 實牆、中間兩扇臥室門與隔間牆垛、右邊大門），根本沒有一對
+                        # 相對長牆，於是 NO_USABLE_WALL 直接擋死——判官連叫都沒叫，
+                        # 已付費的客戶一張圖都拿不到。
+                        # 「這個房型我模型化不了」不等於「這個配置不安全」：前者交回
+                        # legacy 門感知引導＋生成後校準閘門把關，後者才該擋。
+                        print(f"[pipeline] S2 不適用此房型（{','.join(_sum.get('unsafe_codes') or [])}）"
+                              "→ 回退 legacy 門感知引導，不擋生成")
+                        layout_contract_s2_waived.add(_vi)
+                        layout_guide_modes[_vi] = layout_guide_modes.get(
+                            _vi, "bound") or "bound"
                     else:
-                        # 禁止 S2 BLOCKED 時回退到前面產生的 legacy 固定矩形 guide。
+                        # 判官真的驗過而且判不安全 → 照舊擋，不得回退。
                         layout_guide_paths.pop(_vi, None)
                         layout_guide_modes[_vi] = "s2_blocked"
                     continue
@@ -3915,7 +3959,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_layout_guide"] = layout_guide_paths.get(vi)      # 版面引導參考圖
                 copy["_layout_guide_mode"] = layout_guide_modes.get(vi, "bound")
                 _s2_artifact = layout_contract_artifacts.get(vi) or {}
-                copy["_layout_contract_s2_required"] = bool(_s2_enabled and rt == "living")
+                copy["_layout_contract_s2_required"] = bool(
+                    _s2_enabled and rt == "living" and vi not in layout_contract_s2_waived)
                 copy["_s2_compact_entry_mode"] = False
                 _s2_contract_path = _s2_artifact.get("contract_path")
                 if copy["_layout_contract_s2_required"] and _s2_contract_path:

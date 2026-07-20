@@ -633,7 +633,11 @@ def _normalize_observed(raw: dict, width: int, height: int):
             "side": side,
             "coordinates": wall_shape["coordinates"],
         })
-    if not segments["left"] or not segments["right"]:
+    # 兩面牆都沒有可用牆段才算真的無解。只有一面實牆仍然設計得出來——
+    # 沙發浮島、電視櫃靠那面實牆，這正是真實設計師對「一側整排門」的做法。
+    # 3135DE37：右側是臥室門＋通道開口（Gemini 標得完全正確），左牆 t 0~0.95
+    # 完好，舊條件卻整單擋死、連判官都沒叫。
+    if not segments["left"] and not segments["right"]:
         unsafe.append("NO_USABLE_WALL")
     return geometry, {"items": by_name, "segments": segments, "lines": wall_lines}, _unique(unsafe)
 
@@ -650,22 +654,32 @@ def _candidate(
     width: int,
     height: int,
     compact_entry: bool = False,
+    float_tv_side: str = "right",
 ):
     left0, left1 = paired["left0"], paired["left1"]
     right0, right1 = paired["right0"], paired["right1"]
     left_mid, right_mid = paired["left_mid"], paired["right_mid"]
     if sofa_side == "free":
-        tv_side = "right"
-        sofa_back0 = _mix(left0, right0, 0.60)
-        sofa_back1 = _mix(left1, right1, 0.60)
-        sofa_front0 = _mix(left0, right0, 0.80)
-        sofa_front1 = _mix(left1, right1, 0.80)
+        # 浮島沙發：電視櫃靠哪面牆要看哪面牆是實的。3135DE37 的右側整片是臥室門
+        # 與通道開口（Gemini 自己標「右側牆面無法作為連續使用的實牆」），寫死靠右
+        # 等於把電視櫃放到門上。單面實牆的房型就是靠這個候選成立。
+        tv_side = float_tv_side if float_tv_side in ("left", "right") else "right"
+        if tv_side == "right":
+            near0, near1, near_mid = left0, left1, left_mid
+            far0, far1, far_mid = right0, right1, right_mid
+        else:
+            near0, near1, near_mid = right0, right1, right_mid
+            far0, far1, far_mid = left0, left1, left_mid
+        sofa_back0 = _mix(near0, far0, 0.60)
+        sofa_back1 = _mix(near1, far1, 0.60)
+        sofa_front0 = _mix(near0, far0, 0.80)
+        sofa_front1 = _mix(near1, far1, 0.80)
         sofa = [sofa_back0, sofa_back1, sofa_front1, sofa_front0]
         tv = _footprint_from_cross_sections(
-            right0, right1, left0, left1, depth=0.055,
+            far0, far1, near0, near1, depth=0.055,
         )
-        sofa_front = _mix(left_mid, right_mid, 0.80)
-        tv_front = _mix(right_mid, left_mid, 0.055)
+        sofa_front = _mix(near_mid, far_mid, 0.80)
+        tv_front = _mix(far_mid, near_mid, 0.055)
     else:
         tv_side = "right" if sofa_side == "left" else "left"
         if sofa_side == "left":
@@ -829,9 +843,30 @@ def build_s2_plan(
     if not allowed_sofa_sides <= {"left", "right", "free"}:
         return _blocked("CANDIDATE_GEOMETRY_INCOMPLETE", geometry=geometry)
 
+    # 單面實牆房型：另一面仍有觀測到的牆／地交線，足以定出橫斷面幾何，
+    # 只是不准把家具靠上去。用整條牆線當幾何佔位，並把配置限制成浮島沙發，
+    # 電視櫃固定放在真正可用的那面牆。
+    left_segments = list(normalized["segments"]["left"])
+    right_segments = list(normalized["segments"]["right"])
+    float_only_tv_side = ""
+    for empty_side, other in (("left", right_segments), ("right", left_segments)):
+        target = left_segments if empty_side == "left" else right_segments
+        if target or not other:
+            continue
+        line = normalized["lines"].get(empty_side)
+        if not line:
+            continue
+        target.append({
+            "geometry_id": f"wall_line_{empty_side}",
+            "t_start": 0.0, "t_end": 1.0, "side": empty_side,
+            "coordinates": [_line_point(line, 0.0), _line_point(line, 1.0)],
+            "placeable": False,
+        })
+        float_only_tv_side = "right" if empty_side == "left" else "left"
+
     candidates = []
-    for left_segment in normalized["segments"]["left"]:
-        for right_segment in normalized["segments"]["right"]:
+    for left_segment in left_segments:
+        for right_segment in right_segments:
             left_wall = left_segment["coordinates"]
             right_wall = right_segment["coordinates"]
             common = _projective_common_interval(
@@ -851,7 +886,10 @@ def build_s2_plan(
                 "living_floor", "left_wall_floor", "right_wall_floor",
                 left_segment["geometry_id"], right_segment["geometry_id"],
             ]
-            if door_side == "left":
+            if float_only_tv_side:
+                # 一面牆不可用 → 只有浮島沙發成立（靠牆的 A/B 都會把家具放到門上）
+                layouts = (("F", "free"),)
+            elif door_side == "left":
                 layouts = (("A", "right"), ("B", "left"), ("F", "free"))
             else:
                 layouts = (("A", "left"), ("B", "right"), ("F", "free"))
@@ -870,10 +908,13 @@ def build_s2_plan(
                     candidates.append(_candidate(
                         candidate_type, candidate_sofa_side, paired,
                         t0, t1, items, source_ids, door_side, width, height,
+                        float_tv_side=float_only_tv_side or "right",
                     ))
 
             compact_length = min(0.12, overlap_end - overlap_start)
-            if compact_length >= 0.06 and door_side in allowed_sofa_sides:
+            # compact-entry 是「沙發貼門牆」的變體，單面實牆時那面牆正是不可用的
+            if (compact_length >= 0.06 and door_side in allowed_sofa_sides
+                    and not float_only_tv_side):
                 compact_t1 = overlap_end
                 compact_t0 = compact_t1 - compact_length
                 try:
