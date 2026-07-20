@@ -80,6 +80,12 @@ def _is_fal_account_blocked(error) -> bool:
 
 
 def _enforce_s2_paid_preflight(base_local_path: str, render: dict, room_type: str) -> dict:
+    # 逐張豁免必須壓得過全域開關。928AD8B4：api 端判定 S2 描述不了這個房型、
+    # 把 _layout_contract_s2_required 設成 False，但 globally_required 是環境變數
+    # 永遠為真，`or` 一接豁免就完全失效——訂單記了 legacy_fallback、文案也對，
+    # 唯獨最關鍵的「放行生成」沒發生，客人還是零圖。
+    if render.get("_layout_contract_s2_waived") is True:
+        return {"ok": True, "reason_codes": [], "skipped": True, "waived": True}
     globally_required = os.environ.get("LAYOUT_CONTRACT_S2", "0").strip() == "1"
     metadata_required = render.get("_layout_contract_s2_required") is True
     declared_room_type = str(render.get("_room_type") or "").strip().lower()

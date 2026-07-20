@@ -3978,6 +3978,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 # 兩套規劃器都描述不了這個房型、又沒有引導圖時：客人已付費，
                 # 生一張總比零張好；但把重試全部關掉，避免退回「同一錯格局
                 # 反覆付費」的老問題。成品照樣要過生成後那幾道閘門。
+                # 豁免旗標要顯式帶到生成端：付費前閘門的全域開關會蓋掉
+                # _layout_contract_s2_required=False，只有這個旗標壓得過去。
+                copy["_layout_contract_s2_waived"] = bool(vi in layout_contract_s2_waived)
                 copy["_allow_single_shot_without_guide"] = bool(
                     vi in layout_contract_s2_waived
                     and rt == "living"

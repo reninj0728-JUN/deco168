@@ -120,3 +120,27 @@ def test_s2_local_edit_preflight_stays_bound_to_original_source(tmp_path):
     )
 
     assert result["ok"] is True
+
+
+def test_waived_render_skips_the_paid_preflight_even_when_globally_required(monkeypatch):
+    """928AD8B4｜api 端判定 S2 描述不了這個房型並豁免，但付費前閘門讀的是
+    `globally_required or metadata_required`——環境變數永遠為真，`or` 一接豁免就
+    失效。訂單記了 legacy_fallback、文案也對，客人還是零圖。"""
+    import test_full_pipeline as tfp
+
+    monkeypatch.setenv("LAYOUT_CONTRACT_S2", "1")
+
+    waived = {
+        "_layout_contract_s2_waived": True,
+        "_layout_contract_s2_required": False,
+        "_room_type": "living",
+    }
+    result = tfp._enforce_s2_paid_preflight("base.jpg", waived, "living")
+    assert result["ok"] is True
+    assert result.get("waived") is True
+
+    # 沒有豁免旗標時，全域開關仍然生效——合約讀不到照樣擋，不得因此鬆掉正常路徑
+    normal = {"_layout_contract_s2_required": True, "_room_type": "living",
+              "_layout_contract_s2": "", "_base_path": ""}
+    with pytest.raises(tfp.LayoutPreflightBlocked):
+        tfp._enforce_s2_paid_preflight("base.jpg", normal, "living")
