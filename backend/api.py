@@ -2922,6 +2922,81 @@ def _s2_model_not_applicable(summary: dict | None) -> bool:
     return bool(codes) and codes <= S2_MODEL_NOT_APPLICABLE_CODES
 
 
+def _crop_to_living_zone(base_path: str, job_dir, idx: int,
+                         living_bbox1000, pad: float = 0.04):
+    """裁到分區層認出來的客廳區——S2 描述不了整個房型時的最後一招。
+
+    用戶提案：既然分區層能準確認出「哪一塊是客廳」，就把那一塊特寫裁出來再擺家具。
+    928AD8B4 實測有效：那張斜角照裁出客廳區後是 2016x1815（解析度足夠、不失真），
+    畫面剩左右兩面實牆＋後方落地窗，大門與兩扇臥室門全部出鏡——
+    門的問題物理上消失，相對兩牆也回來了，正是幾何規劃器要的結構。
+
+    回傳 (裁切後路徑, crop_box)；裁不動就回 None。
+    """
+    if not (isinstance(living_bbox1000, (list, tuple)) and len(living_bbox1000) == 4):
+        return None
+    try:
+        import cv2
+        img = cv2.imread(str(base_path))
+        if img is None:
+            return None
+        H, W = img.shape[:2]
+        ly0, lx0, ly1, lx1 = [float(v) for v in living_bbox1000]
+        x0 = int(max(0, (lx0 / 1000.0 - pad) * W))
+        y0 = int(max(0, (ly0 / 1000.0 - pad) * H))
+        x1 = int(min(W, (lx1 / 1000.0 + pad) * W))
+        y1 = int(min(H, (ly1 / 1000.0 + pad) * H))
+        if x1 - x0 < W * 0.30 or y1 - y0 < H * 0.30:
+            return None          # 裁得太小＝分區可能抓錯，寧可不裁
+        crop = img[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        out = str(Path(job_dir) / f"crop_living_zone_{idx:02d}.jpg")
+        if not cv2.imwrite(out, crop):
+            return None
+        print(f"[pipeline] 客廳區特寫裁切 {W}x{H} → {x1-x0}x{y1-y0}（門窗雜訊出鏡）")
+        return out, (x0, y0, x1, y1)
+    except Exception as e:
+        print(f"[pipeline] 客廳區裁切失敗（略過）: {type(e).__name__}: {str(e)[:80]}")
+        return None
+
+
+def _rebuild_guide_on_zoom(zoom_base: str, job_dir, idx: int,
+                           zoning_result: dict, source_path: str,
+                           crop_box) -> str | None:
+    """在客廳區特寫上重畫引導圖。門若已裁出鏡就不再傳門框——
+    畫面裡沒有門，規劃器就不必為它保留禁區，這正是特寫的價值。"""
+    try:
+        import cv2
+        src = cv2.imread(str(source_path))
+        zoom = cv2.imread(str(zoom_base))
+        if src is None or zoom is None:
+            return None
+        oh, ow = src.shape[:2]
+        zh, zw = zoom.shape[:2]
+        zones = zoning_result.get("zones") or {}
+
+        def _to_zoom(key):
+            bb = ((zones.get(key) or {}).get("bbox_on_best_photo"))
+            return _bbox1000_to_crop_px(bb, ow, oh, crop_box) if bb else None
+
+        door = _to_zoom("entrance_zone")
+        living = _to_zoom("living_zone")
+        blocked = [b for b in (_to_zoom("walkway"), _to_zoom("no_go_zone")) if b]
+        if door and blocked:
+            blocked = [b for b in blocked if not _rects_intersect(b, door)]
+        return _build_layout_guide_image(
+            zoom_base, job_dir, idx, _guide_sofa_side(zoning_result),
+            entrance_side=_entrance_side_from_zoning(zoning_result) if door else "",
+            entrance_bbox=door,
+            focal_side=_preferred_focal_side(zoning_result),
+            auto_float=False, blocked_rects=blocked, living_bbox=living,
+        )
+    except Exception as e:
+        print(f"[pipeline] 特寫引導圖重建失敗（略過）: {type(e).__name__}: {str(e)[:80]}")
+        return None
+
+
 def _incomplete_message(validation_summary: dict | None) -> str:
     """交不出圖時給客戶的文案要對得上真實死因。
 
@@ -3917,6 +3992,28 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         layout_contract_s2_waived.add(_vi)
                         layout_guide_modes[_vi] = layout_guide_modes.get(
                             _vi, "bound") or "bound"
+                        # 整個房型描述不了，就退一步只做「客廳區特寫」：分區層認得
+                        # 出哪一塊是客廳，裁進去之後門窗雜訊出鏡、相對兩牆回來，
+                        # 規劃器就有解了（928AD8B4 實測）。
+                        _lz_bbox = ((zoning_result.get("zones") or {}).get(
+                            "living_zone") or {}).get("bbox_on_best_photo")
+                        _zoom = _crop_to_living_zone(
+                            _contract_photo, job_dir, _vi, _lz_bbox)
+                        if _zoom:
+                            _zoom_base, _zoom_box = _zoom
+                            flux_bases[_vi] = _zoom_base
+                            uncropped_bases.setdefault(_vi, _contract_photo)
+                            crop_flags[_vi] = True
+                            crop_boxes[_vi] = _zoom_box
+                            crop_notes[_vi] = "s2_waived_living_zone_zoom"
+                            door_excluded_flags[_vi] = True   # 大門已裁出鏡
+                            zone_crop_flags[_vi] = True
+                            _zoom_guide = _rebuild_guide_on_zoom(
+                                _zoom_base, job_dir, _vi, zoning_result,
+                                _contract_photo, _zoom_box)
+                            if _zoom_guide:
+                                layout_guide_paths[_vi] = _zoom_guide
+                                layout_guide_modes[_vi] = "living_zone_zoom"
                     else:
                         # 判官真的驗過而且判不安全 → 照舊擋，不得回退。
                         layout_guide_paths.pop(_vi, None)

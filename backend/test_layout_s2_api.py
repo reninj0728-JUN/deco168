@@ -316,3 +316,38 @@ def test_unmodellable_room_gets_one_paid_shot_but_no_retries():
     # 付費前閘門要放行，但只放行有旗標的
     assert "_single_shot = bool(render.get(\"_allow_single_shot_without_guide\"))" in pipeline
     assert "and not _single_shot" in pipeline
+
+
+def test_living_zone_zoom_crop_rules():
+    """928AD8B4｜用戶提案：分區層認得出哪塊是客廳，就裁進去再擺家具。
+    實測那張斜角照裁出 2298x2057，門與臥室門全部出鏡，規劃器就有解。"""
+    import tempfile
+    import cv2
+    import numpy as np
+
+    with tempfile.TemporaryDirectory() as td:
+        photo = str(Path(td) / "room.jpg")
+        cv2.imwrite(photo, np.full((3024, 4032, 3), 200, dtype=np.uint8))
+
+        # 正常客廳區（畫面左半、下半）→ 裁得出來
+        zoom = api._crop_to_living_zone(photo, td, 0, [360, 30, 960, 530])
+        assert zoom is not None
+        base, box = zoom
+        assert Path(base).exists()
+        img = cv2.imread(base)
+        assert img.shape[1] > 4032 * 0.30 and img.shape[0] > 3024 * 0.30
+
+        # 分區抓得太小 → 寧可不裁（可能是誤判，裁下去會失真又缺牆）
+        assert api._crop_to_living_zone(photo, td, 1, [400, 400, 550, 550]) is None
+        # bbox 壞掉 → 不裁
+        assert api._crop_to_living_zone(photo, td, 2, None) is None
+        assert api._crop_to_living_zone(photo, td, 3, [1, 2, 3]) is None
+
+
+def test_zoom_path_is_wired_into_the_s2_waiver():
+    source = Path(api.__file__).read_text(encoding="utf-8")
+    assert "_crop_to_living_zone(" in source
+    assert "_rebuild_guide_on_zoom(" in source
+    assert '"living_zone_zoom"' in source
+    # 特寫後大門已出鏡，必須標記，否則驗收仍會去找門
+    assert "door_excluded_flags[_vi] = True" in source
