@@ -13,7 +13,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 
 _LABEL_FONT_CANDIDATES = (
@@ -988,22 +988,41 @@ def render_s2_guide(photo_path: str | Path, out_path: str | Path, plan: dict) ->
         item.get("geometry_id"): item for item in plan.get("geometry") or []
         if isinstance(item, dict)
     }
+    # 禁區與家具目標畫在不同層：走道多邊形本來就涵蓋牆邊帶（規劃器判的是
+    # 「放了家具之後走道還通不通」，不是禁止重疊），所以紅區常常整片蓋住
+    # sofa/tv 目標。D85B8525 實測：5 個候選的 footprint 全部 99–100% 落在
+    # 走道多邊形內。直接漆上去，同一張圖就同時寫著「沙發放這裡」和
+    # 「這塊完全淨空」——生成模型與幾何判官都被這個矛盾誤導。
+    # 這裡只把紅區裡「家具要放的那一塊」挖掉，不動任何合格判定。
+    zone_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    zone_draw = ImageDraw.Draw(zone_layer, "RGBA")
     for geometry_id in ("door_quad", "entrance_landing", "walkway"):
         item = geometry_by_id.get(geometry_id) or {}
         shape = item.get("shape") or {}
         points = shape.get("coordinates") if shape.get("type") == "polygon" else None
         if points:
             pts = _integer_points(points)
-            draw.polygon(pts, fill=(220, 25, 25, 92))
-            draw.line(pts + [pts[0]], fill=(235, 20, 20, 235), width=5)
+            zone_draw.polygon(pts, fill=(220, 25, 25, 92))
+            zone_draw.line(pts + [pts[0]], fill=(235, 20, 20, 235), width=5)
 
     compact_buffer = _compact_entry_buffer_polygon(
         plan, chosen, width=width, height=height,
     )
     if compact_buffer:
         pts = _integer_points(compact_buffer)
-        draw.polygon(pts, fill=(220, 25, 25, 118))
-        draw.line(pts + [pts[0]], fill=(235, 20, 20, 245), width=6)
+        zone_draw.polygon(pts, fill=(220, 25, 25, 118))
+        zone_draw.line(pts + [pts[0]], fill=(235, 20, 20, 245), width=6)
+
+    punch = Image.new("L", image.size, 0)
+    punch_draw = ImageDraw.Draw(punch)
+    for key in ("sofa_footprint", "tv_footprint"):
+        shape = chosen.get(key)
+        if shape:
+            punch_draw.polygon(_integer_points(shape), fill=255)
+    zone_alpha = zone_layer.getchannel("A")
+    zone_layer.putalpha(ImageChops.subtract(zone_alpha, punch))
+    overlay = Image.alpha_composite(overlay, zone_layer)
+    draw = ImageDraw.Draw(overlay, "RGBA")
 
     sofa_points = _integer_points(chosen["sofa_footprint"])
     tv_points = _integer_points(chosen["tv_footprint"])

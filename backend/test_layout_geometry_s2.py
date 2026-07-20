@@ -646,3 +646,41 @@ def test_same_side_b_compact_candidate_is_generated_and_prioritized():
     compact_back = compact[0]["sofa_footprint"][:2]
     regular_back = regular[0]["sofa_footprint"][:2]
     assert s2._distance(*compact_back) < s2._distance(*regular_back)
+
+
+def test_red_zones_never_paint_over_the_furniture_targets(tmp_path):
+    """D85B8525｜走道多邊形本來就涵蓋牆邊帶（規劃器判的是「放了家具後走道還通
+    不通」，不禁止重疊），實測 5 個候選的 footprint 全部 99–100% 落在走道內。
+    直接漆上去，同一張圖就同時寫著「沙發放這裡」和「這塊完全淨空」——
+    生成模型與幾何判官都被這個矛盾誤導。紅區必須扣掉家具目標。"""
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    plan = s2.build_s2_plan(
+        _safe_geometry(), width=1000, height=700, expected_source_photo_index=0,
+    )
+    chosen = next(c for c in plan["candidates"]
+                  if c["candidate_id"] == plan["chosen_candidate_id"])
+    guide_path = tmp_path / "guide.jpg"
+    s2.render_s2_guide(photo, guide_path, plan)
+
+    import numpy as np
+    with Image.open(guide_path) as guide:
+        pixels = np.asarray(guide.convert("RGB")).astype(int)
+
+    def _interior_samples(polygon, n=5):
+        """取多個內部點；只看正中心會撞到黃色視線軸的端點。"""
+        cx = sum(p[0] for p in polygon) / len(polygon)
+        cy = sum(p[1] for p in polygon) / len(polygon)
+        out = []
+        for corner in polygon:
+            x = int(cx + (corner[0] - cx) * 0.55)
+            y = int(cy + (corner[1] - cy) * 0.55)
+            if 0 <= y < pixels.shape[0] and 0 <= x < pixels.shape[1]:
+                out.append(pixels[y, x])
+        return out[:n] or [pixels[int(cy), int(cx)]]
+
+    for label, polygon in (("沙發", chosen["sofa_footprint"]),
+                           ("電視櫃", chosen["tv_footprint"])):
+        for r, g, b in _interior_samples(polygon):
+            assert not (r > g and r > b), \
+                f"{label}目標內部有紅色主導像素（紅區蓋到目標）RGB={r},{g},{b}"
