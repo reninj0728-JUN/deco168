@@ -394,8 +394,10 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
                 elif _auto_sofa == _entr_side:
                     _auto_choice += (
                         "Because the sofa wall also contains the entrance door, place the ENTIRE sofa "
-                        "past the outer door frame and clear of the visible door swing arc, never in "
-                        "front of or touching the entrance. The entrance door stays behind the sofa "
+                        "past the outer door frame and clear of the visible door swing arc. Keep the "
+                        "sofa's nearest edge at least 0.25 of one visible door-width beyond that "
+                        "swing-clear boundary, never in front of or touching the entrance. The entrance "
+                        "door stays behind the sofa "
                         "back, completely outside the seated viewer's forward field of view. Place the "
                         "TV/media console on the opposite solid wall so the sofa-seat normal and "
                         "TV-screen normal point directly at each other on one clear cross-room sightline. "
@@ -1862,7 +1864,11 @@ def build_nano_banana_inputs(
         image_urls.append(layout_guide_url)
         next_idx += 1
         _guide_mode = (layout_guide_mode or entry.get("_layout_guide_mode") or "bound").strip().lower()
-        _is_auto_guide = (_guide_mode == "free" or _guide_mode.startswith("auto_"))
+        _is_auto_guide = (
+            _guide_mode == "free"
+            or _guide_mode.startswith("auto_")
+            or _guide_mode == "living_zone_zoom"
+        )
         if _is_auto_guide:
             _choice_note = (
                 "The customer has no left/right preference. Independently choose the safest sofa and "

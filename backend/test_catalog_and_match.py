@@ -697,6 +697,42 @@ def test_door_excluded_prompt_drops_entrance_clauses():
     assert "DOOR-ON-A-LONG-WALL LAYOUT" not in sec_ex
 
 
+def test_living_zone_zoom_guide_remains_ai_auto():
+    """S2 waived zoom 仍是 AI 自動配置，不得偽裝成客戶指定左右側。"""
+    import prompt_builder as pb
+
+    entry = {"style": "modern", "style_label": "都會簡約",
+             "matched_furniture": [], "flux_prompt": "modern living room"}
+    prompt = pb.build_nano_banana_inputs(
+        entry, None, "https://x/room.jpg",
+        layout_guide_url="https://x/guide.jpg",
+        layout_guide_mode="living_zone_zoom",
+    )["prompt"]
+    assert "The customer has no left/right preference" in prompt
+    assert "customer's left/right sofa-side choice" not in prompt
+
+
+def test_auto_sofa_on_entrance_wall_keeps_numeric_door_clearance():
+    """門仍在畫面時，生成 prompt 必須保留沙發過門弧的文字輔助約束。"""
+    import prompt_builder as pb
+
+    zoning = {
+        "_origin": "user_confirmed_v2",
+        "_sofa_layout": "free",
+        "_auto_focal_side": "right",
+        "_entrance_side": "left",
+        "spatial_synthesis": {"entrance_position": "左側前段大門"},
+        "zones": {
+            "living_zone": {"where": "客廳區"},
+            "entrance_zone": {"where": "左側前段大門周邊"},
+        },
+        "furniture_placement_rules": {"sofa_side": "", "tv_side": "right"},
+    }
+    sec = pb._build_layout_section(zoning, is_long_room_numeric=True)
+    assert "place the ENTIRE sofa past the outer door frame" in sec
+    assert "at least 0.25 of one visible door-width" in sec
+
+
 def test_layout_guide_pipeline_wiring():
     """版面引導（用戶提案，直測 4/4）：畫框圖→參考圖→圖例指令 全鏈接通。"""
     import os, tempfile

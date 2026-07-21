@@ -3001,15 +3001,20 @@ def _crop_to_living_zone(base_path: str, job_dir, idx: int,
 
 def _rebuild_guide_on_zoom(zoom_base: str, job_dir, idx: int,
                            zoning_result: dict, source_path: str,
-                           crop_box) -> str | None:
+                           crop_box) -> tuple[str | None, bool | None]:
     """在客廳區特寫上重畫引導圖。門若已裁出鏡就不再傳門框——
-    畫面裡沒有門，規劃器就不必為它保留禁區，這正是特寫的價值。"""
+    畫面裡沒有門，規劃器就不必為它保留禁區，這正是特寫的價值。
+
+    回傳 (guide_path, door_visible)：door_visible 只有在入口 bbox 格式與座標有效時
+    才是 True/False；缺入口資料、bbox 損壞或讀圖失敗時回 None，呼叫端必須保守
+    視為門仍可能在鏡內。
+    """
     try:
         import cv2
         src = cv2.imread(str(source_path))
         zoom = cv2.imread(str(zoom_base))
         if src is None or zoom is None:
-            return None
+            return None, None
         oh, ow = src.shape[:2]
         zh, zw = zoom.shape[:2]
         zones = zoning_result.get("zones") or {}
@@ -3018,21 +3023,32 @@ def _rebuild_guide_on_zoom(zoom_base: str, job_dir, idx: int,
             bb = ((zones.get(key) or {}).get("bbox_on_best_photo"))
             return _bbox1000_to_crop_px(bb, ow, oh, crop_box) if bb else None
 
-        door = _to_zoom("entrance_zone")
+        entrance_bbox = ((zones.get("entrance_zone") or {}).get("bbox_on_best_photo"))
+        entrance_bbox_valid = False
+        if isinstance(entrance_bbox, (list, tuple)) and len(entrance_bbox) == 4:
+            try:
+                ey0, ex0, ey1, ex1 = [float(v) for v in entrance_bbox]
+                entrance_bbox_valid = ex1 > ex0 and ey1 > ey0
+            except (TypeError, ValueError):
+                entrance_bbox_valid = False
+        door = (_bbox1000_to_crop_px(entrance_bbox, ow, oh, crop_box)
+                if entrance_bbox_valid else None)
+        door_visible = (bool(door) if entrance_bbox_valid else None)
         living = _to_zoom("living_zone")
         blocked = [b for b in (_to_zoom("walkway"), _to_zoom("no_go_zone")) if b]
         if door and blocked:
             blocked = [b for b in blocked if not _rects_intersect(b, door)]
-        return _build_layout_guide_image(
+        guide_path = _build_layout_guide_image(
             zoom_base, job_dir, idx, _guide_sofa_side(zoning_result),
             entrance_side=_entrance_side_from_zoning(zoning_result) if door else "",
             entrance_bbox=door,
             focal_side=_preferred_focal_side(zoning_result),
             auto_float=False, blocked_rects=blocked, living_bbox=living,
         )
+        return guide_path, door_visible
     except Exception as e:
         print(f"[pipeline] 特寫引導圖重建失敗（略過）: {type(e).__name__}: {str(e)[:80]}")
-        return None
+        return None, None
 
 
 def _incomplete_message(validation_summary: dict | None) -> str:
@@ -4061,11 +4077,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             crop_flags[_vi] = True
                             crop_boxes[_vi] = _zoom_box
                             crop_notes[_vi] = "s2_waived_living_zone_zoom"
-                            door_excluded_flags[_vi] = True   # 大門已裁出鏡
                             zone_crop_flags[_vi] = True
-                            _zoom_guide = _rebuild_guide_on_zoom(
+                            _zoom_guide, _zoom_door_visible = _rebuild_guide_on_zoom(
                                 _zoom_base, job_dir, _vi, zoning_result,
                                 _contract_photo, _zoom_box)
+                            # 只有入口 bbox 明確完全落在 crop 外才可關閉避門 prompt。
+                            # None（缺 bbox／讀圖失敗）一律保守當門仍可能在鏡內。
+                            door_excluded_flags[_vi] = (_zoom_door_visible is False)
                             if _zoom_guide:
                                 layout_guide_paths[_vi] = _zoom_guide
                                 layout_guide_modes[_vi] = "living_zone_zoom"

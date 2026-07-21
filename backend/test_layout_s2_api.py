@@ -349,8 +349,59 @@ def test_zoom_path_is_wired_into_the_s2_waiver():
     assert "_crop_to_living_zone(" in source
     assert "_rebuild_guide_on_zoom(" in source
     assert '"living_zone_zoom"' in source
-    # 特寫後大門已出鏡，必須標記，否則驗收仍會去找門
-    assert "door_excluded_flags[_vi] = True" in source
+    # 只有 bbox 明確完全在 crop 外才可標記出鏡；未知時保留避門 prompt。
+    assert "door_excluded_flags[_vi] = (_zoom_door_visible is False)" in source
+
+
+def test_zoom_guide_reports_door_visibility_from_actual_crop(tmp_path):
+    """30FBA4A5｜living-zone zoom 不能寫死門已出鏡；以原圖 bbox 與 crop 交集為準。"""
+    import cv2
+    import numpy as np
+
+    source = str(tmp_path / "source.jpg")
+    zoom = str(tmp_path / "zoom.jpg")
+    cv2.imwrite(source, np.full((1000, 1000, 3), 200, dtype=np.uint8))
+    cv2.imwrite(zoom, np.full((800, 800, 3), 200, dtype=np.uint8))
+    zoning = {
+        "_sofa_layout": "free",
+        "zones": {
+            "entrance_zone": {"bbox_on_best_photo": [100, 100, 500, 300]},
+            "living_zone": {"bbox_on_best_photo": [100, 100, 900, 900]},
+        },
+        "furniture_placement_rules": {},
+    }
+
+    _guide_in, door_visible = api._rebuild_guide_on_zoom(
+        zoom, tmp_path, 0, zoning, source, (0, 0, 800, 800))
+    assert door_visible is True
+
+    _guide_out, door_visible = api._rebuild_guide_on_zoom(
+        zoom, tmp_path, 1, zoning, source, (400, 0, 1000, 800))
+    assert door_visible is False
+
+
+def test_zoom_guide_without_entrance_bbox_keeps_door_status_unknown(tmp_path):
+    """入口資料缺失或損壞都不是出鏡證據；必須保留避門 prompt。"""
+    import cv2
+    import numpy as np
+
+    source = str(tmp_path / "source.jpg")
+    zoom = str(tmp_path / "zoom.jpg")
+    cv2.imwrite(source, np.full((600, 900, 3), 200, dtype=np.uint8))
+    cv2.imwrite(zoom, np.full((600, 900, 3), 200, dtype=np.uint8))
+    _guide, door_visible = api._rebuild_guide_on_zoom(
+        zoom, tmp_path, 2,
+        {"_sofa_layout": "free", "zones": {}, "furniture_placement_rules": {}},
+        source, (0, 0, 900, 600))
+    assert door_visible is None
+
+    _guide, door_visible = api._rebuild_guide_on_zoom(
+        zoom, tmp_path, 3,
+        {"_sofa_layout": "free",
+         "zones": {"entrance_zone": {"bbox_on_best_photo": [1, 2, 3]}},
+         "furniture_placement_rules": {}},
+        source, (0, 0, 900, 600))
+    assert door_visible is None
 
 
 def test_s2_verifier_unstable_triggers_waiver():
