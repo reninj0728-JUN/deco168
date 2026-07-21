@@ -878,6 +878,35 @@ def test_constitution_all_live_gates_respect_calibration():
             f"拒絕案 {c['case_id']} 沒有任何閘門擋住（漏網）"
 
 
+def test_pair_center_extreme_gate_no_dead_zone_kill():
+    """DD49AF60 根修：pair-center 極端門檻不得落在校準空窗裡誤殺好圖。
+    校準庫實測：接受組中心差最高 89、靠此閘門擋的拒絕組是 106/110——
+    憲法安全區間 [90,106)。舊值 95 落在空窗，殺掉 DD49AF60 客廳一張
+    「沙發過門(gap 0.32)＋產品全對、中心差僅 97」的可交付圖。
+    門檻須：放行 97（89↔106 空窗、無用戶拒絕裁決）、仍擋 106/110。"""
+    import api
+    # DD49AF60 gap=0.32 那張的真實 bbox（沙發過門、產品全對，中心差 97）
+    deliverable = {"ok": True, "render_bboxes": {
+        "sofa": [548, 299, 768, 461],
+        "focal_anchor": [628, 656, 881, 871],
+        "entrance_door": [190, 122, 853, 263]}}
+    assert api._pair_center_delta(deliverable, tolerance=0)["abs_delta_y"] == 97
+    out = api._fail_closed_validation(deliverable, "living")
+    assert out.get("ok") is True and not out.get("hard_fail"), \
+        "空窗好圖（中心差 97）被 pair 極端門檻誤殺——門檻又掉回空窗了"
+    # 門檻本身必須落在憲法安全區間，且真正的極端錯位（106/110）仍被擋
+    assert 90 <= api.PAIR_CENTER_EXTREME < 106, \
+        f"PAIR_CENTER_EXTREME={api.PAIR_CENTER_EXTREME} 不在憲法安全區間 [90,106)"
+    for extreme in (106, 110):
+        # bbox 格式 [ymin,xmin,ymax,xmax]；只在垂直中心錯開 extreme（focal 整體下移）
+        bad = {"ok": True, "render_bboxes": {
+            "sofa": [548, 300, 768, 460],
+            "focal_anchor": [548 + extreme, 300, 768 + extreme, 460]}}
+        assert api._pair_center_delta(bad, tolerance=0)["abs_delta_y"] == extreme
+        assert api._fail_closed_validation(bad, "living").get("ok") is False, \
+            f"極端錯位 {extreme} 未被 pair 門檻擋住"
+
+
 def test_focal_side_back_window_uses_accepted_layout():
     """48B75FBF 根修：門在左+窗在「後方」→ 電視必須留在門牆（過門段）、
     沙發拿右側實牆——用戶裁決庫全綠佈局。舊條件把後窗當成左右約束，

@@ -2023,8 +2023,13 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
 
 
 PAIR_CENTER_TOLERANCE = 25
-# 極端錯位門檻（合憲：用戶接受組中心差最高 88,拒絕組有 106/110）
-PAIR_CENTER_EXTREME = 95
+# 極端錯位門檻（合憲校準庫實測：接受組中心差 11/32/50/60/89（最高 89）,
+# 靠此閘門擋的拒絕組只有 31E341CF=110、6DA08412=106；其餘拒絕案由門距閘門擋。
+# → 憲法安全區間是 [90,106)。舊值 95 落在「接受組 89 ↔ 拒絕組 106」這段完全沒有
+#   用戶裁決資料的空窗裡,會誤殺該區間的好圖（DD49AF60 客廳：沙發過門、產品全對、
+#   中心差 97，只因 >95 被翻成 hard_fail 丟掉）。改 100：交付 97 這種好圖,仍擋
+#   106/110,離接受組最高 89 留 11 點餘裕。只擋「用戶真的拒絕過」的錯位,不擋空窗。）
+PAIR_CENTER_EXTREME = 100
 
 
 def _pair_center_delta(validation: dict | None,
@@ -2758,9 +2763,10 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     if isinstance(v, dict) and v.get("ok") is not None:
         if (room_type or "living") == "living":
             # 對齊閘門的合憲形態（31E341CF 用戶裁決復活）：中心差在「中間值」
-            # 無分類力（接受 10-88 與拒絕 60-106 重疊,25 門檻曾殺掉接受組 4/5），
-            # 但「極端值」有——接受組史上最高 88,拒絕組有 106 與 110。
-            # 門檻 95：接受組全放、極端錯位（電視在沙發斜前方掃向門）必擋。
+            # 無分類力（接受 11-89 與拒絕 61-106 重疊,25 門檻曾殺掉接受組 4/5），
+            # 但「極端值」有——接受組史上最高 89,靠此閘門擋的拒絕組是 106/110。
+            # 門檻 100（見 PAIR_CENTER_EXTREME 註解）：接受組全放、極端錯位
+            # （電視在沙發斜前方掃向門）必擋；89↔106 空窗不誤殺（DD49AF60 中心差 97）。
             # 中間值一律只記診斷，交給門距閘門與判官分工。
             pair = _pair_center_delta(v, tolerance=0)  # tolerance=0 → 永遠回量測值
             if pair:
@@ -2771,7 +2777,7 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
                     v["hard_fail"] = True
                     v["focal_anchor_misaligned_with_sofa"] = True
                     _tag = (f"沙發與電視櫃深度錯位達極端值：中心差 {pair['abs_delta_y']}/1000"
-                            f"（合憲門檻 {PAIR_CENTER_EXTREME}；用戶接受組史上最高 88）")
+                            f"（合憲門檻 {PAIR_CENTER_EXTREME}；用戶接受組史上最高 89）")
                     _prev = (v.get("reason") or "").strip()
                     v["reason"] = f"{_tag}；{_prev}" if _prev and "皆合理" not in _prev else _tag
         return v
