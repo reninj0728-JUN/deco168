@@ -1020,3 +1020,19 @@ def test_bundle_detector_catches_cabinet_pairs_and_attached_pieces():
     ]
     for name in singles:
         assert not fm.is_multi_piece_bundle(name), f"單件家具被誤判: {name}"
+
+
+def test_video_token_gating_rules_are_present():
+    """影片省 token 兩鐵則：①付款前分區純照片(不抽幀)②單空間有照片就不送影片分析。
+    影片價值只在全室理解，單一房間拿不到又燒 token。"""
+    import api
+    source = Path(api.__file__).read_text(encoding="utf-8")
+
+    # ① /api/zoning 付款前不再抽影片關鍵幀
+    assert "extract_video_keyframes(str(_vdest), kf_dir, count=4)" not in source, \
+        "付款前分區仍在抽影片幀（白燒 token）"
+    assert "付款前分區一律純照片" in source
+
+    # ② run_pipeline 單空間有照片→清掉影片，只有全室才送影片分析
+    assert 'video_paths and not _is_whole and image_paths' in source
+    assert '_is_whole = str(space_type or "").strip().lower() == "whole"' in source

@@ -3482,6 +3482,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         video_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() in VIDEO_EXTS]
         image_paths = [p for p in photo_paths if not p.startswith("gemini://") and Path(p).suffix.lower() not in VIDEO_EXTS]
 
+        # 單空間不吃影片：影片的價值在「全室理解」（房間怎麼連、動線、房別歸屬、
+        # 尺寸校正、口述需求），單一房間全都拿不到，幾何又是單張——送影片只會多燒
+        # token、幾乎零增量。單空間一律純照片分析；只有全室（space_type=whole）才
+        # 把影片送進 Gemini 理解。（付款前分區已一律純照片，見 /api/zoning。）
+        _is_whole = str(space_type or "").strip().lower() == "whole"
+        # 只在「有照片可分析」時才丟影片——單空間若只有影片沒照片（邊角情況），
+        # 仍保留影片當唯一素材，不能清空害它沒東西可分析。
+        if video_paths and not _is_whole and image_paths:
+            print(f"[pipeline] 單空間（space_type={space_type}）→ 影片不進分析，"
+                  "純照片理解（影片價值僅在全室，省 token）")
+            video_paths = []
+
         # Phase B (DEV)：USE_VIDEO_KEYFRAMES=1 時，影片用 cv2 抽 keyframes 併入 analyze_image
         # 預設關（=0），生產環境走原本 analyze_space 老路徑
         use_video_kf = os.environ.get("USE_VIDEO_KEYFRAMES", "0").strip() == "1"
@@ -5922,20 +5934,11 @@ async def api_zoning(upload_id: str = Form(...),
     except ImportError as e:
         return JSONResponse(status_code=500, content={"error": f"zoning module missing: {e}"})
 
+    # 付款前分區一律純照片——不碰影片。影片的價值在付款後的完整全室分析
+    # （動線/房間連接/口述需求），分區 overlay 用不到它（幾何綁單張、分區框畫在
+    # 最佳照片上）。過去這裡抽 4 幀送 Gemini，等於對「還沒付款、可能不會付」的
+    # 人先燒影片 token。影片理解全部留到付款後 run_pipeline。
     zoning_kf: list = []
-    try:
-        _vkeys = upload.get("video_keys") or []
-        if _vkeys and isinstance(_vkeys[0], str) and _vkeys[0].strip():
-            _vdest = tmp_dir / ("zv_" + (_vkeys[0].split("/")[-1] or "video.mp4"))
-            if not _vdest.exists():
-                r2_download_object(_vkeys[0].strip(), _vdest)
-            if _vdest.exists() and _vdest.stat().st_size > 10240:
-                kf_dir = tmp_dir / "zoning_kf"
-                zoning_kf = extract_video_keyframes(str(_vdest), kf_dir, count=4)
-                print(f"[/api/zoning] 影片關鍵幀 {len(zoning_kf)} 張加入 zoning 判讀")
-    except Exception as _ve:
-        print(f"[/api/zoning] 影片擷幀失敗（退回純照片）: {type(_ve).__name__}: {str(_ve)[:100]}")
-        zoning_kf = []
 
     zoning = compute_zoning_v2(local_photos, video_keyframes=zoning_kf or None)
     if zoning.get("error"):
