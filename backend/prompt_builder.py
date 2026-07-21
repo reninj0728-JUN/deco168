@@ -561,16 +561,22 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "entry drop zone must stay open. "
             "The focal "
             "wall MUST NOT be left as bare paint or a single small frame on its own. The "
-            "anchor MUST be ONE of the following real furniture pieces: a low media "
-            "console, a TV cabinet with a TV, a sideboard or low cabinet, a display "
-            "cabinet (open or glass), a slim wall console paired with a framed art "
-            "arrangement (the console must be an actual piece of furniture, not a "
-            "floating shelf), or a low storage bench. Do NOT force a TV: if the customer "
-            "preference note mentions no-TV, projector, reading corner, or similar, "
-            "choose a non-TV anchor (sideboard / console / display cabinet / wall "
-            "console + art). Otherwise default to including a TV cabinet, media console, "
-            "or low cabinet. Place exactly ONE main anchor — do not pile up multiple "
-            "large cabinets on the focal wall. The focal anchor MUST NOT push the sofa "
+            "anchor MUST be exactly ONE low, freestanding furniture piece: a low media "
+            "console, a low TV cabinet with a TV, a sideboard / low cabinet, a slim low "
+            "wall console paired with framed art (actual furniture, not a floating shelf), "
+            "or a low storage bench. "
+            "Default = low TV cabinet / media console with a visible TV. "
+            "Do NOT force a TV only if the customer preference note mentions no-TV, "
+            "projector, reading corner, or similar — then a single low sideboard / low "
+            "console + art is allowed. "
+            "HARD FORM: the default TV-wall anchor is LOW (roughly table/console "
+            "height). You MAY add style-enhancing tall pieces (display cabinets, open towers, "
+            "bookcases) on a clear solid wall segment well past the entrance door — but NEVER "
+            "beside the door/intercom, NEVER inside the door swing arc, NEVER blocking the "
+            "walkway, and NEVER displacing the sofa or media console. If no safe wall segment "
+            "exists for a tall piece, omit it. Place exactly ONE main anchor — "
+            "never a low TV stand plus a separate tall display unit crowded beside the "
+            "door/intercom. The focal anchor MUST NOT push the sofa "
             "out of the confirmed living zone, narrow the walkway, or otherwise violate "
             "rules (1) (2) (3) (5) (6) (7) above. This is a commercial requirement: the "
             "customer is buying a furniture proposal, not a magazine cover. "
@@ -928,6 +934,7 @@ def _build_product_placement_section(reference_map: list[dict]) -> str:
         )
 
     # 客廳通則家具擺位（護城河：清單商品 = 圖上商品形與位）
+    has_media_console = any((r.get("cat_en") or "") == "media_console" for r in product_refs)
     lines.append(
         "General placement: sofa against the designated sofa wall facing into the room; "
         "coffee table in front of the sofa; rug anchored under the coffee table within the living zone. "
@@ -938,6 +945,27 @@ def _build_product_placement_section(reference_map: list[dict]) -> str:
         "or mid-room away from the sofa; do not put it beside the sofa, on the same wall, "
         "or on the same side of the room. Do not invent a different TV cabinet than the reference."
     )
+    if has_media_console:
+        # 173C14C5 根因：清單已有 media_console 商品圖，模型在 TV 牆另造高展示櫃
+        # 貼門／對講機，閘門判 focal 貼門。商業護城河是「清單=圖」：
+        # 清單商品必須在圖上且真實；為風格加的東西可以存在，但不能影響擺設位置
+        # （門、走道、動線、沙發-電視對向關係）。
+        lines.append(
+            "MEDIA CONSOLE COMMERCIAL RULE: the MEDIA CONSOLE product reference MUST appear "
+            "in the render, matching the reference form factor closely — a low, long, "
+            "freestanding cabinet with legs or a plinth. It is the TV-wall's primary anchor."
+        )
+        lines.append(
+            "DECOR FREEDOM WITH SPATIAL GUARD: you MAY add style-enhancing pieces not in the "
+            "product list (tall display cabinets, open shelving, accent towers, bookcases) "
+            "to enrich the scene — BUT only on wall segments that are NOT the entrance door "
+            "wall, NOT beside the intercom, NOT inside the door swing arc, NOT blocking the "
+            "walkway, and NOT displacing the sofa or media console from their confirmed positions. "
+            "Any added tall unit must sit on a clear solid wall segment well past the door, "
+            "leave at least one full door-width of bare wall beside the door, and never crowd "
+            "or overlap the entrance/intercom strip. If no safe wall segment exists for a tall "
+            "piece, omit it — the low media console alone is a complete focal wall."
+        )
     return " ".join(lines)
 
 
@@ -1058,7 +1086,8 @@ CRITICAL_RULES = (
     "center of the room. Coffee table and rug must sit fully within the living conversation zone, "
     "never extending into the walkway or no_large_furniture_zone. "
     "(f) FURNITURE/DECOR PROVENANCE (purchasability — important commercial rule): "
-    "All major, visually prominent furniture and decor (sofa, coffee table, rug, accent / side "
+    "All major, visually prominent furniture and decor (sofa, coffee table, rug, media console / "
+    "TV cabinet, accent / side "
     "chair, large floor lamp, table lamp, large wall art or painting, large vase, large potted "
     "plant, side table, ottoman, curtain) should preferably correspond to items in the provided "
     "product reference list. You MAY include small background lived-in details — a book on the "
@@ -1066,8 +1095,16 @@ CRITICAL_RULES = (
     "not match a product reference. But do NOT make a non-referenced item the visual focus or "
     "a clear identifiable selling point of the scene. Specifically: do not invent a striking "
     "accent armchair, a distinctive floor lamp, a large patterned wall painting, a tall "
-    "decorative vase, or a stylized side table that the customer cannot find in the product "
-    "list. When in doubt, leave a wall area lightly accented or empty rather than fabricating "
+    "decorative vase, a stylized side table, or a tall display / storage cabinet beside the "
+    "TV that the customer cannot find in the product list. "
+    "If a media-console / TV-cabinet product reference is provided, that single low cabinet "
+    "IS the TV-wall's primary anchor and MUST appear in the render matching its form. "
+    "Style-enhancing tall pieces (display cabinets, open towers, bookcases) MAY be added on "
+    "clear solid wall segments well past the entrance door — but NEVER beside the "
+    "door/intercom, NEVER inside the door swing arc, NEVER blocking the walkway, and NEVER "
+    "displacing the sofa or media console. If no safe wall segment exists, omit the tall "
+    "piece. "
+    "When in doubt, leave a wall area lightly accented or empty rather than fabricating "
     "items that look buyable but are not. "
     "(g) USER-CONFIRMED LAYOUT is the SINGLE HIGHEST priority of this entire prompt. "
     "If ANY other guidance — style cues, decor provenance, soft-furnishing balance, "
@@ -1455,7 +1492,11 @@ _RETRY_FLAG_FIX_EN = {
         "every piece completely clear of all doors: nothing inside any door's swing arc. "
         "Anchor on the entrance door: after its far frame edge, leave at least one full "
         "door-width of bare wall and empty floor BEFORE any console/cabinet begins. The "
-        "sofa belongs on the opposite solid wall, directly across from the console.",
+        "sofa belongs on the opposite solid wall, directly across from the console. "
+        "FORM FIX: if a tall display cabinet / open tower was crowding the door or intercom, "
+        "move it to a clear solid wall segment well past the door, or remove it entirely. "
+        "Keep the media-console product reference as the low primary anchor. Do not let any "
+        "added tall piece re-enter the door/intercom strip.",
     "guide_overlay_present":
         "Previous render leaked the S2 guide into the final image. Start again from the clean room "
         "photo and output a photorealistic room with ZERO red, green, blue, or yellow guide fills, "
@@ -2189,7 +2230,10 @@ def build_anchored_inputs(
             retry_lines.append(
                 "Previous failure: furniture obstructed doors or circulation. Keep the complete entrance "
                 "door swing area and the continuous entrance-to-interior walkway empty, including sofa, "
-                "coffee table, rug, TV console, plants, and cabinets."
+                "coffee table, rug, TV console, plants, and cabinets. "
+                "If a tall display cabinet / open tower crowded the door or intercom, move it to a "
+                "clear solid wall segment well past the door, or remove it. Keep the low media console "
+                "matching the product reference as the primary anchor."
             )
         if flags & {"sofa_facing_entrance_door", "focal_anchor_misaligned_with_sofa"}:
             retry_lines.append(
@@ -2216,7 +2260,10 @@ def build_anchored_inputs(
         "This is an edit of images 1 and 2, not a new room generation.",
         f"Style: {style_label}.",
         SOFA_TV_FACE_TO_FACE_CONTRACT,
-        "Place a low media console / TV cabinet on the wall opposite the sofa.",
+        "Place a single low media console / TV cabinet on the wall opposite the sofa "
+        "(match the media-console product reference when provided).",
+        "Style-enhancing tall pieces are OK on clear wall segments well past the door — "
+        "but never beside the door/intercom, in the swing arc, or blocking the walkway.",
         "Coffee table in front of sofa, rug under coffee table.",
         "Photorealistic interior editorial photography.",
     ]
