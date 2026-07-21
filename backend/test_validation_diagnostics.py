@@ -331,3 +331,21 @@ def test_layout_mode_survives_the_trimmed_payload():
     assert "正面" in api._incomplete_message(slim)
     # 而且仍然是精簡的（raw_verdict 不得混進來）
     assert "raw_verdict" not in json.dumps(slim, ensure_ascii=False)
+
+
+def test_blocked_render_url_survives_the_trimmed_payload():
+    """生成後被擋的圖 fal 已收費、圖也在，過去直接丟掉。上傳後 URL 要能讓營運方
+    眼球校準（用戶裁決是校準庫唯一標準），而且大單走精簡 payload 時不能掉。"""
+    full = {
+        "total": 1, "ok": 0, "ng": 1,
+        "dropped_renders": [{
+            "style": "modern", "room_type": "living", "reason": "門距不足",
+            "failure_class": "render_quality", "layout_mode": "s2_contract",
+            "blocked_render_url": "https://x/blocked.jpg",
+            "validation_history": [{"validation_stage": "post_render", "attempt": 1,
+                                    "raw_verdict": {"blob": "z" * 3000}}],
+        }],
+    }
+    slim = api._slim_validation_summary(full)
+    assert slim["dropped_renders"][0]["blocked_render_url"] == "https://x/blocked.jpg"
+    assert "raw_verdict" not in json.dumps(slim, ensure_ascii=False)

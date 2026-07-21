@@ -3041,9 +3041,10 @@ def _slim_validation_summary(summary: dict | None) -> dict | None:
             **{k: d.get(k) for k in
                # layout_mode 必須留：incomplete 文案靠它判斷要不要叫客戶正面重拍。
                # 掉了就會退回通用的「配置驗收」，客戶又去重跑同一張斜角照片。
+               # blocked_render_url 也要留：那是付費生成的落選圖，掉了就白花錢又沒得看。
                ("style", "style_label", "angle_label", "room_type", "timeout", "reason",
                 "failure_class", "validation_stage", "validation_attempt_count",
-                "layout_mode")},
+                "layout_mode", "blocked_render_url")},
             "validation_final": {
                 **{k: final.get(k) for k in
                    ("ok", "hard_fail", "validation_unavailable", "validation_outage",
@@ -4758,6 +4759,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 reason = _v_reason
             else:
                 reason = r.get("error") or _v_reason or v.get("error") or "render 未產出"
+            # 生成後被擋的圖：fal 已收費、圖也在，過去直接丟掉連看都看不到。
+            # 上傳並記 URL，讓營運方能眼球判「這張到底該不該擋」——用戶裁決是
+            # 校準庫的唯一標準，看不到圖就無從裁決。付費前擋的單沒有 render_path，
+            # 自然 blocked_render_url=None（本來就沒生圖）。
+            _blocked_path = r.get("render_path") or ""
+            _blocked_url = None
+            if _blocked_path and Path(_blocked_path).exists():
+                try:
+                    _blocked_url = sb_upload_render(job_id, Path(_blocked_path))
+                except Exception as _be:
+                    print(f"[pipeline] 落選圖上傳失敗（略過）: {str(_be)[:80]}")
             dropped_validation_reasons.append({
                 "style":       r.get("style"),
                 "style_label": r.get("style_label"),
@@ -4766,6 +4778,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "timeout":     bool(_is_timeout),         # 前端可顯示友善「生成逾時」文案
                 "reason":      str(reason)[:240],
                 "layout_mode": r.get("_layout_mode") or "legacy",
+                "blocked_render_url": _blocked_url,       # 未通過品檢的版本（可眼球校準）
                 **_validation_diagnostics(r),
             })
 
