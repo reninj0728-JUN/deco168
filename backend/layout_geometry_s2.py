@@ -816,8 +816,15 @@ def build_s2_plan(
     sofa_side: str = "free",
     transverse_direction_xy=None,
     transverse_reference: dict | None = None,
+    can_float: bool = True,
 ) -> dict:
-    """Build a deterministic S2 plan from observed geometry only."""
+    """Build a deterministic S2 plan from observed geometry only.
+
+    can_float：這個房間物理上適不適合浮動沙發（開放方正房 True；全室/長條/
+    有走道/小坪數 False，由 pipeline 的 _room_can_float_sofa 判定）。預設 True
+    以保留既有行為與單元測試。False 時，浮動候選 F 不得靠 +12 固定加分贏過
+    合格的靠牆 A/B（173C14C5：F 把沙發擠成小方塊、引導圖爛掉、模型連敗）。
+    """
     if not isinstance(width, int) or not isinstance(height, int) or width < 32 or height < 32:
         return _blocked("INVALID_GEOMETRY", reason_class="INVALID_GEOMETRY")
     if not isinstance(raw, dict) or raw.get("schema_version") != STRUCT_SCHEMA_VERSION:
@@ -941,6 +948,16 @@ def build_s2_plan(
                         candidates=candidates, reason_class="NO_VIABLE_LAYOUT")
 
     chosen = max(eligible, key=lambda candidate: candidate["score"])
+    # 退化浮動守門（雙條件）：浮動 F 有 +12 固定加分會贏過合格的靠牆 A/B，但 F
+    # 把沙發浮在 0.60–0.80、貼近電視牆，對「不適合浮動的房型」（全室/長條/有走道）
+    # 會擠成小方塊 → 引導圖爛 → 模型連敗（173C14C5）。
+    # 只有「①房間不適合浮動 且 ②同批有合格靠牆 A/B」兩條件同時成立才翻成靠牆：
+    #   - 單面實牆房型只生 F、沒有合格 A/B → 不翻，F 照舊（3135DE37 不被誤殺）
+    #   - 適合浮動的開放方正房（can_float=True）→ 不翻，F 照舊（好的浮動配置保留）
+    if not can_float and chosen.get("candidate_type") == "F":
+        wall_bound = [c for c in eligible if c.get("candidate_type") in ("A", "B")]
+        if wall_bound:
+            chosen = max(wall_bound, key=lambda c: c["score"])
     return {
         "planner_version": PLANNER_VERSION,
         "disposition": "SAFE_FOR_GENERATION",

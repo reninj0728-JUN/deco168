@@ -603,8 +603,14 @@ def verify_and_replan_s2(
     sofa_side: str,
     verifier: Callable[[str | Path, str | Path, int], dict],
     floor_reference_estimator=None,
+    can_float: bool = True,
 ) -> dict:
-    """Plan, verify, optionally correct one wall cycle, and fail closed."""
+    """Plan, verify, optionally correct one wall cycle, and fail closed.
+
+    can_float 必須跟著初次 build_s2_plan 一致傳進來——否則複驗重建 plan 時
+    預設回 True，會把初次已因 can_float=False 翻成靠牆的選擇又翻回浮動 F，
+    白做（173C14C5）。
+    """
     import layout_floor_reference_s2 as floor_reference_s2
 
     source = Path(photo_path)
@@ -633,6 +639,7 @@ def verify_and_replan_s2(
         sofa_side=sofa_side,
         transverse_direction_xy=observed_direction,
         transverse_reference=floor_reference if isinstance(floor_reference, dict) else None,
+        can_float=can_float,
     )
     if observed_direction is None:
         blocked = _blocked_after_verification(
@@ -726,6 +733,7 @@ def verify_and_replan_s2(
                     sofa_side=sofa_side,
                     transverse_direction_xy=observed_direction,
                     transverse_reference=floor_reference,
+                    can_float=can_float,
                 )
                 if plan.get("pre_generation_eligible"):
                     correction_applied = True

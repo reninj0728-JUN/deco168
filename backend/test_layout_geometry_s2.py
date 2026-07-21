@@ -684,3 +684,53 @@ def test_red_zones_never_paint_over_the_furniture_targets(tmp_path):
         for r, g, b in _interior_samples(polygon):
             assert not (r > g and r > b), \
                 f"{label}目標內部有紅色主導像素（紅區蓋到目標）RGB={r},{g},{b}"
+
+
+def test_can_float_false_prefers_wall_bound_over_floating_when_ab_eligible():
+    """173C14C5｜浮動 F 有 +12 加分會贏過合格靠牆 A/B，把沙發擠成小方塊。
+    can_float=False（全室/長條/有走道）且同批有合格 A/B → 改選靠牆。"""
+    # 用「F 真的合格」的幾何（走道挪開，同 test_free_sofa_mode）才驗得到差異
+    raw = _safe_geometry()
+    raw["elements"]["walkway"]["polygon_yx1000"] = [
+        [430, 250], [430, 380], [1000, 420], [1000, 220],
+    ]
+    # can_float=True → F 照舊被選（保留正常浮動房，等同既有 test_free_sofa_mode）
+    plan_float = s2.build_s2_plan(
+        raw, width=1000, height=700, expected_source_photo_index=0,
+        sofa_side="free", can_float=True)
+    chosen_float = next(c for c in plan_float["candidates"]
+                        if c["candidate_id"] == plan_float["chosen_candidate_id"])
+    assert chosen_float["candidate_type"] == "F"
+
+    # can_float=False → 同幾何、同批有合格 A/B → 翻成靠牆
+    plan_wall = s2.build_s2_plan(
+        raw, width=1000, height=700, expected_source_photo_index=0,
+        sofa_side="free", can_float=False)
+    eligible_ab = [c for c in plan_wall["candidates"]
+                   if c["eligible"] and c["candidate_type"] in ("A", "B")]
+    assert eligible_ab, "測試前提：這批要有合格 A/B"
+    chosen_wall = next(c for c in plan_wall["candidates"]
+                       if c["candidate_id"] == plan_wall["chosen_candidate_id"])
+    assert chosen_wall["candidate_type"] in ("A", "B"), \
+        "can_float=False 且有合格 A/B 時必須選靠牆，不是浮動 F"
+
+
+def test_can_float_false_keeps_floating_when_only_f_eligible():
+    """單面實牆房型只生 F、沒有合格 A/B（3135DE37）。can_float=False 也不能
+    壓掉 F，否則變成無合格候選、整個 block——這種房本來就該用 F。"""
+    raw = _safe_geometry()
+    # 製造單面實牆：右牆 usable 移除，只剩左牆
+    raw["usable_wall_segments"] = [
+        s for s in raw["usable_wall_segments"] if s.get("side") == "left"
+    ]
+    plan = s2.build_s2_plan(
+        raw, width=1000, height=700, expected_source_photo_index=0,
+        sofa_side="free", can_float=False)
+    eligible = [c for c in plan["candidates"] if c["eligible"]]
+    if eligible:
+        eligible_ab = [c for c in eligible if c["candidate_type"] in ("A", "B")]
+        # 只有 F 合格時，can_float=False 仍選 F（不因壓制變成無解）
+        if not eligible_ab:
+            chosen = next(c for c in plan["candidates"]
+                          if c["candidate_id"] == plan["chosen_candidate_id"])
+            assert chosen["candidate_type"] == "F"

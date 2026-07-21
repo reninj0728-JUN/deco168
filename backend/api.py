@@ -2482,6 +2482,7 @@ def _run_layout_contract_s2(
     legacy_zoning: dict | None,
     sofa_mode: str,
     image_paths: list | None,
+    can_float: bool = True,
     geometry_verifier=None,
     floor_reference_estimator=None,
 ) -> tuple[dict, dict]:
@@ -2530,6 +2531,7 @@ def _run_layout_contract_s2(
             height=int(height),
             expected_source_photo_index=int(expected_source_index),
             sofa_side=mode,
+            can_float=bool(can_float),
         )
         paths = list(image_paths or [])
         binding_verified = bool(
@@ -2545,6 +2547,7 @@ def _run_layout_contract_s2(
                 sofa_side=mode,
                 verifier=geometry_verifier or lgvs2.verify_s2_guide_gemini,
                 floor_reference_estimator=floor_reference_estimator,
+                can_float=bool(can_float),
             )
             plan = verifier_result["plan"]
             verified_guide = verifier_result.get("guide_artifact")
@@ -3978,6 +3981,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         legacy_zoning=zoning_result,
                         sofa_mode=_sofa_mode_shadow,
                         image_paths=image_paths,
+                        can_float=_can_float_shadow,
                     )
                     layout_contract_shadows.append(_sum)
                     layout_contract_artifacts[_vi] = _artifacts
