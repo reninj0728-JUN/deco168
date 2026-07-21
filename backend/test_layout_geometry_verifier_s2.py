@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
@@ -576,7 +577,7 @@ def test_gemini_verifier_sends_source_and_guide_and_requires_cross_axis(tmp_path
     )
 
     assert verifier_s2.verification_passes(result)
-    assert captured["model"] == "gemini-3.5-flash"
+    assert captured["model"] == os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
     assert len(captured["contents"]) == 3
     prompt = captured["contents"][-1]
     assert "cross_axis_matches_floor_transverse" in prompt

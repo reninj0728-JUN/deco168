@@ -146,7 +146,7 @@ def compute_zoning(photo_paths: list[str], timeout_sec: int = 30) -> dict:
         parts.append(PROMPT)
 
         resp = client.models.generate_content(
-            model="gemini-3.5-flash",
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
             contents=parts,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )

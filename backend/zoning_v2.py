@@ -338,7 +338,7 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) ->
             client=client,
             types_module=types,
             parts=parts,
-            model="gemini-3.5-flash",
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
             max_attempts=2,
         )
         elapsed = time.time() - t0

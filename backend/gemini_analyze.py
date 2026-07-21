@@ -458,7 +458,7 @@ def analyze_space(
 """
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash",
+        model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
         contents=[video_file] + photo_parts + [prompt],
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
@@ -1334,7 +1334,7 @@ reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」�
     result = None
     for _attempt in range(2):
         response = client.models.generate_content(
-            model="gemini-3.5-flash",
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
             contents=[original_part, render_part, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
