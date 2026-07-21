@@ -351,3 +351,43 @@ def test_zoom_path_is_wired_into_the_s2_waiver():
     assert '"living_zone_zoom"' in source
     # 特寫後大門已出鏡，必須標記，否則驗收仍會去找門
     assert "door_excluded_flags[_vi] = True" in source
+
+
+def test_s2_verifier_unstable_triggers_waiver():
+    """173C14C5／D85B8525｜判官 fail 但 fail 欄位跨多次不穩定 = 判官不確定、
+    S2 model 不動此房型 → 回退 legacy（通用，不是 173 特例）。"""
+    # 不穩定：三次失敗，欄位組合每次不同
+    unstable = {
+        "verification_status": "fail",
+        "verification_history": [
+            {"outcome": "hard_fail", "sofa_back_contact": "fail",
+             "walkway_connected": "fail", "cross_axis_matches_floor_transverse": "fail"},
+            {"outcome": "hard_fail", "left_wall_floor_alignment": "fail",
+             "right_wall_floor_alignment": "fail", "sofa_back_contact": "fail"},
+            {"outcome": "hard_fail", "left_wall_floor_alignment": "fail",
+             "sofa_back_contact": "fail", "walkway_connected": "fail"},
+        ],
+    }
+    assert api._s2_verifier_unstable(unstable) is True
+
+    # 穩定的真不安全：每次都同一組 fail 欄位 → 不 waive，照擋
+    stable = {
+        "verification_status": "fail",
+        "verification_history": [
+            {"outcome": "hard_fail", "sofa_back_contact": "fail"},
+            {"outcome": "hard_fail", "sofa_back_contact": "fail"},
+        ],
+    }
+    assert api._s2_verifier_unstable(stable) is False
+
+    # 判官 pass / 只一次 / 沒 history → 不觸發
+    assert api._s2_verifier_unstable({"verification_status": "pass"}) is False
+    assert api._s2_verifier_unstable({
+        "verification_status": "fail",
+        "verification_history": [{"outcome": "hard_fail", "sofa_back_contact": "fail"}]}) is False
+    assert api._s2_verifier_unstable(None) is False
+
+
+def test_waiver_branch_honours_verifier_instability():
+    source = Path(api.__file__).read_text(encoding="utf-8")
+    assert "_s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum)" in source

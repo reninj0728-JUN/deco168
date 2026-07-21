@@ -2925,6 +2925,35 @@ def _s2_model_not_applicable(summary: dict | None) -> bool:
     return bool(codes) and codes <= S2_MODEL_NOT_APPLICABLE_CODES
 
 
+def _s2_verifier_unstable(summary: dict | None) -> bool:
+    """判官 fail、但 fail 欄位跨多次執行不穩定 = 判官對這房型不確定、model 不動，
+    不是「真的看過圖判不安全」——穩定的不安全應該給出一致的 fail 欄位。
+
+    173C14C5／D85B8525 同款：sofa_back_contact／left_wall／right_wall／walkway／
+    cross_axis 每次亂跳。這種「S2 對此房型算不穩」的訊號，跟「連候選都生不出來」
+    一樣代表 S2 模型化不了這房型，該回退 legacy 門感知引導，而不是硬擋成零圖。
+    通用規則：任何 verifier 雜訊房型都受惠，不是 173 特例。
+    """
+    if not isinstance(summary, dict):
+        return False
+    if summary.get("verification_status") != "fail":
+        return False
+    field_sets = []
+    for entry in summary.get("verification_history") or []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("outcome") or "") not in ("hard_fail", "fail"):
+            continue
+        failed = frozenset(
+            k for k, v in entry.items()
+            if isinstance(v, str) and v == "fail")
+        if failed:
+            field_sets.append(failed)
+    # 至少兩次失敗、且欄位組合不完全相同 = 不穩定（雜訊）。
+    # 全部相同 = 穩定的真不安全 → 不 waive，照擋。
+    return len(field_sets) >= 2 and len(set(field_sets)) >= 2
+
+
 def _crop_to_living_zone(base_path: str, job_dir, idx: int,
                          living_bbox1000, pad: float = 0.04):
     """裁到分區層認出來的客廳區——S2 描述不了整個房型時的最後一招。
@@ -3996,15 +4025,18 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         door_excluded_flags[_vi] = False
                         layout_guide_paths[_vi] = _artifacts["guide_path"]
                         layout_guide_modes[_vi] = "auto_s2_contract"
-                    elif _s2_model_not_applicable(_sum):
+                    elif _s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum):
                         # S2 的幾何模型建立在「兩面相對長牆＋共同深度軸」上，只吃
-                        # 正面拍攝的長條房。3135DE37 是斜角拍的方正房（左邊落地窗
-                        # 實牆、中間兩扇臥室門與隔間牆垛、右邊大門），根本沒有一對
-                        # 相對長牆，於是 NO_USABLE_WALL 直接擋死——判官連叫都沒叫，
-                        # 已付費的客戶一張圖都拿不到。
+                        # 正面拍攝的長條房。兩種「S2 模型化不了這房型」都回退 legacy：
+                        # ①連候選都生不出來（NO_USABLE_WALL，3135DE37 斜角方正房）；
+                        # ②候選生得出來但判官 fail 且 fail 欄位跨多次不穩定
+                        #   （173C14C5：sofa_back/left_wall/right_wall/walkway/cross_axis
+                        #   每次亂跳＝判官對此房型不確定，不是穩定的真不安全）。
                         # 「這個房型我模型化不了」不等於「這個配置不安全」：前者交回
                         # legacy 門感知引導＋生成後校準閘門把關，後者才該擋。
-                        print(f"[pipeline] S2 不適用此房型（{','.join(_sum.get('unsafe_codes') or [])}）"
+                        _waive_why = ("verifier_unstable" if _s2_verifier_unstable(_sum)
+                                      else ",".join(_sum.get("unsafe_codes") or []))
+                        print(f"[pipeline] S2 不適用此房型（{_waive_why}）"
                               "→ 回退 legacy 門感知引導，不擋生成")
                         layout_contract_s2_waived.add(_vi)
                         layout_guide_modes[_vi] = layout_guide_modes.get(
