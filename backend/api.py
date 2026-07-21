@@ -4070,9 +4070,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                 layout_guide_paths[_vi] = _zoom_guide
                                 layout_guide_modes[_vi] = "living_zone_zoom"
                     else:
-                        # 判官真的驗過而且判不安全 → 照舊擋，不得回退。
-                        layout_guide_paths.pop(_vi, None)
-                        layout_guide_modes[_vi] = "s2_blocked"
+                        # 判官真的驗過而且判不安全 → 不得回退 S2，但保留 legacy
+                        # 引導圖（如果前面 _build_layout_guide_image 已建好）。
+                        # 30FBA4A5 教訓：舊版直接 pop 拔掉引導圖 → 模型在零引導
+                        # 下自己擺 → 沙發貼死門框（gap=0）。legacy 引導圖帶 door_clear
+                        # 禁區，至少讓模型看得到門邊淨空要求；生成後閘門照樣把關。
+                        if not layout_guide_paths.get(_vi):
+                            layout_guide_paths.pop(_vi, None)
+                        layout_guide_modes[_vi] = "s2_blocked_legacy"
                     continue
 
                 # S1 fallback｜只觀測，不接正式交付。
