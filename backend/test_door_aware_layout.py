@@ -292,7 +292,15 @@ class DoorAwareLayoutTests(unittest.TestCase):
                 str(previous),
             )
             validation["focal_anchor_misaligned_with_sofa"] = False
+            # 593408CC：furniture_blocks_door 不再無腦走沙發路徑——必須是沙發貼門
             validation["furniture_blocks_door"] = True
+            validation["render_bboxes"] = {
+                "sofa": [480, 220, 840, 400],          # 貼左門
+                "focal_anchor": [530, 560, 690, 720],  # 深處、離門遠
+                "entrance_door": [220, 80, 860, 250],
+            }
+            self.assertEqual(
+                api._door_block_offender(validation), "sofa")
             self.assertEqual(
                 api._sofa_alignment_edit_base(validation, {"render_path": str(previous)}, "living"),
                 str(previous),
@@ -314,7 +322,8 @@ class DoorAwareLayoutTests(unittest.TestCase):
         # definition + Z3 + Phase2 + Phase3
         self.assertGreaterEqual(api_source.count("_sofa_alignment_edit_base("), 4)
         self.assertGreaterEqual(api_source.count("_activate_pair_alignment_edit("), 4)
-        self.assertIn("if (pair_alignment_base or alignment_base) else base_p", api_source)
+        self.assertGreaterEqual(api_source.count("_activate_console_door_edit("), 4)
+        self.assertIn("console_base or alignment_base", api_source)
 
     def test_pair_centre_delta_is_diagnostic_only(self):
         """C63D5284 違憲拆除：y 中心差無分類力（校準庫接受組 32-89 與拒絕組
@@ -443,28 +452,112 @@ class DoorAwareLayoutTests(unittest.TestCase):
                     ))
 
     def test_sofa_edit_engages_on_door_jam_despite_tv_depth_field(self):
-        """40063497 Fix A｜furniture_blocks_door=True 時沙發局部位移必須 engage，
-        不得因 focal_anchor_past_door_in_depth=False 被擋——否則 Phase2/3 退回原底圖
-        全新重生、沙發又貼門。非貼門觸發仍要求 TV 深度已過（保留既有行為）。"""
+        """40063497 Fix A 收窄｜只有「沙發貼門」時沙發局部位移才 engage，
+        且不得因 focal_anchor_past_door_in_depth=False 被擋。
+        電視櫃貼門 → 不走沙發路徑（593408CC）。"""
         with tempfile.TemporaryDirectory() as td:
             prev = str(Path(td) / "render.jpg")
             cv2.imwrite(prev, np.full((1000, 1500, 3), 205, dtype=np.uint8))
-            jam = {
+            # 沙發貼門（門在左、沙發 x 緊貼門右緣）
+            sofa_jam = {
                 "furniture_blocks_door": True,
-                "focal_anchor_past_door_in_depth": False,   # 舊版會因這欄擋掉
+                "focal_anchor_past_door_in_depth": False,
                 "camera_axis_preserved": True,
                 "passage_openings_preserved": True,
-                "render_bboxes": {"sofa": [500, 220, 740, 430],
-                                  "focal_anchor": [560, 640, 800, 880]},
+                "render_bboxes": {
+                    "sofa": [500, 220, 740, 400],
+                    "focal_anchor": [560, 640, 800, 880],
+                    "entrance_door": [200, 80, 850, 250],
+                },
             }
+            self.assertEqual(api._door_block_offender(sofa_jam), "sofa")
             self.assertEqual(
-                api._sofa_alignment_edit_base(jam, {"render_path": prev}, "living"), prev)
+                api._sofa_alignment_edit_base(sofa_jam, {"render_path": prev}, "living"), prev)
+            self.assertIsNone(
+                api._console_alignment_edit_base(sofa_jam, {"render_path": prev}, "living"))
+            # 電視櫃貼門 → 沙發路徑必須拒絕
+            console_jam = {
+                "furniture_blocks_door": True,
+                "focal_anchor_past_door_in_depth": False,
+                "camera_axis_preserved": True,
+                "passage_openings_preserved": True,
+                "render_bboxes": {
+                    "sofa": [480, 620, 840, 940],
+                    "focal_anchor": [430, 230, 560, 400],
+                    "entrance_door": [220, 80, 860, 250],
+                },
+            }
+            self.assertEqual(api._door_block_offender(console_jam), "focal_anchor")
+            self.assertIsNone(
+                api._sofa_alignment_edit_base(console_jam, {"render_path": prev}, "living"))
             # 對照：非貼門觸發（TV 錯位）+ 深度未過 → 仍擋
-            other = dict(jam)
+            other = dict(sofa_jam)
             other["furniture_blocks_door"] = False
             other["focal_anchor_misaligned_with_sofa"] = True
             self.assertIsNone(
                 api._sofa_alignment_edit_base(other, {"render_path": prev}, "living"))
+
+    def test_console_door_edit_routes_when_focal_blocks_door(self):
+        """593408CC｜電視櫃貼門 → console 路徑 + 遮罩硬修；沙發鎖定。"""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            prev = root / "render.jpg"
+            Image.new("RGB", (1000, 1000), "white").save(prev)
+            validation = {
+                "furniture_blocks_door": True,
+                "camera_axis_preserved": True,
+                "passage_openings_preserved": True,
+                "render_bboxes": {
+                    # 門左、櫃緊貼門右（gap=0）→ offender=focal_anchor
+                    "entrance_door": [250, 40, 720, 210],
+                    "focal_anchor": [430, 230, 560, 430],
+                    "sofa": [470, 520, 780, 870],
+                },
+            }
+            self.assertEqual(api._door_block_offender(validation), "focal_anchor")
+            self.assertEqual(
+                api._console_alignment_edit_base(
+                    validation, {"render_path": str(prev)}, "living"),
+                str(prev),
+            )
+            self.assertIsNone(
+                api._sofa_alignment_edit_base(
+                    validation, {"render_path": str(prev)}, "living"))
+
+            entry = {"_room_type": "living"}
+            base = api._activate_console_door_edit(
+                validation, {"render_path": str(prev)}, entry, str(root), 0, "1")
+            self.assertEqual(base, str(prev))
+            self.assertTrue(entry.get("_edit_mask_path"))
+            self.assertEqual(entry.get("_edit_mask_mode"), "console_door")
+            self.assertTrue(entry.get("_force_mask_local_edit"))
+            # mask：舊櫃/目標區透明，門與沙發不透明
+            alpha = Image.open(entry["_edit_mask_path"]).getchannel("A")
+            # 舊櫃中心（norm cx~330, cy~495）→ 像素 ~330,495
+            self.assertEqual(alpha.getpixel((330, 495)), 0)
+            # 門中心（cx~125, cy~485）必須鎖
+            self.assertEqual(alpha.getpixel((125, 485)), 255)
+            # 沙發中心（cx~695, cy~625）必須鎖
+            self.assertEqual(alpha.getpixel((695, 625)), 255)
+
+            # 目標框在門右、間距 ≥ 0.28 門寬
+            box = api._console_door_clearance_target_box(validation, 1000, 1000)
+            self.assertIsNotNone(box)
+            door = validation["render_bboxes"]["entrance_door"]
+            door_w = door[3] - door[1]
+            # box is pixels with W=1000 so same as norm
+            gap = box[0] - door[3]
+            self.assertGreaterEqual(gap / door_w, 0.28 - 1e-6)
+
+        prompt = pb._build_retry_context_section({
+            "console_door_clearance_edit": True,
+            "failed_flags": ["furniture_blocks_door"],
+        })
+        self.assertIn("CONSOLE DOOR-CLEARANCE EDIT", prompt)
+        self.assertIn("MOVE ONLY THE TV AND MEDIA CONSOLE", prompt)
+        self.assertIn("LOCK the sofa", prompt)
+        self.assertIn("0.28", prompt)
+        self.assertNotIn("MOVE ONLY THE SOFA", prompt)
 
     def test_product_only_failure_reuses_geometry_passed_render(self):
         """40063497 Fix B｜只有商品保真失敗、幾何全過 → 用當前成品做局部商品修

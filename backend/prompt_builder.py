@@ -1573,6 +1573,22 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
             "Remove the old TV/console completely; never leave a duplicate, shadow, ghost or second cabinet.",
             SOFA_TV_FACE_TO_FACE_CONTRACT,
         ])
+    # 593408CC：電視櫃貼門 — 只鏟櫃、鎖沙發；門後至少 0.28 門寬淨空
+    if retry_context.get("console_door_clearance_edit"):
+        return " ".join([
+            "CONSOLE DOOR-CLEARANCE EDIT — image_1 is the previous furnished render, not an empty room.",
+            "MOVE ONLY THE TV AND MEDIA CONSOLE away from the entrance door along the same wall.",
+            "After the far door-frame edge leave at least 0.28× door-width of bare wall and empty floor "
+            "BEFORE the console begins; park the console on that solid segment past the door.",
+            "LOCK the sofa, rug, coffee table, entrance door, walls, windows, camera, lighting, decor, "
+            "colours and every other object in their exact current positions — do not move or redesign "
+            "the sofa at all.",
+            "Completely erase the old console from beside the door; never leave a duplicate, ghost, "
+            "shadow or second cabinet near the entrance.",
+            "If a correction map is provided: RED = old console to remove, BLUE = new console target "
+            "past the door — follow the blue target exactly.",
+            SOFA_TV_FACE_TO_FACE_CONTRACT,
+        ])
     if retry_context.get("sofa_alignment_edit"):
         return " ".join([
             "LOCAL ALIGNMENT EDIT — image_1 is the previous furnished render, not an empty room.",

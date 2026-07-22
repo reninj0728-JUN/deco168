@@ -863,7 +863,9 @@ def _resolve_generation_mode(enriched_renders: list[dict], force_anchored: bool)
 
 
 def _resolve_render_model(render: dict | None, override: str | None = None) -> str:
-    if isinstance(render, dict) and render.get("_layout_contract_s2_required") is True:
+    if isinstance(render, dict) and (
+            render.get("_layout_contract_s2_required") is True
+            or render.get("_force_mask_local_edit") is True):
         return "openai/gpt-image-2/edit"
     return (
         override or os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit")
@@ -871,7 +873,11 @@ def _resolve_render_model(render: dict | None, override: str | None = None) -> s
 
 
 def _gpt_image2_mask_data_url(render: dict | None) -> str | None:
-    if not isinstance(render, dict) or render.get("_layout_contract_s2_required") is not True:
+    if not isinstance(render, dict):
+        return None
+    # S2 必備；593408CC console 硬修可在 _force_mask_local_edit 下啟用
+    if (render.get("_layout_contract_s2_required") is not True
+            and render.get("_force_mask_local_edit") is not True):
         return None
     mask_path = Path(str(render.get("_edit_mask_path") or ""))
     if mask_path.suffix.lower() != ".png" or not mask_path.is_file():
@@ -880,12 +886,28 @@ def _gpt_image2_mask_data_url(render: dict | None) -> str | None:
     return f"data:image/png;base64,{encoded}"
 
 
-def _gpt_image2_mask_repair_prompt(reference_map: list[dict]) -> str:
+def _gpt_image2_mask_repair_prompt(reference_map: list[dict],
+                                   mask_mode: str | None = None) -> str:
     local_index = next(
         (item.get("index") for item in reference_map
          if item.get("kind") == "LOCAL_REPAIR_GUIDE"),
         3,
     )
+    # 593408CC：電視櫃貼門 — 遮罩硬修只動櫃，鎖沙發與門
+    if mask_mode == "console_door":
+        return (
+            "MASKED LOCAL CONSOLE DOOR-CLEARANCE REPAIR ONLY. Image #1 is the previous "
+            "furnished render. "
+            f"Image #{local_index} is the same render with a RED old-console zone and a BLUE "
+            "new-console target past the entrance door. Inside the transparent mask, completely "
+            "erase the old TV/media console from the RED zone and reconstruct the exposed wall "
+            "and floor. Place exactly one low media console (with TV) fully inside the BLUE target, "
+            "leaving at least 0.28× door-width of bare wall between the far door frame and the "
+            "console start. LOCK the sofa, rug, coffee table, entrance door, intercom, walls, "
+            "ceiling, floor, lighting, camera and perspective — do not move or redesign the sofa. "
+            "Never leave a ghost/duplicate console near the door. Preserve every pixel outside the "
+            "transparent mask. Output a clean photorealistic image with no red, blue, mask or guide."
+        )
     return (
         "MASKED LOCAL SOFA REPAIR ONLY. Image #1 is the previous furnished render. "
         f"Image #{local_index} is the same render with a RED old-sofa zone and a GREEN new-sofa "
@@ -1215,8 +1237,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 if _mask_url:
                     fal_args["mask_url"] = _mask_url
                     fal_args["prompt"] = _gpt_image2_mask_repair_prompt(
-                        inputs.get("reference_map") or [])
+                        inputs.get("reference_map") or [],
+                        mask_mode=str(render.get("_edit_mask_mode") or "") or None,
+                    )
                     print(f"  GPT Image 2 local edit mask: enabled "
+                          f"mode={render.get('_edit_mask_mode') or 'sofa'} "
                           f"(short prompt {len(fal_args['prompt'])} chars)")
             else:
                 fal_args = {

@@ -1213,35 +1213,323 @@ def _phase3_base_strategies(entry: dict) -> list[tuple[str, str, None]]:
     return strategies[:3]
 
 
+def _door_block_offender(validation: dict | None) -> str | None:
+    """貼門對象：'sofa' | 'focal_anchor' | None。
+
+    只信幾何 `_door_adjacency_violation`（回傳誰貼門）。判官布林
+    furniture_blocks_door=True 但 bbox 量不出誰 → None，禁止猜錯對象去修。
+    """
+    try:
+        from gemini_analyze import _door_adjacency_violation
+        viol = _door_adjacency_violation((validation or {}).get("render_bboxes") or {})
+    except Exception:
+        return None
+    if not viol:
+        return None
+    name = viol[0]
+    return name if name in ("sofa", "focal_anchor") else None
+
+
+def _local_edit_structure_ok(validation: dict | None) -> bool:
+    """局部位移／遮罩硬修共用的結構保真門檻。"""
+    v = validation or {}
+    if v.get("camera_axis_preserved") is False or v.get("passage_openings_preserved") is False:
+        return False
+    if any(v.get(k) for k in (
+        "spatial_fidelity_fail", "windows_changed", "walls_changed", "ceiling_changed",
+        "floor_changed", "offframe_room_invaded",
+    )):
+        return False
+    return True
+
+
 def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
                                room_type: str = "living") -> str | None:
-    """沙發對門但結構與 TV 已正確時，回傳上一張 render 做局部位移底圖。"""
+    """沙發位置硬傷時，回傳上一張 render 做局部位移底圖。
+
+    593408CC：furniture_blocks_door 必須再分誰貼門——只有沙發貼門才走這條；
+    電視櫃貼門交給 `_console_alignment_edit_base`，絕不可移沙發。
+    """
     v = validation or {}
     r = render or {}
     if (room_type or "living") != "living":
         return None
     _door_jam = v.get("furniture_blocks_door") is True
+    _offender = _door_block_offender(v) if _door_jam else None
+    # 電視櫃貼門 → 沙發路徑明確退出
+    if _door_jam and _offender == "focal_anchor":
+        return None
+    # 貼門但量不出對象 → 不猜，不走沙發位移（避免 593408CC 四次修錯）
+    if _door_jam and _offender is None:
+        return None
+    _sofa_door_jam = _door_jam and _offender == "sofa"
     if not (v.get("sofa_facing_entrance_door") is True
             or v.get("focal_anchor_misaligned_with_sofa") is True
-            or _door_jam):
+            or _sofa_door_jam):
         return None
-    # 40063497：沙發貼門（furniture_blocks_door）時，把沙發推離門就是正解，不該被
-    # 電視深度欄位擋掉——否則沙發位移不 engage、Phase2/3 退回原底圖全新重生、沙發又貼門。
-    # 其他觸發（TV 錯位／沙發對門但沒貼門）仍要求 TV 深度已正確，局部位移才救得動。
-    if not _door_jam and v.get("focal_anchor_past_door_in_depth") is not True:
+    # 40063497 Fix A 收窄：只有「沙發貼門」時才豁免 TV 深度欄位。
+    # 其他觸發（TV 錯位／沙發對門）仍要求 TV 深度已正確。
+    if not _sofa_door_jam and v.get("focal_anchor_past_door_in_depth") is not True:
         return None
-    if v.get("camera_axis_preserved") is False or v.get("passage_openings_preserved") is False:
-        return None
-    if any(v.get(k) for k in (
-        "spatial_fidelity_fail", "windows_changed", "walls_changed", "ceiling_changed",
-        "floor_changed", "offframe_room_invaded",
-    )):
+    if not _local_edit_structure_ok(v):
         return None
     rb = v.get("render_bboxes") or {}
     if not rb.get("sofa") or not rb.get("focal_anchor"):
         return None
     path = str(r.get("render_path") or "")
     return path if path and Path(path).exists() else None
+
+
+def _console_alignment_edit_base(validation: dict | None, render: dict | None,
+                                  room_type: str = "living") -> str | None:
+    """593408CC：電視櫃／焦點櫃貼門 → 回傳上一張 render 做「只修電視櫃」底圖。
+
+    觸發條件嚴格：furniture_blocks_door 且幾何 offender=focal_anchor。
+    沙發鎖定；不得走沙發位移路徑。
+    """
+    v = validation or {}
+    r = render or {}
+    if (room_type or "living") != "living":
+        return None
+    if v.get("furniture_blocks_door") is not True:
+        return None
+    if _door_block_offender(v) != "focal_anchor":
+        return None
+    if not _local_edit_structure_ok(v):
+        return None
+    # 沙發本身也貼門／對門／錯邊時，先別鎖沙發硬修櫃——交給完整重生或沙發路徑
+    if any(v.get(flag) is True for flag in (
+        "sofa_facing_entrance_door", "sofa_on_wrong_side", "sofa_outside_living_zone",
+        "sofa_back_against_window", "sofa_faces_walkway", "sofa_intrudes_walkway",
+        "furniture_blocks_walkway",
+    )):
+        return None
+    rb = v.get("render_bboxes") or {}
+    if not rb.get("sofa") or not rb.get("focal_anchor") or not rb.get("entrance_door"):
+        return None
+    path = str(r.get("render_path") or "")
+    return path if path and Path(path).exists() else None
+
+
+def _console_door_clearance_target_box(
+    validation: dict | None,
+    width: int,
+    height: int,
+) -> tuple[int, int, int, int] | None:
+    """門後 0.28 門寬起算的電視櫃目標框（像素）。純 bbox，不靠 S2 contract。"""
+    try:
+        from gemini_analyze import DOOR_GAP_MIN_FOCAL
+    except Exception:
+        DOOR_GAP_MIN_FOCAL = 0.28
+    boxes = (validation or {}).get("render_bboxes") or {}
+    focal = boxes.get("focal_anchor")
+    door = boxes.get("entrance_door")
+    if (not isinstance(focal, list) or len(focal) != 4
+            or not isinstance(door, list) or len(door) != 4
+            or width <= 1 or height <= 1):
+        return None
+    fy0, fx0, fy1, fx1 = [float(v) for v in focal]
+    dy0, dx0, dy1, dx1 = [float(v) for v in door]
+    door_w = max(1.0, dx1 - dx0)
+    cons_w = max(1.0, fx1 - fx0)
+    cons_h = max(1.0, fy1 - fy0)
+    gap = DOOR_GAP_MIN_FOCAL * door_w
+    door_cx = (dx0 + dx1) / 2.0
+    # 門在畫面左半 → 櫃體推到門右緣之後；右半 → 推到門左緣之前
+    if door_cx <= 500.0:
+        new_x0 = dx1 + gap
+        new_x1 = new_x0 + cons_w
+        if new_x1 > 980.0:
+            new_x1 = 980.0
+            new_x0 = max(dx1 + gap, new_x1 - cons_w)
+    else:
+        new_x1 = dx0 - gap
+        new_x0 = new_x1 - cons_w
+        if new_x0 < 20.0:
+            new_x0 = 20.0
+            new_x1 = min(dx0 - gap, new_x0 + cons_w)
+    # 略往深處（影像上方）推，避免貼在門同深度帶
+    depth_shift = min(40.0, cons_h * 0.15)
+    new_y0 = max(20.0, fy0 - depth_shift)
+    new_y1 = min(980.0, new_y0 + cons_h)
+    if new_x1 <= new_x0 + 8 or new_y1 <= new_y0 + 8:
+        return None
+    return (
+        max(0, round(new_x0 * width / 1000.0)),
+        max(0, round(new_y0 * height / 1000.0)),
+        min(width - 1, round(new_x1 * width / 1000.0)),
+        min(height - 1, round(new_y1 * height / 1000.0)),
+    )
+
+
+def _build_console_door_edit_mask(
+    previous_render_path: str,
+    validation: dict | None,
+    output_path: str,
+) -> str | None:
+    """遮罩硬修電視櫃：透明=舊櫃區+門後目標區；不透明=沙發/大門/其餘建築。"""
+    try:
+        from PIL import Image, ImageDraw
+
+        previous = Path(previous_render_path)
+        boxes = (validation or {}).get("render_bboxes") or {}
+        focal = boxes.get("focal_anchor")
+        door = boxes.get("entrance_door")
+        sofa = boxes.get("sofa")
+        if (not previous.is_file()
+                or not isinstance(focal, list) or len(focal) != 4
+                or not isinstance(door, list) or len(door) != 4):
+            return None
+        with Image.open(previous) as opened:
+            width, height = opened.size
+        target_box = _console_door_clearance_target_box(validation, width, height)
+        if not target_box:
+            return None
+        fy0, fx0, fy1, fx1 = [float(v) for v in focal]
+        pad_x, pad_y = width * 0.01, height * 0.03
+        old_edit = (
+            max(0, int(fx0 * width / 1000.0 - pad_x)),
+            max(0, int(fy0 * height / 1000.0 - pad_y)),
+            min(width, int(fx1 * width / 1000.0 + pad_x)),
+            min(height, int(fy1 * height / 1000.0 + pad_y)),
+        )
+        tx0, ty0, tx1, ty1 = target_box
+        target_edit = (
+            max(0, int(tx0 - pad_x)), max(0, int(ty0 - pad_y)),
+            min(width, int(tx1 + pad_x)), min(height, int(ty1 + pad_y)),
+        )
+        # 舊櫃→新櫃之間的走廊也打開，避免中間留下幽靈櫃
+        corridor = (
+            min(old_edit[0], target_edit[0]),
+            min(old_edit[1], target_edit[1]),
+            max(old_edit[2], target_edit[2]),
+            max(old_edit[3], target_edit[3]),
+        )
+        mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+        draw = ImageDraw.Draw(mask, "RGBA")
+        draw.rectangle(corridor, fill=(0, 0, 0, 0))
+        # 大門必須鎖死（不透明）
+        dy0, dx0, dy1, dx1 = [float(v) for v in door]
+        door_pad_x, door_pad_y = width * 0.008, height * 0.008
+        locked_door = (
+            max(0, int(dx0 * width / 1000.0 - door_pad_x)),
+            max(0, int(dy0 * height / 1000.0 - door_pad_y)),
+            min(width, int(dx1 * width / 1000.0 + door_pad_x)),
+            min(height, int(dy1 * height / 1000.0 + door_pad_y)),
+        )
+        draw.rectangle(locked_door, fill=(0, 0, 0, 255))
+        # 沙發鎖死
+        if isinstance(sofa, list) and len(sofa) == 4:
+            sy0, sx0, sy1, sx1 = [float(v) for v in sofa]
+            sofa_pad_x, sofa_pad_y = width * 0.006, height * 0.01
+            locked_sofa = (
+                max(0, int(sx0 * width / 1000.0 - sofa_pad_x)),
+                max(0, int(sy0 * height / 1000.0 - sofa_pad_y)),
+                min(width, int(sx1 * width / 1000.0 + sofa_pad_x)),
+                min(height, int(sy1 * height / 1000.0 + sofa_pad_y)),
+            )
+            draw.rectangle(locked_sofa, fill=(0, 0, 0, 255))
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        mask.save(target, "PNG")
+        return str(target)
+    except Exception as exc:
+        print(f"[pipeline] console door edit mask failed: {type(exc).__name__}: {str(exc)[:120]}")
+        return None
+
+
+def _build_console_door_repair_guide(
+    previous_render_path: str,
+    validation: dict | None,
+    output_path: str,
+) -> str | None:
+    """舊電視櫃紅框 + 門後目標藍框，給 GPT Image 2 局部硬修參考。"""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        previous = Path(previous_render_path)
+        boxes = (validation or {}).get("render_bboxes") or {}
+        focal = boxes.get("focal_anchor")
+        door = boxes.get("entrance_door")
+        if (not previous.is_file()
+                or not isinstance(focal, list) or len(focal) != 4
+                or not isinstance(door, list) or len(door) != 4):
+            return None
+        with Image.open(previous) as opened:
+            image = opened.convert("RGBA")
+        w, h = image.width, image.height
+        target_box = _console_door_clearance_target_box(validation, w, h)
+        if not target_box:
+            return None
+        overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay, "RGBA")
+        fy0, fx0, fy1, fx1 = [float(v) for v in focal]
+        old_box = [
+            round(fx0 * w / 1000), round(fy0 * h / 1000),
+            round(fx1 * w / 1000), round(fy1 * h / 1000),
+        ]
+        draw.rectangle(old_box, fill=(220, 25, 25, 120), outline=(240, 20, 20, 255), width=5)
+        tx0, ty0, tx1, ty1 = target_box
+        draw.rectangle([tx0, ty0, tx1, ty1], fill=(40, 110, 230, 120),
+                       outline=(30, 90, 220, 255), width=5)
+        dy0, dx0, dy1, dx1 = [float(v) for v in door]
+        door_box = [
+            round(dx0 * w / 1000), round(dy0 * h / 1000),
+            round(dx1 * w / 1000), round(dy1 * h / 1000),
+        ]
+        draw.rectangle(door_box, outline=(240, 20, 20, 255), width=4)
+        try:
+            font = ImageFont.load_default()
+        except Exception:
+            font = None
+        draw.text((old_box[0] + 6, max(4, old_box[1] - 14)),
+                  "OLD TV/CONSOLE - REMOVE", fill=(240, 20, 20, 255), font=font)
+        draw.text((tx0 + 6, max(4, ty0 - 14)),
+                  "BLUE CONSOLE TARGET - PAST DOOR", fill=(30, 90, 220, 255), font=font)
+        composed = Image.alpha_composite(image, overlay).convert("RGB")
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        composed.save(target, "JPEG", quality=92, optimize=True)
+        return str(target)
+    except Exception as exc:
+        print(f"[pipeline] console door repair guide failed: {type(exc).__name__}: {str(exc)[:120]}")
+        return None
+
+
+def _activate_console_door_edit(
+    validation: dict | None,
+    render: dict | None,
+    entry: dict | None,
+    job_dir: str,
+    idx: int,
+    attempt_tag: str,
+) -> str | None:
+    """電視櫃貼門 → 底圖 + 遮罩 + 引導圖。成功回傳 base path。"""
+    e = entry or {}
+    base = _console_alignment_edit_base(validation, render, e.get("_room_type", "living"))
+    if not base:
+        return None
+    mask = _build_console_door_edit_mask(
+        base, validation,
+        str(Path(job_dir) / f"mask_console_door_{idx:02d}_{attempt_tag}.png"),
+    )
+    guide = _build_console_door_repair_guide(
+        base, validation,
+        str(Path(job_dir) / f"guide_console_door_{idx:02d}_{attempt_tag}.jpg"),
+    )
+    if mask:
+        e["_edit_mask_path"] = mask
+        e["_edit_mask_mode"] = "console_door"
+        e["_s2_retry_artifacts_active"] = True
+    if guide:
+        e["_consistency_ref_path"] = guide
+        e["_s2_retry_artifacts_active"] = True
+    # S2 未開時也強制這次用可吃 mask 的局部修（有 mask 才有意義）
+    if mask:
+        e["_force_mask_local_edit"] = True
+    print(f"[pipeline] console door edit: offender=focal_anchor "
+          f"mask={'yes' if mask else 'no'} guide={'yes' if guide else 'no'}")
+    return base
 
 
 def _product_only_edit_base(validation: dict | None, render: dict | None,
@@ -1509,6 +1797,8 @@ def _clear_s2_retry_edit_artifacts(entry: dict) -> None:
     if entry.get("_s2_retry_artifacts_active") is not True:
         return
     entry.pop("_edit_mask_path", None)
+    entry.pop("_edit_mask_mode", None)
+    entry.pop("_force_mask_local_edit", None)
     entry.pop("_consistency_ref_path", None)
     entry.pop("_s2_retry_artifacts_active", None)
 
@@ -4641,6 +4931,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     base_for_gen = entry["_base_path"]
                     pair_alignment_base = _activate_pair_alignment_edit(
                         v, r, entry, str(job_dir), idx)
+                    console_base = None
                     alignment_base = None
                     if pair_alignment_base:
                         retry_ctx = dict(retry_ctx or {})
@@ -4651,8 +4942,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             f"(delta={v.get('pair_center_delta_y')}/1000)"
                         )
                     else:
-                        alignment_base = _sofa_alignment_edit_base(
-                            v, r, entry.get("_room_type", "living"))
+                        # 593408CC：先分流貼門對象——電視櫃貼門走 console 遮罩硬修
+                        console_base = _activate_console_door_edit(
+                            v, r, entry, str(job_dir), idx, str(current_rc + 1))
+                        if console_base:
+                            retry_ctx = dict(retry_ctx or {})
+                            retry_ctx["console_door_clearance_edit"] = True
+                            base_for_gen = console_base
+                            retry_reason = "console past door (mask hard repair)"
+                        else:
+                            alignment_base = _sofa_alignment_edit_base(
+                                v, r, entry.get("_room_type", "living"))
                     if alignment_base:
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["sofa_alignment_edit"] = True
@@ -4676,9 +4976,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             )
                             if edit_mask:
                                 entry["_edit_mask_path"] = edit_mask
+                                entry["_edit_mask_mode"] = "sofa"
                             if repair_guide or edit_mask:
                                 entry["_s2_retry_artifacts_active"] = True
-                    elif (not pair_alignment_base
+                    elif (not pair_alignment_base and not console_base
                           and (entry.get("_room_type") or "living") == "living"
                           and _should_try_alt_living_base(v)):
                         _nb = _switch_entry_to_next_living_base(entry)
@@ -4839,14 +5140,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 base_for_gen = entry["_base_path"]
                 pair_alignment_base = _activate_pair_alignment_edit(
                     v, r, entry, str(job_dir), idx)
+                console_base = None
                 alignment_base = None
                 if pair_alignment_base:
                     retry_ctx = dict(retry_ctx or {})
                     retry_ctx["tv_alignment_edit"] = True
                     base_for_gen = pair_alignment_base
                 else:
-                    alignment_base = _sofa_alignment_edit_base(
-                        v, r, entry.get("_room_type", "living"))
+                    console_base = _activate_console_door_edit(
+                        v, r, entry, str(job_dir), idx, str(phase2_retry_seq))
+                    if console_base:
+                        retry_ctx = dict(retry_ctx or {})
+                        retry_ctx["console_door_clearance_edit"] = True
+                        base_for_gen = console_base
+                    else:
+                        alignment_base = _sofa_alignment_edit_base(
+                            v, r, entry.get("_room_type", "living"))
                 if alignment_base:
                     retry_ctx = dict(retry_ctx or {})
                     retry_ctx["sofa_alignment_edit"] = True
@@ -4870,9 +5179,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         )
                         if edit_mask:
                             entry["_edit_mask_path"] = edit_mask
+                            entry["_edit_mask_mode"] = "sofa"
                         if repair_guide or edit_mask:
                             entry["_s2_retry_artifacts_active"] = True
-                elif not pair_alignment_base:
+                elif not pair_alignment_base and not console_base:
                     # 40063497：只有商品保真失敗、幾何已過 → 用當前這張成品做局部商品修，
                     # 別退回原始底圖全新重生（那會把 Z3 已修好的門距丟掉、沙發又貼門）。
                     product_edit_base = _product_only_edit_base(
@@ -5436,29 +5746,37 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # AI-auto guide 綁在同一底圖，Phase3 不得換圖或改用未裁切原圖。
                     pair_alignment_base = _activate_pair_alignment_edit(
                         v0, r, entry, str(job_dir), idx)
+                    console_base = None
                     alignment_base = None
                     if pair_alignment_base:
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["tv_alignment_edit"] = True
                         strategies = [("TV中心軸局部校正", pair_alignment_base, None)]
                     else:
-                        alignment_base = _sofa_alignment_edit_base(
-                            v0, r, entry.get("_room_type", "living"))
-                        product_edit_base = (
-                            None if alignment_base else
-                            _product_only_edit_base(v0, r, entry.get("_room_type", "living")))
-                        if alignment_base:
+                        console_base = _activate_console_door_edit(
+                            v0, r, entry, str(job_dir), idx, "p3")
+                        if console_base:
                             retry_ctx = dict(retry_ctx or {})
-                            retry_ctx["sofa_alignment_edit"] = True
-                            strategies = [("沙發局部位移", alignment_base, None)]
-                        elif product_edit_base:
-                            # 40063497：只有商品失敗、幾何已過 → 局部商品修保住門距，
-                            # 不走 _phase3_base_strategies 換底圖重生。
-                            retry_ctx = dict(retry_ctx or {})
-                            retry_ctx["product_fidelity_edit"] = True
-                            strategies = [("商品局部修（保幾何）", product_edit_base, None)]
+                            retry_ctx["console_door_clearance_edit"] = True
+                            strategies = [("電視櫃離門遮罩硬修", console_base, None)]
                         else:
-                            strategies = _phase3_base_strategies(entry)
+                            alignment_base = _sofa_alignment_edit_base(
+                                v0, r, entry.get("_room_type", "living"))
+                            product_edit_base = (
+                                None if alignment_base else
+                                _product_only_edit_base(v0, r, entry.get("_room_type", "living")))
+                            if alignment_base:
+                                retry_ctx = dict(retry_ctx or {})
+                                retry_ctx["sofa_alignment_edit"] = True
+                                strategies = [("沙發局部位移", alignment_base, None)]
+                            elif product_edit_base:
+                                # 40063497：只有商品失敗、幾何已過 → 局部商品修保住門距，
+                                # 不走 _phase3_base_strategies 換底圖重生。
+                                retry_ctx = dict(retry_ctx or {})
+                                retry_ctx["product_fidelity_edit"] = True
+                                strategies = [("商品局部修（保幾何）", product_edit_base, None)]
+                            else:
+                                strategies = _phase3_base_strategies(entry)
                     fixed = None
                     for _p3_attempt, (tag, base_p, model_ov) in enumerate(strategies, start=1):
                         print(f"[pipeline] Phase3 自動補生 render[{idx}] "
@@ -5498,7 +5816,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             _lc = _product_fidelity_into_layout_ctx(_lc, entry)
                             validation_base = (
                                 entry["_base_path"]
-                                if (pair_alignment_base or alignment_base) else base_p
+                                if (pair_alignment_base or console_base or alignment_base)
+                                else base_p
                             )
                             v3 = validate_render(validation_base, rpath, entry["_angle_label"],
                                                  layout_context=_lc,
