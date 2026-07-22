@@ -2151,16 +2151,34 @@ def _build_pair_alignment_guide_image(base_path: str, job_dir: str, idx: int,
         return None
 
 
+_PAIR_ALIGNMENT_SOFA_HARD_FAILURES = (
+    "sofa_facing_entrance_door",
+    "furniture_blocks_door",
+    "furniture_blocks_walkway",
+    "sofa_intrudes_walkway",
+    "sofa_faces_walkway",
+    "sofa_on_wrong_side",
+    "sofa_outside_living_zone",
+    "sofa_back_against_window",
+    "sofa_facing_window",
+)
+
+
 def _activate_pair_alignment_edit(validation: dict | None, render: dict | None,
                                   entry: dict | None, job_dir: str,
                                   idx: int) -> str | None:
-    """中心差超標且房間結構正常時，切換成「上一張成品 + 校正 guide」局部 TV 修正。"""
+    """只有 TV 明確錯位且沙發位置安全時，才鎖沙發做局部 TV 修正。"""
     v = validation or {}
     r = render or {}
     e = entry or {}
     if (e.get("_room_type") or "living") != "living":
         return None
-    if v.get("sofa_facing_entrance_door") is True:
+    # AB03C2BE：沙發貼門、TV 並未錯位，但診斷用中心差 -60 仍啟動了
+    # 「鎖沙發、只移 TV」，讓 door gap 四輪維持 0。中心差只是量測；必須由
+    # 判官明確確認 TV/sofa 錯位，且沒有任何沙發位置／朝向硬傷，才准鎖沙發。
+    if v.get("focal_anchor_misaligned_with_sofa") is not True:
+        return None
+    if any(v.get(flag) is True for flag in _PAIR_ALIGNMENT_SOFA_HARD_FAILURES):
         return None
     if v.get("camera_axis_preserved") is False or v.get("passage_openings_preserved") is False:
         return None

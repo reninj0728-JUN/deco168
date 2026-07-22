@@ -356,6 +356,7 @@ class DoorAwareLayoutTests(unittest.TestCase):
 
     def test_s2_pair_alignment_preserves_formal_guide_and_uses_dynamic_ref(self):
         validation = {
+            "focal_anchor_misaligned_with_sofa": True,
             "camera_axis_preserved": True,
             "passage_openings_preserved": True,
             "render_bboxes": {
@@ -386,6 +387,60 @@ class DoorAwareLayoutTests(unittest.TestCase):
             self.assertEqual(entry["_layout_guide"], formal_guide)
             self.assertEqual(entry["_layout_guide_s2_sha256"], "formal-hash")
             self.assertNotIn("_consistency_ref_path", entry)
+
+    def test_ab03_door_block_uses_sofa_edit_not_pair_alignment(self):
+        """AB03C2BE｜中心差 -60 不是錯位；沙發貼門時不可鎖住沙發移 TV。"""
+        validation = {
+            "furniture_blocks_door": True,
+            "focal_anchor_misaligned_with_sofa": False,
+            "focal_anchor_past_door_in_depth": True,
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "sofa": [528, 260, 750, 435],
+                "focal_anchor": [580, 660, 818, 875],
+                "entrance_door": [186, 100, 850, 260],
+            },
+        }
+        self.assertEqual(api._pair_center_delta(validation)["delta_y"], -60)
+        with tempfile.TemporaryDirectory() as td:
+            previous = str(Path(td) / "render.jpg")
+            cv2.imwrite(previous, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            entry = {
+                "_room_type": "living",
+                "_layout_contract_s2_required": True,
+            }
+            self.assertIsNone(api._activate_pair_alignment_edit(
+                validation, {"render_path": previous}, entry, td, 0))
+            self.assertEqual(api._sofa_alignment_edit_base(
+                validation, {"render_path": previous}, "living"), previous)
+            self.assertNotIn("_consistency_ref_path", entry)
+
+    def test_pair_alignment_rejects_every_sofa_position_hard_failure(self):
+        """鎖沙發只適用於沙發已安全、唯一問題是 TV 明確錯位的情況。"""
+        base_validation = {
+            "focal_anchor_misaligned_with_sofa": True,
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "sofa": [473, 228, 733, 417],
+                "focal_anchor": [570, 654, 809, 888],
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            previous = str(Path(td) / "render.jpg")
+            cv2.imwrite(previous, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            for flag in api._PAIR_ALIGNMENT_SOFA_HARD_FAILURES:
+                with self.subTest(flag=flag):
+                    validation = dict(base_validation)
+                    validation[flag] = True
+                    self.assertIsNone(api._activate_pair_alignment_edit(
+                        validation,
+                        {"render_path": previous},
+                        {"_room_type": "living"},
+                        td,
+                        0,
+                    ))
 
     def test_wide_crop_keeps_left_or_right_edge_door(self):
         left = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(0, 100, 220, 850))
