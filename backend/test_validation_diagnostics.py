@@ -312,6 +312,17 @@ def test_incomplete_message_tells_the_customer_to_reshoot_when_angle_is_unmodell
     assert "系統" in api._incomplete_message(infra)
 
 
+def test_s2_preflight_blocked_message_is_honest_and_not_infrastructure():
+    summary = {"dropped_renders": [{
+        "failure_class": "s2_preflight_blocked",
+        "layout_mode": "s2_blocked_legacy",
+    }]}
+    msg = api._incomplete_message(summary)
+    assert "安全配置前檢未通過" in msg
+    assert "生成前停止" in msg
+    assert "系統暫時無法" not in msg
+
+
 def test_layout_mode_survives_the_trimmed_payload():
     """精簡 payload 會丟掉未列名的欄位。layout_mode 掉了，incomplete 文案就退回
     通用的「配置驗收」，客戶又去重跑同一張斜角照片——正是這輪要消滅的行為。"""

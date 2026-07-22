@@ -335,7 +335,7 @@ def test_uncertain_verdict_retries_same_plan_and_second_pass_is_accepted(tmp_pat
     ]
 
 
-def test_uncertain_verifier_result_blocks_every_candidate(tmp_path):
+def test_uncertain_verifier_result_blocks_only_the_verified_candidate(tmp_path):
     photo = tmp_path / "room.jpg"
     Image.new("RGB", (1000, 700), "white").save(photo)
     uncertain = copy.deepcopy(HARD_PASS)
@@ -364,7 +364,17 @@ def test_uncertain_verifier_result_blocks_every_candidate(tmp_path):
     assert "GEOM_NOT_ELIGIBLE" in result["plan"]["unsafe_codes"]
     # uncertain 一路 uncertain 仍然擋死（uncertain is not pass），只是多問幾次
     assert len(calls) == verifier_s2.S2_VERIFY_MAX_ATTEMPTS
-    assert all(not candidate["eligible"] for candidate in result["plan"]["candidates"])
+    candidates = result["plan"]["candidates"]
+    failed_ids = set(result["plan"]["geometry_verification"]["failed_candidate_ids"])
+    assert failed_ids
+    assert all(
+        candidate["eligible"] is False
+        for candidate in candidates if candidate["candidate_id"] in failed_ids
+    )
+    assert any(
+        candidate["eligible"] is True
+        for candidate in candidates if candidate["candidate_id"] not in failed_ids
+    ), "未展示給判官的候選不得被連坐判死"
     assert result["guide_artifact"] is None
     assert calls == list(range(1, verifier_s2.S2_VERIFY_MAX_ATTEMPTS + 1))
     verification = result["plan"]["geometry_verification"]
@@ -430,8 +440,9 @@ def test_flaky_hard_fail_is_rechecked_and_passes(tmp_path):
         # cross_axis / right_wall / tv_wall 忽有忽無）
         verdict = copy.deepcopy(noisy)
         if attempt_number == 2:
+            verdict["sofa_back_contact"] = "pass"
             verdict["walkway_connected"] = "fail"
-            verdict["unsafe_codes"] = ["SOFA_WALL_CONTACT_FAIL", "WALKWAY_BLOCKED"]
+            verdict["unsafe_codes"] = ["WALKWAY_BLOCKED"]
         return verdict
 
     result = verifier_s2.verify_and_replan_s2(
@@ -448,6 +459,54 @@ def test_flaky_hard_fail_is_rechecked_and_passes(tmp_path):
     assert result["plan"]["pre_generation_eligible"] is True
     assert result["guide_artifact"] is not None
     assert len(calls) >= 3, "硬失敗必須重問，不可一次就擋死"
+
+
+def test_common_fail_switches_once_to_best_opposite_candidate(tmp_path, monkeypatch):
+    """2CD074F0／BDD0C702｜左側候選共同 fail 後，應改驗最佳右側候選一次。"""
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    # Railway 可把一般上限降到 2；相反側仍必須有且只有一次驗證機會。
+    monkeypatch.setattr(verifier_s2, "S2_VERIFY_MAX_ATTEMPTS", 2)
+    calls = []
+
+    def candidate_verifier(_photo, _guide, attempt_number, plan=None):
+        chosen = verifier_s2._chosen_candidate(plan)
+        calls.append((attempt_number, chosen.get("candidate_id"), chosen.get("sofa_side")))
+        if chosen.get("sofa_side") == "right":
+            return copy.deepcopy(HARD_PASS)
+        failed = copy.deepcopy(HARD_PASS)
+        failed["sofa_back_contact"] = "fail"
+        failed["left_wall_floor_alignment"] = "fail"
+        failed["overall"] = "fail"
+        failed["unsafe_codes"] = ["SOFA_NOT_WALL_ANCHORED", "LEFT_WALL_ALIGNMENT_MISMATCH"]
+        return failed
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="free",
+        verifier=candidate_verifier,
+        floor_reference_estimator=_observed_floor_reference,
+    )
+
+    assert [side for _attempt, _candidate, side in calls] == ["left", "left", "right"]
+    assert result["plan"]["disposition"] == "SAFE_FOR_GENERATION"
+    assert verifier_s2._chosen_candidate(result["plan"])["sofa_side"] == "right"
+    retry = result["plan"]["geometry_verification"]["candidate_retry"]
+    assert retry["from_sofa_side"] == "left"
+    assert retry["to_sofa_side"] == "right"
+    assert retry["trigger_common_failures"] == [
+        "left_wall_floor_alignment", "sofa_back_contact",
+    ]
+    failed_ids = set(result["plan"]["geometry_verification"]["failed_candidate_ids"])
+    assert retry["from_candidate_id"] in failed_ids
+    failed_candidate = next(
+        candidate for candidate in result["plan"]["candidates"]
+        if candidate["candidate_id"] == retry["from_candidate_id"]
+    )
+    assert failed_candidate["eligible"] is False
 
 
 def test_persistent_hard_fail_blocks_early_without_burning_rechecks(tmp_path):

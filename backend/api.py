@@ -2454,6 +2454,44 @@ def _allow_waived_single_shot_without_guide(
     )
 
 
+def _s2_preflight_blocked_result(entry: dict | None) -> dict | None:
+    """Build the terminal no-render result for a verifier-blocked S2 candidate.
+
+    This is a deliberate geometry decision, not a missing file or infrastructure
+    outage.  Returning it before ``generate_renders`` prevents Z3/Phase2/Phase3
+    from repeatedly feeding a known no-render entry back into paid pipelines.
+    """
+    if not isinstance(entry, dict):
+        return None
+    if not (
+        entry.get("_layout_mode") == "s2_blocked_legacy"
+        and entry.get("_layout_contract_s2_required") is True
+    ):
+        return None
+    reason = (
+        "[配置前檢] S2 候選未通過牆面貼合與安全幾何驗證；"
+        "已在付費生成前停止"
+    )
+    validation = {
+        "ok": False,
+        "hard_fail": True,
+        "s2_preflight_blocked": True,
+        "spatial_fidelity_fail": True,
+        "reason": reason,
+        "error": reason,
+        "exception_type": "S2PreflightBlocked",
+    }
+    return {
+        **entry,
+        "render_path": None,
+        "error": reason,
+        "error_type": "S2PreflightBlocked",
+        "render_mode": "preflight_blocked",
+        "_s2_preflight_blocked": True,
+        "validation": validation,
+    }
+
+
 def _sync_s2_candidate_sides(zoning_result: dict | None, contract: dict | None) -> dict:
     if not isinstance(zoning_result, dict) or not isinstance(contract, dict):
         return {}
@@ -2869,7 +2907,9 @@ def _record_validation_attempt_inner(
     exception_message = str(error) if error is not None else raw.get("error")
     failure_message = str(exception_message or "")
     failure_text = failure_message.lower()
-    if (_is_quota_outage(failure_message)
+    if raw.get("s2_preflight_blocked") is True:
+        failure_class = "s2_preflight_blocked"
+    elif (_is_quota_outage(failure_message)
             or exception_type in {"FalGenerationTimeout", "FalResultDownloadError", "TimeoutError",
                                   "ConnectionError"}
             or any(token in failure_text for token in
@@ -2911,7 +2951,11 @@ def _validation_diagnostics(render: dict) -> dict:
     error_type = render.get("error_type")
     error_text = str(render.get("error") or render.get("render_error")
                      or validation.get("error") or render.get("retry_reason") or "")
-    if (error_type in {"FalGenerationTimeout", "FalResultDownloadError"}
+    if (render.get("_s2_preflight_blocked") is True
+            or validation.get("s2_preflight_blocked") is True
+            or error_type == "S2PreflightBlocked"):
+        failure_class = "s2_preflight_blocked"
+    elif (error_type in {"FalGenerationTimeout", "FalResultDownloadError"}
             or render.get("error") or render.get("render_error")
             or _is_quota_outage(error_text)):
         failure_class = "infrastructure"
@@ -2992,9 +3036,16 @@ def _s2_verifier_unstable(summary: dict | None) -> bool:
             if isinstance(v, str) and v == "fail")
         if failed:
             field_sets.append(failed)
-    # 至少兩次失敗、且欄位組合不完全相同 = 不穩定（雜訊）。
-    # 全部相同 = 穩定的真不安全 → 不 waive，照擋。
-    return len(field_sets) >= 2 and len(set(field_sets)) >= 2
+    if len(field_sets) < 2:
+        return False
+    # 2CD074F0：四次完整集合雖交替變動，但 sofa_back_contact 與
+    # left_wall_floor_alignment 每次都 fail。只要存在共同 hard fail，核心問題
+    # 就是穩定的真不安全，不得因附加欄位抖動而 waive 回 legacy。
+    common_failures = set.intersection(*(set(fields) for fields in field_sets))
+    if common_failures:
+        return False
+    # 只有多次判決完全沒有共同 fail，才代表判官沒有一致的幾何死因。
+    return len(set(field_sets)) >= 2
 
 
 def _crop_to_living_zone(base_path: str, job_dir, idx: int,
@@ -3098,6 +3149,13 @@ def _incomplete_message(validation_summary: dict | None) -> str:
     dropped = [d for d in ((validation_summary or {}).get("dropped_renders") or [])
                if isinstance(d, dict)]
     classes = {d.get("failure_class") for d in dropped}
+    if any(
+        d.get("failure_class") == "s2_preflight_blocked"
+        or d.get("layout_mode") == "s2_blocked_legacy"
+        for d in dropped
+    ):
+        return ("這個客廳視角的安全配置前檢未通過；系統已在生成前停止，"
+                "未產生錯誤設計圖。建議改用能完整看見左右牆與大門的正面照片再試")
     # 斜角／碎牆房：幾何模型描述不了這個視角，同一張照片再重跑幾次都一樣，
     # 唯一有效的動作是改用正面拍攝。不講清楚的話客服和客戶只會一直重跑。
     if any(d.get("layout_mode") == "legacy_fallback" for d in dropped):
@@ -4246,6 +4304,24 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             if (_cross_room_on and entry.get("_room_type") == "dining"
                     and _living_render_by_style.get(entry.get("style"))):
                 entry["_consistency_ref_path"] = _living_render_by_style[entry.get("style")]
+            # S2 判官已經驗過且判定候選不安全：這是終態，不是生成失敗。
+            # 直接建立可診斷的 no-render 結果，禁止進 generate/validate/retry 空轉。
+            preflight_blocked = _s2_preflight_blocked_result(entry)
+            if preflight_blocked is not None:
+                preflight_blocked["angle_label"] = entry.get("_angle_label", "主視角")
+                preflight_blocked["room_type"] = entry.get("_room_type", "living")
+                preflight_blocked["cropped"] = bool(entry.get("_cropped"))
+                preflight_blocked["door_excluded"] = bool(entry.get("_door_excluded"))
+                _record_validation_attempt(
+                    preflight_blocked,
+                    job_id=job_id,
+                    stage="pre_generation",
+                    attempt=1,
+                    validation=preflight_blocked["validation"],
+                )
+                print(f"[pipeline] render[{idx}] S2 前檢封鎖 → 終止，不進生成／補生鏈")
+                final.append(preflight_blocked)
+                continue
             try:
                 single_result = generate_renders(entry["_base_path"], [entry],
                                              output_dir=str(job_dir),
@@ -4346,6 +4422,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         try:
             from gemini_analyze import validate_render
             for r in final:
+                if r.get("_s2_preflight_blocked"):
+                    continue
                 bpath = r.get("_base_path") or ""
                 rpath = r.get("render_path") or ""
                 if bpath and rpath and Path(bpath).exists() and Path(rpath).exists():
@@ -4462,6 +4540,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 # 每張 render 自己跑 retry loop（最多 MAX_RETRY 次）
                 while True:
                     r = final[idx]
+                    if r.get("_s2_preflight_blocked"):
+                        print(f"[pipeline] render[{idx}] S2 前檢已封鎖 → 跳過 Z3")
+                        break
                     current_rc = int(r.get("retry_count") or 0)
                     if current_rc >= MAX_RETRY:
                         break  # 硬上限
@@ -4684,6 +4765,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         if use_image_edit_retry:
             for idx in range(len(final)):
                 r = final[idx]
+                if r.get("_s2_preflight_blocked"):
+                    print(f"[pipeline] render[{idx}] S2 前檢已封鎖 → 跳過 Phase2")
+                    continue
                 v = r.get("validation") or {}
                 if not v.get("hard_fail"):
                     continue
@@ -5277,6 +5361,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             try:
                 for idx in range(len(final)):
                     r = final[idx]
+                    if r.get("_s2_preflight_blocked"):
+                        print(f"[pipeline] render[{idx}] S2 前檢已封鎖 → 跳過 Phase3")
+                        continue
                     if not _is_hard_fail(r) or idx >= len(expanded):
                         continue
                     entry = expanded[idx]

@@ -442,31 +442,48 @@ def test_zoom_guide_without_entrance_bbox_keeps_door_status_unknown(tmp_path):
 
 
 def test_s2_verifier_unstable_triggers_waiver():
-    """173C14C5／D85B8525｜判官 fail 但 fail 欄位跨多次不穩定 = 判官不確定、
-    S2 model 不動此房型 → 回退 legacy（通用，不是 173 特例）。"""
-    # 不穩定：三次失敗，欄位組合每次不同
-    unstable = {
+    """2CD074F0／BDD0C702｜附加欄位抖動不能蓋掉每次都存在的共同 hard fail。"""
+    # 2CD074F0：完整集合交替變動，但四次共同 fail sofa_back + left_wall。
+    # 這是穩定的不安全，不得 waive。
+    common_core = {
         "verification_status": "fail",
         "verification_history": [
             {"outcome": "hard_fail", "sofa_back_contact": "fail",
-             "walkway_connected": "fail", "cross_axis_matches_floor_transverse": "fail"},
+             "tv_wall_contact": "fail", "left_wall_floor_alignment": "fail",
+             "right_wall_floor_alignment": "fail"},
             {"outcome": "hard_fail", "left_wall_floor_alignment": "fail",
-             "right_wall_floor_alignment": "fail", "sofa_back_contact": "fail"},
+             "sofa_back_contact": "fail"},
+            {"outcome": "hard_fail", "sofa_back_contact": "fail",
+             "tv_wall_contact": "fail", "left_wall_floor_alignment": "fail",
+             "right_wall_floor_alignment": "fail"},
             {"outcome": "hard_fail", "left_wall_floor_alignment": "fail",
-             "sofa_back_contact": "fail", "walkway_connected": "fail"},
+             "sofa_back_contact": "fail"},
         ],
     }
-    assert api._s2_verifier_unstable(unstable) is True
+    assert api._s2_verifier_unstable(common_core) is False
 
-    # 穩定的真不安全：每次都同一組 fail 欄位 → 不 waive，照擋
-    stable = {
+    # BDD0C702：兩次完全相同，同樣不 waive。
+    bdd_stable = {
+        "verification_status": "fail",
+        "verification_history": [
+            {"outcome": "hard_fail", "sofa_back_contact": "fail",
+             "left_wall_floor_alignment": "fail"},
+            {"outcome": "hard_fail", "sofa_back_contact": "fail",
+             "left_wall_floor_alignment": "fail"},
+        ],
+    }
+    assert api._s2_verifier_unstable(bdd_stable) is False
+
+    # 真不穩定：多次判決完全沒有共同 fail，才准回退 legacy。
+    no_common_failure = {
         "verification_status": "fail",
         "verification_history": [
             {"outcome": "hard_fail", "sofa_back_contact": "fail"},
-            {"outcome": "hard_fail", "sofa_back_contact": "fail"},
+            {"outcome": "hard_fail", "walkway_connected": "fail"},
+            {"outcome": "hard_fail", "tv_wall_contact": "fail"},
         ],
     }
-    assert api._s2_verifier_unstable(stable) is False
+    assert api._s2_verifier_unstable(no_common_failure) is True
 
     # 判官 pass / 只一次 / 沒 history → 不觸發
     assert api._s2_verifier_unstable({"verification_status": "pass"}) is False
@@ -479,3 +496,39 @@ def test_s2_verifier_unstable_triggers_waiver():
 def test_waiver_branch_honours_verifier_instability():
     source = Path(api.__file__).read_text(encoding="utf-8")
     assert "_s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum)" in source
+
+
+def test_s2_preflight_blocked_result_is_terminal_and_not_infrastructure():
+    blocked = api._s2_preflight_blocked_result({
+        "style": "nordic",
+        "_room_type": "living",
+        "_layout_mode": "s2_blocked_legacy",
+        "_layout_contract_s2_required": True,
+    })
+    assert blocked is not None
+    assert blocked["render_path"] is None
+    assert blocked["render_mode"] == "preflight_blocked"
+    assert blocked["error_type"] == "S2PreflightBlocked"
+    assert blocked["_s2_preflight_blocked"] is True
+    assert blocked["validation"]["s2_preflight_blocked"] is True
+
+    event = api._record_validation_attempt_inner(
+        blocked,
+        job_id="BDD0C702",
+        stage="pre_generation",
+        attempt=1,
+        validation=blocked["validation"],
+    )
+    assert event["failure_class"] == "s2_preflight_blocked"
+    assert api._validation_diagnostics(blocked)["failure_class"] == "s2_preflight_blocked"
+    assert len(blocked["validation_history"]) == 1
+
+
+def test_s2_preflight_block_is_wired_before_generation_and_all_retry_phases():
+    source = Path(api.__file__).read_text(encoding="utf-8")
+    initial = source.index("preflight_blocked = _s2_preflight_blocked_result(entry)")
+    paid = source.index("single_result = generate_renders", initial)
+    assert initial < paid
+    assert "S2 前檢已封鎖 → 跳過 Z3" in source
+    assert "S2 前檢已封鎖 → 跳過 Phase2" in source
+    assert "S2 前檢已封鎖 → 跳過 Phase3" in source

@@ -149,7 +149,34 @@ def _format_failed_fields(result: dict | None) -> str:
     )
 
 
-def _verdict_history_entry(verdict: dict, attempt_number: int) -> dict:
+def _chosen_candidate(plan: dict | None) -> dict:
+    if not isinstance(plan, dict):
+        return {}
+    chosen_id = plan.get("chosen_candidate_id")
+    return next(
+        (
+            candidate for candidate in (plan.get("candidates") or [])
+            if isinstance(candidate, dict) and candidate.get("candidate_id") == chosen_id
+        ),
+        {},
+    )
+
+
+def _candidate_history_metadata(plan: dict | None) -> dict:
+    chosen = _chosen_candidate(plan)
+    return {
+        "candidate_id": chosen.get("candidate_id"),
+        "candidate_type": chosen.get("candidate_type"),
+        "candidate_sofa_side": chosen.get("sofa_side"),
+        "candidate_tv_side": chosen.get("tv_side"),
+    }
+
+
+def _verdict_history_entry(
+    verdict: dict,
+    attempt_number: int,
+    plan: dict | None = None,
+) -> dict:
     entry = copy.deepcopy(verdict)
     entry["attempt_number"] = attempt_number
     entry["outcome"] = (
@@ -158,6 +185,7 @@ def _verdict_history_entry(verdict: dict, attempt_number: int) -> dict:
         else "uncertain"
     )
     entry["failed_fields"] = _verifier_failed_fields(verdict)
+    entry.update(_candidate_history_metadata(plan))
     return entry
 
 
@@ -368,14 +396,72 @@ def _apply_wall_corrections(raw_geometry: dict, verdict: dict) -> tuple[dict, bo
     return corrected, changed
 
 
-def _blocked_after_verification(plan: dict, verdict: dict | None, detail: str) -> dict:
+def _best_opposite_side_candidate(
+    plan: dict,
+    *,
+    failed_candidate_ids: set[str],
+) -> dict | None:
+    """Return the best untested eligible candidate on the opposite sofa wall.
+
+    A verifier verdict audits only the chosen guide.  It cannot invalidate every
+    deterministic candidate that was never rendered or shown to the verifier.
+    """
+    chosen = _chosen_candidate(plan)
+    chosen_side = str(chosen.get("sofa_side") or "")
+    if chosen_side not in {"left", "right"}:
+        return None
+    opposite = "right" if chosen_side == "left" else "left"
+    eligible = [
+        candidate for candidate in (plan.get("candidates") or [])
+        if isinstance(candidate, dict)
+        and candidate.get("eligible") is True
+        and candidate.get("candidate_id") not in failed_candidate_ids
+        and candidate.get("sofa_side") == opposite
+    ]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda candidate: float(candidate.get("score") or 0.0))
+
+
+def _select_candidate(
+    plan: dict,
+    candidate: dict,
+    *,
+    failed_candidate_ids: set[str],
+) -> dict:
+    selected = copy.deepcopy(plan)
+    for item in selected.get("candidates") or []:
+        if item.get("candidate_id") in failed_candidate_ids:
+            item["eligible"] = False
+            item["fail_codes"] = list(dict.fromkeys([
+                *(item.get("fail_codes") or []), "GEOM_NOT_ELIGIBLE",
+            ]))
+    selected["disposition"] = "SAFE_FOR_GENERATION"
+    selected["pre_generation_eligible"] = True
+    selected["chosen_candidate_id"] = candidate.get("candidate_id")
+    selected["candidate_type"] = candidate.get("candidate_type")
+    return selected
+
+
+def _blocked_after_verification(
+    plan: dict,
+    verdict: dict | None,
+    detail: str,
+    *,
+    failed_candidate_ids: set[str] | None = None,
+) -> dict:
     blocked = copy.deepcopy(plan)
+    failed_ids = set(failed_candidate_ids or [])
+    chosen_id = blocked.get("chosen_candidate_id")
+    if chosen_id:
+        failed_ids.add(str(chosen_id))
     candidates = []
     for candidate in blocked.get("candidates") or []:
-        candidate["eligible"] = False
-        candidate["fail_codes"] = list(dict.fromkeys([
-            *(candidate.get("fail_codes") or []), "GEOM_NOT_ELIGIBLE",
-        ]))
+        if candidate.get("candidate_id") in failed_ids:
+            candidate["eligible"] = False
+            candidate["fail_codes"] = list(dict.fromkeys([
+                *(candidate.get("fail_codes") or []), "GEOM_NOT_ELIGIBLE",
+            ]))
         candidates.append(candidate)
     blocked.update({
         "disposition": "BLOCKED",
@@ -393,6 +479,7 @@ def _blocked_after_verification(plan: dict, verdict: dict | None, detail: str) -
             "corrected": False,
             "unsafe_codes": list((verdict or {}).get("unsafe_codes") or []),
             "detail": detail,
+            "failed_candidate_ids": sorted(failed_ids),
         },
     })
     return blocked
@@ -407,14 +494,23 @@ def _finalize_blocked_verification(
     correction_applied: bool,
     retry_reason: str | None = None,
     error: Exception | None = None,
+    failed_candidate_ids: set[str] | None = None,
+    candidate_retry: dict | None = None,
 ) -> dict:
-    blocked = _blocked_after_verification(plan, verdict, detail)
+    blocked = _blocked_after_verification(
+        plan,
+        verdict,
+        detail,
+        failed_candidate_ids=failed_candidate_ids,
+    )
     verification = blocked["geometry_verification"]
     verification["attempt_count"] = attempt_number
     verification["corrected"] = correction_applied
     verification["failed_fields"] = _verifier_failed_fields(verdict)
     if retry_reason:
         verification["retry_reason"] = retry_reason
+    if candidate_retry:
+        verification["candidate_retry"] = copy.deepcopy(candidate_retry)
     if error is not None:
         verification["exception_type"] = type(error).__name__
         verification["exception_message"] = str(error)[:240]
@@ -668,7 +764,14 @@ def verify_and_replan_s2(
     correction_applied = False
     retry_reason = None
     last_failed_fields: frozenset = frozenset()
-    for attempt_number in range(1, S2_VERIFY_MAX_ATTEMPTS + 1):
+    failed_field_sets_by_candidate: dict[str, list[frozenset]] = {}
+    failed_candidate_ids: set[str] = set()
+    candidate_retry: dict | None = None
+    # 正常判官最多 S2_VERIFY_MAX_ATTEMPTS 次；若最後一次才確認共同 hard fail，
+    # 額外保留一格「相反側候選」單次驗證。該格不會再進同候選重試。
+    for attempt_number in range(1, S2_VERIFY_MAX_ATTEMPTS + 2):
+        attempt_candidate = _chosen_candidate(plan)
+        attempt_candidate_id = str(attempt_candidate.get("candidate_id") or "")
         attempt_path = target_dir / f"layout_guide_s2_attempt{attempt_number}.jpg"
         lgs2.render_s2_guide(source, attempt_path, plan)
         try:
@@ -693,6 +796,8 @@ def verify_and_replan_s2(
                 correction_applied=correction_applied,
                 retry_reason=retry_reason,
                 error=exc,
+                failed_candidate_ids=failed_candidate_ids,
+                candidate_retry=candidate_retry,
             )
             return {
                 "plan": blocked,
@@ -700,7 +805,7 @@ def verify_and_replan_s2(
                 "guide_artifact": None,
                 "verification_history": history,
             }
-        history.append(_verdict_history_entry(verdict, attempt_number))
+        history.append(_verdict_history_entry(verdict, attempt_number, plan))
         if verification_passes(verdict):
             final_path = target_dir / "layout_guide_s2_final.jpg"
             artifact = lgs2.render_s2_guide(source, final_path, plan)
@@ -715,6 +820,13 @@ def verify_and_replan_s2(
             }
             if retry_reason:
                 verified_plan["geometry_verification"]["retry_reason"] = retry_reason
+            if candidate_retry:
+                verified_plan["geometry_verification"]["candidate_retry"] = copy.deepcopy(
+                    candidate_retry
+                )
+                verified_plan["geometry_verification"]["failed_candidate_ids"] = sorted(
+                    failed_candidate_ids
+                )
             return {
                 "plan": verified_plan,
                 "raw_geometry": active_raw,
@@ -722,6 +834,11 @@ def verify_and_replan_s2(
                 "verification_history": history,
             }
         hard_fail = _verifier_has_hard_fail(verdict)
+        current_fields = frozenset(_verifier_failed_fields(verdict))
+        if hard_fail and attempt_candidate_id and current_fields:
+            failed_field_sets_by_candidate.setdefault(attempt_candidate_id, []).append(
+                current_fields
+            )
         if attempt_number == 1 and hard_fail and not correction_applied:
             active_raw, changed = _apply_wall_corrections(active_raw, verdict)
             if changed:
@@ -743,6 +860,26 @@ def verify_and_replan_s2(
                         "action=wall_correction_retry"
                     )
                     continue
+        # 相反側候選只驗一次：通過已在上方返回；fail／uncertain 就停止，
+        # 不把第二個候選再丟進同一套多輪抽樣，避免換名繼續燒判官。
+        if candidate_retry and attempt_candidate_id == candidate_retry.get("to_candidate_id"):
+            failed_candidate_ids.add(attempt_candidate_id)
+            blocked = _finalize_blocked_verification(
+                plan,
+                verdict,
+                "opposite-side candidate did not pass verification",
+                attempt_number=attempt_number,
+                correction_applied=correction_applied,
+                retry_reason="opposite_candidate_recheck",
+                failed_candidate_ids=failed_candidate_ids,
+                candidate_retry=candidate_retry,
+            )
+            return {
+                "plan": blocked,
+                "raw_geometry": active_raw,
+                "guide_artifact": None,
+                "verification_history": history,
+            }
         if attempt_number < S2_VERIFY_MAX_ATTEMPTS and not hard_fail:
             retry_reason = "uncertain_verdict"
             print(
@@ -755,11 +892,43 @@ def verify_and_replan_s2(
         # left_wall_floor_alignment 與 sofa_back_contact 每一次都失敗（真的幾何問題，
         # 連牆面修正都救不回），walkway_connected / cross_axis / right_wall / tv_wall
         # 則忽有忽無（判官雜訊）。
-        # 所以判準是「判決穩不穩」而不是「重試幾次」：失敗欄位組合跟上一次一模一樣
-        # ＝穩定的真問題，立刻定讞、不再燒呼叫；組合每次都變＝判官還沒想清楚，
-        # 值得再問一次（一通 flash、發生在任何 fal 花費之前）。
-        current_fields = frozenset(_verifier_failed_fields(verdict))
-        if (attempt_number < S2_VERIFY_MAX_ATTEMPTS and hard_fail
+        # 完整 fail 集合雖然可能跳動，但只要同一候選連續判決存在共同 hard fail，
+        # 共同欄位就是穩定問題。2CD074F0 四次都共同 fail sofa_back/left_wall，
+        # 舊碼卻因附加欄位不同而 waive。現在先淘汰「實際被驗過」的候選，最多
+        # 再驗一次最佳相反側候選；未展示給判官的候選不得被連坐判死。
+        candidate_sets = failed_field_sets_by_candidate.get(attempt_candidate_id, [])
+        common_failures = (
+            set.intersection(*(set(fields) for fields in candidate_sets))
+            if len(candidate_sets) >= 2 else set()
+        )
+        if hard_fail and common_failures:
+            failed_candidate_ids.add(attempt_candidate_id)
+            alternate = None if candidate_retry else _best_opposite_side_candidate(
+                plan,
+                failed_candidate_ids=failed_candidate_ids,
+            )
+            if alternate is not None:
+                candidate_retry = {
+                    "from_candidate_id": attempt_candidate_id,
+                    "from_sofa_side": attempt_candidate.get("sofa_side"),
+                    "to_candidate_id": alternate.get("candidate_id"),
+                    "to_sofa_side": alternate.get("sofa_side"),
+                    "trigger_common_failures": sorted(common_failures),
+                }
+                plan = _select_candidate(
+                    plan,
+                    alternate,
+                    failed_candidate_ids=failed_candidate_ids,
+                )
+                retry_reason = "opposite_candidate_recheck"
+                last_failed_fields = frozenset()
+                print(
+                    f"[layout-verifier] attempt={attempt_number} outcome=hard_fail "
+                    f"common_failures={','.join(sorted(common_failures))} "
+                    f"action=opposite_candidate candidate={alternate.get('candidate_id')}"
+                )
+                continue
+        elif (attempt_number < S2_VERIFY_MAX_ATTEMPTS and hard_fail
                 and current_fields and current_fields != last_failed_fields):
             last_failed_fields = current_fields
             retry_reason = retry_reason or "unstable_verdict_recheck"
@@ -780,6 +949,8 @@ def verify_and_replan_s2(
             attempt_number=attempt_number,
             correction_applied=correction_applied,
             retry_reason=retry_reason,
+            failed_candidate_ids=failed_candidate_ids,
+            candidate_retry=candidate_retry,
         )
         print(
             f"[layout-verifier] attempt={attempt_number} outcome=blocked "
