@@ -33,6 +33,12 @@ def test_media_console_product_ref_locks_low_only_form():
     assert "DECOR FREEDOM WITH SPATIAL GUARD" in placement
     assert "tall display" in placement
     assert "well past the door" in placement
+    # 13A7FD07：模型把落地淺橡木櫃畫成懸空暖胡桃木。落地強制 + 顏色材質保真
+    # 必須明文在 prompt，禁 wall-mounted/floating、禁預設胡桃木。
+    assert "FLOOR-STANDING" in placement
+    assert "NEVER wall-mounted, floating" in placement
+    assert "COLOR / MATERIAL FIDELITY" in placement
+    assert "warm-walnut" in placement
 
     no_console = _build_product_placement_section([
         {"index": 2, "role": "SOFA", "cat_en": "sofa", "name_zh": "測試沙發"},

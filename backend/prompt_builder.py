@@ -955,7 +955,16 @@ def _build_product_placement_section(reference_map: list[dict]) -> str:
         lines.append(
             "MEDIA CONSOLE COMMERCIAL RULE: the MEDIA CONSOLE product reference MUST appear "
             "in the render, matching the reference form factor closely — a low, long, "
-            "freestanding cabinet with legs or a plinth. It is the TV-wall's primary anchor."
+            "freestanding cabinet with legs or a plinth. It is the TV-wall's primary anchor. "
+            "FLOOR-STANDING (hard): render it standing on the floor with its legs or plinth "
+            "visibly resting on the floor. It is NEVER wall-mounted, floating, cantilevered, "
+            "or suspended — there is NO gap of visible floor tiles or wall skirting showing "
+            "through beneath the cabinet body. "
+            "COLOR / MATERIAL FIDELITY (hard): reproduce the reference cabinet's ACTUAL wood "
+            "tone, finish, drawer-front material and top surface — do NOT substitute a generic "
+            "warm-walnut or dark-brown wood. If the reference shows pale / light-oak wood, "
+            "contrasting (white or marble-pattern) drawer fronts, or a stone top, those MUST "
+            "be reproduced faithfully rather than replaced with a plain uniform wood cabinet."
         )
         lines.append(
             "DECOR FREEDOM WITH SPATIAL GUARD: you MAY add style-enhancing pieces not in the "
