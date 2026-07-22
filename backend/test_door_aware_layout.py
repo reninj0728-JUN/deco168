@@ -442,6 +442,84 @@ class DoorAwareLayoutTests(unittest.TestCase):
                         0,
                     ))
 
+    def test_sofa_edit_engages_on_door_jam_despite_tv_depth_field(self):
+        """40063497 Fix A｜furniture_blocks_door=True 時沙發局部位移必須 engage，
+        不得因 focal_anchor_past_door_in_depth=False 被擋——否則 Phase2/3 退回原底圖
+        全新重生、沙發又貼門。非貼門觸發仍要求 TV 深度已過（保留既有行為）。"""
+        with tempfile.TemporaryDirectory() as td:
+            prev = str(Path(td) / "render.jpg")
+            cv2.imwrite(prev, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            jam = {
+                "furniture_blocks_door": True,
+                "focal_anchor_past_door_in_depth": False,   # 舊版會因這欄擋掉
+                "camera_axis_preserved": True,
+                "passage_openings_preserved": True,
+                "render_bboxes": {"sofa": [500, 220, 740, 430],
+                                  "focal_anchor": [560, 640, 800, 880]},
+            }
+            self.assertEqual(
+                api._sofa_alignment_edit_base(jam, {"render_path": prev}, "living"), prev)
+            # 對照：非貼門觸發（TV 錯位）+ 深度未過 → 仍擋
+            other = dict(jam)
+            other["furniture_blocks_door"] = False
+            other["focal_anchor_misaligned_with_sofa"] = True
+            self.assertIsNone(
+                api._sofa_alignment_edit_base(other, {"render_path": prev}, "living"))
+
+    def test_product_only_failure_reuses_geometry_passed_render(self):
+        """40063497 Fix B｜只有商品保真失敗、幾何全過 → 用當前成品做局部商品修
+        （回傳當前 render_path），不退回原底圖全新重生。任何沙發位置硬傷存在則不走這條。"""
+        with tempfile.TemporaryDirectory() as td:
+            prev = str(Path(td) / "render.jpg")
+            cv2.imwrite(prev, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            good = {"product_visibility_fail": True, "furniture_blocks_door": False}
+            self.assertEqual(
+                api._product_only_edit_base(good, {"render_path": prev}, "living"), prev)
+            for flag in ("furniture_blocks_door", "sofa_on_wrong_side",
+                         "sofa_outside_living_zone", "sofa_back_against_window",
+                         "furniture_blocks_walkway"):
+                with self.subTest(flag=flag):
+                    bad = {"product_visibility_fail": True, flag: True}
+                    self.assertIsNone(
+                        api._product_only_edit_base(bad, {"render_path": prev}, "living"))
+            # 商品沒失敗 → 不適用
+            self.assertIsNone(api._product_only_edit_base(
+                {"product_visibility_fail": False}, {"render_path": prev}, "living"))
+
+    def test_product_fidelity_edit_prompt_locks_passed_geometry(self):
+        """40063497 Fix B｜商品局部修必須消費專屬 flag，且不得落入會移動客廳組的通用 prompt。"""
+        prompt = pb._build_retry_context_section({
+            "product_fidelity_edit": True,
+            "failed_flags": ["product_visibility_fail"],
+            "sofa_pct": 35,
+            "anchor_pct": 38,
+            "reason": "media_console:different",
+        })
+        self.assertIn("PRODUCT FIDELITY LOCAL EDIT", prompt)
+        self.assertIn("MODIFY ONLY", prompt)
+        self.assertIn("LOCK the sofa", prompt)
+        self.assertIn("exact centre, footprint, scale, orientation", prompt)
+        self.assertIn("passed door clearance", prompt)
+        self.assertNotIn("Move the whole living group", prompt)
+        self.assertNotIn("Move it deeper", prompt)
+        self.assertNotIn("MOVE ONLY THE SOFA", prompt)
+
+    def test_product_only_edit_rejects_non_product_hard_failures(self):
+        """商品保真同時伴隨任何非商品硬傷時，不得鎖住壞幾何。"""
+        with tempfile.TemporaryDirectory() as td:
+            prev = str(Path(td) / "render.jpg")
+            cv2.imwrite(prev, np.full((1000, 1500, 3), 205, dtype=np.uint8))
+            for flag in (
+                "coffee_table_in_walkway",
+                "focal_anchor_misaligned_with_sofa",
+                "guide_overlay_present",
+                "sofa_facing_window_unverified",
+            ):
+                with self.subTest(flag=flag):
+                    validation = {"product_visibility_fail": True, flag: True}
+                    self.assertIsNone(api._product_only_edit_base(
+                        validation, {"render_path": prev}, "living"))
+
     def test_wide_crop_keeps_left_or_right_edge_door(self):
         left = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(0, 100, 220, 850))
         right = api._full_frame_3_2_crop_box(1600, 900, preserve_bbox=(1380, 100, 1600, 850))

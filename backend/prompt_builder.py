@@ -1586,6 +1586,22 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
             "back, never in the seated viewer's straight-ahead view.",
             "Preserve the original room geometry pixel-for-pixel outside the sofa's old and new area.",
         ])
+    if retry_context.get("product_fidelity_edit"):
+        return " ".join([
+            "PRODUCT FIDELITY LOCAL EDIT — image_1 is the current furnished render whose room geometry "
+            "and furniture layout have already passed safety review, not an empty room.",
+            "MODIFY ONLY the catalog product items reported missing or different, using their product "
+            "reference images as the exact appearance targets.",
+            "For an existing mismatched product, replace its appearance IN PLACE while keeping its exact "
+            "centre, footprint, scale, orientation and wall/floor contact unchanged.",
+            "For a missing product, add only that item in genuinely empty safe space without moving, "
+            "resizing or rotating any existing furniture.",
+            "LOCK the sofa, coffee table, rug, TV/media-console footprint, entrance door, door-clearance "
+            "area, walkway, walls, windows, camera, ceiling, floor, lighting, decor and every other object "
+            "in their exact current positions.",
+            "Do not re-layout the room, do not move the living group deeper, and do not change the sofa-TV "
+            "alignment or any passed door clearance.",
+        ])
     sofa_pct = retry_context.get("sofa_pct")
     anchor_pct = retry_context.get("anchor_pct")
     failed_flags = retry_context.get("failed_flags") or []

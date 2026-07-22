@@ -1220,11 +1220,15 @@ def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
     r = render or {}
     if (room_type or "living") != "living":
         return None
+    _door_jam = v.get("furniture_blocks_door") is True
     if not (v.get("sofa_facing_entrance_door") is True
             or v.get("focal_anchor_misaligned_with_sofa") is True
-            or v.get("furniture_blocks_door") is True):
+            or _door_jam):
         return None
-    if v.get("focal_anchor_past_door_in_depth") is not True:
+    # 40063497：沙發貼門（furniture_blocks_door）時，把沙發推離門就是正解，不該被
+    # 電視深度欄位擋掉——否則沙發位移不 engage、Phase2/3 退回原底圖全新重生、沙發又貼門。
+    # 其他觸發（TV 錯位／沙發對門但沒貼門）仍要求 TV 深度已正確，局部位移才救得動。
+    if not _door_jam and v.get("focal_anchor_past_door_in_depth") is not True:
         return None
     if v.get("camera_axis_preserved") is False or v.get("passage_openings_preserved") is False:
         return None
@@ -1235,6 +1239,33 @@ def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
         return None
     rb = v.get("render_bboxes") or {}
     if not rb.get("sofa") or not rb.get("focal_anchor"):
+        return None
+    path = str(r.get("render_path") or "")
+    return path if path and Path(path).exists() else None
+
+
+def _product_only_edit_base(validation: dict | None, render: dict | None,
+                            room_type: str = "living") -> str | None:
+    """40063497 銜接漏洞：只有商品保真失敗、幾何（門／走道／錯邊／背窗／結構）全過時，
+    用「目前這張幾何已通過的成品」做局部商品修，而不是退回原始底圖全新重生——
+    後者會把 Z3 已修好的門距丟掉、沙發又貼門。任何沙發位置／結構硬傷存在就不走這條
+    （交給沙發位移路徑），避免在壞幾何上鎖圖。"""
+    v = validation or {}
+    r = render or {}
+    if (room_type or "living") != "living":
+        return None
+    if v.get("product_visibility_fail") is not True:
+        return None
+    # 沙發位置類硬傷（含貼門/走道/錯邊/錯區/背窗/對窗/對門）任一存在 → 不鎖，交給沙發位移
+    if any(v.get(flag) is True for flag in _PAIR_ALIGNMENT_SOFA_HARD_FAILURES):
+        return None
+    if any(v.get(k) for k in (
+        "spatial_fidelity_fail", "windows_changed", "walls_changed", "ceiling_changed",
+        "floor_changed", "offframe_room_invaded", "furniture_blocks_walkway",
+        "recessed_space_added", "sofa_faces_walkway", "coffee_table_in_walkway",
+        "focal_anchor_misaligned_with_sofa", "guide_overlay_present",
+        "sofa_facing_window_unverified",
+    )):
         return None
     path = str(r.get("render_path") or "")
     return path if path and Path(path).exists() else None
@@ -4841,12 +4872,20 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             entry["_edit_mask_path"] = edit_mask
                         if repair_guide or edit_mask:
                             entry["_s2_retry_artifacts_active"] = True
-                elif (not pair_alignment_base
-                      and (entry.get("_room_type") or "living") == "living"
-                      and _should_try_alt_living_base(v)):
-                    _nb = _switch_entry_to_next_living_base(entry)
-                    if _nb:
-                        base_for_gen = _nb
+                elif not pair_alignment_base:
+                    # 40063497：只有商品保真失敗、幾何已過 → 用當前這張成品做局部商品修，
+                    # 別退回原始底圖全新重生（那會把 Z3 已修好的門距丟掉、沙發又貼門）。
+                    product_edit_base = _product_only_edit_base(
+                        v, r, entry.get("_room_type", "living"))
+                    if product_edit_base:
+                        retry_ctx = dict(retry_ctx or {})
+                        retry_ctx["product_fidelity_edit"] = True
+                        base_for_gen = product_edit_base
+                    elif ((entry.get("_room_type") or "living") == "living"
+                          and _should_try_alt_living_base(v)):
+                        _nb = _switch_entry_to_next_living_base(entry)
+                        if _nb:
+                            base_for_gen = _nb
                 try:
                     fix_results = generate_renders(
                         base_for_gen, [entry],
@@ -5405,10 +5444,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     else:
                         alignment_base = _sofa_alignment_edit_base(
                             v0, r, entry.get("_room_type", "living"))
+                        product_edit_base = (
+                            None if alignment_base else
+                            _product_only_edit_base(v0, r, entry.get("_room_type", "living")))
                         if alignment_base:
                             retry_ctx = dict(retry_ctx or {})
                             retry_ctx["sofa_alignment_edit"] = True
                             strategies = [("沙發局部位移", alignment_base, None)]
+                        elif product_edit_base:
+                            # 40063497：只有商品失敗、幾何已過 → 局部商品修保住門距，
+                            # 不走 _phase3_base_strategies 換底圖重生。
+                            retry_ctx = dict(retry_ctx or {})
+                            retry_ctx["product_fidelity_edit"] = True
+                            strategies = [("商品局部修（保幾何）", product_edit_base, None)]
                         else:
                             strategies = _phase3_base_strategies(entry)
                     fixed = None
