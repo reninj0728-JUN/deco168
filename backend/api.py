@@ -1810,6 +1810,7 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
 
     sofa = tv = None
     chosen = side_candidates[0]
+    tv_w = 0.24
     for candidate_side in side_candidates:
         sw, sh = int(W * sofa_w), int(H * sofa_h)
         if candidate_side == "left":
@@ -1821,7 +1822,15 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             sx_starts = tuple(x for x in (min_left, 0.32, 0.50) if x + sofa_w <= 0.98)
             if not sx_starts:
                 sx_starts = (min(0.70, min_left),)
-            tx_starts = (0.72, 0.82, 0.52)
+            if door_clear and focal == ent == "right":
+                # 電視在右側門牆：候選必須完整落在 door_clear 左邊。
+                max_tv_start = door_clear[0] / max(1, W) - tv_w - 0.01
+                tx_starts = tuple(
+                    x for x in (max_tv_start, 0.52, 0.72, 0.82)
+                    if x >= 0.02 and x + tv_w <= door_clear[0] / max(1, W) - 0.01
+                )
+            else:
+                tx_starts = (0.72, 0.82, 0.52)
             facing = "right"
         else:
             max_right = 1 - 0.08 - sofa_w
@@ -1830,7 +1839,16 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             sx_starts = tuple(x for x in (max_right, 1 - 0.32 - sofa_w, 1 - 0.50 - sofa_w) if x >= 0.02)
             if not sx_starts:
                 sx_starts = (max(0.02, max_right),)
-            tx_starts = (0.04, 0.18, 0.28)
+            if door_clear and focal == ent == "left":
+                # 2CD074F0：固定 4/18/28% 三個電視候選全落在 44% door_clear
+                # 內。和沙發避門相同，從禁區終點後才開始嘗試電視框。
+                min_tv_start = door_clear[2] / max(1, W) + 0.01
+                tx_starts = tuple(
+                    x for x in (min_tv_start, 0.28, 0.18, 0.04)
+                    if x >= min_tv_start and x + tv_w <= 0.98
+                )
+            else:
+                tx_starts = (0.04, 0.18, 0.28)
             facing = "left"
         for yf in y_starts:
             sy0 = int(H * yf)
@@ -1847,7 +1865,7 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
                     continue
                 for txf in tx_starts:
                     tx0 = int(W * txf)
-                    trect = (tx0, ty0, min(W, tx0 + int(W * 0.24)), ty1)
+                    trect = (tx0, ty0, min(W, tx0 + int(W * tv_w)), ty1)
                     if _safe(trect) and not _rects_intersect(srect, trect):
                         sofa, tv, chosen = srect, trect, candidate_side
                         break
@@ -2414,6 +2432,25 @@ def _image_edit_retry_enabled(renders: list[dict] | None) -> bool:
         isinstance(render, dict)
         and render.get("_layout_contract_s2_required") is True
         for render in (renders or [])
+    )
+
+
+def _allow_waived_single_shot_without_guide(
+    s2_waived: bool,
+    room_type: str,
+    guide_path: str | None,
+    door_excluded: bool,
+) -> bool:
+    """S2 豁免後的無 guide 單次生成，只能用於已確認大門完全出鏡的客廳。
+
+    門仍可見或門狀態未知時，無 guide 裸生會退回模型自由擺放，正是
+    2CD074F0 電視櫃貼門仍付費生成的原因；這種情況必須在付費前擋住。
+    """
+    return bool(
+        s2_waived
+        and room_type == "living"
+        and not guide_path
+        and door_excluded
     )
 
 
@@ -4084,9 +4121,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             # 只有入口 bbox 明確完全落在 crop 外才可關閉避門 prompt。
                             # None（缺 bbox／讀圖失敗）一律保守當門仍可能在鏡內。
                             door_excluded_flags[_vi] = (_zoom_door_visible is False)
+                            # zoom 後座標系已變；重建失敗不得沿用裁切前的舊 guide。
+                            layout_guide_paths.pop(_vi, None)
+                            layout_guide_modes[_vi] = "living_zone_zoom"
                             if _zoom_guide:
                                 layout_guide_paths[_vi] = _zoom_guide
-                                layout_guide_modes[_vi] = "living_zone_zoom"
                     else:
                         # 判官真的驗過而且判不安全 → 不得回退 S2，但保留 legacy
                         # 引導圖（如果前面 _build_layout_guide_image 已建好）。
@@ -4150,16 +4189,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     "legacy_fallback" if vi in layout_contract_s2_waived
                     else "s2_contract" if layout_guide_modes.get(vi) == "auto_s2_contract"
                     else layout_guide_modes.get(vi) or "legacy")
-                # 兩套規劃器都描述不了這個房型、又沒有引導圖時：客人已付費，
-                # 生一張總比零張好；但把重試全部關掉，避免退回「同一錯格局
-                # 反覆付費」的老問題。成品照樣要過生成後那幾道閘門。
+                # 兩套規劃器都描述不了、又沒有 guide 時，只在大門已確認完全出鏡
+                # 才允許單次生成。門仍可見或狀態未知時，裸生只會把家具貼回門邊。
                 # 豁免旗標要顯式帶到生成端：付費前閘門的全域開關會蓋掉
                 # _layout_contract_s2_required=False，只有這個旗標壓得過去。
                 copy["_layout_contract_s2_waived"] = bool(vi in layout_contract_s2_waived)
-                copy["_allow_single_shot_without_guide"] = bool(
-                    vi in layout_contract_s2_waived
-                    and rt == "living"
-                    and not layout_guide_paths.get(vi))
+                copy["_allow_single_shot_without_guide"] = (
+                    _allow_waived_single_shot_without_guide(
+                        vi in layout_contract_s2_waived,
+                        rt,
+                        layout_guide_paths.get(vi),
+                        bool(door_excluded_flags[vi]),
+                    )
+                )
                 copy["_s2_compact_entry_mode"] = False
                 _s2_contract_path = _s2_artifact.get("contract_path")
                 if copy["_layout_contract_s2_required"] and _s2_contract_path:

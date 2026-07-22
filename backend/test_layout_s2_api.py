@@ -297,16 +297,19 @@ def test_s2_model_not_applicable_is_distinguished_from_unsafe_verdict():
         "unsafe_codes": ["NO_USABLE_WALL", "SOFA_WALL_CONTACT_FAIL"]}) is False
 
 
-def test_unmodellable_room_gets_one_paid_shot_but_no_retries():
-    """928AD8B4｜S2 豁免後仍然零圖——legacy 那條路自己也有一道「沒有引導圖就
-    不准付費生成」的閘門，同樣的房型同樣擋。客人已付費，完全不生等於拿錢不辦事；
-    但那道閘門原本要防的是「同一錯格局反覆付費重試」，所以放行單張、關掉重試。"""
+def test_unmodellable_room_only_gets_one_paid_shot_when_door_is_excluded():
+    """2CD074F0｜門仍在鏡內且沒有 guide 時不得付費裸生；只有門確定出鏡才放行。"""
     source = Path(api.__file__).read_text(encoding="utf-8")
 
-    # 旗標只在「S2 豁免 + 客廳 + 真的沒有引導圖」三個條件同時成立時才掛
-    assert 'copy["_allow_single_shot_without_guide"] = bool(' in source
-    assert "vi in layout_contract_s2_waived" in source
-    assert "not layout_guide_paths.get(vi)" in source
+    assert api._allow_waived_single_shot_without_guide(
+        True, "living", None, True) is True
+    assert api._allow_waived_single_shot_without_guide(
+        True, "living", None, False) is False
+    assert api._allow_waived_single_shot_without_guide(
+        True, "living", "guide.jpg", True) is False
+    assert api._allow_waived_single_shot_without_guide(
+        True, "bedroom", None, True) is False
+    assert "bool(door_excluded_flags[vi])" in source
 
     # 三個補生管道都必須認這個旗標，否則又退回反覆付費
     assert source.count('_allow_single_shot_without_guide"):') >= 3
@@ -351,6 +354,40 @@ def test_zoom_path_is_wired_into_the_s2_waiver():
     assert '"living_zone_zoom"' in source
     # 只有 bbox 明確完全在 crop 外才可標記出鏡；未知時保留避門 prompt。
     assert "door_excluded_flags[_vi] = (_zoom_door_visible is False)" in source
+    # zoom 座標改變後，重建失敗也不得沿用舊 guide。
+    clear_pos = source.index("layout_guide_paths.pop(_vi, None)", source.index("_zoom_door_visible"))
+    accept_pos = source.index("if _zoom_guide:", clear_pos)
+    assert clear_pos < accept_pos
+
+
+def test_2cd074f0_tv_target_moves_past_left_door_clearance():
+    """2CD074F0｜左側門禁區到 44%，TV 必須從禁區終點後取樣，不得只試 4/18/28%。"""
+    plan = api._layout_guide_plan(
+        880, 780, "free",
+        entrance_side="left",
+        entrance_bbox=(10, 110, 190, 640),
+        focal_side="left",
+        auto_float=False,
+        living_bbox=(40, 40, 840, 740),
+    )
+    assert plan["valid"] is True
+    assert plan["chosen_sofa_side"] == "right"
+    assert plan["tv"][0] > plan["door_clear"][2]
+
+
+def test_2cd074f0_tv_target_mirrors_past_right_door_clearance():
+    """同一規則左右鏡像：右側門牆的 TV 必須完整落在 door_clear 左邊。"""
+    plan = api._layout_guide_plan(
+        880, 780, "free",
+        entrance_side="right",
+        entrance_bbox=(690, 110, 870, 640),
+        focal_side="right",
+        auto_float=False,
+        living_bbox=(40, 40, 840, 740),
+    )
+    assert plan["valid"] is True
+    assert plan["chosen_sofa_side"] == "left"
+    assert plan["tv"][2] < plan["door_clear"][0]
 
 
 def test_zoom_guide_reports_door_visibility_from_actual_crop(tmp_path):
