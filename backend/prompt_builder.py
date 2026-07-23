@@ -1589,6 +1589,26 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
             "past the door — follow the blue target exactly.",
             SOFA_TV_FACE_TO_FACE_CONTRACT,
         ])
+    # 8AD3E711：沙發貼錯邊 → 真跨房搬到對牆 footprint（不是同牆滑）。這條必須寫成硬指令，
+    # 不能只叫模型「re-read SOFA SIDE」——實測光靠 prompt 說服沒用，要配 mask + 綠框目標。
+    if retry_context.get("sofa_cross_room_relocate"):
+        return " ".join([
+            "CROSS-ROOM SOFA RELOCATION EDIT — image_1 is the previous furnished render, not an empty room.",
+            "The sofa is currently on the WRONG wall. MOVE THE SOFA across the room to the GREEN target "
+            "footprint on the OPPOSITE wall; it must NOT remain on its current wall.",
+            "Completely erase the sofa from its current position and leave clean bare floor and wall there — "
+            "no ghost, shadow, duplicate, imprint or second sofa anywhere.",
+            "Redraw the same sofa (identical style, colour, material and scale) inside the green target "
+            "footprint, facing the TV straight across the room.",
+            "If a correction map is provided: RED = old sofa to remove, GREEN = new sofa target on the "
+            "opposite wall — follow the green target exactly.",
+            "LOCK the TV, media console, entrance door, walls, windows, camera, rug, coffee table, lighting, "
+            "decor, colours and every other object in their exact current positions; do not move, resize, "
+            "replace or redesign the TV or media console.",
+            SOFA_TV_FACE_TO_FACE_CONTRACT,
+            "The entrance door must fall clearly to the side of the sofa-TV centreline or behind the sofa "
+            "back, never in the seated viewer's straight-ahead view.",
+        ])
     if retry_context.get("sofa_alignment_edit"):
         return " ".join([
             "LOCAL ALIGNMENT EDIT — image_1 is the previous furnished render, not an empty room.",

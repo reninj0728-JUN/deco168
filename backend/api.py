@@ -1263,13 +1263,21 @@ def _sofa_alignment_edit_base(validation: dict | None, render: dict | None,
     if _door_jam and _offender is None:
         return None
     _sofa_door_jam = _door_jam and _offender == "sofa"
+    # 8AD3E711：沙發貼錯邊(sofa_on_wrong_side)之前沒有任何硬修路徑——閘門擋、無救生圈。
+    # 加為觸發，讓沙發走遮罩硬修；下游 _s2_repair_target_box 認出 wrong_side 後，
+    # 目標改指 contract 對牆 footprint（真跨房搬移），而不是拿當前沙發同牆往深處滑。
+    _sofa_wrong_side = v.get("sofa_on_wrong_side") is True
     if not (v.get("sofa_facing_entrance_door") is True
             or v.get("focal_anchor_misaligned_with_sofa") is True
+            or _sofa_wrong_side
             or _sofa_door_jam):
         return None
     # 40063497 Fix A 收窄：只有「沙發貼門」時才豁免 TV 深度欄位。
-    # 其他觸發（TV 錯位／沙發對門）仍要求 TV 深度已正確。
-    if not _sofa_door_jam and v.get("focal_anchor_past_door_in_depth") is not True:
+    # 8AD3E711 補洞（Grok 抓到）：沙發貼錯邊也豁免——跨房搬的是沙發、不碰 TV，
+    # past_door 缺失或 False 時仍須 engage，否則「code 有、單測綠、真單不走」。
+    # 電視櫃真貼門的情況已在上面 offender==focal_anchor 先 return，這裡放行不會誤修 TV。
+    if (not _sofa_door_jam and not _sofa_wrong_side
+            and v.get("focal_anchor_past_door_in_depth") is not True):
         return None
     if not _local_edit_structure_ok(v):
         return None
@@ -1589,6 +1597,17 @@ def _s2_repair_target_box(
     sofa = ((validation or {}).get("render_bboxes") or {}).get("sofa")
     if not isinstance(sofa, list) or len(sofa) != 4 or not contract_target_points:
         return None
+    # 8AD3E711：沙發貼錯邊 → 目標＝contract 對牆 footprint 的外接框（真跨房搬移），
+    # 不是拿當前沙發同牆滑。footprint 點已由呼叫端縮放＋門距位移過。
+    if (validation or {}).get("sofa_on_wrong_side") is True:
+        _xs = [float(pt[0]) for pt in contract_target_points]
+        _ys = [float(pt[1]) for pt in contract_target_points]
+        _fx0, _fx1, _fy0, _fy1 = min(_xs), max(_xs), min(_ys), max(_ys)
+        if _fx1 - _fx0 >= 8 and _fy1 - _fy0 >= 8:
+            return (
+                max(0, round(_fx0)), max(0, round(_fy0)),
+                min(width - 1, round(_fx1)), min(height - 1, round(_fy1)),
+            )
     sy0, sx0, sy1, sx1 = [float(value) for value in sofa]
     old_x0, old_y0 = sx0 * width / 1000.0, sy0 * height / 1000.0
     old_x1, old_y1 = sx1 * width / 1000.0, sy1 * height / 1000.0
@@ -5023,6 +5042,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     if alignment_base:
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["sofa_alignment_edit"] = True
+                        if v.get("sofa_on_wrong_side") is True:
+                            retry_ctx["sofa_cross_room_relocate"] = True
                         base_for_gen = alignment_base
                         if entry.get("_layout_contract_s2_required") is True:
                             repair_guide = _build_s2_sofa_repair_guide(
@@ -5226,6 +5247,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if alignment_base:
                     retry_ctx = dict(retry_ctx or {})
                     retry_ctx["sofa_alignment_edit"] = True
+                    if v.get("sofa_on_wrong_side") is True:
+                        retry_ctx["sofa_cross_room_relocate"] = True
                     base_for_gen = alignment_base
                     if entry.get("_layout_contract_s2_required") is True:
                         repair_guide = _build_s2_sofa_repair_guide(
@@ -5835,7 +5858,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             if alignment_base:
                                 retry_ctx = dict(retry_ctx or {})
                                 retry_ctx["sofa_alignment_edit"] = True
-                                strategies = [("沙發局部位移", alignment_base, None)]
+                                if v0.get("sofa_on_wrong_side") is True:
+                                    retry_ctx["sofa_cross_room_relocate"] = True
+                                strategies = [("沙發跨房搬移" if v0.get("sofa_on_wrong_side")
+                                               else "沙發局部位移", alignment_base, None)]
                             elif product_edit_base:
                                 # 40063497：只有商品失敗、幾何已過 → 局部商品修保住門距，
                                 # 不走 _phase3_base_strategies 換底圖重生。

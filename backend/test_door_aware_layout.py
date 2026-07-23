@@ -559,6 +559,109 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertIn("0.28", prompt)
         self.assertNotIn("MOVE ONLY THE SOFA", prompt)
 
+    def test_wrong_side_sofa_cross_room_relocation(self):
+        """8AD3E711｜沙發貼錯邊之前沒有硬修路徑（閘門擋、無救）。
+        修法：①wrong_side 觸發沙發 edit ②目標改指 contract 對牆 footprint（真跨房搬移，
+        不是同牆滑）③prompt 寫死跨房搬遷。並確認 wrong_side 不劫持電視櫃貼門路徑。"""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            prev = root / "render.jpg"
+            Image.new("RGB", (1000, 1000), "white").save(prev)
+
+            # ① 觸發：純 wrong_side（無貼門）→ 沙發 edit engage。
+            #    補洞（Grok）：past_door=True / False / 欄位缺失 三種都必須 engage，
+            #    否則「code 有、單測綠、真單不走」——8AD 若判官沒給 past_door 就白做。
+            base_ws = {
+                "sofa_on_wrong_side": True,
+                "camera_axis_preserved": True,
+                "passage_openings_preserved": True,
+                "render_bboxes": {
+                    "sofa": [520, 620, 760, 900],          # 現在貼右牆（錯）
+                    "focal_anchor": [520, 120, 760, 360],   # 電視在左牆
+                },
+            }
+            for _pd in (True, False, "__missing__"):
+                with self.subTest(past_door=_pd):
+                    ws = dict(base_ws)
+                    ws["render_bboxes"] = dict(base_ws["render_bboxes"])
+                    if _pd != "__missing__":
+                        ws["focal_anchor_past_door_in_depth"] = _pd
+                    self.assertEqual(
+                        api._sofa_alignment_edit_base(
+                            ws, {"render_path": str(prev)}, "living"),
+                        str(prev),
+                        f"wrong_side 應 engage（past_door={_pd}）")
+
+            # ② 安全：電視櫃貼門(offender=focal_anchor) 即使沙發也 wrong_side，
+            #    沙發路徑仍必須拒絕——不得劫持櫃貼門的遮罩修
+            console_jam_ws = {
+                "furniture_blocks_door": True,
+                "sofa_on_wrong_side": True,
+                "camera_axis_preserved": True,
+                "passage_openings_preserved": True,
+                "render_bboxes": {
+                    "sofa": [480, 620, 840, 940],
+                    "focal_anchor": [430, 230, 560, 400],
+                    "entrance_door": [220, 80, 860, 250],
+                },
+            }
+            self.assertEqual(api._door_block_offender(console_jam_ws), "focal_anchor")
+            self.assertIsNone(api._sofa_alignment_edit_base(
+                console_jam_ws, {"render_path": str(prev)}, "living"))
+
+            # ③ 目標框：wrong_side → 落在 contract 對牆 footprint（左），非當前沙發同側（右）
+            footprint = [(270, 520), (470, 520), (470, 760), (270, 760)]  # 左牆 footprint
+            tgt = {
+                "sofa_on_wrong_side": True,
+                "render_bboxes": {
+                    "sofa": [520, 620, 760, 900],
+                    "entrance_door": [200, 40, 700, 200],
+                },
+            }
+            box_ws = api._s2_repair_target_box(tgt, 1000, 1000, "left", footprint)
+            self.assertIsNotNone(box_ws)
+            self.assertLess(box_ws[2], 500, "wrong_side 目標應落在左半（對牆 footprint）")
+            self.assertGreaterEqual(box_ws[0], 250)
+            # 對照：同一張圖沒有 wrong_side → 舊行為＝黏在當前沙發（右半）
+            tgt_same = dict(tgt); tgt_same.pop("sofa_on_wrong_side")
+            box_same = api._s2_repair_target_box(tgt_same, 1000, 1000, "left", footprint)
+            self.assertIsNotNone(box_same)
+            self.assertGreater(box_same[0], 500, "無 wrong_side 應維持同側滑（右半），證明 branch 真的改了行為")
+
+            # ④ 遮罩整鏈：erase mask 對牆 footprint 透明、舊沙發透明、大門鎖死
+            contract = {
+                "source": {"size": {"width": 1000, "height": 1000}},
+                "decision": {"chosen_candidate_id": "c1"},
+                "candidates": [{
+                    "candidate_id": "c1",
+                    "sofa_footprint_geometry_id": "g_sofa",
+                    "notes": ["sofa_side=left"],
+                }],
+                "geometry": [
+                    {"geometry_id": "g_sofa",
+                     "shape": {"coordinates": [[270, 520], [470, 520], [470, 760], [270, 760]]}},
+                ],
+            }
+            contract_path = root / "contract.json"
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            mask_path = api._build_s2_sofa_edit_mask(
+                str(prev), str(contract_path), tgt, str(root / "mask.png"))
+            self.assertTrue(mask_path)
+            alpha = Image.open(mask_path).getchannel("A")
+            self.assertEqual(alpha.getpixel((380, 640)), 0, "對牆 footprint 目標區應透明（可重畫沙發）")
+            self.assertEqual(alpha.getpixel((760, 640)), 0, "舊沙發區應透明（可鏟除）")
+            self.assertEqual(alpha.getpixel((120, 450)), 255, "大門必須鎖死")
+
+        # ⑤ prompt：cross_room_relocate → 跨房搬遷硬指令，且非同牆滑
+        prompt = pb._build_retry_context_section({
+            "sofa_cross_room_relocate": True,
+            "sofa_alignment_edit": True,
+            "failed_flags": ["sofa_on_wrong_side"],
+        })
+        self.assertIn("CROSS-ROOM SOFA RELOCATION", prompt)
+        self.assertIn("OPPOSITE wall", prompt)
+        self.assertNotIn("Keep the sofa on the same side wall", prompt)
+
     def test_product_only_failure_reuses_geometry_passed_render(self):
         """40063497 Fix B｜只有商品保真失敗、幾何全過 → 用當前成品做局部商品修
         （回傳當前 render_path），不退回原底圖全新重生。任何沙發位置硬傷存在則不走這條。"""

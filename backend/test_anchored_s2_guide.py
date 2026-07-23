@@ -172,3 +172,79 @@ def test_global_prompt_never_allows_living_sofa_to_face_window():
     assert "sofa must face the tv/media console directly" in lower
     assert "the window for a view" not in lower
     assert "long axis of the room toward the window" not in lower
+
+
+def test_console_door_and_sofa_relocation_masks_reach_fal_without_spending():
+    """P2｜遮罩硬修的驗證債：不等隨機重現，用 fixture 證明 routing → 遮罩 →
+    fal mask_url 整條通，零 fal 花費。涵蓋 593408CC 電視櫃貼門 + 8AD3E711 沙發跨房搬移。"""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from PIL import Image
+
+    import api
+    from test_full_pipeline import _gpt_image2_mask_data_url, _resolve_render_model
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        prev = root / "render.jpg"
+        Image.new("RGB", (1000, 1000), "white").save(prev)
+
+        # ── 電視櫃貼門：routing → console_door 遮罩 → gpt-image-2/edit + mask_url ──
+        console_v = {
+            "furniture_blocks_door": True,
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "entrance_door": [250, 40, 720, 210],
+                "focal_anchor": [430, 230, 560, 430],   # 貼門(gap=0)→offender=focal_anchor
+                "sofa": [470, 520, 780, 870],
+            },
+        }
+        assert api._door_block_offender(console_v) == "focal_anchor"
+        console_entry = {"_room_type": "living"}
+        assert api._activate_console_door_edit(
+            console_v, {"render_path": str(prev)}, console_entry, str(root), 0, "1"
+        ) == str(prev)
+        assert console_entry.get("_edit_mask_mode") == "console_door"
+        assert console_entry.get("_force_mask_local_edit") is True
+        assert _resolve_render_model(console_entry) == "openai/gpt-image-2/edit"
+        console_mask_url = _gpt_image2_mask_data_url(console_entry)
+        assert console_mask_url and console_mask_url.startswith("data:image/png;base64,")
+
+        # ── 沙發跨房搬移：wrong_side 遮罩需真的進 fal（entry 帶 S2 required）──
+        contract = {
+            "source": {"size": {"width": 1000, "height": 1000}},
+            "decision": {"chosen_candidate_id": "c1"},
+            "candidates": [{
+                "candidate_id": "c1",
+                "sofa_footprint_geometry_id": "g_sofa",
+                "notes": ["sofa_side=left"],
+            }],
+            "geometry": [
+                {"geometry_id": "g_sofa",
+                 "shape": {"coordinates": [[270, 520], [470, 520], [470, 760], [270, 760]]}},
+            ],
+        }
+        contract_path = root / "contract.json"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+        sofa_v = {
+            "sofa_on_wrong_side": True,
+            "render_bboxes": {
+                "sofa": [520, 620, 760, 900],           # 現在貼右牆(錯)
+                "entrance_door": [200, 40, 700, 200],
+            },
+        }
+        sofa_mask = api._build_s2_sofa_edit_mask(
+            str(prev), str(contract_path), sofa_v, str(root / "sofa_mask.png"))
+        assert sofa_mask
+        sofa_entry = {
+            "_room_type": "living",
+            "_layout_contract_s2_required": True,   # S2 客廳首要條件下沙發遮罩才建
+            "_edit_mask_path": sofa_mask,
+            "_edit_mask_mode": "sofa",
+        }
+        assert _resolve_render_model(sofa_entry) == "openai/gpt-image-2/edit"
+        sofa_mask_url = _gpt_image2_mask_data_url(sofa_entry)
+        assert sofa_mask_url and sofa_mask_url.startswith("data:image/png;base64,")
