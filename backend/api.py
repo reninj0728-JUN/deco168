@@ -2831,6 +2831,27 @@ def _s2_preflight_blocked_result(entry: dict | None) -> dict | None:
     }
 
 
+def _s2_shadow_free_signal(entry: dict | None, reason: str = "") -> dict:
+    """影子模式免費信號：S2 前檢擋掉的房，legacy 到底有沒有能用的引導圖。
+
+    這是「legacy 能不能救這房」的必要條件（沒引導圖→門可見禁裸生→legacy 也交不出）。
+    純讀 entry 既有欄位，零 fal、零 Gemini、不改任何交付行為。
+    """
+    e = entry or {}
+    guide = e.get("_layout_guide")
+    has_guide = bool(guide and Path(str(guide)).exists())
+    return {
+        "job": e.get("_job_id"),
+        "idx": e.get("_view_index"),
+        "style": e.get("style"),
+        "room_type": e.get("_room_type"),
+        "legacy_guide": has_guide,
+        "guide_mode": e.get("_layout_guide_mode"),
+        "door_excluded": bool(e.get("_door_excluded")),
+        "s2_reason": (reason or "")[:80],
+    }
+
+
 def _sync_s2_candidate_sides(zoning_result: dict | None, contract: dict | None) -> dict:
     if not isinstance(zoning_result, dict) or not isinstance(contract, dict):
         return {}
@@ -4658,6 +4679,52 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     attempt=1,
                     validation=preflight_blocked["validation"],
                 )
+                # ── 影子模式（S2_BLOCK_LEGACY_SHADOW，預設關）：只量數據、不交付、
+                # 不改客戶看到的封鎖行為。收集「S2 擋掉的房，legacy 能不能救」。
+                #   =1    免費層：只記 legacy 有沒有引導圖（零 fal / 零 Gemini）
+                #   =full fal 層：額外跑一次 legacy 生成+驗證，記有沒有過生成後閘門
+                _shadow_mode = os.environ.get("S2_BLOCK_LEGACY_SHADOW", "0").strip().lower()
+                if _shadow_mode not in ("", "0", "off") and entry.get("_room_type") == "living":
+                    try:
+                        _shadow = _s2_shadow_free_signal(
+                            entry, (preflight_blocked["validation"] or {}).get("reason") or "")
+                        _shadow["job"] = job_id
+                        _shadow["idx"] = idx
+                        if _shadow_mode == "full" and _shadow["legacy_guide"]:
+                            from gemini_analyze import validate_render as _vr
+                            _sc = dict(entry)
+                            _sc["_layout_contract_s2_required"] = False
+                            _sc["_layout_contract_s2_waived"] = True
+                            _sc["_allow_single_shot_without_guide"] = False
+                            _sc["_s2_retry_artifacts_active"] = False
+                            _sg = generate_renders(
+                                entry["_base_path"], [_sc], output_dir=str(job_dir),
+                                analysis=analysis, design_mode=design_mode, zoning=zoning_result,
+                                customer_notes=customer_notes, budget_tier=budget_tier,
+                                force_anchored=force_anchored, job_id=job_id,
+                                upload_id_masked=uid_masked, attempt=1,
+                                stage="s2_shadow_legacy", room_type="living")
+                            _sr = (_sg or [{}])[0] if _sg else {}
+                            _srp = _sr.get("render_path")
+                            if _srp and Path(_srp).exists():
+                                _sv = _fail_closed_validation(
+                                    _vr(entry["_base_path"], _srp,
+                                        entry.get("_angle_label", ""),
+                                        layout_context=None, room_type="living",
+                                        design_mode=design_mode),
+                                    "living")
+                                _shadow["shadow_generated"] = True
+                                _shadow["shadow_passed"] = _sv.get("hard_fail") is not True
+                                _shadow["shadow_fail"] = (
+                                    "" if _sv.get("hard_fail") is not True
+                                    else (_sv.get("reason") or "")[:120])
+                            else:
+                                _shadow["shadow_generated"] = False
+                                _shadow["shadow_fail"] = "no_render(bare-gen擋/fal失敗)"
+                        print("[s2-shadow] " + json.dumps(_shadow, ensure_ascii=False, default=str))
+                    except Exception as _se:
+                        print(f"[s2-shadow] 影子模式例外（不影響封鎖）: "
+                              f"{type(_se).__name__}: {str(_se)[:100]}")
                 print(f"[pipeline] render[{idx}] S2 前檢封鎖 → 終止，不進生成／補生鏈")
                 final.append(preflight_blocked)
                 continue

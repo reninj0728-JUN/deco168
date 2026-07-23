@@ -532,3 +532,39 @@ def test_s2_preflight_block_is_wired_before_generation_and_all_retry_phases():
     assert "S2 前檢已封鎖 → 跳過 Z3" in source
     assert "S2 前檢已封鎖 → 跳過 Phase2" in source
     assert "S2 前檢已封鎖 → 跳過 Phase3" in source
+
+
+def test_s2_shadow_free_signal_reports_legacy_guide_presence(tmp_path):
+    """影子模式免費信號：正確回報 S2 擋掉的房有沒有 legacy 引導圖。純讀 entry，零 fal。"""
+    guide = tmp_path / "guide.jpg"
+    Image.new("RGB", (10, 10), "white").save(guide)
+    # 有 legacy 引導圖 → legacy_guide=True（legacy 有東西可救）
+    with_guide = {
+        "_room_type": "living", "style": "modern",
+        "_layout_guide": str(guide), "_layout_guide_mode": "s2_blocked_legacy",
+        "_door_excluded": False,
+    }
+    sig = api._s2_shadow_free_signal(with_guide, "S2 候選未通過牆面貼合")
+    assert sig["legacy_guide"] is True
+    assert sig["room_type"] == "living"
+    assert sig["style"] == "modern"
+    assert sig["guide_mode"] == "s2_blocked_legacy"
+    assert "牆面貼合" in sig["s2_reason"]
+    # 沒有引導圖（門可見禁裸生 → legacy 也交不出）→ legacy_guide=False
+    no_guide = {"_room_type": "living", "style": "modern", "_layout_guide": None}
+    assert api._s2_shadow_free_signal(no_guide)["legacy_guide"] is False
+    # 引導圖路徑指向不存在的檔 → 也算 False（不能用）
+    ghost = {"_room_type": "living", "_layout_guide": str(tmp_path / "nope.jpg")}
+    assert api._s2_shadow_free_signal(ghost)["legacy_guide"] is False
+
+
+def test_s2_block_legacy_shadow_defaults_off_and_never_changes_delivery():
+    """影子模式預設關；碼上保證只印 log、不改封鎖/交付（final 只 append preflight_blocked）。"""
+    source = Path(api.__file__).read_text(encoding="utf-8")
+    # 預設關：env 讀取有預設 "0"
+    assert 'os.environ.get("S2_BLOCK_LEGACY_SHADOW", "0")' in source
+    # 影子區塊在「append(preflight_blocked) + continue」之前，且包在 try/except
+    shadow = source.index("S2_BLOCK_LEGACY_SHADOW")
+    appended = source.index("final.append(preflight_blocked)", shadow)
+    assert shadow < appended
+    assert "影子模式例外（不影響封鎖）" in source
