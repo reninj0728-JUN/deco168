@@ -150,3 +150,20 @@ def test_p1_default_off():
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("P1_FIRST_RENDER_MASK", None)
         assert os.environ.get("P1_FIRST_RENDER_MASK", "0").strip().lower() in ("", "0", "off")
+
+
+def test_skip_unmodelable_extra_repair_only_door_class():
+    """#2：S2 建不了模型的房 + 門/對門硬傷 → 跳過 Phase2/3 補生；其餘照常。"""
+    assert api._skip_unmodelable_extra_repair(
+        {"_s2_unmodelable": True, "validation": {"furniture_blocks_door": True}}) is True
+    assert api._skip_unmodelable_extra_repair(
+        {"_s2_unmodelable": True, "validation": {"sofa_facing_entrance_door": True}}) is True
+    # S2 可建模的正面房（非 waived）→ 不跳過，照常補生
+    assert api._skip_unmodelable_extra_repair(
+        {"_s2_unmodelable": False, "validation": {"furniture_blocks_door": True}}) is False
+    # unmodelable 但非門硬傷（只有產品問題）→ 不跳過（別的補生可能救得回）
+    assert api._skip_unmodelable_extra_repair(
+        {"_s2_unmodelable": True, "validation": {"product_visibility_fail": True}}) is False
+    # 缺欄位不炸
+    assert api._skip_unmodelable_extra_repair({}) is False
+    assert api._skip_unmodelable_extra_repair(None) is False

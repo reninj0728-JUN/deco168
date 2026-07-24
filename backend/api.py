@@ -1928,6 +1928,17 @@ def _build_s2_first_render_mask(base_path: str, contract_path: str,
         return None
 
 
+def _skip_unmodelable_extra_repair(render: dict | None) -> bool:
+    """#2 提早失敗：S2 建不了模型的房(斜角/碎牆) 走 legacy，門/對門硬傷靠 legacy 補生
+    救不回（90112824 實測門距越補越糟）。Z3 已試過一輪 → 不再燒 Phase2/Phase3 額外補生，
+    省 fal，改走誠實「重拍引導」（result.html #1）。"""
+    r = render or {}
+    v = r.get("validation") or {}
+    return bool(r.get("_s2_unmodelable") is True
+                and (v.get("furniture_blocks_door") is True
+                     or v.get("sofa_facing_entrance_door") is True))
+
+
 def _clear_s2_retry_edit_artifacts(entry: dict) -> None:
     """Clear only dynamic S2 retry artifacts before selecting a new edit base."""
     if entry.get("_s2_retry_artifacts_active") is not True:
@@ -4937,6 +4948,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 r["room_type"] = entry.get("_room_type", "living")
                 r["cropped"] = bool(entry.get("_cropped"))   # (i) 標記：此圖底圖已裁成單房視角
                 r["door_excluded"] = bool(entry.get("_door_excluded"))  # 大門在鏡頭外（前端誠實揭露）
+                r["_s2_unmodelable"] = bool(entry.get("_layout_contract_s2_waived"))  # #2: S2建不了模型的房
                 r["crop_note"] = entry.get("_crop_note") or None   # 沒裁的原因（診斷）
                 # 用 style + angle 區分檔名
                 if r.get("render_path"):
@@ -5363,6 +5375,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     print(f"[pipeline] render[{idx}] S2 前檢已封鎖 → 跳過 Phase2")
                     continue
                 v = r.get("validation") or {}
+                if _skip_unmodelable_extra_repair(r):
+                    print(f"[pipeline] render[{idx}] S2不合格視角+門硬傷 → 跳過 Phase2 補生（省 fal，走重拍）")
+                    continue
                 if not v.get("hard_fail"):
                     continue
                 if v.get("validation_outage"):
@@ -5982,6 +5997,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     entry = expanded[idx]
                     _clear_s2_retry_edit_artifacts(entry)
                     v0 = r.get("validation") or {}
+                    if _skip_unmodelable_extra_repair(r):
+                        print(f"[pipeline] render[{idx}] S2不合格視角+門硬傷 → 跳過 Phase3 補生（省 fal，走重拍）")
+                        continue
                     if v0.get("validation_outage"):
                         print("[pipeline] Gemini 額度斷線（429）——跳過 Phase3 補生，不燒 fal")
                         continue
