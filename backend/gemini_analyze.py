@@ -721,6 +721,69 @@ def _enforce_sofa_focal_orientation(
     return result
 
 
+def detect_source_furniture(photo_path: str) -> dict:
+    """P1 首渲硬綁｜偵測「原始上傳照」裡現有家具的 bbox，供首渲 mask 清舊物用。
+
+    回傳 normalized 0–1000 的 [ymin, xmin, ymax, xmax] 或 None：
+      {"sofa", "coffee_table", "focal_anchor", "entrance_door"}
+
+    這不是渲染圖驗證，是對真實空照做客觀定位（模型會黏原照家具，位置+外觀都要清）。
+    任何失敗（無 key / Gemini 例外 / JSON 壞）→ 回全 None，呼叫端走 fallback，永不 crash。
+    座標系：偵測結果對應「傳進來的這張 photo_path」；呼叫端必須確保它與 S2 contract、
+    送 fal 的 base 是同一張，否則 bbox 會整盤錯位（P1 應 skip）。
+    """
+    empty = {"sofa": None, "coffee_table": None,
+             "focal_anchor": None, "entrance_door": None}
+    api_key = (os.environ.get("GEMINI_API_KEY") or
+               os.environ.get("GOOGLE_AI_KEY") or "").strip()
+    if not api_key:
+        return dict(empty)
+    try:
+        client = genai.Client(api_key=api_key)
+        ext = os.path.splitext(photo_path)[1].lower()
+        mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
+        with open(photo_path, "rb") as f:
+            _d, _m = _downscale_for_vision(f.read(), mime)
+        part = types.Part.from_bytes(data=_d, mime_type=_m)
+        prompt = (
+            "這是一張真實室內空間照片（可能已有家具）。客觀標出畫面中『現有』家具的"
+            "邊界框，用 normalized 0–1000 的 [ymin, xmin, ymax, xmax]。只回 JSON：\n"
+            '{"sofa": [...] 或 null, "coffee_table": [...] 或 null, '
+            '"focal_anchor": [...] 或 null, "entrance_door": [...] 或 null}\n'
+            "- sofa：主沙發整體\n"
+            "- coffee_table：沙發前的茶几/主桌\n"
+            "- focal_anchor：電視櫃/視聽櫃/主視覺焦點櫃體\n"
+            "- entrance_door：大門/玄關門整組門片（常見深色雙開門）\n"
+            "看不到的物件填 null。依實際畫面標，不要憑空想像。"
+        )
+        result = None
+        for _attempt in range(2):
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+                contents=[part, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"),
+            )
+            try:
+                result = _json_loads_lenient(response.text)
+                break
+            except (ValueError, json.JSONDecodeError):
+                if _attempt == 1:
+                    return dict(empty)
+        out = dict(empty)
+        if isinstance(result, dict):
+            for k in out:
+                v = result.get(k)
+                if (isinstance(v, list) and len(v) == 4
+                        and all(isinstance(n, (int, float)) for n in v)):
+                    out[k] = [float(n) for n in v]
+        return out
+    except Exception as exc:
+        print(f"[detect_source_furniture] 失敗，回退保守: "
+              f"{type(exc).__name__}: {str(exc)[:100]}")
+        return dict(empty)
+
+
 def validate_render(
     original_path: str,
     render_path: str,

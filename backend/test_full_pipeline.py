@@ -1236,13 +1236,20 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 _mask_url = _gpt_image2_mask_data_url(render)
                 if _mask_url:
                     fal_args["mask_url"] = _mask_url
-                    fal_args["prompt"] = _gpt_image2_mask_repair_prompt(
-                        inputs.get("reference_map") or [],
-                        mask_mode=str(render.get("_edit_mask_mode") or "") or None,
-                    )
-                    print(f"  GPT Image 2 local edit mask: enabled "
-                          f"mode={render.get('_edit_mask_mode') or 'sofa'} "
-                          f"(short prompt {len(fal_args['prompt'])} chars)")
+                    if str(render.get("_edit_mask_mode") or "") == "first_render_layout":
+                        # P1 首渲版面 mask：image_1=源照、mask 清舊物+綁 footprint，但
+                        # 必須保留上面組好的完整 design/商品/風格 prompt——不能換成
+                        # 局部修短令（否則失去商品 ref 與空間指令，首渲變廢，Grok must-fix）。
+                        print("  GPT Image 2 first-render layout mask: enabled "
+                              f"(full prompt kept, {len(fal_args['prompt'])} chars)")
+                    else:
+                        fal_args["prompt"] = _gpt_image2_mask_repair_prompt(
+                            inputs.get("reference_map") or [],
+                            mask_mode=str(render.get("_edit_mask_mode") or "") or None,
+                        )
+                        print(f"  GPT Image 2 local edit mask: enabled "
+                              f"mode={render.get('_edit_mask_mode') or 'sofa'} "
+                              f"(short prompt {len(fal_args['prompt'])} chars)")
             else:
                 fal_args = {
                     "image_urls":    inputs["image_urls"],

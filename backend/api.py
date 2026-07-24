@@ -1811,6 +1811,123 @@ def _build_s2_sofa_edit_mask(
         return None
 
 
+def _first_render_footprint_target_box(sofa_points_px, door_bbox_1000, width, height):
+    """P1 首渲 sofa 目標框：永遠用 contract footprint 外接框（不走同牆滑）。
+    門距對『目標 footprint vs 門』計算（Grok must-fix：不是對源照舊沙發），
+    目標若太貼門 → 沿遠離門方向平移到 ≥0.25 門寬淨空。回 (x0,y0,x1,y1) 或 None。"""
+    if not sofa_points_px:
+        return None
+    xs = [float(p[0]) for p in sofa_points_px]
+    ys = [float(p[1]) for p in sofa_points_px]
+    fx0, fx1, fy0, fy1 = min(xs), max(xs), min(ys), max(ys)
+    if isinstance(door_bbox_1000, list) and len(door_bbox_1000) == 4:
+        _, dx0, _, dx1 = [float(v) for v in door_bbox_1000]
+        door_x0 = dx0 * width / 1000.0
+        door_x1 = dx1 * width / 1000.0
+        door_w = max(1.0, door_x1 - door_x0)
+        need = 0.25 * door_w
+        door_cx = (door_x0 + door_x1) / 2.0
+        tgt_cx = (fx0 + fx1) / 2.0
+        if tgt_cx >= door_cx:            # 目標在門右 → fx0 需 ≥ 門右緣 + need
+            gap = fx0 - door_x1
+            if gap < need:
+                fx0 += (need - gap); fx1 += (need - gap)
+        else:                            # 目標在門左 → fx1 需 ≤ 門左緣 - need
+            gap = door_x0 - fx1
+            if gap < need:
+                fx0 -= (need - gap); fx1 -= (need - gap)
+    fx0 = max(0.0, min(width - 1.0, fx0)); fx1 = max(0.0, min(width - 1.0, fx1))
+    if fx1 - fx0 < 8 or fy1 - fy0 < 8:
+        return None
+    return (round(fx0), round(fy0), round(fx1), round(fy1))
+
+
+def _build_s2_first_render_mask(base_path: str, contract_path: str,
+                                source_furniture: dict | None,
+                                output_path: str) -> str | None:
+    """P1 首渲硬綁 mask（新函式，不重用 retry 版）：
+      透明(可重畫) = 偵測到的舊 sofa + coffee_table（清掉黏著的原物）
+                    + S2 sofa footprint 目標區（永遠 footprint，門距對目標算）
+      不透明(鎖死) = 偵測到的大門 + 其餘一切
+    生成端用 mask_mode='first_render_layout' 保留完整 design/商品 prompt、image_1=源照。
+    無 contract sofa footprint / 建不出目標 → 回 None，呼叫端 skip（正常首渲，不 crash）。
+    v1 不動 TV：實牆 TV 通常在對位，避免雙櫃；焦點 erase 留 v2。"""
+    try:
+        from PIL import Image, ImageDraw
+
+        base = Path(base_path)
+        cf = Path(contract_path)
+        if not base.is_file() or not cf.is_file():
+            return None
+        contract = json.loads(cf.read_text(encoding="utf-8"))
+        chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+        chosen = next((it for it in contract.get("candidates") or []
+                       if it.get("candidate_id") == chosen_id), None)
+        if not chosen:
+            return None
+        geometry = {it.get("geometry_id"): it for it in contract.get("geometry") or []
+                    if isinstance(it, dict)}
+        sofa_fp = (((geometry.get(chosen.get("sofa_footprint_geometry_id")) or {})
+                    .get("shape") or {}).get("coordinates"))
+        src = (contract.get("source") or {}).get("size") or {}
+        sw = float(src.get("width") or 0)
+        sh = float(src.get("height") or 0)
+        if not sofa_fp or sw <= 0 or sh <= 0:
+            return None
+        with Image.open(base) as im:
+            width, height = im.size
+        scale_x, scale_y = width / sw, height / sh
+        sofa_pts = [(float(x) * scale_x, float(y) * scale_y) for x, y in sofa_fp]
+        sf = source_furniture or {}
+        target = _first_render_footprint_target_box(
+            sofa_pts, sf.get("entrance_door"), width, height)
+        if not target:
+            return None
+
+        mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+        draw = ImageDraw.Draw(mask, "RGBA")
+        pad_x, pad_y = width * 0.006, height * 0.02
+
+        def _erase(bbox_1000):
+            if not (isinstance(bbox_1000, list) and len(bbox_1000) == 4):
+                return
+            y0, x0, y1, x1 = [float(v) for v in bbox_1000]
+            draw.rectangle(
+                (max(0, int(x0 * width / 1000.0 - pad_x)),
+                 max(0, int(y0 * height / 1000.0 - pad_y)),
+                 min(width, int(x1 * width / 1000.0 + pad_x)),
+                 min(height, int(y1 * height / 1000.0 + pad_y))),
+                fill=(0, 0, 0, 0))
+
+        # 清掉黏著的原沙發 + 原茶几（外觀+位置一起清）
+        _erase(sf.get("sofa"))
+        _erase(sf.get("coffee_table"))
+        # 重畫區：sofa footprint 目標（門距已對目標調過）
+        tx0, ty0, tx1, ty1 = target
+        draw.rectangle(
+            (max(0, int(tx0 - pad_x)), max(0, int(ty0 - pad_y)),
+             min(width, int(tx1 + pad_x)), min(height, int(ty1 + pad_y))),
+            fill=(0, 0, 0, 0))
+        # 鎖死大門（最後畫，overlap 時不透明勝出）
+        door = sf.get("entrance_door")
+        if isinstance(door, list) and len(door) == 4:
+            dy0, dx0, dy1, dx1 = [float(v) for v in door]
+            dpx, dpy = width * 0.008, height * 0.008
+            draw.rectangle(
+                (max(0, int(dx0 * width / 1000.0 - dpx)),
+                 max(0, int(dy0 * height / 1000.0 - dpy)),
+                 min(width, int(dx1 * width / 1000.0 + dpx)),
+                 min(height, int(dy1 * height / 1000.0 + dpy))),
+                fill=(0, 0, 0, 255))
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        mask.save(out, "PNG")
+        return str(out)
+    except Exception as exc:
+        print(f"[pipeline] first-render mask failed: {type(exc).__name__}: {str(exc)[:120]}")
+        return None
+
+
 def _clear_s2_retry_edit_artifacts(entry: dict) -> None:
     """Clear only dynamic S2 retry artifacts before selecting a new edit base."""
     if entry.get("_s2_retry_artifacts_active") is not True:
@@ -4677,6 +4794,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 背景一致性參考。CROSS_ROOM_CONSISTENCY=0 可關（免部署開關）。
         _cross_room_on = os.environ.get("CROSS_ROOM_CONSISTENCY", "1").strip() != "0"
         _living_render_by_style: dict = {}
+        _p1_detect_cache: dict = {}   # P1 首渲偵測：同 base 跨風格只偵測一次
         # 一次渲染一張：對應 base 不同（analysis + design_mode 傳進去）
         final = []
         for idx, entry in enumerate(expanded):
@@ -4747,6 +4865,44 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 print(f"[pipeline] render[{idx}] S2 前檢封鎖 → 終止，不進生成／補生鏈")
                 final.append(preflight_blocked)
                 continue
+            # ── P1 首渲硬綁（P1_FIRST_RENDER_MASK，預設關）：S2 客廳首渲時偵測源照
+            # 舊家具 → mask 清舊物 + 綁 S2 footprint，同時解「黏原位」與「黏外觀(cream 沙發)」。
+            #   =0/off  關（預設）    =1/on  真掛 mask 進 fal（配 first_render_layout 保留完整 prompt）
+            #   =shadow 偵測+建 mask 檔+log，不送 mask_url（先量、零 fal 影響）
+            # 只掛首渲(attempt=1，此迴圈即是)；重試以 _s2_retry_artifacts_active 清掉不外漏。
+            _p1_mode = os.environ.get("P1_FIRST_RENDER_MASK", "0").strip().lower()
+            if (_p1_mode not in ("", "0", "off")
+                    and entry.get("_room_type") == "living"
+                    and entry.get("_layout_contract_s2_required") is True
+                    and entry.get("_layout_contract_s2")):
+                try:
+                    _base = entry["_base_path"]
+                    if _base not in _p1_detect_cache:
+                        from gemini_analyze import detect_source_furniture as _dsf
+                        _p1_detect_cache[_base] = _dsf(_base)
+                    _det = _p1_detect_cache[_base] or {}
+                    _p1_mask = _build_s2_first_render_mask(
+                        _base, entry.get("_layout_contract_s2") or "", _det,
+                        str(Path(job_dir) / f"mask_p1_first_{idx:02d}.png"))
+                    if _p1_mask and _p1_mode in ("1", "on", "true"):
+                        entry["_edit_mask_path"] = _p1_mask
+                        entry["_edit_mask_mode"] = "first_render_layout"
+                        entry["_force_mask_local_edit"] = True
+                        entry["_s2_retry_artifacts_active"] = True  # 重試前會被清，不外漏
+                        print(f"[p1] render[{idx}] 首渲硬綁 mask 掛上 "
+                              f"sofa={bool(_det.get('sofa'))} "
+                              f"ct={bool(_det.get('coffee_table'))} "
+                              f"door={bool(_det.get('entrance_door'))}")
+                    else:
+                        print("[p1-shadow] " + json.dumps({
+                            "job": job_id, "idx": idx, "mode": _p1_mode,
+                            "mask_built": bool(_p1_mask),
+                            "detect": {k: bool(_det.get(k)) for k in
+                                       ("sofa", "coffee_table", "focal_anchor", "entrance_door")},
+                        }, ensure_ascii=False))
+                except Exception as _p1e:
+                    print(f"[p1] 首渲硬綁例外（不影響生成）: "
+                          f"{type(_p1e).__name__}: {str(_p1e)[:100]}")
             try:
                 single_result = generate_renders(entry["_base_path"], [entry],
                                              output_dir=str(job_dir),
