@@ -540,7 +540,14 @@ MULTI_PIECE_BUNDLE_PENALTY = -5.0
 _FURN_TYPE_TOKENS = ("茶几", "電視櫃", "沙發", "餐桌", "書桌", "床架", "邊几",
                      "子母桌", "餐椅", "斗櫃", "邊櫃", "床頭櫃", "衣櫃", "書櫃")
 # 50873CF0 補洞：「客廳組」「沙發組」也是組（廳組/發組）
-_BUNDLE_HINT_RE = re.compile(r"(套組|組合|件套|全套|超值組|[桌櫃椅廳發][組套])")
+# D6705366 補洞：「几組」（茶几組/邊几組）之前 几 不在字元類裡→逃過語意雙品類分支
+_BUNDLE_HINT_RE = re.compile(r"(套組|組合|件套|全套|超值組|[桌櫃椅廳發几][組套])")
+# D6705366 補洞：桌几類「單一名詞＋組/套」市場上幾乎必為主桌＋子母桌/邊几的套售
+# （復古花邊圓形茶几組＝茶几＋高腳邊几兩件），單件參考圖會誤導渲染，但名字只列一種
+# 家具本體→語意雙品類分支抓不到。桌几類限定，不誤傷「沙發組」（Grok 提醒的行銷詞）。
+_TABLE_SET_RE = re.compile(r"(茶几|邊几|角几|邊桌|子母桌|桌几)[組套]")
+# 明確件數：兩件套 / 三件組 / 2件式 / N件套。「一件式」不算（單品）。
+_COUNT_SET_RE = re.compile(r"(兩|二|三|四|五|六|[2-9２-９])\s*件\s*[套組式]|[0-9]+件套")
 # 「A與B」「A+B」連接式合售（例：「極簡白色電視櫃與方形茶几」「L型沙發+升降茶几」）
 # ——兩種不同家具本體直接用連接詞串起，沒有組/套字也算多件合照。
 # 連接詞必須存在（「日式茶几沙發墊」這種純並列行銷詞不誤傷）。
@@ -562,6 +569,8 @@ def is_multi_piece_bundle(name: str) -> bool:
     if not nm:
         return False
     if _MULTI_PIECE_BUNDLE_RE.search(nm):
+        return True
+    if _TABLE_SET_RE.search(nm) or _COUNT_SET_RE.search(nm):
         return True
     m = _BUNDLE_CONJ_RE.search(nm)
     if m and m.group(1) != m.group(2):   # 「沙發與沙發墊」同 token 不算
