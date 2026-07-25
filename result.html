@@ -450,11 +450,21 @@
       // 90112824 教訓：斜角/建模不了的房，不要秀落選圖當成果、也不要含糊「還在修」——
       // 誠實說「這個角度我們設計不出來（不是你的問題）」+ 具體重拍指引。
       var _msg = (data && typeof data.message === 'string') ? data.message.replace(/[<>]/g, '') : '';
-      var _isReshoot = /重拍|拍攝角度|無法完整判讀|建模|斜角/.test(_msg);
+      // 71DC312E 補洞：後端有兩種「建模不了」訊息，靠字串比對會漏（該單掉進舊文案，
+      // 被錯誤告知「系統已自動嘗試修正／聯絡客服重出」——其實付費前就停了、也不會自動修）。
+      // 改成比對結構化欄位，跟後端 _delivery_failure_message 同一套判斷，不再猜字串。
+      var _preflight = dropped.some(function(d) {
+        return d.failure_class === 's2_preflight_blocked' || d.layout_mode === 's2_blocked_legacy';
+      });
+      var _obliqueLegacy = dropped.some(function(d) { return d.layout_mode === 'legacy_fallback'; });
+      var _isReshoot = _preflight || _obliqueLegacy
+        || /重拍|拍攝角度|無法完整判讀|建模|斜角|正面照片|前檢未通過/.test(_msg);
       if (_isReshoot) {
-        box.innerHTML =
-          '<strong style="color:#ffb4b4;">這個拍攝角度，系統目前設計不出安全的「沙發正對電視」佈局</strong>'
+        box.innerHTML = firstClause
+          + '<strong style="color:#ffb4b4;">這個拍攝角度，系統目前設計不出安全的「沙發正對電視」佈局</strong>'
           + '（不是你的品味或空間問題，是我們對這個角度的建模能力限制）。<br>'
+          + (_preflight ? '<span style="color:#e8cccc;">系統在<strong>生成前</strong>就停止了，'
+                        + '沒有產生錯誤的設計圖。</span><br>' : '')
           + (_msg ? '<span style="color:#e8cccc;">' + _msg + '</span><br>' : '')
           + '<div style="margin:10px auto 0;max-width:560px;text-align:left;font-size:12.5px;color:#e6cccc;line-height:1.9;">'
           + '<div style="color:#ffb4b4;margin-bottom:2px;">30 秒重拍小訣竅：</div>'
