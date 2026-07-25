@@ -254,6 +254,31 @@ def test_inferred_geometry_can_veto_but_never_grant():
     assert "GEOM_NOT_ELIGIBLE" in plan["unsafe_codes"]
 
 
+def test_raw_magic_string_cannot_authorize_corrected_floor():
+    raw = _safe_geometry()
+    floor = raw["elements"]["living_floor"]
+    floor["status"] = "verifier_corrected"
+    floor["confidence"] = "medium"
+    floor["correction_evidence"] = {
+        "derivation": "wall_floor_boundary_sync",
+        "sides": ["left"],
+    }
+
+    plan = s2.build_s2_plan(raw, width=1000, height=700, expected_source_photo_index=0)
+    trusted_plan = s2.build_s2_plan(
+        raw,
+        width=1000,
+        height=700,
+        expected_source_photo_index=0,
+        trusted_verifier_corrections=True,
+    )
+
+    assert plan["disposition"] == "BLOCKED"
+    assert "GEOM_NOT_ELIGIBLE" in plan["unsafe_codes"]
+    assert trusted_plan["disposition"] == "BLOCKED"
+    assert "GEOM_NOT_ELIGIBLE" in trusted_plan["unsafe_codes"]
+
+
 def test_s2_safe_contract_passes_frozen_schema(tmp_path):
     photo = tmp_path / "room.jpg"
     Image.new("RGB", (1000, 700), "white").save(photo)

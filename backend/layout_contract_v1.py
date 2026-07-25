@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -380,7 +381,10 @@ def _s2_geometry_record(
                     "s2-observed-geometry-v1"
                     if mode == "observed" else "s2-projective-depth-v2"
                 ),
-                "model": "gemini-3.5-flash" if mode == "observed" else None,
+                "model": (
+                    os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+                    if mode == "observed" else None
+                ),
             },
             "notes": notes,
             "legacy_source": None,
@@ -418,6 +422,14 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
             continue
         evidence_mode = str(item.get("evidence_mode") or "observed")
         verifier_corrected = evidence_mode == "verifier_corrected"
+        correction_derivation = (
+            ((item.get("evidence_details") or {}).get("correction_evidence") or {})
+            .get("derivation")
+        )
+        floor_boundary_sync = (
+            verifier_corrected
+            and correction_derivation == "wall_floor_boundary_sync"
+        )
         record = _s2_geometry_record(
             geometry_id=geometry_id,
             kind=kind,
@@ -425,8 +437,12 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
             source_photo_key=source_photo_key,
             mode="inferred" if verifier_corrected else "observed",
             producer_name=(
-                "layout_geometry_verifier_s2.bounded_wall_correction"
-                if verifier_corrected else "zoning_v2.struct_geometry_v1"
+                "layout_geometry_verifier_s2.wall_floor_boundary_sync"
+                if floor_boundary_sync
+                else (
+                    "layout_geometry_verifier_s2.bounded_wall_correction"
+                    if verifier_corrected else "zoning_v2.struct_geometry_v1"
+                )
             ),
             passed_checks=["PHOTO_BINDING_VALID", "TRANSFORM_CHAIN_VALID", "GEOMETRY_VALID"],
             notes=(
@@ -438,8 +454,13 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
         if verifier_corrected:
             record["evidence"]["confidence"] = 0.65
             record["evidence"]["visibility"] = "partial"
-            record["evidence"]["producer"]["version"] = "s2-bounded-wall-correction-v1"
-            record["evidence"]["producer"]["model"] = "gemini-3.5-flash"
+            record["evidence"]["producer"]["version"] = (
+                "s2-wall-floor-boundary-sync-v1"
+                if floor_boundary_sync else "s2-bounded-wall-correction-v1"
+            )
+            record["evidence"]["producer"]["model"] = os.environ.get(
+                "GEMINI_MODEL", "gemini-3.6-flash"
+            )
             record["validation"]["notes"].append("verifier_corrected_not_directly_observed")
         geometry.append(record)
         existing_ids.add(geometry_id)

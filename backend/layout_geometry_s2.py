@@ -539,7 +539,13 @@ def _shape_geometry(
     return item
 
 
-def _normalize_observed(raw: dict, width: int, height: int):
+def _normalize_observed(
+    raw: dict,
+    width: int,
+    height: int,
+    *,
+    trusted_verifier_corrections: bool = False,
+):
     elements = raw.get("elements") if isinstance(raw, dict) else None
     if not isinstance(elements, dict):
         return [], {}, ["CANDIDATE_GEOMETRY_INCOMPLETE"]
@@ -553,11 +559,22 @@ def _normalize_observed(raw: dict, width: int, height: int):
             unsafe.append(missing_code)
             continue
         status = element.get("status")
-        verifier_corrected_wall = (
+        correction_evidence = element.get("correction_evidence") or {}
+        corrected_wall = (
             name in ("left_wall_floor", "right_wall_floor")
-            and status == "verifier_corrected"
+            and correction_evidence.get("derivation") == "bounded_line_extension"
         )
-        if status != "observed" and not verifier_corrected_wall:
+        corrected_floor = (
+            name == "living_floor"
+            and correction_evidence.get("derivation")
+            == "wall_floor_boundary_sync"
+        )
+        verifier_corrected_geometry = (
+            trusted_verifier_corrections
+            and status == "verifier_corrected"
+            and (corrected_wall or corrected_floor)
+        )
+        if status != "observed" and not verifier_corrected_geometry:
             unsafe.append("GEOM_NOT_ELIGIBLE")
             continue
         if not _confidence_ok(element.get("confidence")):
@@ -589,8 +606,15 @@ def _normalize_observed(raw: dict, width: int, height: int):
         if not isinstance(segment, dict) or segment.get("side") not in segments:
             unsafe.append("NO_USABLE_WALL")
             continue
+        segment_status = segment.get("status")
+        segment_evidence = segment.get("correction_evidence") or {}
+        trusted_corrected_segment = (
+            trusted_verifier_corrections
+            and segment_status == "verifier_corrected"
+            and segment_evidence.get("derivation") == "bounded_line_extension"
+        )
         if (
-            segment.get("status") not in ("observed", "verifier_corrected")
+            (segment_status != "observed" and not trusted_corrected_segment)
             or not _confidence_ok(segment.get("confidence"))
         ):
             unsafe.append("GEOM_NOT_ELIGIBLE")
@@ -633,6 +657,46 @@ def _normalize_observed(raw: dict, width: int, height: int):
             "side": side,
             "coordinates": wall_shape["coordinates"],
         })
+
+    if trusted_verifier_corrections:
+        raw_floor = elements.get("living_floor") or {}
+        floor_evidence = raw_floor.get("correction_evidence") or {}
+        evidence_sides = set(floor_evidence.get("sides") or [])
+        corrected_sides = {
+            side for side in ("left", "right")
+            if (elements.get(f"{side}_wall_floor") or {}).get("status")
+            == "verifier_corrected"
+        }
+        floor_polygon = (by_name.get("living_floor") or {}).get(
+            "shape", {}
+        ).get("coordinates")
+        if corrected_sides:
+            if (
+                raw_floor.get("status") != "verifier_corrected"
+                or floor_evidence.get("derivation") != "wall_floor_boundary_sync"
+                or not corrected_sides <= evidence_sides
+                or not floor_polygon
+            ):
+                unsafe.append("GEOM_NOT_ELIGIBLE")
+            else:
+                boundary_tolerance = max(1.0, min(width, height) * 0.001)
+                for side in corrected_sides:
+                    line = wall_lines.get(side) or []
+                    if len(line) != 2 or any(
+                        min(
+                            _point_segment_distance(
+                                endpoint,
+                                floor_polygon[index],
+                                floor_polygon[(index + 1) % len(floor_polygon)],
+                            )
+                            for index in range(len(floor_polygon))
+                        ) > boundary_tolerance
+                        for endpoint in line
+                    ):
+                        unsafe.append("GEOM_NOT_ELIGIBLE")
+        elif raw_floor.get("status") == "verifier_corrected":
+            unsafe.append("GEOM_NOT_ELIGIBLE")
+
     # 兩面牆都沒有可用牆段才算真的無解。只有一面實牆仍然設計得出來——
     # 沙發浮島、電視櫃靠那面實牆，這正是真實設計師對「一側整排門」的做法。
     # 3135DE37：右側是臥室門＋通道開口（Gemini 標得完全正確），左牆 t 0~0.95
@@ -817,6 +881,7 @@ def build_s2_plan(
     transverse_direction_xy=None,
     transverse_reference: dict | None = None,
     can_float: bool = True,
+    trusted_verifier_corrections: bool = False,
 ) -> dict:
     """Build a deterministic S2 plan from observed geometry only.
 
@@ -833,7 +898,12 @@ def build_s2_plan(
     if isinstance(source_index, bool) or not isinstance(source_index, int) or source_index != expected_source_photo_index:
         return _blocked("CROSS_PHOTO_COORDS")
 
-    geometry, normalized, unsafe = _normalize_observed(raw, width, height)
+    geometry, normalized, unsafe = _normalize_observed(
+        raw,
+        width,
+        height,
+        trusted_verifier_corrections=trusted_verifier_corrections,
+    )
     if unsafe:
         return _blocked(*unsafe, geometry=geometry,
                         reason_class="INVALID_GEOMETRY" if "INVALID_GEOMETRY" in unsafe else "INSUFFICIENT_EVIDENCE")

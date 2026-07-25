@@ -57,6 +57,12 @@ def _observed_floor_reference(*_args):
     return copy.deepcopy(OBSERVED_FLOOR_REFERENCE)
 
 
+def test_verify_attempt_configuration_has_absolute_hard_cap():
+    assert verifier_s2._bounded_verify_attempts("999") == verifier_s2.S2_VERIFY_HARD_CAP
+    assert verifier_s2._bounded_verify_attempts("1") == 2
+    assert verifier_s2._bounded_verify_attempts("invalid") == 4
+
+
 def test_strict_parser_rejects_trailing_non_json_tokens():
     text = json.dumps(HARD_PASS) + "\n}"
 
@@ -213,7 +219,11 @@ def test_wall_correction_extends_observed_line_across_original_usable_depth():
     assert corrected_usable["status"] == "verifier_corrected"
     assert corrected_usable["confidence"] == "medium"
     replanned = geometry_s2.build_s2_plan(
-        corrected, width=1000, height=700, expected_source_photo_index=0,
+        corrected,
+        width=1000,
+        height=700,
+        expected_source_photo_index=0,
+        trusted_verifier_corrections=True,
     )
     corrected_geometry = [
         item for item in replanned["geometry"]
@@ -221,6 +231,51 @@ def test_wall_correction_extends_observed_line_across_original_usable_depth():
     ]
     assert corrected_geometry
     assert all(item["evidence_mode"] == "verifier_corrected" for item in corrected_geometry)
+
+
+def test_wall_correction_updates_living_floor_corner_when_usable_wall_reaches_deep_end():
+    """71DC312E｜左牆深端修正後，living_floor 不得仍保留錯的舊深角。"""
+    raw = _safe_geometry()
+    raw["elements"]["living_floor"]["polygon_yx1000"] = [
+        [980, 0], [980, 1000], [615, 620], [580, 435],
+    ]
+    raw["elements"]["left_wall_floor"]["segment_yx1000"] = [
+        [980, 0], [580, 435],
+    ]
+    left_usable = next(
+        item for item in raw["usable_wall_segments"] if item["side"] == "left"
+    )
+    left_usable["t_start"] = 0.35
+    left_usable["t_end"] = 1.0
+
+    corrected, changed = verifier_s2._apply_wall_corrections(raw, {
+        "left_wall_floor_alignment": "fail",
+        "corrected_left_wall_floor_segment_yx1000": [[700, 260], [580, 382]],
+    })
+
+    assert changed is True
+    floor = corrected["elements"]["living_floor"]["polygon_yx1000"]
+    assert [580.0, 382.0] in floor
+    assert [580, 435] not in floor
+    assert [980, 0] in floor, "未被修正證據覆蓋的近端地板角必須保留"
+    corrected_line = corrected["elements"]["left_wall_floor"]["segment_yx1000"]
+    for endpoint in corrected_line:
+        boundary_distance = min(
+            geometry_s2._point_segment_distance(
+                endpoint, floor[index], floor[(index + 1) % len(floor)],
+            )
+            for index in range(len(floor))
+        )
+        assert boundary_distance <= 1e-6, "修正牆段兩端都必須落在 living_floor 邊界"
+    replanned = geometry_s2.build_s2_plan(
+        corrected,
+        width=1000,
+        height=700,
+        expected_source_photo_index=0,
+        transverse_direction_xy=[1.0, 0.0],
+        trusted_verifier_corrections=True,
+    )
+    assert "GEOM_NOT_ELIGIBLE" not in replanned["unsafe_codes"]
 
 
 def test_wall_side_check_requires_both_endpoints_to_stay_on_side():
@@ -507,6 +562,66 @@ def test_common_fail_switches_once_to_best_opposite_candidate(tmp_path, monkeypa
         if candidate["candidate_id"] == retry["from_candidate_id"]
     )
     assert failed_candidate["eligible"] is False
+
+
+def test_valid_wall_correction_from_opposite_candidate_replans_and_reverifies(
+    tmp_path, monkeypatch,
+):
+    """71DC312E｜修正到第 3 次才出現也不能丟掉；應重建 guide 再驗一次。"""
+    monkeypatch.setattr(verifier_s2, "S2_VERIFY_MAX_ATTEMPTS", 2)
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    calls = []
+    floor_reference_inputs = []
+
+    def tracking_floor_reference(_photo, polygon):
+        floor_reference_inputs.append(copy.deepcopy(polygon))
+        return copy.deepcopy(OBSERVED_FLOOR_REFERENCE)
+
+    def candidate_verifier(_photo, _guide, attempt_number, plan=None):
+        chosen = verifier_s2._chosen_candidate(plan)
+        calls.append((attempt_number, chosen.get("candidate_id"), chosen.get("sofa_side")))
+        if attempt_number == 4:
+            return copy.deepcopy(HARD_PASS)
+        failed = copy.deepcopy(HARD_PASS)
+        failed["left_wall_floor_alignment"] = "fail"
+        failed["overall"] = "fail"
+        if chosen.get("sofa_side") == "left":
+            failed["sofa_back_contact"] = "fail"
+            failed["unsafe_codes"] = ["SOFA_NOT_WALL_ANCHORED"]
+        else:
+            failed["tv_wall_contact"] = "fail"
+            failed["unsafe_codes"] = ["TV_NOT_WALL_ANCHORED"]
+            failed["corrected_left_wall_floor_segment_yx1000"] = [
+                [820, 90], [357, 430],
+            ]
+        return failed
+
+    result = verifier_s2.verify_and_replan_s2(
+        raw_geometry=_safe_geometry(),
+        photo_path=photo,
+        output_dir=tmp_path,
+        expected_source_photo_index=0,
+        sofa_side="free",
+        verifier=candidate_verifier,
+        floor_reference_estimator=tracking_floor_reference,
+        can_float=False,
+    )
+
+    assert [side for _attempt, _candidate, side in calls] == ["left", "left", "right", "left"]
+    assert [attempt for attempt, _candidate, _side in calls] == [1, 2, 3, 4]
+    assert len(floor_reference_inputs) == 2
+    assert floor_reference_inputs[0] != floor_reference_inputs[1]
+    assert result["plan"]["disposition"] == "SAFE_FOR_GENERATION"
+    assert result["plan"]["geometry_verification"]["corrected"] is True
+    retry = result["plan"]["geometry_verification"]["candidate_retry"]
+    assert retry["post_correction_candidate_id"] == calls[3][1]
+    assert retry["post_correction_sofa_side"] == calls[3][2]
+    failed_ids = result["plan"]["geometry_verification"]["failed_candidate_ids"]
+    assert result["plan"]["chosen_candidate_id"] not in failed_ids
+    assert retry["from_candidate_id"] in retry["pre_correction_failed_candidate_ids"]
+    assert retry["post_correction_geometry_revision"] == "wall_correction_1"
+    assert result["raw_geometry"]["elements"]["left_wall_floor"]["status"] == "verifier_corrected"
 
 
 def test_persistent_hard_fail_blocks_early_without_burning_rechecks(tmp_path):

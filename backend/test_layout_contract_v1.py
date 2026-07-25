@@ -117,3 +117,51 @@ def test_s1_builder_does_not_bind_legacy_bbox_without_verified_photo_match():
     assert contract["legacy_inputs"]["legacy_bbox_binding_verified"] is False
     assert not any(g["status"] == "available" for g in contract["geometry"])
     assert contract["decision"]["pre_generation_eligible"] is False
+
+
+def test_s2_geometry_producer_records_active_gemini_model(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-review-fixture")
+
+    record = lcv1._s2_geometry_record(
+        geometry_id="left_wall_floor",
+        kind="segment",
+        shape={"type": "segment", "coordinates": [[0, 0], [1, 1]]},
+        source_photo_key="renders/source.jpg",
+        mode="observed",
+        producer_name="zoning_v2.struct_geometry_v1",
+        passed_checks=["GEOMETRY_VALID"],
+        notes="fixture",
+    )
+
+    assert record["evidence"]["producer"]["model"] == "gemini-review-fixture"
+
+
+def test_corrected_living_floor_records_boundary_sync_producer(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-review-fixture")
+    plan = {
+        "geometry": [{
+            "geometry_id": "living_floor",
+            "kind": "polygon",
+            "shape": {
+                "type": "polygon",
+                "coordinates": [[0, 0], [10, 0], [10, 10], [0, 10]],
+            },
+            "evidence_mode": "verifier_corrected",
+            "evidence_details": {
+                "correction_evidence": {
+                    "derivation": "wall_floor_boundary_sync",
+                    "sides": ["left"],
+                },
+            },
+        }],
+        "candidates": [],
+    }
+
+    geometry, _candidates, _audit = lcv1._formalize_s2_plan(
+        plan, "renders/source.jpg",
+    )
+
+    producer = geometry[0]["evidence"]["producer"]
+    assert producer["name"] == "layout_geometry_verifier_s2.wall_floor_boundary_sync"
+    assert producer["version"] == "s2-wall-floor-boundary-sync-v1"
+    assert producer["model"] == "gemini-review-fixture"

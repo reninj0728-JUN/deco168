@@ -19,7 +19,22 @@ import layout_geometry_s2 as lgs2
 # 每次只是一通 flash 呼叫、發生在任何 fal 花費之前，用它換「已付費的單至少
 # 生得出圖」非常划算：單次通過率約 37%，四次至少一次通過約 84%。
 # 需要臨時退回舊行為時設 S2_VERIFY_MAX_ATTEMPTS=2。
-S2_VERIFY_MAX_ATTEMPTS = max(2, int(os.environ.get("S2_VERIFY_MAX_ATTEMPTS", "4") or 4))
+# 即使環境變數誤設成極大值，也不得無上限燒 Gemini；每個 verifier attempt
+# 內部 malformed JSON 最多重送一次，因此總模型呼叫硬上限為 (4 + 2) * 2 = 12。
+S2_VERIFY_HARD_CAP = 4
+
+
+def _bounded_verify_attempts(value) -> int:
+    try:
+        configured = int(value or 4)
+    except (TypeError, ValueError):
+        configured = 4
+    return min(S2_VERIFY_HARD_CAP, max(2, configured))
+
+
+S2_VERIFY_MAX_ATTEMPTS = _bounded_verify_attempts(
+    os.environ.get("S2_VERIFY_MAX_ATTEMPTS", "4")
+)
 
 
 _REQUIRED_PASS_FIELDS = (
@@ -350,6 +365,106 @@ def _extend_correction_to_usable_depth(raw_geometry: dict, side: str, observed_s
     return extended, remapped
 
 
+def _sync_living_floor_boundary(
+    raw_geometry: dict,
+    *,
+    side: str,
+    original_line,
+    corrected_line,
+) -> bool:
+    """Splice the corrected usable wall into the matching floor boundary.
+
+    The correction may cover only t=0.35..1.0.  In that case keeping only the
+    old near corner and replacing the deep corner creates a diagonal that does
+    not contain the corrected wall start.  Insert both corrected endpoints as
+    real polygon vertices, while preserving uncovered near/deep corners.
+    """
+    floor_element = (raw_geometry.get("elements") or {}).get("living_floor") or {}
+    polygon = floor_element.get("polygon_yx1000")
+    usable = [
+        item for item in raw_geometry.get("usable_wall_segments", [])
+        if isinstance(item, dict) and item.get("side") == side
+    ]
+    if not isinstance(polygon, list) or len(polygon) < 4 or not usable:
+        return False
+    try:
+        global_start = min(float(item["t_start"]) for item in usable)
+        global_end = max(float(item["t_end"]) for item in usable)
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    def point_distance(first, second):
+        return math.hypot(
+            float(first[0]) - float(second[0]),
+            float(first[1]) - float(second[1]),
+        )
+
+    def matching_vertex(point):
+        distances = [point_distance(item, point) for item in polygon]
+        index = min(range(len(distances)), key=distances.__getitem__)
+        return index if distances[index] <= 1e-6 else None
+
+    near_index = matching_vertex(original_line[0])
+    deep_index = matching_vertex(original_line[1])
+    if near_index is None or deep_index is None:
+        return False
+
+    near_to_deep = []
+    if global_start > 1e-6:
+        near_to_deep.append([float(v) for v in original_line[0]])
+    near_to_deep.extend([[float(v) for v in point] for point in corrected_line])
+    if global_end < 1.0 - 1e-6:
+        near_to_deep.append([float(v) for v in original_line[1]])
+
+    compact_path = []
+    for point in near_to_deep:
+        if not compact_path or point_distance(point, compact_path[-1]) > 1e-6:
+            compact_path.append(point)
+
+    count = len(polygon)
+    if (near_index + 1) % count == deep_index:
+        edge_start, edge_end = near_index, deep_index
+        replacement_path = compact_path
+    elif (deep_index + 1) % count == near_index:
+        edge_start, edge_end = deep_index, near_index
+        replacement_path = list(reversed(compact_path))
+    else:
+        return False
+
+    rotated = copy.deepcopy(polygon[edge_start:] + polygon[:edge_start])
+    if len(rotated) < 2 or matching_vertex(rotated[1]) != edge_end:
+        return False
+    updated = replacement_path + rotated[2:]
+    if len(updated) > 1 and point_distance(updated[0], updated[-1]) <= 1e-6:
+        updated.pop()
+    if lgs2._shape_from_element(
+        {"polygon_yx1000": updated}, width=1000, height=1000,
+    ) is None:
+        return False
+    for endpoint in corrected_line:
+        boundary_distance = min(
+            lgs2._point_segment_distance(
+                endpoint, updated[index], updated[(index + 1) % len(updated)],
+            )
+            for index in range(len(updated))
+        )
+        if boundary_distance > 1e-6:
+            return False
+
+    evidence = floor_element.get("correction_evidence") or {}
+    corrected_sides = set(evidence.get("sides") or [])
+    corrected_sides.add(side)
+    floor_element["polygon_yx1000"] = updated
+    floor_element["status"] = "verifier_corrected"
+    floor_element["confidence"] = "medium"
+    floor_element["visibility"] = "partial"
+    floor_element["correction_evidence"] = {
+        "sides": sorted(corrected_sides),
+        "derivation": "wall_floor_boundary_sync",
+    }
+    return True
+
+
 def _apply_wall_corrections(raw_geometry: dict, verdict: dict) -> tuple[dict, bool]:
     corrected = copy.deepcopy(raw_geometry)
     changed = False
@@ -371,6 +486,14 @@ def _apply_wall_corrections(raw_geometry: dict, verdict: dict) -> tuple[dict, bo
             corrected, side, segment,
         )
         if not extended_segment or not remapped_segments:
+            continue
+        original_line = copy.deepcopy(element.get("segment_yx1000"))
+        if not _sync_living_floor_boundary(
+            corrected,
+            side=side,
+            original_line=original_line,
+            corrected_line=extended_segment,
+        ):
             continue
         element["segment_yx1000"] = extended_segment
         element["status"] = "verifier_corrected"
@@ -767,9 +890,10 @@ def verify_and_replan_s2(
     failed_field_sets_by_candidate: dict[str, list[frozenset]] = {}
     failed_candidate_ids: set[str] = set()
     candidate_retry: dict | None = None
-    # 正常判官最多 S2_VERIFY_MAX_ATTEMPTS 次；若最後一次才確認共同 hard fail，
-    # 額外保留一格「相反側候選」單次驗證。該格不會再進同候選重試。
-    for attempt_number in range(1, S2_VERIFY_MAX_ATTEMPTS + 2):
+    # 正常判官最多 S2_VERIFY_MAX_ATTEMPTS 次；另保留一格相反側候選，
+    # 再保留一格給「相反側才回傳有效牆線修正」的單次重驗。只有具體、通過
+    # _apply_wall_corrections 邊界檢查的修正才能使用最後一格，且全程最多修一次。
+    for attempt_number in range(1, S2_VERIFY_MAX_ATTEMPTS + 3):
         attempt_candidate = _chosen_candidate(plan)
         attempt_candidate_id = str(attempt_candidate.get("candidate_id") or "")
         attempt_path = target_dir / f"layout_guide_s2_attempt{attempt_number}.jpg"
@@ -839,24 +963,66 @@ def verify_and_replan_s2(
             failed_field_sets_by_candidate.setdefault(attempt_candidate_id, []).append(
                 current_fields
             )
-        if attempt_number == 1 and hard_fail and not correction_applied:
-            active_raw, changed = _apply_wall_corrections(active_raw, verdict)
+        if (hard_fail and not correction_applied
+                and attempt_number <= S2_VERIFY_MAX_ATTEMPTS + 1):
+            corrected_raw, changed = _apply_wall_corrections(active_raw, verdict)
             if changed:
-                plan = lgs2.build_s2_plan(
-                    active_raw,
+                corrected_living_floor = (
+                    ((corrected_raw.get("elements") or {}).get("living_floor") or {})
+                    .get("polygon_yx1000")
+                )
+                corrected_floor_reference = estimator(source, corrected_living_floor)
+                corrected_direction = (
+                    corrected_floor_reference.get("direction_xy")
+                    if isinstance(corrected_floor_reference, dict)
+                    and corrected_floor_reference.get("status") == "observed"
+                    else None
+                )
+                corrected_plan = lgs2.build_s2_plan(
+                    corrected_raw,
                     width=width,
                     height=height,
                     expected_source_photo_index=expected_source_photo_index,
                     sofa_side=sofa_side,
-                    transverse_direction_xy=observed_direction,
-                    transverse_reference=floor_reference,
+                    transverse_direction_xy=corrected_direction,
+                    transverse_reference=(
+                        corrected_floor_reference
+                        if isinstance(corrected_floor_reference, dict) else None
+                    ),
                     can_float=can_float,
+                    trusted_verifier_corrections=True,
                 )
-                if plan.get("pre_generation_eligible"):
+                if corrected_direction is not None and corrected_plan.get(
+                    "pre_generation_eligible"
+                ):
+                    active_raw = corrected_raw
+                    plan = corrected_plan
+                    floor_reference = corrected_floor_reference
+                    observed_direction = corrected_direction
                     correction_applied = True
                     retry_reason = "wall_correction"
+                    if candidate_retry:
+                        post_correction = _chosen_candidate(corrected_plan)
+                        post_candidate_id = post_correction.get("candidate_id")
+                        candidate_retry["pre_correction_failed_candidate_ids"] = sorted(
+                            failed_candidate_ids
+                        )
+                        candidate_retry["post_correction_candidate_id"] = (
+                            post_candidate_id
+                        )
+                        candidate_retry["post_correction_sofa_side"] = (
+                            post_correction.get("sofa_side")
+                        )
+                        candidate_retry["post_correction_geometry_revision"] = (
+                            "wall_correction_1"
+                        )
+                        # Candidate IDs encode layout type/side/depth, not the wall
+                        # geometry revision.  A corrected candidate may reuse the old
+                        # ID, so keep the old failure in pre-correction audit metadata
+                        # and never label the newly reverified final candidate failed.
+                        failed_candidate_ids.discard(str(post_candidate_id or ""))
                     print(
-                        "[layout-verifier] attempt=1 outcome=hard_fail "
+                        f"[layout-verifier] attempt={attempt_number} outcome=hard_fail "
                         "action=wall_correction_retry"
                     )
                     continue
