@@ -1985,9 +1985,15 @@ def build_nano_banana_inputs(
         )
 
     local_repair_sec = ""
-    if (consistency_ref_url
-            and isinstance(retry_context, dict)
-            and retry_context.get("sofa_alignment_edit") is True):
+    _sofa_local_repair = (
+        isinstance(retry_context, dict)
+        and retry_context.get("sofa_alignment_edit") is True
+    )
+    _console_local_repair = (
+        isinstance(retry_context, dict)
+        and retry_context.get("console_door_clearance_edit") is True
+    )
+    if consistency_ref_url and (_sofa_local_repair or _console_local_repair):
         _repair_idx = next_idx
         reference_map.append({
             "index": _repair_idx,
@@ -2000,14 +2006,26 @@ def build_nano_banana_inputs(
         })
         image_urls.append(consistency_ref_url)
         next_idx += 1
-        local_repair_sec = (
-            f"LOCAL SOFA REPAIR: reference image #{_repair_idx} is the previous furnished render "
-            "with a local repair guide drawn in the same camera coordinates. MOVE ONLY THE SOFA "
-            "fully into its GREEN target and completely outside every RED entrance/landing zone. "
-            "LOCK the TV, media console, doors, walls, windows, ceiling, floor, camera, lighting, "
-            "passage openings, and every other furnished object exactly as in image #1. Do not "
-            "regenerate the room. Remove every guide colour, line, label, dot, and overlay from output."
-        )
+        if _console_local_repair:
+            local_repair_sec = (
+                f"LOCAL MEDIA-CONSOLE REPAIR: reference image #{_repair_idx} is the previous furnished "
+                "render with the old console marked RED and its same-wall safe target marked BLUE. "
+                "MOVE ONLY the existing TV and media console along their ORIGINAL wall into the BLUE "
+                "target. Never move them across the room or onto the sofa wall. Keep the exact same "
+                "catalog media-console identity, dimensions, colour, material, doors/drawers and legs; "
+                "do not add or substitute any cabinet. LOCK the sofa, rug, coffee table, doors, walls, "
+                "windows, ceiling, floor, camera, lighting, passage openings and every other object. "
+                "Remove every guide colour, line, label, dot and overlay from the output."
+            )
+        else:
+            local_repair_sec = (
+                f"LOCAL SOFA REPAIR: reference image #{_repair_idx} is the previous furnished render "
+                "with a local repair guide drawn in the same camera coordinates. MOVE ONLY THE SOFA "
+                "fully into its GREEN target and completely outside every RED entrance/landing zone. "
+                "LOCK the TV, media console, doors, walls, windows, ceiling, floor, camera, lighting, "
+                "passage openings, and every other furnished object exactly as in image #1. Do not "
+                "regenerate the room. Remove every guide colour, line, label, dot, and overlay from output."
+            )
 
     for cat in MUST_HAVE_CATS:
         if cat in selected:

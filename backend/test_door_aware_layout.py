@@ -607,7 +607,34 @@ class DoorAwareLayoutTests(unittest.TestCase):
         }
         accepted, reason = api._console_repair_candidate_is_monotonic(safe_progress, wrong_wall)
         self.assertFalse(accepted)
-        self.assertIn("pair alignment regressed", reason)
+        self.assertIn("console wall side changed", reason)
+
+        # E4706B43：即使判官沒報錯、pair 的 y 中心也完全對齊，櫃體從左半牆
+        # 跨到右半牆仍必須由確定性 code-gate 擋掉。
+        e470_previous = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "furniture_blocks_door": True,
+            "focal_anchor_misaligned_with_sofa": False,
+            "render_bboxes": {
+                "entrance_door": [13, 9, 781, 172],
+                "focal_anchor": [439, 83, 703, 292],
+                "sofa": [349, 617, 755, 951],
+            },
+        }
+        e470_cross_wall = {
+            **e470_previous,
+            "furniture_blocks_door": False,
+            "render_bboxes": {
+                "entrance_door": [13, 9, 781, 172],
+                "focal_anchor": [500, 580, 604, 700],  # y 中心=552，pair 完全對齊但已跨右牆
+                "sofa": [349, 617, 755, 951],
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(
+            e470_previous, e470_cross_wall)
+        self.assertFalse(accepted)
+        self.assertIn("console wall side changed (left→right)", reason)
 
         source = Path(api.__file__).read_text(encoding="utf-8")
         z3 = source.split("# ── Z3:", 1)[1].split("# 統計", 1)[0]
@@ -644,6 +671,18 @@ class DoorAwareLayoutTests(unittest.TestCase):
         sofa = validation["render_bboxes"]["sofa"]
         pair_delta = abs((target[1] + target[3]) / 2 - (sofa[0] + sofa[2]) / 2)
         self.assertLessEqual(pair_delta, api.PAIR_CENTER_EXTREME)
+
+        # 原牆若放不下完整櫃寬，不得把藍框跨到另一半牆後再付費抽修。
+        no_same_wall_room = {
+            **validation,
+            "render_bboxes": {
+                "entrance_door": [100, 100, 800, 400],
+                "focal_anchor": [400, 300, 550, 480],
+                "sofa": [400, 650, 700, 950],
+            },
+        }
+        self.assertIsNone(api._console_door_clearance_target_box(
+            no_same_wall_room, 1000, 1000))
 
         prompt = pb._build_retry_context_section({"console_door_clearance_edit": True})
         self.assertIn("LATERALLY ONLY", prompt)

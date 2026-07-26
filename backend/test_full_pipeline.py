@@ -887,7 +887,8 @@ def _gpt_image2_mask_data_url(render: dict | None) -> str | None:
 
 
 def _gpt_image2_mask_repair_prompt(reference_map: list[dict],
-                                   mask_mode: str | None = None) -> str:
+                                   mask_mode: str | None = None,
+                                   render: dict | None = None) -> str:
     local_index = next(
         (item.get("index") for item in reference_map
          if item.get("kind") == "LOCAL_REPAIR_GUIDE"),
@@ -895,6 +896,25 @@ def _gpt_image2_mask_repair_prompt(reference_map: list[dict],
     )
     # 593408CC：電視櫃貼門 — 遮罩硬修只動櫃，鎖沙發與門
     if mask_mode == "console_door":
+        product_index = next(
+            (item.get("index") for item in reference_map
+             if item.get("cat_en") == "media_console"),
+            None,
+        )
+        product_lock = (
+            f"Recreate the exact SAME catalog media console shown in Image #{product_index}, "
+            "including its dimensions, colour, material, doors/drawers and floor-standing legs; "
+            "never add, replace or substitute another cabinet. "
+            if product_index is not None else
+            "Preserve the exact same media-console identity, dimensions, colour, material, "
+            "doors/drawers and floor-standing legs; never add or substitute another cabinet. "
+        )
+        wall_side = str((render or {}).get("_console_repair_wall_side") or "").upper()
+        wall_lock = (
+            f"The original console wall is the {wall_side} side-wall in Image #1. "
+            if wall_side in {"LEFT", "RIGHT"} else
+            "Keep the console on its original side-wall in Image #1. "
+        )
         return (
             "MASKED LOCAL CONSOLE DOOR-CLEARANCE REPAIR ONLY. Image #1 is the previous "
             "furnished render. "
@@ -902,6 +922,10 @@ def _gpt_image2_mask_repair_prompt(reference_map: list[dict],
             "new-console target past the entrance door. Inside the WHITE editable mask area, completely "
             "erase the old TV/media console from the RED zone and reconstruct the exposed wall "
             "and floor. Place exactly one low media console (with TV) fully inside the BLUE target, "
+            + wall_lock +
+            "Move it only forward/back along that same wall; never move it across the room, onto the "
+            "sofa wall, or outside the BLUE target. "
+            + product_lock +
             "leaving at least 0.28× door-width of bare wall between the far door frame and the "
             "console start. LOCK the sofa, rug, coffee table, entrance door, intercom, walls, "
             "ceiling, floor, lighting, camera and perspective — do not move or redesign the sofa. "
@@ -1246,6 +1270,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         fal_args["prompt"] = _gpt_image2_mask_repair_prompt(
                             inputs.get("reference_map") or [],
                             mask_mode=str(render.get("_edit_mask_mode") or "") or None,
+                            render=render,
                         )
                         print(f"  GPT Image 2 local edit mask: enabled "
                               f"mode={render.get('_edit_mask_mode') or 'sofa'} "

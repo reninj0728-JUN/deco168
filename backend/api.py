@@ -1348,6 +1348,7 @@ def _console_door_clearance_target_box(
     door_w = max(1.0, dx1 - dx0)
     cons_w = max(1.0, fx1 - fx0)
     cons_h = max(1.0, fy1 - fy0)
+    original_wall_side = "left" if (fx0 + fx1) / 2.0 < 500.0 else "right"
     gap = DOOR_GAP_MIN_FOCAL * door_w
     door_cx = (dx0 + dx1) / 2.0
     # 門在畫面左半 → 櫃體推到門右緣之後；右半 → 推到門左緣之前。
@@ -1362,6 +1363,12 @@ def _console_door_clearance_target_box(
         new_x0 = new_x1 - cons_w
         if new_x0 < 20.0:
             return None
+    # 同牆修復的最低幾何保證：目標中心不得跨過畫面中線。E4706B43 的
+    # correction map 沒真正送進模型後，櫃體從左牆跳到右牆；若目標本身已經
+    # 需要跨半邊，代表原牆沒有保住完整櫃寬的安全位置，應在付費前停止。
+    target_wall_side = "left" if (new_x0 + new_x1) / 2.0 < 500.0 else "right"
+    if target_wall_side != original_wall_side:
+        return None
     # E9CD7958：原櫃與沙發已對正，舊程式卻額外往影像上方推，
     # 修好門距同時把 pair delta 63 惡化到 195。避門只修 x，y/depth 原封不動。
     new_y0 = fy0
@@ -1546,6 +1553,11 @@ def _activate_console_door_edit(
     if not mask or not guide:
         print("[pipeline] console door edit skipped before generation: safe mask/guide unavailable")
         return None
+    boxes = (validation or {}).get("render_bboxes") or {}
+    focal = boxes.get("focal_anchor") or []
+    if isinstance(focal, (list, tuple)) and len(focal) == 4:
+        focal_cx = (float(focal[1]) + float(focal[3])) / 2.0
+        e["_console_repair_wall_side"] = "left" if focal_cx < 500.0 else "right"
     e["_edit_mask_path"] = mask
     e["_edit_mask_mode"] = "console_door"
     e["_consistency_ref_path"] = guide
@@ -3789,6 +3801,21 @@ def _console_repair_candidate_is_monotonic(
     if not all(isinstance(boxes.get(name), (list, tuple)) and len(boxes[name]) == 4
                for name in ("entrance_door", "focal_anchor", "sofa")):
         return False, "candidate bbox incomplete"
+
+    prev_focal = (prev.get("render_bboxes") or {}).get("focal_anchor")
+    cand_focal = boxes.get("focal_anchor")
+    if not (isinstance(prev_focal, (list, tuple)) and len(prev_focal) == 4):
+        return False, "previous focal bbox incomplete"
+    prev_wall_side = (
+        "left" if (float(prev_focal[1]) + float(prev_focal[3])) / 2.0 < 500.0
+        else "right"
+    )
+    cand_wall_side = (
+        "left" if (float(cand_focal[1]) + float(cand_focal[3])) / 2.0 < 500.0
+        else "right"
+    )
+    if cand_wall_side != prev_wall_side:
+        return False, f"console wall side changed ({prev_wall_side}→{cand_wall_side})"
 
     regression_flags = (
         "furniture_blocks_walkway", "sofa_intrudes_walkway", "sofa_faces_walkway",

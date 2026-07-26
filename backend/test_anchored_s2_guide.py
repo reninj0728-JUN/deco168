@@ -168,6 +168,54 @@ def test_s2_sofa_alignment_edit_adds_local_repair_guide_as_third_reference():
     assert "local repair guide" in result["prompt"].lower()
 
 
+def test_console_door_edit_sends_guide_and_keeps_catalog_product_identity():
+    """E4706B43｜不能只建立 correction map 卻沒送入模型；商品與價格也不得被換掉。"""
+    entry = {
+        "style": "nordic",
+        "style_label": "北歐清簡",
+        "_s2_compact_entry_mode": True,
+        "matched_furniture": [{
+            "id": "console-1",
+            "category_en": "media_console",
+            "name_zh": "淺橡木落地電視櫃",
+            "image_url": "https://example.com/console.jpg",
+            "price_twd": 16800,
+        }],
+    }
+    result = build_nano_banana_inputs(
+        entry,
+        zoning=None,
+        room_image_url="data:image/jpeg;base64,PREVIOUS_RENDER",
+        consistency_ref_url="data:image/jpeg;base64,CONSOLE_REPAIR_GUIDE",
+        retry_context={
+            "console_door_clearance_edit": True,
+            "failed_flags": ["furniture_blocks_door"],
+        },
+    )
+
+    assert result["image_urls"] == [
+        "data:image/jpeg;base64,PREVIOUS_RENDER",
+        "data:image/jpeg;base64,CONSOLE_REPAIR_GUIDE",
+        "https://example.com/console.jpg",
+    ]
+    assert result["reference_map"][1]["kind"] == "LOCAL_REPAIR_GUIDE"
+    assert result["reference_map"][2]["cat_en"] == "media_console"
+    assert "ORIGINAL wall" in result["prompt"]
+    assert "exact same catalog media-console identity" in result["prompt"]
+    assert entry["matched_furniture"][0]["price_twd"] == 16800
+
+    mask_prompt = _gpt_image2_mask_repair_prompt(
+        result["reference_map"],
+        mask_mode="console_door",
+        render={"_console_repair_wall_side": "left"},
+    )
+    assert "Image #2" in mask_prompt
+    assert "Image #3" in mask_prompt
+    assert "LEFT side-wall" in mask_prompt
+    assert "exact SAME catalog media console" in mask_prompt
+    assert "never add, replace or substitute another cabinet" in mask_prompt
+
+
 def test_gpt_image2_mask_retry_uses_short_local_only_prompt():
     prompt = _gpt_image2_mask_repair_prompt([
         {"index": 3, "kind": "LOCAL_REPAIR_GUIDE"},
