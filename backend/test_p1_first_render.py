@@ -79,12 +79,13 @@ def test_first_render_mask_erases_old_paints_footprint_locks_door(tmp_path):
     }
     mp = api._build_s2_first_render_mask(str(base), cp, detect, str(tmp_path / "m.png"))
     assert mp
-    alpha = Image.open(mp).getchannel("A")
-    assert alpha.getpixel((370, 640)) == 0, "footprint 目標區應透明（重畫沙發）"
-    assert alpha.getpixel((760, 640)) == 0, "舊沙發區應透明（清掉黏著原物）"
-    assert alpha.getpixel((500, 680)) == 0, "舊茶几區應透明（清掉）"
-    assert alpha.getpixel((120, 450)) == 255, "大門必須鎖死"
-    assert alpha.getpixel((880, 120)) == 255, "無關牆面預設鎖死"
+    mask = Image.open(mp)
+    assert mask.mode == "L"
+    assert mask.getpixel((370, 640)) == 255, "footprint 目標區應白色（重畫沙發）"
+    assert mask.getpixel((760, 640)) == 255, "舊沙發區應白色（清掉黏著原物）"
+    assert mask.getpixel((500, 680)) == 255, "舊茶几區應白色（清掉）"
+    assert mask.getpixel((120, 450)) == 0, "大門必須黑色鎖死"
+    assert mask.getpixel((880, 120)) == 0, "無關牆面預設黑色鎖死"
 
 
 def test_first_render_mask_footprint_only_fallback_when_no_detection(tmp_path):
@@ -95,9 +96,10 @@ def test_first_render_mask_footprint_only_fallback_when_no_detection(tmp_path):
                    "focal_anchor": None, "entrance_door": None}
     mp = api._build_s2_first_render_mask(str(base), cp, none_detect, str(tmp_path / "m2.png"))
     assert mp, "偵測全空仍應建出 footprint-only mask（比純 prompt 好），不 crash"
-    alpha = Image.open(mp).getchannel("A")
-    assert alpha.getpixel((370, 640)) == 0, "footprint 仍透明（paint）"
-    assert alpha.getpixel((760, 640)) == 255, "沒偵測到就不 erase（維持鎖死）"
+    mask = Image.open(mp)
+    assert mask.mode == "L"
+    assert mask.getpixel((370, 640)) == 255, "footprint 仍白色（paint）"
+    assert mask.getpixel((760, 640)) == 0, "沒偵測到就不 erase（維持黑色鎖死）"
 
     # 無 contract → None（呼叫端 skip，正常首渲）
     assert api._build_s2_first_render_mask(
@@ -126,7 +128,7 @@ def test_first_render_layout_mask_reaches_fal_with_full_prompt_kept():
     with tempfile.TemporaryDirectory() as td:
         from pathlib import Path
         mask = Path(td) / "m.png"
-        Image.new("RGBA", (10, 10), (0, 0, 0, 255)).save(mask)
+        Image.new("L", (10, 10), 255).save(mask)
         entry = {
             "_room_type": "living",
             "_layout_contract_s2_required": True,

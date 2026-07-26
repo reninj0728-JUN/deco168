@@ -163,7 +163,7 @@ def test_gpt_image2_mask_retry_uses_short_local_only_prompt():
     assert "Image #3" in prompt
     assert "completely erase the old sofa" in prompt
     assert "fully contained inside the GREEN body target" in prompt
-    assert "Preserve every pixel outside the transparent mask" in prompt
+    assert "Preserve every pixel in BLACK mask areas" in prompt
     assert "Apply this interior design style" not in prompt
 
 

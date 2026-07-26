@@ -1375,7 +1375,7 @@ def _build_console_door_edit_mask(
     validation: dict | None,
     output_path: str,
 ) -> str | None:
-    """遮罩硬修電視櫃：透明=舊櫃區+門後目標區；不透明=沙發/大門/其餘建築。"""
+    """Fal 黑白遮罩：白=舊櫃區+門後目標區可編輯；黑=沙發/大門/其餘建築鎖定。"""
     try:
         from PIL import Image, ImageDraw
 
@@ -1413,10 +1413,12 @@ def _build_console_door_edit_mask(
             max(old_edit[2], target_edit[2]),
             max(old_edit[3], target_edit[3]),
         )
-        mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
-        draw = ImageDraw.Draw(mask, "RGBA")
-        draw.rectangle(corridor, fill=(0, 0, 0, 0))
-        # 大門必須鎖死（不透明）
+        # fal openai/gpt-image-2/edit 的 mask 規格是「白色可編輯、黑色保留」。
+        # 舊版把 RGB 全畫黑、只改 alpha；fal 不以 alpha 當 edit 區，硬鎖實際沒有成立。
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle(corridor, fill=255)
+        # 大門必須鎖死（黑色）
         dy0, dx0, dy1, dx1 = [float(v) for v in door]
         door_pad_x, door_pad_y = width * 0.008, height * 0.008
         locked_door = (
@@ -1425,7 +1427,7 @@ def _build_console_door_edit_mask(
             min(width, int(dx1 * width / 1000.0 + door_pad_x)),
             min(height, int(dy1 * height / 1000.0 + door_pad_y)),
         )
-        draw.rectangle(locked_door, fill=(0, 0, 0, 255))
+        draw.rectangle(locked_door, fill=0)
         # 沙發鎖死
         if isinstance(sofa, list) and len(sofa) == 4:
             sy0, sx0, sy1, sx1 = [float(v) for v in sofa]
@@ -1436,7 +1438,7 @@ def _build_console_door_edit_mask(
                 min(width, int(sx1 * width / 1000.0 + sofa_pad_x)),
                 min(height, int(sy1 * height / 1000.0 + sofa_pad_y)),
             )
-            draw.rectangle(locked_sofa, fill=(0, 0, 0, 255))
+            draw.rectangle(locked_sofa, fill=0)
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         mask.save(target, "PNG")
@@ -1734,7 +1736,7 @@ def _build_s2_sofa_edit_mask(
     output_path: str,
     compact_entry_mode: bool = False,
 ) -> str | None:
-    """Build RGBA mask: transparent sofa corridor, opaque architecture and entrance door."""
+    """Build Fal mask: white sofa corridor, black architecture and entrance door."""
     try:
         from PIL import Image, ImageDraw
 
@@ -1789,10 +1791,10 @@ def _build_s2_sofa_edit_mask(
             max(0, int(tx0 - pad_x)), max(0, int(ty0 - pad_y)),
             min(width, int(tx1 + pad_x)), min(height, int(ty1 + pad_y)),
         )
-        mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
-        draw = ImageDraw.Draw(mask, "RGBA")
-        draw.rectangle(old_edit_box, fill=(0, 0, 0, 0))
-        draw.rectangle(target_edit_box, fill=(0, 0, 0, 0))
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle(old_edit_box, fill=255)
+        draw.rectangle(target_edit_box, fill=255)
         dy0, dx0, dy1, dx1 = [float(value) for value in door_box]
         door_pad_x, door_pad_y = width * 0.008, height * 0.008
         locked_door = (
@@ -1801,7 +1803,7 @@ def _build_s2_sofa_edit_mask(
             min(width, int(dx1 * width / 1000.0 + door_pad_x)),
             min(height, int(dy1 * height / 1000.0 + door_pad_y)),
         )
-        draw.rectangle(locked_door, fill=(0, 0, 0, 255))
+        draw.rectangle(locked_door, fill=0)
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         mask.save(target, "PNG")
@@ -1846,9 +1848,9 @@ def _build_s2_first_render_mask(base_path: str, contract_path: str,
                                 source_furniture: dict | None,
                                 output_path: str) -> str | None:
     """P1 首渲硬綁 mask（新函式，不重用 retry 版）：
-      透明(可重畫) = 偵測到的舊 sofa + coffee_table（清掉黏著的原物）
+      白色(可重畫) = 偵測到的舊 sofa + coffee_table（清掉黏著的原物）
                     + S2 sofa footprint 目標區（永遠 footprint，門距對目標算）
-      不透明(鎖死) = 偵測到的大門 + 其餘一切
+      黑色(鎖死) = 偵測到的大門 + 其餘一切
     生成端用 mask_mode='first_render_layout' 保留完整 design/商品 prompt、image_1=源照。
     無 contract sofa footprint / 建不出目標 → 回 None，呼叫端 skip（正常首渲，不 crash）。
     v1 不動 TV：實牆 TV 通常在對位，避免雙櫃；焦點 erase 留 v2。"""
@@ -1884,8 +1886,8 @@ def _build_s2_first_render_mask(base_path: str, contract_path: str,
         if not target:
             return None
 
-        mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
-        draw = ImageDraw.Draw(mask, "RGBA")
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
         pad_x, pad_y = width * 0.006, height * 0.02
 
         def _erase(bbox_1000):
@@ -1897,7 +1899,7 @@ def _build_s2_first_render_mask(base_path: str, contract_path: str,
                  max(0, int(y0 * height / 1000.0 - pad_y)),
                  min(width, int(x1 * width / 1000.0 + pad_x)),
                  min(height, int(y1 * height / 1000.0 + pad_y))),
-                fill=(0, 0, 0, 0))
+                fill=255)
 
         # 清掉黏著的原沙發 + 原茶几（外觀+位置一起清）
         _erase(sf.get("sofa"))
@@ -1907,8 +1909,8 @@ def _build_s2_first_render_mask(base_path: str, contract_path: str,
         draw.rectangle(
             (max(0, int(tx0 - pad_x)), max(0, int(ty0 - pad_y)),
              min(width, int(tx1 + pad_x)), min(height, int(ty1 + pad_y))),
-            fill=(0, 0, 0, 0))
-        # 鎖死大門（最後畫，overlap 時不透明勝出）
+            fill=255)
+        # 鎖死大門（最後畫，overlap 時黑色勝出）
         door = sf.get("entrance_door")
         if isinstance(door, list) and len(door) == 4:
             dy0, dx0, dy1, dx1 = [float(v) for v in door]
@@ -1918,7 +1920,7 @@ def _build_s2_first_render_mask(base_path: str, contract_path: str,
                  max(0, int(dy0 * height / 1000.0 - dpy)),
                  min(width, int(dx1 * width / 1000.0 + dpx)),
                  min(height, int(dy1 * height / 1000.0 + dpy))),
-                fill=(0, 0, 0, 255))
+                fill=0)
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         mask.save(out, "PNG")
@@ -3757,6 +3759,61 @@ def _retry_metrics(validation: dict | None) -> dict:
 RETRY_PROGRESS_EPS = {"door_gap": 0.02, "pair_align": 3.0}
 
 
+def _console_repair_candidate_is_monotonic(
+    previous_validation: dict | None,
+    candidate_validation: dict | None,
+) -> tuple[bool, str]:
+    """電視櫃離門修復只能改善門距，不得破壞已通過的對向／結構條件。
+
+    7B39FD17：門距修到通過，但 TV 被搬到沙發同側（中心差 203）；後續再修
+    對向又把 TV 拉回門邊。這裡在候選成為下一輪底圖前做確定性拒收，避免修復互相覆寫。
+    """
+    prev = previous_validation or {}
+    cand = candidate_validation or {}
+    boxes = cand.get("render_bboxes") or {}
+    if not all(isinstance(boxes.get(name), (list, tuple)) and len(boxes[name]) == 4
+               for name in ("entrance_door", "focal_anchor", "sofa")):
+        return False, "candidate bbox incomplete"
+
+    regression_flags = (
+        "furniture_blocks_walkway", "sofa_intrudes_walkway", "sofa_faces_walkway",
+        "sofa_on_wrong_side", "sofa_outside_living_zone", "sofa_back_against_window",
+        "sofa_facing_window", "sofa_facing_entrance_door", "spatial_fidelity_fail",
+        "windows_changed", "walls_changed", "ceiling_changed", "floor_changed",
+        "offframe_room_invaded", "recessed_space_added",
+    )
+    newly_failed = [flag for flag in regression_flags
+                    if cand.get(flag) is True and prev.get(flag) is not True]
+    if newly_failed:
+        return False, "new hard failure=" + ",".join(newly_failed)
+    if ((cand.get("camera_axis_preserved") is False
+         and prev.get("camera_axis_preserved") is not False)
+            or (cand.get("passage_openings_preserved") is False
+                and prev.get("passage_openings_preserved") is not False)):
+        return False, "camera/passage regressed"
+
+    pair = _pair_center_delta(cand, tolerance=PAIR_CENTER_EXTREME)
+    if cand.get("focal_anchor_misaligned_with_sofa") is True or pair:
+        delta = (pair or {}).get("abs_delta_y")
+        return False, f"pair alignment regressed{f' ({delta}/1000)' if delta is not None else ''}"
+
+    try:
+        from gemini_analyze import _door_adjacency_violation
+        prev_violation = _door_adjacency_violation(prev.get("render_bboxes") or {})
+        cand_violation = _door_adjacency_violation(boxes)
+    except Exception as exc:
+        return False, f"door metric unavailable ({type(exc).__name__})"
+    if cand_violation:
+        if cand_violation[0] != "focal_anchor":
+            return False, f"door offender changed to {cand_violation[0]}"
+        if prev_violation and prev_violation[0] == "focal_anchor":
+            prev_gap = float(prev_violation[1]) / max(1.0, float(prev_violation[2]))
+            cand_gap = float(cand_violation[1]) / max(1.0, float(cand_violation[2]))
+            if cand_gap - prev_gap <= RETRY_PROGRESS_EPS["door_gap"]:
+                return False, f"console door gap stalled ({prev_gap:.2f}→{cand_gap:.2f})"
+    return True, ""
+
+
 def _retry_is_stuck(prev: dict | None, cur: dict | None) -> tuple[bool, str]:
     """同一個閘門連兩次擋、數字沒有變好 → 再生一次也是同樣結果,別燒。
 
@@ -5187,7 +5244,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         v, r, entry, str(job_dir), idx)
                     console_base = None
                     alignment_base = None
+                    repair_mode = None
                     if pair_alignment_base:
+                        repair_mode = "pair_alignment"
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["tv_alignment_edit"] = True
                         base_for_gen = pair_alignment_base
@@ -5200,6 +5259,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         console_base = _activate_console_door_edit(
                             v, r, entry, str(job_dir), idx, str(current_rc + 1))
                         if console_base:
+                            repair_mode = "console_door"
                             retry_ctx = dict(retry_ctx or {})
                             retry_ctx["console_door_clearance_edit"] = True
                             base_for_gen = console_base
@@ -5208,6 +5268,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             alignment_base = _sofa_alignment_edit_base(
                                 v, r, entry.get("_room_type", "living"))
                     if alignment_base:
+                        repair_mode = "sofa_alignment"
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["sofa_alignment_edit"] = True
                         if v.get("sofa_on_wrong_side") is True:
@@ -5335,6 +5396,25 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     new_r["crop_note"]    = entry.get("_crop_note") or None
                     new_r["retry_count"]  = current_rc + 1
                     new_r["retry_reason"] = retry_reason
+                    if repair_mode == "console_door":
+                        monotonic, monotonic_reason = _console_repair_candidate_is_monotonic(
+                            v, new_r.get("validation"))
+                        if not monotonic:
+                            # 候選沒有資格成為下一輪底圖；保留原圖與完整驗證歷史，
+                            # 並封鎖 Phase2/Phase3 再花錢做互相覆寫的修復。
+                            r["validation_history"] = list(new_r.get("validation_history") or [])
+                            r["retry_count"] = current_rc + 1
+                            r["_console_repair_exhausted"] = True
+                            r["retry_reason"] = (
+                                f"{retry_reason} | candidate rejected: {monotonic_reason}")
+                            print(f"[pipeline] Z3 console candidate 拒收並停止後續付費補生 "
+                                  f"render[{idx}] — {monotonic_reason}")
+                            break
+                        if (_door_block_offender(new_r.get("validation")) == "focal_anchor"
+                                and current_rc + 1 >= MAX_RETRY):
+                            new_r["_console_repair_exhausted"] = True
+                            new_r["retry_reason"] = (
+                                f"{retry_reason} | console repair budget exhausted")
                     final[idx] = new_r
                     retry_n += 1
                     # while loop 會再判一次：若新 v 仍 fail 且 current_rc+1 < MAX_RETRY 且高嚴重度 → 再 retry
@@ -5373,6 +5453,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 r = final[idx]
                 if r.get("_s2_preflight_blocked"):
                     print(f"[pipeline] render[{idx}] S2 前檢已封鎖 → 跳過 Phase2")
+                    continue
+                if r.get("_console_repair_exhausted"):
+                    print(f"[pipeline] render[{idx}] 電視櫃離門修復已停止 → 跳過 Phase2（不再燒 fal/Gemini）")
                     continue
                 v = r.get("validation") or {}
                 if _skip_unmodelable_extra_repair(r):
@@ -5531,8 +5614,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 new_r["crop_note"]    = entry.get("_crop_note") or None
                 new_r["retry_count"]  = int(r.get("retry_count") or 0) + 1
                 new_r["retry_reason"] = "phase2 hardfix"
-                # 補生後不再是硬傷才取代；仍硬傷則保留原狀（後續 needs_regen 記錄）
-                if not (new_v or {}).get("hard_fail"):
+                # 必須看 deterministic fail-closed 後的終判；raw Gemini 可能漏掉
+                # 7B39FD17 的極端 pair delta，不能把其誤當成功候選。
+                if not (new_r.get("validation") or {}).get("hard_fail"):
                     final[idx] = new_r
                     print(f"[pipeline] Phase2 補生成功 render[{idx}] style={new_r.get('style')}")
                 else:
@@ -5991,6 +6075,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     r = final[idx]
                     if r.get("_s2_preflight_blocked"):
                         print(f"[pipeline] render[{idx}] S2 前檢已封鎖 → 跳過 Phase3")
+                        continue
+                    if r.get("_console_repair_exhausted"):
+                        print(f"[pipeline] render[{idx}] 電視櫃離門修復已停止 → 跳過 Phase3（不再燒 fal/Gemini）")
                         continue
                     if not _is_hard_fail(r) or idx >= len(expanded):
                         continue

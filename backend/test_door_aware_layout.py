@@ -531,14 +531,15 @@ class DoorAwareLayoutTests(unittest.TestCase):
             self.assertTrue(entry.get("_edit_mask_path"))
             self.assertEqual(entry.get("_edit_mask_mode"), "console_door")
             self.assertTrue(entry.get("_force_mask_local_edit"))
-            # mask：舊櫃/目標區透明，門與沙發不透明
-            alpha = Image.open(entry["_edit_mask_path"]).getchannel("A")
+            # Fal mask：舊櫃/目標區白色可編輯，門與沙發黑色鎖定
+            mask = Image.open(entry["_edit_mask_path"])
+            self.assertEqual(mask.mode, "L")
             # 舊櫃中心（norm cx~330, cy~495）→ 像素 ~330,495
-            self.assertEqual(alpha.getpixel((330, 495)), 0)
+            self.assertEqual(mask.getpixel((330, 495)), 255)
             # 門中心（cx~125, cy~485）必須鎖
-            self.assertEqual(alpha.getpixel((125, 485)), 255)
+            self.assertEqual(mask.getpixel((125, 485)), 0)
             # 沙發中心（cx~695, cy~625）必須鎖
-            self.assertEqual(alpha.getpixel((695, 625)), 255)
+            self.assertEqual(mask.getpixel((695, 625)), 0)
 
             # 目標框在門右、間距 ≥ 0.28 門寬
             box = api._console_door_clearance_target_box(validation, 1000, 1000)
@@ -558,6 +559,67 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertIn("LOCK the sofa", prompt)
         self.assertIn("0.28", prompt)
         self.assertNotIn("MOVE ONLY THE SOFA", prompt)
+
+    def test_7b39_console_candidate_cannot_trade_door_clearance_for_pair_regression(self):
+        """7B39FD17｜修門候選若把 TV 搬到沙發同側（中心差 203），不得成為下一輪底圖。"""
+        previous = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "furniture_blocks_door": True,
+            "focal_anchor_misaligned_with_sofa": False,
+            "render_bboxes": {
+                "entrance_door": [235, 120, 856, 266],
+                "focal_anchor": [496, 274, 656, 397],  # gap=8
+                "sofa": [476, 580, 866, 881],
+            },
+        }
+        first_retry = {
+            **previous,
+            "render_bboxes": {
+                "entrance_door": [179, 133, 856, 269],
+                "focal_anchor": [498, 281, 642, 398],  # gap=12，但 pair 95→103 已退步
+                "sofa": [479, 582, 866, 861],
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(previous, first_retry)
+        self.assertFalse(accepted)
+        self.assertIn("pair alignment regressed", reason)
+
+        safe_progress = {
+            **previous,
+            "render_bboxes": {
+                "entrance_door": [179, 133, 856, 269],
+                "focal_anchor": [520, 281, 680, 398],  # gap 改善且 pair < 100
+                "sofa": [479, 582, 866, 861],
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(previous, safe_progress)
+        self.assertTrue(accepted, reason)
+
+        wrong_wall = {
+            **previous,
+            "furniture_blocks_door": False,
+            "render_bboxes": {
+                "entrance_door": [178, 120, 847, 263],
+                "focal_anchor": [484, 615, 563, 720],
+                "sofa": [510, 615, 942, 975],
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(safe_progress, wrong_wall)
+        self.assertFalse(accepted)
+        self.assertIn("pair alignment regressed", reason)
+
+        source = Path(api.__file__).read_text(encoding="utf-8")
+        z3 = source.split("# ── Z3:", 1)[1].split("# 統計", 1)[0]
+        self.assertLess(
+            z3.index("_console_repair_candidate_is_monotonic("),
+            z3.index("final[idx] = new_r"),
+        )
+        phase2 = source.split("# ── Phase 2", 1)[1].split("# Delivery gate", 1)[0]
+        phase3 = source.split("# ── Phase 3", 1)[1]
+        self.assertIn('r.get("_console_repair_exhausted")', phase2)
+        self.assertIn('r.get("_console_repair_exhausted")', phase3)
+        self.assertIn('new_r.get("validation")', phase2)
 
     def test_wrong_side_sofa_cross_room_relocation(self):
         """8AD3E711｜沙發貼錯邊之前沒有硬修路徑（閘門擋、無救）。
@@ -628,7 +690,7 @@ class DoorAwareLayoutTests(unittest.TestCase):
             self.assertIsNotNone(box_same)
             self.assertGreater(box_same[0], 500, "無 wrong_side 應維持同側滑（右半），證明 branch 真的改了行為")
 
-            # ④ 遮罩整鏈：erase mask 對牆 footprint 透明、舊沙發透明、大門鎖死
+            # ④ 遮罩整鏈：Fal 白色 edit 區含對牆 footprint/舊沙發；大門黑色鎖死
             contract = {
                 "source": {"size": {"width": 1000, "height": 1000}},
                 "decision": {"chosen_candidate_id": "c1"},
@@ -647,10 +709,11 @@ class DoorAwareLayoutTests(unittest.TestCase):
             mask_path = api._build_s2_sofa_edit_mask(
                 str(prev), str(contract_path), tgt, str(root / "mask.png"))
             self.assertTrue(mask_path)
-            alpha = Image.open(mask_path).getchannel("A")
-            self.assertEqual(alpha.getpixel((380, 640)), 0, "對牆 footprint 目標區應透明（可重畫沙發）")
-            self.assertEqual(alpha.getpixel((760, 640)), 0, "舊沙發區應透明（可鏟除）")
-            self.assertEqual(alpha.getpixel((120, 450)), 255, "大門必須鎖死")
+            mask = Image.open(mask_path)
+            self.assertEqual(mask.mode, "L")
+            self.assertEqual(mask.getpixel((380, 640)), 255, "對牆 footprint 目標區應白色（可重畫沙發）")
+            self.assertEqual(mask.getpixel((760, 640)), 255, "舊沙發區應白色（可鏟除）")
+            self.assertEqual(mask.getpixel((120, 450)), 0, "大門必須黑色鎖死")
 
         # ⑤ prompt：cross_room_relocate → 跨房搬遷硬指令，且非同牆滑
         prompt = pb._build_retry_context_section({
@@ -1050,10 +1113,11 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
                 str(previous), str(contract_path), validation, str(mask_path))
 
             self.assertEqual(result, str(mask_path))
-            alpha = Image.open(mask_path).getchannel("A")
-            self.assertEqual(alpha.getpixel((35, 62)), 0)
-            self.assertEqual(alpha.getpixel((17, 55)), 255)
-            self.assertEqual(alpha.getpixel((95, 5)), 255)
+            mask = Image.open(mask_path)
+            self.assertEqual(mask.mode, "L")
+            self.assertEqual(mask.getpixel((35, 62)), 255)
+            self.assertEqual(mask.getpixel((17, 55)), 0)
+            self.assertEqual(mask.getpixel((95, 5)), 0)
 
 
 if __name__ == "__main__":
