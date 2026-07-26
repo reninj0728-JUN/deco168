@@ -648,6 +648,78 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertIn('r.get("_console_repair_exhausted")', phase3)
         self.assertIn('new_r.get("validation")', phase2)
 
+    def test_c4_door_adjacent_console_and_axis_are_repaired_as_one_target(self):
+        """C4AA16B8｜門距與對向不可再各自過關：同一藍框須留原牆、離門且對正沙發。"""
+        raw = {
+            "ok": True,
+            "hard_fail": False,
+            "furniture_blocks_door": True,
+            "focal_anchor_misaligned_with_sofa": False,
+            "sofa_facing_entrance_door": False,
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "entrance_door": [210, 85, 850, 235],
+                "focal_anchor": [535, 239, 705, 388],  # door gap=4/150；中心差=70
+                "sofa": [498, 615, 882, 935],
+            },
+        }
+        blocked = api._fail_closed_validation(raw, "living")
+        self.assertFalse(blocked["ok"])
+        self.assertTrue(blocked["hard_fail"])
+        self.assertTrue(blocked["sofa_facing_entrance_door"])
+        self.assertTrue(blocked["focal_anchor_misaligned_with_sofa"])
+        self.assertEqual(blocked["focal_door_axis_conflict"]["pair_abs_delta_y"], 70)
+        self.assertAlmostEqual(
+            blocked["focal_door_axis_conflict"]["door_gap_ratio"], 4 / 150, places=3)
+
+        with tempfile.TemporaryDirectory() as td:
+            previous = Path(td) / "render.jpg"
+            Image.new("RGB", (1000, 1000), "white").save(previous)
+            self.assertEqual(
+                api._console_alignment_edit_base(
+                    blocked, {"render_path": str(previous)}, "living"),
+                str(previous),
+            )
+
+        target = api._console_door_clearance_target_box(blocked, 1000, 1000)
+        self.assertIsNotNone(target)
+        tx0, ty0, tx1, ty1 = target
+        door = raw["render_bboxes"]["entrance_door"]
+        self.assertGreaterEqual((tx0 - door[3]) / (door[3] - door[1]), 0.28)
+        self.assertLess((tx0 + tx1) / 2, 500, "電視櫃必須留在原本左側對向牆")
+        sofa = raw["render_bboxes"]["sofa"]
+        self.assertLessEqual(
+            abs((ty0 + ty1) / 2 - (sofa[0] + sofa[2]) / 2), 1,
+            "複合修復的電視櫃中心必須直接對正沙發中心",
+        )
+
+        prompt = pb._build_retry_context_section({
+            "console_door_clearance_edit": True,
+            "console_axis_alignment_edit": True,
+        })
+        self.assertIn("DOOR-CLEARANCE + AXIS", prompt)
+        self.assertIn("forward/back on that same wall", prompt)
+        self.assertIn("directly opposite", prompt)
+        self.assertNotIn("LATERALLY ONLY", prompt)
+
+        repaired = {
+            **blocked,
+            "ok": True,
+            "hard_fail": False,
+            "furniture_blocks_door": False,
+            "focal_anchor_misaligned_with_sofa": False,
+            "sofa_facing_entrance_door": False,
+            "focal_door_axis_conflict": None,
+            "render_bboxes": {
+                "entrance_door": door,
+                "focal_anchor": [ty0, tx0, ty1, tx1],
+                "sofa": sofa,
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(blocked, repaired)
+        self.assertTrue(accepted, reason)
+
     def test_e9_console_target_preserves_already_passed_pair_axis(self):
         """E9CD7958｜電視櫃避門只准水平移位，不得破壞原本已通過的沙發／TV 深度對正。"""
         validation = {

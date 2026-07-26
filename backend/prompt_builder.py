@@ -1587,6 +1587,20 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
         ])
     # 593408CC：電視櫃貼門 — 只鏟櫃、鎖沙發；門後至少 0.28 門寬淨空
     if retry_context.get("console_door_clearance_edit"):
+        if retry_context.get("console_axis_alignment_edit"):
+            return " ".join([
+                "CONSOLE DOOR-CLEARANCE + AXIS EDIT — image_1 is the previous furnished render.",
+                "MOVE ONLY THE TV AND MEDIA CONSOLE along their ORIGINAL wall into the BLUE target.",
+                "The BLUE target is binding in BOTH directions: clear the entrance laterally and move "
+                "forward/back on that same wall until the TV/console centre is directly opposite the "
+                "locked sofa-seat centre.",
+                "Leave at least 0.28× door-width of bare wall and empty floor after the far door-frame edge.",
+                "LOCK the sofa, rug, coffee table, entrance door, walls, windows, camera, lighting, decor, "
+                "colours and every other object in their exact current positions.",
+                "Completely erase the old console; never leave a duplicate, ghost or second cabinet.",
+                "Do not move the console across the room or onto the sofa wall.",
+                SOFA_TV_FACE_TO_FACE_CONTRACT,
+            ])
         return " ".join([
             "CONSOLE DOOR-CLEARANCE EDIT — image_1 is the previous furnished render, not an empty room.",
             "MOVE ONLY THE TV AND MEDIA CONSOLE LATERALLY ONLY away from the entrance door along the same wall.",

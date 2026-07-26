@@ -1303,19 +1303,23 @@ def _console_alignment_edit_base(validation: dict | None, render: dict | None,
         return None
     if _door_block_offender(v) != "focal_anchor":
         return None
+    axis_conflict = isinstance(v.get("focal_door_axis_conflict"), dict)
     if not _local_edit_structure_ok(v):
         return None
     # 沙發本身也貼門／對門／錯邊時，先別鎖沙發硬修櫃——交給完整重生或沙發路徑
     if any(v.get(flag) is True for flag in (
-        "sofa_facing_entrance_door", "sofa_on_wrong_side", "sofa_outside_living_zone",
+        "sofa_on_wrong_side", "sofa_outside_living_zone",
         "sofa_back_against_window", "sofa_faces_walkway", "sofa_intrudes_walkway",
         "furniture_blocks_walkway",
     )):
         return None
-    # 這是單軸避門修復：只能保留「本來已通過」的沙發／TV 對正。
-    # 若對正本來就失敗，不可拿一次 Fal 修兩個軸向來抽獎。
-    if (v.get("focal_anchor_misaligned_with_sofa") is True
-            or _pair_center_delta(v, tolerance=PAIR_CENTER_EXTREME)):
+    if v.get("sofa_facing_entrance_door") is True and not axis_conflict:
+        return None
+    # 一般避門修復只保留已通過的對正；唯一例外是 code 已量到的
+    # focal_door_axis_conflict，此時同一個藍框同時解門距與對向，不靠模型猜。
+    if (not axis_conflict
+            and (v.get("focal_anchor_misaligned_with_sofa") is True
+                 or _pair_center_delta(v, tolerance=PAIR_CENTER_EXTREME))):
         return None
     rb = v.get("render_bboxes") or {}
     if not rb.get("sofa") or not rb.get("focal_anchor") or not rb.get("entrance_door"):
@@ -1369,10 +1373,29 @@ def _console_door_clearance_target_box(
     target_wall_side = "left" if (new_x0 + new_x1) / 2.0 < 500.0 else "right"
     if target_wall_side != original_wall_side:
         return None
-    # E9CD7958：原櫃與沙發已對正，舊程式卻額外往影像上方推，
-    # 修好門距同時把 pair delta 63 惡化到 195。避門只修 x，y/depth 原封不動。
-    new_y0 = fy0
-    new_y1 = fy1
+    axis_conflict = isinstance((validation or {}).get("focal_door_axis_conflict"), dict)
+    if axis_conflict:
+        # C4AA16B8：門距與對向同時失敗時，藍框一次解兩個已量測問題——
+        # 櫃體仍在原牆，水平推過門禁區，前後位置則與沙發中心對齊。
+        sofa = boxes.get("sofa")
+        if not isinstance(sofa, (list, tuple)) or len(sofa) != 4:
+            return None
+        try:
+            sofa_cy = (float(sofa[0]) + float(sofa[2])) / 2.0
+        except (TypeError, ValueError):
+            return None
+        new_y0 = sofa_cy - cons_h / 2.0
+        new_y1 = sofa_cy + cons_h / 2.0
+        if new_y0 < 20.0:
+            new_y1 += 20.0 - new_y0
+            new_y0 = 20.0
+        if new_y1 > 980.0:
+            new_y0 -= new_y1 - 980.0
+            new_y1 = 980.0
+    else:
+        # 單純避門且原本對向已通過：只修 x，既有 y/depth 原封不動。
+        new_y0 = fy0
+        new_y1 = fy1
     if new_x1 <= new_x0 + 8 or new_y1 <= new_y0 + 8:
         return None
     cons_w_px = max(1, round(cons_w * width / 1000.0))
@@ -2582,6 +2605,51 @@ def _pair_center_delta(validation: dict | None,
     }
 
 
+def _focal_door_axis_conflict(validation: dict | None) -> dict | None:
+    """電視櫃貼近入口且未與沙發對正時，視線軸會掃向大門。
+
+    全域 pair-center 只攔極端值（>100），以保留校準庫中已接受的 89；但當
+    focal_anchor 已進入 0.28 門寬禁區時，25–100 的偏差不再是純美感問題。
+    這裡只合併兩個既有量測，不改任一全域門檻，也不影響門外的客廳。
+    """
+    if not isinstance(validation, dict):
+        return None
+    boxes = validation.get("render_bboxes") or {}
+    try:
+        from gemini_analyze import _door_adjacency_violation
+        violation = _door_adjacency_violation(boxes)
+    except Exception:
+        return None
+    if not violation or violation[0] != "focal_anchor":
+        return None
+    pair = _pair_center_delta(validation, tolerance=PAIR_CENTER_TOLERANCE)
+    if not pair:
+        return None
+    sofa = boxes.get("sofa")
+    focal = boxes.get("focal_anchor")
+    door = boxes.get("entrance_door")
+    if not all(isinstance(box, (list, tuple)) and len(box) == 4
+               for box in (sofa, focal, door)):
+        return None
+    try:
+        sofa_cx = (float(sofa[1]) + float(sofa[3])) / 2.0
+        focal_cx = (float(focal[1]) + float(focal[3])) / 2.0
+        door_cx = (float(door[1]) + float(door[3])) / 2.0
+    except (TypeError, ValueError):
+        return None
+    # 大門與電視必須位於沙發的同一對向側；否則不是「沙發視線掃門」此類型。
+    if (focal_cx - sofa_cx) * (door_cx - sofa_cx) <= 0:
+        return None
+    gap_ratio = float(violation[1]) / max(1.0, float(violation[2]))
+    return {
+        "target": "focal_anchor",
+        "pair_delta_y": int(pair["delta_y"]),
+        "pair_abs_delta_y": int(pair["abs_delta_y"]),
+        "door_gap_ratio": round(gap_ratio, 3),
+        "pair_tolerance": PAIR_CENTER_TOLERANCE,
+    }
+
+
 def _build_pair_alignment_guide_image(base_path: str, job_dir: str, idx: int,
                                       validation: dict | None) -> str | None:
     """依上一張實圖 bbox 畫校正圖：綠框鎖沙發、紅框是舊 TV、藍框是同軸新 TV。"""
@@ -3391,6 +3459,21 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
                             f"（合憲門檻 {PAIR_CENTER_EXTREME}；用戶接受組史上最高 89）")
                     _prev = (v.get("reason") or "").strip()
                     v["reason"] = f"{_tag}；{_prev}" if _prev and "皆合理" not in _prev else _tag
+            axis_conflict = _focal_door_axis_conflict(v)
+            if axis_conflict:
+                v = dict(v)
+                v["focal_door_axis_conflict"] = axis_conflict
+                v["sofa_facing_entrance_door"] = True
+                v["focal_anchor_misaligned_with_sofa"] = True
+                v["ok"] = False
+                v["hard_fail"] = True
+                _tag = ("門邊電視櫃未與沙發對正："
+                        f"門距 {axis_conflict['door_gap_ratio']:.3f} 門寬、"
+                        f"對向差 {axis_conflict['pair_abs_delta_y']}/1000；"
+                        "沙發視線會掃向大門")
+                _prev = (v.get("reason") or "").strip()
+                if _tag not in _prev:
+                    v["reason"] = f"{_tag}；{_prev}" if _prev and "皆合理" not in _prev else _tag
         return v
     base = dict(v or {})
     base.setdefault("error", "validation crashed")
@@ -3833,6 +3916,13 @@ def _console_repair_candidate_is_monotonic(
             or (cand.get("passage_openings_preserved") is False
                 and prev.get("passage_openings_preserved") is not False)):
         return False, "camera/passage regressed"
+
+    if isinstance(prev.get("focal_door_axis_conflict"), dict):
+        remaining_pair = _pair_center_delta(cand, tolerance=PAIR_CENTER_TOLERANCE)
+        if remaining_pair:
+            return False, ("console/sofa axis target missed "
+                           f"({remaining_pair['abs_delta_y']}/1000 > "
+                           f"{PAIR_CENTER_TOLERANCE})")
 
     pair = _pair_center_delta(cand, tolerance=PAIR_CENTER_EXTREME)
     if cand.get("focal_anchor_misaligned_with_sofa") is True or pair:
@@ -5304,6 +5394,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             repair_mode = "console_door"
                             retry_ctx = dict(retry_ctx or {})
                             retry_ctx["console_door_clearance_edit"] = True
+                            if isinstance(v.get("focal_door_axis_conflict"), dict):
+                                retry_ctx["console_axis_alignment_edit"] = True
                             base_for_gen = console_base
                             retry_reason = "console past door (mask hard repair)"
                         elif _door_block_offender(v) == "focal_anchor":
@@ -5542,6 +5634,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     if console_base:
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["console_door_clearance_edit"] = True
+                        if isinstance(v.get("focal_door_axis_conflict"), dict):
+                            retry_ctx["console_axis_alignment_edit"] = True
                         base_for_gen = console_base
                     elif _door_block_offender(v) == "focal_anchor":
                         r["_console_repair_exhausted"] = True
@@ -6012,7 +6106,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "ok", "hard_fail", "room_type", "reason", "soft_issues",
                 "sofa_depth_percent_estimate", "sofa_depth_grounded_pct",
                 "sofa_outside_living_zone", "sofa_on_wrong_side", "sofa_back_against_window",
-                "focal_anchor_misaligned_with_sofa", "furniture_blocks_walkway") if kk in v}
+                "focal_anchor_misaligned_with_sofa", "focal_door_axis_conflict",
+                "sofa_facing_entrance_door", "furniture_blocks_door",
+                "furniture_blocks_walkway") if kk in v}
 
         slim_result_json = {
             "build_tag": "fullmode-rewrite-v2",
@@ -6162,6 +6258,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         if console_base:
                             retry_ctx = dict(retry_ctx or {})
                             retry_ctx["console_door_clearance_edit"] = True
+                            if isinstance(v0.get("focal_door_axis_conflict"), dict):
+                                retry_ctx["console_axis_alignment_edit"] = True
                             strategies = [("電視櫃離門遮罩硬修", console_base, None)]
                         elif _door_block_offender(v0) == "focal_anchor":
                             r["_console_repair_exhausted"] = True
