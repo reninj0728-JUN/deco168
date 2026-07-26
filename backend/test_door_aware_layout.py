@@ -511,7 +511,7 @@ class DoorAwareLayoutTests(unittest.TestCase):
                     # 門左、櫃緊貼門右（gap=0）→ offender=focal_anchor
                     "entrance_door": [250, 40, 720, 210],
                     "focal_anchor": [430, 230, 560, 430],
-                    "sofa": [470, 520, 780, 870],
+                    "sofa": [370, 520, 670, 870],
                 },
             }
             self.assertEqual(api._door_block_offender(validation), "focal_anchor")
@@ -538,8 +538,8 @@ class DoorAwareLayoutTests(unittest.TestCase):
             self.assertEqual(mask.getpixel((330, 495)), 255)
             # 門中心（cx~125, cy~485）必須鎖
             self.assertEqual(mask.getpixel((125, 485)), 0)
-            # 沙發中心（cx~695, cy~625）必須鎖
-            self.assertEqual(mask.getpixel((695, 625)), 0)
+            # 沙發中心（cx~695, cy~520）必須鎖
+            self.assertEqual(mask.getpixel((695, 520)), 0)
 
             # 目標框在門右、間距 ≥ 0.28 門寬
             box = api._console_door_clearance_target_box(validation, 1000, 1000)
@@ -620,6 +620,53 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertIn('r.get("_console_repair_exhausted")', phase2)
         self.assertIn('r.get("_console_repair_exhausted")', phase3)
         self.assertIn('new_r.get("validation")', phase2)
+
+    def test_e9_console_target_preserves_already_passed_pair_axis(self):
+        """E9CD7958｜電視櫃避門只准水平移位，不得破壞原本已通過的沙發／TV 深度對正。"""
+        validation = {
+            "furniture_blocks_door": True,
+            "focal_anchor_misaligned_with_sofa": False,
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "render_bboxes": {
+                "entrance_door": [12, 5, 786, 170],
+                "focal_anchor": [415, 169, 642, 347],
+                "sofa": [398, 592, 785, 915],
+            },
+        }
+        target = api._console_door_clearance_target_box(validation, 1000, 1000)
+        self.assertIsNotNone(target)
+        # bbox 回傳格式為 (x0, y0, x1, y1)；避門時必須保留原櫃的 y/depth。
+        self.assertEqual(target[1], 415)
+        self.assertEqual(target[3], 642)
+        door = validation["render_bboxes"]["entrance_door"]
+        self.assertGreaterEqual((target[0] - door[3]) / (door[3] - door[1]), 0.28)
+        sofa = validation["render_bboxes"]["sofa"]
+        pair_delta = abs((target[1] + target[3]) / 2 - (sofa[0] + sofa[2]) / 2)
+        self.assertLessEqual(pair_delta, api.PAIR_CENTER_EXTREME)
+
+        prompt = pb._build_retry_context_section({"console_door_clearance_edit": True})
+        self.assertIn("LATERALLY ONLY", prompt)
+        self.assertIn("same image-row/depth centre", prompt)
+        self.assertNotIn("move it deeper", prompt.lower())
+
+        # 只要不是單純貼門（例如對正本來也壞掉），就不花 Fal 抽單軸修復。
+        with tempfile.TemporaryDirectory() as td:
+            previous = Path(td) / "render.jpg"
+            Image.new("RGB", (1000, 1000), "white").save(previous)
+            misaligned = {**validation, "focal_anchor_misaligned_with_sofa": True}
+            self.assertIsNone(api._console_alignment_edit_base(
+                misaligned, {"render_path": str(previous)}, "living"))
+
+            # mask/guide 任一缺失，不得退化成只靠 prompt 的付費重生。
+            entry = {"_room_type": "living"}
+            with patch.object(api, "_build_console_door_repair_guide", return_value=None):
+                self.assertIsNone(api._activate_console_door_edit(
+                    validation, {"render_path": str(previous)}, entry, td, 0, "e9"))
+            self.assertNotIn("_force_mask_local_edit", entry)
+
+        source = Path(api.__file__).read_text(encoding="utf-8")
+        self.assertEqual(source.count('console repair skipped: no pair-safe target'), 3)
 
     def test_wrong_side_sofa_cross_room_relocation(self):
         """8AD3E711｜沙發貼錯邊之前沒有硬修路徑（閘門擋、無救）。

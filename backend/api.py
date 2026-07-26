@@ -1,6 +1,6 @@
 # DECO168 FastAPI Backend
 # 啟動: cd backend && python3.11 -m uvicorn api:app --reload --port 8000
-import os, re, sys, json, uuid, shutil, traceback, hashlib
+import os, re, sys, json, uuid, shutil, traceback, hashlib, math
 
 # 清除環境變數可能的換行符（Railway 有時會多帶 \n）
 for _k in ("FAL_KEY", "GEMINI_API_KEY", "GOOGLE_AI_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
@@ -1312,8 +1312,15 @@ def _console_alignment_edit_base(validation: dict | None, render: dict | None,
         "furniture_blocks_walkway",
     )):
         return None
+    # 這是單軸避門修復：只能保留「本來已通過」的沙發／TV 對正。
+    # 若對正本來就失敗，不可拿一次 Fal 修兩個軸向來抽獎。
+    if (v.get("focal_anchor_misaligned_with_sofa") is True
+            or _pair_center_delta(v, tolerance=PAIR_CENTER_EXTREME)):
+        return None
     rb = v.get("render_bboxes") or {}
     if not rb.get("sofa") or not rb.get("focal_anchor") or not rb.get("entrance_door"):
+        return None
+    if _console_door_clearance_target_box(v, 1000, 1000) is None:
         return None
     path = str(r.get("render_path") or "")
     return path if path and Path(path).exists() else None
@@ -1343,29 +1350,37 @@ def _console_door_clearance_target_box(
     cons_h = max(1.0, fy1 - fy0)
     gap = DOOR_GAP_MIN_FOCAL * door_w
     door_cx = (dx0 + dx1) / 2.0
-    # 門在畫面左半 → 櫃體推到門右緣之後；右半 → 推到門左緣之前
+    # 門在畫面左半 → 櫃體推到門右緣之後；右半 → 推到門左緣之前。
+    # 目標框放不下原櫃寬度就是無解，不縮櫃、不付費抽獎。
     if door_cx <= 500.0:
         new_x0 = dx1 + gap
         new_x1 = new_x0 + cons_w
         if new_x1 > 980.0:
-            new_x1 = 980.0
-            new_x0 = max(dx1 + gap, new_x1 - cons_w)
+            return None
     else:
         new_x1 = dx0 - gap
         new_x0 = new_x1 - cons_w
         if new_x0 < 20.0:
-            new_x0 = 20.0
-            new_x1 = min(dx0 - gap, new_x0 + cons_w)
-    # 略往深處（影像上方）推，避免貼在門同深度帶
-    depth_shift = min(40.0, cons_h * 0.15)
-    new_y0 = max(20.0, fy0 - depth_shift)
-    new_y1 = min(980.0, new_y0 + cons_h)
+            return None
+    # E9CD7958：原櫃與沙發已對正，舊程式卻額外往影像上方推，
+    # 修好門距同時把 pair delta 63 惡化到 195。避門只修 x，y/depth 原封不動。
+    new_y0 = fy0
+    new_y1 = fy1
     if new_x1 <= new_x0 + 8 or new_y1 <= new_y0 + 8:
         return None
+    cons_w_px = max(1, round(cons_w * width / 1000.0))
+    if door_cx <= 500.0:
+        # 左門的安全邊界要向右取整，不可四捨五入回門禁區 1px。
+        out_x0 = max(0, math.ceil(new_x0 * width / 1000.0))
+        out_x1 = min(width - 1, out_x0 + cons_w_px)
+    else:
+        # 右門鏡像：安全邊界向左取整。
+        out_x1 = min(width - 1, math.floor(new_x1 * width / 1000.0))
+        out_x0 = max(0, out_x1 - cons_w_px)
     return (
-        max(0, round(new_x0 * width / 1000.0)),
+        out_x0,
         max(0, round(new_y0 * height / 1000.0)),
-        min(width - 1, round(new_x1 * width / 1000.0)),
+        out_x1,
         min(height - 1, round(new_y1 * height / 1000.0)),
     )
 
@@ -1394,7 +1409,7 @@ def _build_console_door_edit_mask(
         if not target_box:
             return None
         fy0, fx0, fy1, fx1 = [float(v) for v in focal]
-        pad_x, pad_y = width * 0.01, height * 0.03
+        pad_x, pad_y = width * 0.01, height * 0.01
         old_edit = (
             max(0, int(fx0 * width / 1000.0 - pad_x)),
             max(0, int(fy0 * height / 1000.0 - pad_y)),
@@ -1527,16 +1542,16 @@ def _activate_console_door_edit(
         base, validation,
         str(Path(job_dir) / f"guide_console_door_{idx:02d}_{attempt_tag}.jpg"),
     )
-    if mask:
-        e["_edit_mask_path"] = mask
-        e["_edit_mask_mode"] = "console_door"
-        e["_s2_retry_artifacts_active"] = True
-    if guide:
-        e["_consistency_ref_path"] = guide
-        e["_s2_retry_artifacts_active"] = True
-    # S2 未開時也強制這次用可吃 mask 的局部修（有 mask 才有意義）
-    if mask:
-        e["_force_mask_local_edit"] = True
+    # 任一安全元件缺失都不可退化成純 prompt 付費抽獎。
+    if not mask or not guide:
+        print("[pipeline] console door edit skipped before generation: safe mask/guide unavailable")
+        return None
+    e["_edit_mask_path"] = mask
+    e["_edit_mask_mode"] = "console_door"
+    e["_consistency_ref_path"] = guide
+    e["_s2_retry_artifacts_active"] = True
+    # S2 未開時也強制這次用可吃 mask 的局部修。
+    e["_force_mask_local_edit"] = True
     print(f"[pipeline] console door edit: offender=focal_anchor "
           f"mask={'yes' if mask else 'no'} guide={'yes' if guide else 'no'}")
     return base
@@ -5264,6 +5279,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             retry_ctx["console_door_clearance_edit"] = True
                             base_for_gen = console_base
                             retry_reason = "console past door (mask hard repair)"
+                        elif _door_block_offender(v) == "focal_anchor":
+                            # 櫃貼門但算不出同時保住對正的安全目標，不退回通用重生。
+                            r["_console_repair_exhausted"] = True
+                            r["retry_reason"] = "console repair skipped: no pair-safe target"
+                            print(f"[pipeline] Z3 render[{idx}] 電視櫃避門無安全目標 → 生成前停止")
+                            break
                         else:
                             alignment_base = _sofa_alignment_edit_base(
                                 v, r, entry.get("_room_type", "living"))
@@ -5495,6 +5516,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         retry_ctx = dict(retry_ctx or {})
                         retry_ctx["console_door_clearance_edit"] = True
                         base_for_gen = console_base
+                    elif _door_block_offender(v) == "focal_anchor":
+                        r["_console_repair_exhausted"] = True
+                        r["retry_reason"] = "console repair skipped: no pair-safe target"
+                        print(f"[pipeline] Phase2 render[{idx}] 電視櫃避門無安全目標 → 生成前停止")
+                        continue
                     else:
                         alignment_base = _sofa_alignment_edit_base(
                             v, r, entry.get("_room_type", "living"))
@@ -6110,6 +6136,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             retry_ctx = dict(retry_ctx or {})
                             retry_ctx["console_door_clearance_edit"] = True
                             strategies = [("電視櫃離門遮罩硬修", console_base, None)]
+                        elif _door_block_offender(v0) == "focal_anchor":
+                            r["_console_repair_exhausted"] = True
+                            r["retry_reason"] = "console repair skipped: no pair-safe target"
+                            print(f"[pipeline] Phase3 render[{idx}] 電視櫃避門無安全目標 → 生成前停止")
+                            continue
                         else:
                             alignment_base = _sofa_alignment_edit_base(
                                 v0, r, entry.get("_room_type", "living"))

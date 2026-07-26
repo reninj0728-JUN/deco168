@@ -1589,7 +1589,9 @@ def _build_retry_context_section(retry_context: dict | None, room_type: str = "l
     if retry_context.get("console_door_clearance_edit"):
         return " ".join([
             "CONSOLE DOOR-CLEARANCE EDIT — image_1 is the previous furnished render, not an empty room.",
-            "MOVE ONLY THE TV AND MEDIA CONSOLE away from the entrance door along the same wall.",
+            "MOVE ONLY THE TV AND MEDIA CONSOLE LATERALLY ONLY away from the entrance door along the same wall.",
+            "Keep the console at the exact same image-row/depth centre, footprint height, wall contact and "
+            "sofa-facing axis; do not change its depth or vertical position.",
             "After the far door-frame edge leave at least 0.28× door-width of bare wall and empty floor "
             "BEFORE the console begins; park the console on that solid segment past the door.",
             "LOCK the sofa, rug, coffee table, entrance door, walls, windows, camera, lighting, decor, "

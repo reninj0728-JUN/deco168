@@ -213,7 +213,8 @@ def test_console_door_and_sofa_relocation_masks_reach_fal_without_spending():
             "render_bboxes": {
                 "entrance_door": [250, 40, 720, 210],
                 "focal_anchor": [430, 230, 560, 430],   # 貼門(gap=0)→offender=focal_anchor
-                "sofa": [470, 520, 780, 870],
+                # 沙發／TV 原本對正，這個 fixture 只驗「櫃貼門」單一硬傷。
+                "sofa": [370, 520, 670, 870],
             },
         }
         assert api._door_block_offender(console_v) == "focal_anchor"
