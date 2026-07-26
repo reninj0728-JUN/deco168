@@ -1017,8 +1017,14 @@ Q2e: 產品可見性（購買清單商品，圖上有沒有「大致出現」—
 - different：圖上有同類物件，但**明顯是另一件商品**——形狀、顏色、材質全都對不上
   （例：清單是懸浮式淺色電視櫃，圖上畫成灰色大理石檯面落地櫃）。
 - missing：圖上**完全沒有**該類物件。
+MEDIA CONSOLE 身分關鍵特徵（不可當成輕度風格化）：
+- 若清單描述寫有 legs / feet / plinth / base / floor-standing，渲染卻把櫃體畫成壁掛、
+  懸浮，或櫃底整段可看見牆面／地板且沒有可見支撐，必須判 different。
+- 反之，清單明確是 floating / wall-mounted，渲染卻改成落地腳櫃，也必須判 different。
+- 抽屜面、檯面材質與主要顏色若同時明顯不符，也判 different；不能只因「都有電視櫃」
+  就判 visible。
 判斷從寬：只有「完全沒畫」或「一眼就知道不是這件」才標 missing/different；
-風格化微調一律 visible，不要吹毛求疵。
+風格化微調一律 visible，不要吹毛求疵；但上述安裝／支撐型態是商品身分，不屬於微調。
 """
 
     # 把 design_mode 直接告訴 judge（比事後蓋 flag 乾淨；reason 也會寫得準）。

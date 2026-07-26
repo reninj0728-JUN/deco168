@@ -9,7 +9,8 @@ Nano Banana Pro multi-image prompt 組裝模組
 - 純函式、無 side effect
 - 不打 fal、不寫 DB、不改 pipeline
 - image_urls[0] 永遠是 room image
-- 後面只放 matched_furniture 裡 category_en in (sofa, coffee_table, rug) 且有 image_url 的商品
+- 後面只放 matched_furniture 裡 category_en in (sofa, coffee_table, rug, media_console)
+  且有 image_url 的商品；S2 compact-entry 只保留不影響入口側沙發尺度的 media_console
 - reference 編號動態建立（不硬寫 image 2/3/4）
 - zoning 描述原文塞進 prompt，不 parse Wall A/B
 - zoning confidence='none' 或缺失時退回無 zoning 版本
@@ -1043,9 +1044,20 @@ def _build_customer_notes_section(customer_notes: str) -> str:
     return f"{_NOTES_WRAPPER_PREFIX}「{clean}」"
 
 
-def _build_style_section(entry: dict) -> str:
+_CONFLICTING_MEDIA_CONSOLE_STYLE_CUE = re.compile(
+    r"\b(?:floating|wall[- ]mounted|suspended|cantilevered)\s+"
+    r"(?:(?:tv|media)\s+)?(?:console|cabinet)\b[^,;.]*[,;.]?\s*",
+    re.IGNORECASE,
+)
+
+
+def _build_style_section(entry: dict, *, protect_media_console: bool = False) -> str:
     style_label = entry.get("style_label") or entry.get("style") or "interior style"
     flux_prompt = (entry.get("flux_prompt") or "").strip()
+    if protect_media_console and flux_prompt:
+        # 商品參考是商業承諾，不能再讓風格分析裡的 generic「懸浮／壁掛電視櫃」
+        # 覆蓋實際商品的落地腳／底座。只移除互斥的櫃體型態片段，其餘風格 cues 保留。
+        flux_prompt = _CONFLICTING_MEDIA_CONSOLE_STYLE_CUE.sub("", flux_prompt).strip(" ,;.")
     parts = [f"STYLE: {style_label}."]
     if flux_prompt:
         parts.append(f"Style cues: {flux_prompt}.")
@@ -1890,9 +1902,17 @@ def build_nano_banana_inputs(
         )
 
     compact_entry_mode = entry.get("_s2_compact_entry_mode") is True
-    matched = [] if compact_entry_mode else (entry.get("matched_furniture") or [])
+    matched_all = entry.get("matched_furniture") or []
+    # B compact-entry 只需要縮小入口同側的 sofa/group；對牆 media console 不應因此
+    # 失去商品圖。舊邏輯 matched=[] 讓結果頁照賣某件櫃子、模型卻從未看過它，
+    # 造成「清單落地櫃、成品懸浮 generic 櫃」的商業錯配。
+    matched = (
+        [item for item in matched_all
+         if isinstance(item, dict) and (item.get("category_en") or "").strip() == "media_console"]
+        if compact_entry_mode else matched_all
+    )
 
-    # 過濾出 must_have 且有 image_url 的商品（順序固定 sofa → coffee_table → rug）
+    # 過濾出 must_have 且有 image_url 的商品（順序固定 sofa → coffee_table → rug → media_console）
     selected: dict[str, dict] = {}
     for item in matched:
         cat = (item.get("category_en") or "").strip()
@@ -2049,7 +2069,10 @@ def build_nano_banana_inputs(
         layout_sec = (layout_sec + "\n\n" + local_repair_sec) if layout_sec else local_repair_sec
 
     product_sec = _build_product_placement_section(reference_map)
-    style_sec = _build_style_section(entry)
+    style_sec = _build_style_section(
+        entry,
+        protect_media_console="media_console" in selected,
+    )
     budget_sec = _build_budget_section(budget_tier)
     customer_sec = _build_customer_notes_section(customer_notes)
     retry_sec = _build_retry_context_section(retry_context, room_type)
@@ -2099,14 +2122,23 @@ def build_nano_banana_inputs(
         sections.append(target_note_sec)
     sections.extend([layout_sec, product_sec, style_sec])
     if compact_entry_mode:
+        _compact_product_note = (
+            "The MEDIA CONSOLE product reference remains binding for appearance and support type: "
+            "match its drawer fronts, top material, colour, legs or plinth, and keep it visibly "
+            "floor-standing inside the BLUE target. Scale only enough to fit the safe target; never "
+            "turn it into a floating or wall-mounted generic cabinet. Sofa, coffee-table, rug and "
+            "soft-accessory product references are intentionally omitted because entrance geometry "
+            "has priority."
+            if "media_console" in selected else
+            "Product-image matching is disabled for this render because geometry compliance has priority."
+        )
         sections.append(
             "S2 COMPACT ENTRANCE MODE (binding): Generate one very compact armless 120–140 cm "
             "two-seat loveseat fully inside the GREEN SOFA TARGET and one slim compact TV/console "
             "fully inside the BLUE target. The sofa and TV centres must remain on the same cross-room "
             "centreline and face each other. Keep the complete entrance landing and the wall below the "
             "intercom empty bare floor. No rug, coffee table, side table, plant, vase, or floor lamp "
-            "may be generated in the entrance half of the room. Product-image matching is disabled "
-            "for this render because geometry compliance has priority."
+            "may be generated in the entrance half of the room. " + _compact_product_note
         )
     # 客戶選「交給 AI 自動配置」｜不是強制浮置；是否離牆由空間尺寸判斷。
     if isinstance(zoning, dict) and zoning.get("_sofa_layout") == "free":

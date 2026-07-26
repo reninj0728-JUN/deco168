@@ -394,6 +394,17 @@ def test_product_visibility_hard_flag():
     assert "product_visibility_fail" in ga.HARD_FAIL_FLAGS
 
 
+def test_media_console_support_type_is_identity_critical_in_existing_validation_call():
+    """CB3D7836｜不增加判官呼叫；原驗收必須把落地腳／底座與懸浮視為不同商品。"""
+    import inspect
+    import gemini_analyze as ga
+
+    source = inspect.getsource(ga.validate_render)
+    assert "MEDIA CONSOLE 身分關鍵特徵" in source
+    assert "legs / feet / plinth / base / floor-standing" in source
+    assert "上述安裝／支撐型態是商品身分" in source
+
+
 def test_door_on_tv_wall_protocol():
     """1A3B0C68 迴歸：大門與電視同側牆 → 生成 prompt 必須帶避門協議；不同側則不帶。"""
     import prompt_builder as pb

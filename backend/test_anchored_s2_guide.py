@@ -97,16 +97,22 @@ def test_gpt_image2_multi_image_prompt_hard_blocks_guide_leakage_on_retry():
     assert "Previous render leaked the S2 guide" in result["prompt"]
 
 
-def test_s2_compact_entry_mode_suppresses_oversized_visual_refs_and_accessories():
+def test_s2_compact_entry_mode_keeps_console_ref_but_suppresses_oversized_group_refs():
     result = build_nano_banana_inputs(
         {
             "style": "modern",
+            "flux_prompt": "warm light, floating TV console in matte white lacquer, pale walls",
             "_s2_compact_entry_mode": True,
             "matched_furniture": [
                 {"category_en": "sofa", "image_url": "https://x/sofa.jpg"},
                 {"category_en": "coffee_table", "image_url": "https://x/table.jpg"},
                 {"category_en": "rug", "image_url": "https://x/rug.jpg"},
-                {"category_en": "media_console", "image_url": "https://x/tv.jpg"},
+                {
+                    "id": "console-1",
+                    "category_en": "media_console",
+                    "name_zh": "灰抽屜石紋電視櫃",
+                    "image_url": "https://x/tv.jpg",
+                },
             ],
             "soft_furnishing": [
                 {"category_en": "plant", "image_url": "https://x/plant.jpg"},
@@ -121,10 +127,18 @@ def test_s2_compact_entry_mode_suppresses_oversized_visual_refs_and_accessories(
     assert result["image_urls"] == [
         "data:image/jpeg;base64,ROOM",
         "data:image/jpeg;base64,GUIDE",
+        "https://x/tv.jpg",
+    ]
+    assert [ref.get("cat_en") for ref in result["reference_map"]] == [
+        None, None, "media_console",
     ]
     assert "120–140 cm" in result["prompt"]
     assert "No rug, coffee table, side table, plant, vase, or floor lamp" in result["prompt"]
     assert "same cross-room centreline" in result["prompt"]
+    assert "MEDIA CONSOLE product reference remains binding" in result["prompt"]
+    assert "FLOOR-STANDING (hard)" in result["prompt"]
+    assert "floating TV console in matte white lacquer" not in result["prompt"]
+    assert "Product-image matching is disabled" not in result["prompt"]
 
 
 def test_s2_sofa_alignment_edit_adds_local_repair_guide_as_third_reference():
