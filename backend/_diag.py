@@ -65,6 +65,13 @@ for it in (sh.get("items") or []):
           f"結果 : {it.get('verification_status')}  "
           f"失敗欄位 : {it.get('verification_failed_fields')}")
     print(f"   說明 : {it.get('reason')}")
+    # E64D1C31 盲區：判官那條路有六個提前 return，以前全部不留紀錄
+    if it.get("verifier_exit_branch") is not None or it.get("plan_eligible_before_verifier") is not None:
+        print(f"   判官前規劃合格 : {it.get('plan_eligible_before_verifier')}"
+              f"   → 走的分支 : {it.get('verifier_exit_branch')}")
+        if it.get("plan_overwritten_by_verifier"):
+            print(f"   ⚠ 好的規劃被判官的重新規劃蓋掉；重規不合格碼 : "
+                  f"{it.get('replan_unsafe_codes')}")
 
 # 原始照片與分區（判斷是不是取景角度問題）
 z = rj.get("zoning") or {}

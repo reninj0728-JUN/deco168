@@ -3222,6 +3222,13 @@ def _run_layout_contract_s2(
             paths and _zoning_bbox_matches_source(str(photo), paths, zoning)
         )
         verified_guide = None
+        # E64D1C31 盲區：verify_and_replan_s2 有六個提前 return 分支，以前一個都不留紀錄。
+        # 結果是「離線同樣輸入 2 個合格、線上 0 個合格」查不出差在哪——連猜三次全錯。
+        # 記三件事就夠：①判官前規劃合不合格 ②走了哪個分支 ③最終 plan 有沒有被覆蓋。
+        artifacts["plan_eligible_before_verifier"] = bool(
+            plan.get("pre_generation_eligible") is True)
+        artifacts["verifier_exit_branch"] = None
+        artifacts["plan_overwritten_by_verifier"] = False
         if binding_verified and plan.get("pre_generation_eligible") is True:
             verifier_result = lgvs2.verify_and_replan_s2(
                 raw_geometry=raw_struct,
@@ -3233,6 +3240,16 @@ def _run_layout_contract_s2(
                 floor_reference_estimator=floor_reference_estimator,
                 can_float=bool(can_float),
             )
+            artifacts["verifier_exit_branch"] = verifier_result.get("exit_branch")
+            if verifier_result.get("replan_unsafe_codes"):
+                artifacts["replan_unsafe_codes"] = list(
+                    verifier_result.get("replan_unsafe_codes") or [])
+            # 判官前合格、判官後不合格 = 好的規劃被判官的重新規劃蓋掉（今天查不出來的那件事）
+            artifacts["plan_overwritten_by_verifier"] = bool(
+                (verifier_result.get("plan") or {}).get("pre_generation_eligible") is not True)
+            print(f"[layout-verifier] exit_branch={verifier_result.get('exit_branch')} "
+                  f"判官前合格=True 判官後合格="
+                  f"{(verifier_result.get('plan') or {}).get('pre_generation_eligible')}")
             plan = verifier_result["plan"]
             verified_guide = verifier_result.get("guide_artifact")
             verification_history = verifier_result.get("verification_history") or []
@@ -3322,6 +3339,11 @@ def _run_layout_contract_s2(
             "verification_exception_type": verification.get("exception_type"),
             "verification_unsafe_codes": list(verification.get("unsafe_codes") or []),
             "verification_history": verification_history,
+            # E64D1C31 盲區：判官這條路以前完全不留紀錄，事後查不出是誰擋的。
+            "plan_eligible_before_verifier": artifacts.get("plan_eligible_before_verifier"),
+            "verifier_exit_branch": artifacts.get("verifier_exit_branch"),
+            "plan_overwritten_by_verifier": artifacts.get("plan_overwritten_by_verifier"),
+            "replan_unsafe_codes": list(artifacts.get("replan_unsafe_codes") or []),
             "affects_delivery": True,
         }
         if verification.get("status") == "fail":

@@ -879,13 +879,20 @@ def verify_and_replan_s2(
         )
         return {
             "plan": blocked,
+            "exit_branch": "no_transverse_reference",
             "raw_geometry": active_raw,
             "guide_artifact": None,
             "verification_history": [],
         }
     if not plan.get("pre_generation_eligible"):
+        # E64D1C31 盲區：外面第一次規劃是合格的，這裡帶著實測地板橫軸基準重新規劃後
+        # 卻不合格 —— 以前這條路一聲不響就回傳 BLOCKED，事後完全查不出是誰擋的。
+        print("[layout-verifier] replan-with-floor-reference 不合格 → 直接封鎖；"
+              f"unsafe={plan.get('unsafe_codes')}")
         return {
             "plan": plan,
+            "exit_branch": "replan_not_eligible",
+            "replan_unsafe_codes": list(plan.get("unsafe_codes") or []),
             "raw_geometry": active_raw,
             "guide_artifact": None,
             "verification_history": [],
@@ -933,6 +940,7 @@ def verify_and_replan_s2(
             )
             return {
                 "plan": blocked,
+                "exit_branch": "verifier_exception",
                 "raw_geometry": active_raw,
                 "guide_artifact": None,
                 "verification_history": history,
@@ -961,6 +969,7 @@ def verify_and_replan_s2(
                 )
             return {
                 "plan": verified_plan,
+                "exit_branch": "verified_pass",
                 "raw_geometry": active_raw,
                 "guide_artifact": artifact,
                 "verification_history": history,
@@ -1050,6 +1059,7 @@ def verify_and_replan_s2(
             )
             return {
                 "plan": blocked,
+                "exit_branch": "opposite_candidate_recheck_blocked",
                 "raw_geometry": active_raw,
                 "guide_artifact": None,
                 "verification_history": history,
@@ -1133,6 +1143,7 @@ def verify_and_replan_s2(
         )
         return {
             "plan": blocked,
+            "exit_branch": "verdict_blocked",
             "raw_geometry": active_raw,
             "guide_artifact": None,
             "verification_history": history,
