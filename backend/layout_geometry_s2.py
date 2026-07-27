@@ -240,6 +240,36 @@ def _mix(a, b, amount: float):
     return (a[0] + (b[0] - a[0]) * amount, a[1] + (b[1] - a[1]) * amount)
 
 
+def _bbox_yx1000(polygon, width: int, height: int):
+    """像素多邊形 → 驗證器用的 [ymin, xmin, ymax, xmax]（0–1000 正規化）。"""
+    xs = [float(p[0]) for p in polygon]
+    ys = [float(p[1]) for p in polygon]
+    return [
+        min(ys) * 1000.0 / max(1.0, float(height)),
+        min(xs) * 1000.0 / max(1.0, float(width)),
+        max(ys) * 1000.0 / max(1.0, float(height)),
+        max(xs) * 1000.0 / max(1.0, float(width)),
+    ]
+
+
+def _shared_door_gap_violation(sofa, tv, door_poly, width: int, height: int):
+    """門距判定：**直接呼叫生成後驗證器的同一個函式**，同一組門檻、同一種量法。
+
+    這是刻意共用而非複製：只要兩端量法不同（規劃量多邊形到玄關區、驗證量 bbox
+    水平間距），就會出現「規劃 pass、成品 fail」——規劃器交給 Fal 一個本來就
+    過不了驗收的目標框。回傳 (物件名, 間距, 門寬, 門檻) 或 None。
+    """
+    try:
+        from gemini_analyze import _door_adjacency_violation
+    except Exception:
+        return None   # 取不到共用判定時不阻擋規劃；生成後閘門仍會把關
+    return _door_adjacency_violation({
+        "entrance_door": _bbox_yx1000(door_poly, width, height),
+        "sofa":          _bbox_yx1000(sofa, width, height),
+        "focal_anchor":  _bbox_yx1000(tv, width, height),
+    })
+
+
 def _footprint(side: str, own_line, opposite_line, t0: float, t1: float, depth: float):
     own0, own1 = _line_point(own_line, t0), _line_point(own_line, t1)
     opp0, opp1 = _line_point(opposite_line, t0), _line_point(opposite_line, t1)
@@ -791,9 +821,15 @@ def _candidate(
 
     entrance_clearance = _polygon_distance(sofa, landing)
     minimum_entrance_clearance = 0.03 * min(width, height)
-    floating_entrance_clear = (
-        sofa_side != "free" or entrance_clearance >= minimum_entrance_clearance
-    )
+    # 67866097：以前這裡寫 `sofa_side != "free" or ...`——只要沙發指定左/右，
+    # 門距檢查就整個跳過。指定左右只能決定「靠哪面牆」，不能豁免門距。
+    floating_entrance_clear = entrance_clearance >= minimum_entrance_clearance
+    # 規劃與驗證必須用同一套門距判定，否則規劃 pass、成品 fail：
+    # 舊規劃器用 `0.03 × 圖片短邊`(≈91px)，驗證器要 `0.25/0.28 × 門寬`(139～201px)，
+    # 寬鬆 1.5～2.2 倍 → S2 產出的綠框/藍框本來就過不了自家驗收，
+    # Fal 照著錯誤目標畫，再被後段閘門擋掉（客廳落選 65% 是「家具擋門」）。
+    door_gap_violation = _shared_door_gap_violation(sofa, tv, door_poly, width, height)
+    door_gap_clear = door_gap_violation is None
     floating_walkway_clear = (
         sofa_side != "free" or not _polygon_intersects(sofa, walkway)
     )
@@ -802,6 +838,7 @@ def _candidate(
         "transform_chain_valid": True,
         "door_floor_contact_valid": True,
         "entrance_landing_clear": landing_clear,
+        "door_gap_clear": door_gap_clear,
         "walkway_clear": walkway_clear,
         "living_floor_valid": True,
         "usable_wall_valid": True,
@@ -817,6 +854,12 @@ def _candidate(
         ),
     }
     fail_codes = []
+    if not door_gap_clear:
+        # 帶上是誰、差多少，診斷時一眼看出「規劃階段就擋不住門」
+        _who, _gap, _door_w, _thr = door_gap_violation
+        fail_codes.append(
+            f"CANDIDATE_DOOR_GAP_{_who.upper()}"
+            f"({_gap:.0f}/{_door_w:.0f}<{_thr})")
     if not landing_clear:
         fail_codes.append("CANDIDATE_HITS_ENTRANCE")
     if not walkway_clear:

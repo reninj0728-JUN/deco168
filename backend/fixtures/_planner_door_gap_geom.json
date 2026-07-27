@@ -1,0 +1,173 @@
+{
+ "status": "observed",
+ "elements": {
+  "walkway": {
+   "kind": "walkway",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     850,
+     260
+    ],
+    [
+     580,
+     435
+    ],
+    [
+     580,
+     480
+    ],
+    [
+     980,
+     430
+    ]
+   ]
+  },
+  "door_quad": {
+   "kind": "door_quad",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     320,
+     120
+    ],
+    [
+     320,
+     260
+    ],
+    [
+     850,
+     260
+    ],
+    [
+     850,
+     120
+    ]
+   ]
+  },
+  "living_floor": {
+   "kind": "living_floor",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     980,
+     0
+    ],
+    [
+     980,
+     1000
+    ],
+    [
+     615,
+     620
+    ],
+    [
+     580,
+     435
+    ]
+   ]
+  },
+  "left_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     980,
+     0
+    ],
+    [
+     580,
+     435
+    ]
+   ]
+  },
+  "entrance_landing": {
+   "kind": "entrance_landing",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     850,
+     120
+    ],
+    [
+     850,
+     260
+    ],
+    [
+     980,
+     260
+    ],
+    [
+     980,
+     0
+    ]
+   ]
+  },
+  "right_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     980,
+     1000
+    ],
+    [
+     615,
+     620
+    ]
+   ]
+  },
+  "door_floor_contact": {
+   "kind": "door_floor_contact_edge",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     850,
+     120
+    ],
+    [
+     850,
+     260
+    ]
+   ]
+  }
+ },
+ "schema_version": "struct-geometry-v1",
+ "uncertainty_notes": "無",
+ "validation_errors": [],
+ "source_photo_index": 0,
+ "usable_wall_segments": [
+  {
+   "id": "wall_left_1",
+   "side": "left",
+   "t_end": 1,
+   "status": "observed",
+   "t_start": 0.35,
+   "confidence": "high",
+   "visibility": "full"
+  },
+  {
+   "id": "wall_right_1",
+   "side": "right",
+   "t_end": 1,
+   "status": "observed",
+   "t_start": 0,
+   "confidence": "high",
+   "visibility": "full"
+  }
+ ]
+}
