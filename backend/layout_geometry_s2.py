@@ -433,6 +433,20 @@ def _walkway_has_connected_path(walkway, obstacles, *, width: int, height: int) 
     return False
 
 
+def _walkway_polygon_is_usable(walkway, *, width: int, height: int) -> bool:
+    """零家具測試：這條走道多邊形**本身**能不能走。
+
+    B4CC27C3：Gemini 把走道畫成細楔形（前三點近乎共線，第四點跑到左下角），
+    面積只有地板 4%（正常房是 19%），連通演算法穿不過去 → 13 個候選全部被判
+    CANDIDATE_HITS_WALKWAY，看起來像「家具擋路」，實際上**一件家具都沒放就已經不通**。
+
+    刻意不用「面積佔比門檻」：門檻是猜的（樣本只有 4% vs 19%，中間怎麼切都是拍腦袋），
+    而且分不出「畫壞的走道」和「真的很窄但能走的走道」——後者空房仍會連通。
+    這裡直接量「零障礙物時通不通」，沒有任何魔術數字。
+    """
+    return _walkway_has_connected_path(walkway, [], width=width, height=height)
+
+
 def _line_intersection(a, b, c, d):
     first = (b[0] - a[0], b[1] - a[1])
     second = (d[0] - c[0], d[1] - c[1])
@@ -769,6 +783,7 @@ def _candidate(
     height: int,
     compact_entry: bool = False,
     float_tv_side: str = "right",
+    walkway_usable: bool | None = None,
 ):
     left0, left1 = paired["left0"], paired["left1"]
     right0, right1 = paired["right0"], paired["right1"]
@@ -833,8 +848,14 @@ def _candidate(
     sofa_inside = all(_point_in_polygon(point, living) for point in sofa)
     tv_inside = all(_point_in_polygon(point, living) for point in tv)
     landing_clear = not _polygon_intersects(sofa, landing) and not _polygon_intersects(tv, landing)
+    # 走道多邊形畫壞時（零家具就不通），改用客廳地板當通道區——同一套連通檢查、
+    # 同樣要求沙發與電視擺進去之後仍走得通，只是輸入換成可靠的地板多邊形。
+    # 不是放寬閘門：好的走道照舊用（且較嚴），只有「本來就 100% 失敗」的房走 fallback。
+    if walkway_usable is None:
+        walkway_usable = _walkway_polygon_is_usable(walkway, width=width, height=height)
+    corridor = walkway if walkway_usable else living
     walkway_clear = _walkway_has_connected_path(
-        walkway, [sofa, tv], width=width, height=height,
+        corridor, [sofa, tv], width=width, height=height,
     )
     sofa_faces_tv = _distance(sofa_front, tv_front) > 10
     tv_on_wall = _distance(tv[0], tv[1]) >= 20
@@ -883,7 +904,11 @@ def _candidate(
     if not landing_clear:
         fail_codes.append("CANDIDATE_HITS_ENTRANCE")
     if not walkway_clear:
-        fail_codes.append("CANDIDATE_HITS_WALKWAY")
+        # 走道資料本身壞掉時要講清楚，否則 CANDIDATE_HITS_WALKWAY 會害人去修家具，
+        # 但真正該修的是走道多邊形（B4CC27C3：零家具就不通）。
+        fail_codes.append(
+            "CANDIDATE_HITS_WALKWAY" if walkway_usable
+            else "CANDIDATE_BLOCKS_FLOOR_PATH(walkway_polygon_degraded)")
     if not sofa_inside:
         fail_codes.append("SOFA_OUTSIDE_LIVING_FLOOR")
     if not (tv_on_wall and tv_inside):
@@ -1015,6 +1040,10 @@ def build_s2_plan(
         })
         float_only_tv_side = "right" if empty_side == "left" else "left"
 
+    # 走道多邊形可用性是「整間房」的性質，不是每個候選各自的——算一次就好
+    # （每個候選各跑一次 BFS 會把連通檢查的成本翻倍）。
+    _walkway_usable = _walkway_polygon_is_usable(
+        items["walkway"]["shape"]["coordinates"], width=width, height=height)
     candidates = []
     for left_segment in left_segments:
         for right_segment in right_segments:
@@ -1060,6 +1089,7 @@ def build_s2_plan(
                         candidate_type, candidate_sofa_side, paired,
                         t0, t1, items, source_ids, door_side, width, height,
                         float_tv_side=float_only_tv_side or "right",
+                        walkway_usable=_walkway_usable,
                     ))
 
             compact_length = min(0.12, overlap_end - overlap_start)
@@ -1080,6 +1110,7 @@ def build_s2_plan(
                         "B", door_side, compact_paired,
                         compact_t0, compact_t1, items, source_ids,
                         door_side, width, height, compact_entry=True,
+                        walkway_usable=_walkway_usable,
                     ))
 
     if not candidates:

@@ -1,0 +1,177 @@
+{
+ "status": "observed",
+ "elements": {
+  "walkway": {
+   "kind": "walkway",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     850,
+     126
+    ],
+    [
+     745,
+     258
+    ],
+    [
+     580,
+     435
+    ],
+    [
+     990,
+     50
+    ]
+   ]
+  },
+  "door_quad": {
+   "kind": "door_quad",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     325,
+     122
+    ],
+    [
+     370,
+     260
+    ],
+    [
+     745,
+     258
+    ],
+    [
+     850,
+     126
+    ]
+   ]
+  },
+  "living_floor": {
+   "kind": "living_floor",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     990,
+     0
+    ],
+    [
+     850,
+     126
+    ],
+    [
+     580,
+     430
+    ],
+    [
+     615,
+     616
+    ],
+    [
+     990,
+     990
+    ]
+   ]
+  },
+  "left_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     840,
+     126
+    ],
+    [
+     580,
+     430
+    ]
+   ]
+  },
+  "entrance_landing": {
+   "kind": "entrance_landing",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     850,
+     126
+    ],
+    [
+     745,
+     258
+    ],
+    [
+     710,
+     265
+    ],
+    [
+     920,
+     120
+    ]
+   ]
+  },
+  "right_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     990,
+     990
+    ],
+    [
+     615,
+     616
+    ]
+   ]
+  },
+  "door_floor_contact": {
+   "kind": "door_floor_contact_edge",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     850,
+     126
+    ],
+    [
+     745,
+     258
+    ]
+   ]
+  }
+ },
+ "schema_version": "struct-geometry-v1",
+ "uncertainty_notes": "深處廚房與衛浴管线無法由本視野判定，需補拍內部空間細節。",
+ "validation_errors": [],
+ "source_photo_index": 0,
+ "usable_wall_segments": [
+  {
+   "id": "right_wall_main",
+   "side": "right",
+   "t_end": 1,
+   "status": "observed",
+   "t_start": 0,
+   "confidence": "high",
+   "visibility": "full"
+  },
+  {
+   "id": "left_wall_inner",
+   "side": "left",
+   "t_end": 1,
+   "status": "observed",
+   "t_start": 0.4,
+   "confidence": "high",
+   "visibility": "full"
+  }
+ ]
+}
