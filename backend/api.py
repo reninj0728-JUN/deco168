@@ -3096,6 +3096,68 @@ def _s2_shadow_free_signal(entry: dict | None, reason: str = "") -> dict:
     }
 
 
+def _opposite_wall_is_usable(struct_geometry: dict | None, entrance_side: str) -> bool:
+    """門對面那面牆是否存在、且大致完整可用（沒被門／開口切掉大半）。"""
+    segs = (struct_geometry or {}).get("usable_wall_segments") or []
+    if entrance_side not in ("left", "right") or not isinstance(segs, list):
+        return False
+    opposite = "right" if entrance_side == "left" else "left"
+    for seg in segs:
+        if not isinstance(seg, dict) or seg.get("side") != opposite:
+            continue
+        if str(seg.get("status") or "") != "observed":
+            continue
+        try:
+            span = float(seg.get("t_end", 0)) - float(seg.get("t_start", 0))
+        except (TypeError, ValueError):
+            continue
+        if span >= 0.6:
+            return True
+    return False
+
+
+def _prefer_sofa_wall_without_entrance(
+    zoning_result: dict | None,
+    struct_geometry: dict | None,
+) -> str:
+    """67866097／EDD4856E：分區把沙發排到「跟大門同一面牆」。
+
+    該牆前段被大門佔掉（實測 t_start=0.35），沙發只能卡在門後窄段——往門靠一點就
+    違規、往深處推一點就出客廳區，容錯只有幾十像素。實測三次局部修不是過頭
+    （沙發跑出客廳區）就是不夠（間距 24，需要 44.5），四次全滅。
+    對面整面牆是乾淨的（t_start=0），沙發放那邊這題根本不存在。
+
+    `_guide_sofa_side` 早就有「門在左→沙發放右」的規則，只是被分區帶來的
+    sofa_side 蓋過去。這裡在**來源**改（furniture_placement_rules 是引導圖／S2／
+    prompt／驗證共用的 ground truth），四邊一起翻，避免「引導右、驗證左」的災難。
+
+    只在分區對這個值沒把握（sofa_side_confidence 空白）時翻，且必須確認對面牆真的
+    可用；使用者明確指定 free 或帶信心值時一律尊重原值。回傳說明；沒翻回空字串。
+    """
+    z = zoning_result if isinstance(zoning_result, dict) else None
+    if not z or z.get("_sofa_layout") == "free":
+        return ""
+    rules = z.get("furniture_placement_rules")
+    if not isinstance(rules, dict):
+        return ""
+    sofa_side = str(rules.get("sofa_side") or "").strip().lower()
+    if sofa_side not in ("left", "right"):
+        return ""
+    if str(rules.get("sofa_side_confidence") or "").strip():
+        return ""                      # 分區有把握 → 尊重原值
+    entrance_side = _entrance_side_from_zoning(z)
+    if entrance_side not in ("left", "right") or sofa_side != entrance_side:
+        return ""                      # 沙發本來就不在門那面 → 不動
+    if not _opposite_wall_is_usable(struct_geometry, entrance_side):
+        return ""                      # 對面牆不可用 → 硬翻只會讓 S2 無解
+    opposite = "right" if entrance_side == "left" else "left"
+    rules["sofa_side"] = opposite
+    rules["tv_side"] = entrance_side   # 電視櫃較矮淺，門邊淨空另有 console 閘門把關
+    z["_sofa_layout"] = opposite
+    return (f"沙發原被排在大門同側（{entrance_side}）且分區無把握 → "
+            f"改放乾淨的對面牆（{opposite}），電視櫃移至 {entrance_side}")
+
+
 def _sync_s2_candidate_sides(zoning_result: dict | None, contract: dict | None) -> dict:
     if not isinstance(zoning_result, dict) or not isinstance(contract, dict):
         return {}
@@ -4746,6 +4808,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     print(f"[pipeline] living 備援底圖 {len(_living_alt_paths)} 張: "
                           f"{[Path(p).name for p in _living_alt_paths]}")
 
+        # 67866097：分區若把沙發排到大門同側（且自己沒把握），沙發只能卡門後窄段，
+        # 渲染稍飄就貼門。在任何人讀取「沙發側」之前，於共用來源改成乾淨的對面牆，
+        # 讓引導圖／S2／prompt／驗證四邊一致。
+        try:
+            _flip_note = _prefer_sofa_wall_without_entrance(
+                zoning_result,
+                (user_zoning_v2 or {}).get("struct_geometry_v1"),
+            )
+            if _flip_note:
+                print(f"[pipeline] 沙發側修正：{_flip_note}")
+        except Exception as _fe:
+            print(f"[pipeline] 沙發側修正略過（不影響流程）: "
+                  f"{type(_fe).__name__}: {str(_fe)[:100]}")
         # 版面引導圖：free 保持 free，門 bbox／門側用同一份 zoning 真相。
         _sofa_side_for_guide = _guide_sofa_side(zoning_result)
         _entrance_side_for_guide = _entrance_side_from_zoning(zoning_result)
