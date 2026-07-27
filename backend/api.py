@@ -3946,6 +3946,42 @@ def _console_repair_candidate_is_monotonic(
     return True, ""
 
 
+_Z3_REGRESSION_FLAGS = (
+    "furniture_blocks_door", "furniture_blocks_walkway", "sofa_intrudes_walkway",
+    "sofa_faces_walkway", "sofa_on_wrong_side", "sofa_outside_living_zone",
+    "sofa_back_against_window", "sofa_facing_window", "sofa_facing_entrance_door",
+    "coffee_table_in_walkway", "focal_anchor_misaligned_with_sofa",
+    "spatial_fidelity_fail", "windows_changed", "walls_changed", "ceiling_changed",
+    "floor_changed", "offframe_room_invaded", "recessed_space_added", "kitchen_added",
+    "product_visibility_fail", "product_sofa_seating_mismatch", "guide_overlay_present",
+)
+
+
+def _z3_candidate_regression_reason(
+    previous_validation: dict | None,
+    candidate_validation: dict | None,
+) -> str | None:
+    """拒絕會新增硬傷的 Z3 候選；舊版不得被更差的新圖覆蓋。"""
+    prev = previous_validation or {}
+    cand = candidate_validation or {}
+    if not cand:
+        return "candidate validation missing"
+    if cand.get("validation_unavailable") or cand.get("validation_outage"):
+        return "candidate validation unavailable"
+    newly_failed = [flag for flag in _Z3_REGRESSION_FLAGS
+                    if cand.get(flag) is True and prev.get(flag) is not True]
+    if newly_failed:
+        return "new hard failure=" + ",".join(newly_failed)
+    for field in ("camera_axis_preserved", "passage_openings_preserved",
+                  "main_window_region_match", "sofa_focal_face_each_other",
+                  "product_sofa_seating_match"):
+        if cand.get(field) is False and prev.get(field) is not False:
+            return f"{field} regressed"
+    if cand.get("hard_fail") is True and prev.get("hard_fail") is not True:
+        return "candidate introduced hard_fail"
+    return None
+
+
 def _retry_is_stuck(prev: dict | None, cur: dict | None) -> tuple[bool, str]:
     """同一個閘門連兩次擋、數字沒有變好 → 再生一次也是同樣結果,別燒。
 
@@ -5536,12 +5572,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     new_r["crop_note"]    = entry.get("_crop_note") or None
                     new_r["retry_count"]  = current_rc + 1
                     new_r["retry_reason"] = retry_reason
+                    # EDD4856E：Z3 修 pair 時曾把已通過的門距改壞；新版若新增
+                    # 任何硬傷，不得覆蓋較佳舊版，也不得成為下一輪底圖。
+                    regression_reason = _z3_candidate_regression_reason(
+                        v, new_r.get("validation"))
+                    if regression_reason:
+                        r["validation_history"] = list(new_r.get("validation_history") or [])
+                        r["retry_count"] = current_rc + 1
+                        r["retry_reason"] = (
+                            f"{retry_reason} | candidate rejected: {regression_reason}")
+                        print(f"[pipeline] Z3 候選新增硬傷 → 保留較佳版本 render[{idx}] "
+                              f"— {regression_reason}")
+                        break
                     if repair_mode == "console_door":
                         monotonic, monotonic_reason = _console_repair_candidate_is_monotonic(
                             v, new_r.get("validation"))
                         if not monotonic:
-                            # 候選沒有資格成為下一輪底圖；保留原圖與完整驗證歷史，
-                            # 並封鎖 Phase2/Phase3 再花錢做互相覆寫的修復。
                             r["validation_history"] = list(new_r.get("validation_history") or [])
                             r["retry_count"] = current_rc + 1
                             r["_console_repair_exhausted"] = True

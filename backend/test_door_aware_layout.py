@@ -638,6 +638,12 @@ class DoorAwareLayoutTests(unittest.TestCase):
 
         source = Path(api.__file__).read_text(encoding="utf-8")
         z3 = source.split("# ── Z3:", 1)[1].split("# 統計", 1)[0]
+        # EDD4856E 後：所有 Z3 候選先過通用「不得新增硬傷」，console
+        # 再過既有的門距單調改善防護，最後才能取代目前版本。
+        self.assertLess(
+            z3.index("_z3_candidate_regression_reason("),
+            z3.index("final[idx] = new_r"),
+        )
         self.assertLess(
             z3.index("_console_repair_candidate_is_monotonic("),
             z3.index("final[idx] = new_r"),
