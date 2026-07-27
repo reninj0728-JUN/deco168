@@ -759,3 +759,38 @@ def test_can_float_false_keeps_floating_when_only_f_eligible():
             chosen = next(c for c in plan["candidates"]
                           if c["candidate_id"] == plan["chosen_candidate_id"])
             assert chosen["candidate_type"] == "F"
+
+
+def test_self_intersecting_entrance_landing_gets_repaired_not_blocked():
+    """B4CC27C3｜Gemini 給的 entrance_landing 四邊形頂點順序錯了，
+    變成自交領結形。系統應依質心角度重排頂點，重排後合法就收下，
+    不該讓一個壞 polygon 使其他 6 個正常的元素陪葬。
+
+    重排後仍自交或面積過小 → 照樣擋（不放寬）。
+    """
+    raw = _safe_geometry()
+    # B4CC27C3 真實的領結形 entrance_landing（自交、面積 2502.5）
+    raw["elements"]["entrance_landing"]["polygon_yx1000"] = [
+        [850, 126], [745, 258], [710, 265], [920, 120],
+    ]
+
+    plan = s2.build_s2_plan(raw, width=1000, height=700, expected_source_photo_index=0)
+
+    # 重排後自交消失 → 不該擋
+    assert plan["disposition"] != "BLOCKED" or "INVALID_GEOMETRY" not in plan.get(
+        "unsafe_codes", []
+    ), "自交 polygon 重排後合法時不該整包擋"
+
+
+def test_truly_broken_polygon_still_blocked():
+    """重排後仍自交或面積過小 → 照樣擋。不放寬任何檢查。"""
+    raw = _safe_geometry()
+    # 面積接近 0 的退化 polygon
+    raw["elements"]["entrance_landing"]["polygon_yx1000"] = [
+        [500, 100], [501, 100], [500, 101], [501, 101],
+    ]
+
+    plan = s2.build_s2_plan(raw, width=1000, height=700, expected_source_photo_index=0)
+
+    assert plan["disposition"] == "BLOCKED"
+    assert "INVALID_GEOMETRY" in plan["unsafe_codes"]

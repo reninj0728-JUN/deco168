@@ -87,6 +87,20 @@ def _point_yx1000(value: Any, width: int, height: int):
     return (x / 1000.0 * width, y / 1000.0 * height)
 
 
+def _reorder_polygon_by_angle(poly):
+    """依質心角度重排頂點，修正 Gemini 偶爾給出的領結形（自交）polygon。
+
+    B4CC27C3｜entrance_landing 四個點順序錯了，形成自交領結。
+    重排後自交消失、面積回到合理值。重排不是放寬——重排後仍自交或面積
+    過小，_shape_from_element 照樣 return None → INVALID_GEOMETRY。
+    """
+    if len(poly) < 3:
+        return poly
+    cx = sum(p[0] for p in poly) / len(poly)
+    cy = sum(p[1] for p in poly) / len(poly)
+    return sorted(poly, key=lambda p: math.atan2(p[1] - cy, p[0] - cx))
+
+
 def _shape_from_element(element: dict, width: int, height: int):
     if "segment_yx1000" in element:
         raw = element.get("segment_yx1000")
@@ -101,7 +115,13 @@ def _shape_from_element(element: dict, width: int, height: int):
         if not isinstance(raw, list) or len(raw) < 3:
             return None
         points = [_point_yx1000(point, width, height) for point in raw]
-        if not all(points) or abs(_polygon_area(points)) < 4 or _polygon_self_intersects(points):
+        if not all(points):
+            return None
+        # 自交時先嘗試依質心角度重排頂點（B4CC27C3 根因）。
+        # 重排後仍自交或面積過小 → 照 return None，不放寬。
+        if _polygon_self_intersects(points):
+            points = _reorder_polygon_by_angle(points)
+        if abs(_polygon_area(points)) < 4 or _polygon_self_intersects(points):
             return None
         return {"type": "polygon", "coordinates": points}
     return None

@@ -441,6 +441,14 @@ def _sync_living_floor_boundary(
         {"polygon_yx1000": updated}, width=1000, height=1000,
     ) is None:
         return False
+    # _shape_from_element 內部自交時會重排頂點，但後續邊界距離檢查
+    # 直接用 updated 的原始順序——若 updated 自交但重排後合法，
+    # 會在不一致的頂點順序上做邊界判定。在這裡補一層自交拒收。
+    updated_pts = [
+        lgs2._point_yx1000(p, 1000, 1000) for p in updated
+    ]
+    if lgs2._polygon_self_intersects(updated_pts):
+        return False
     for endpoint in corrected_line:
         boundary_distance = min(
             lgs2._point_segment_distance(
