@@ -876,6 +876,17 @@ def _candidate(
         fail_codes.append("FLOAT_NOT_PROVEN")
     eligible = all(invariants.values()) and not fail_codes
     score = 100.0 - 20.0 * len(fail_codes)
+    # 純診斷碼（不改行為）：landing 距離這條規則已經在拒收候選——它透過
+    # invariants["float_proven"] 讓 eligible=False——但以前只有 sofa_side=="free"
+    # 才記 FLOAT_NOT_PROVEN，指定 left/right 被它刷掉時**完全不留痕跡**。
+    # 後果：下次前檢無解時，被這條規則靜默刷掉的候選看不見，會把「兩層規則過度封鎖」
+    # 誤判成「這個房型無解」（本 session 已犯過一次的錯）。
+    # 刻意放在 eligible／score 都算完之後才附加：len(fail_codes) 已被 score 取用，
+    # 所以候選數量、分數排序、最終選定候選都不受影響，只增加可觀測性。
+    if not floating_entrance_clear:
+        fail_codes.append(
+            f"CANDIDATE_NEAR_LANDING"
+            f"({entrance_clearance:.0f}<{minimum_entrance_clearance:.0f})")
     if sofa_side != door_side:
         score += 5.0
     if sofa_side == "free":

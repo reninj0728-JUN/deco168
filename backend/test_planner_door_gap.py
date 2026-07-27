@@ -69,3 +69,49 @@ def test_real_room_rejects_zero_gap_candidates_but_still_has_options():
                 seen_gap_reject = True
                 assert not c.get("eligible"), "門距不合格的候選不得 eligible"
     assert seen_gap_reject, "真實房型應至少淘汰一個門距不合格的候選"
+
+
+# ── 診斷碼：landing 距離拒收必須留痕跡（純可觀測性，不改行為）──────────────
+@pytest.mark.skipif(not FIXTURE.exists(), reason="缺真實幾何 fixture")
+def test_landing_rejection_leaves_a_diagnostic_code():
+    """landing 距離規則會透過 invariants 讓候選 eligible=False，但以前只有
+    sofa_side=="free" 才記 FLOAT_NOT_PROVEN → 指定 left/right 被它刷掉時
+    完全不留痕跡，會把「兩層規則過度封鎖」誤判成「房型無解」。"""
+    import copy
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    g = copy.deepcopy(raw)
+    # 玄關落塵區放大到深入室內 → 靠牆候選落在門檻內
+    g["elements"]["entrance_landing"]["polygon_yx1000"] = [
+        [500, 80], [500, 600], [990, 700], [990, 0]]
+    for side in ("left", "right"):
+        plan = s2.build_s2_plan(g, width=4032, height=3024,
+                                expected_source_photo_index=0,
+                                sofa_side=side, can_float=False)
+        cands = plan.get("candidates") or []
+        tagged = [c for c in cands
+                  if any("CANDIDATE_NEAR_LANDING" in f for f in (c.get("fail_codes") or []))]
+        assert tagged, f"sofa_side={side}：被 landing 規則刷掉時必須留下診斷碼"
+        for c in tagged:
+            assert not c.get("eligible"), "帶此碼的候選本來就不合格"
+
+
+@pytest.mark.skipif(not FIXTURE.exists(), reason="缺真實幾何 fixture")
+def test_diagnostic_code_changes_no_behaviour():
+    """驗收條件：候選數量、合格數、最終選定候選都不得改變（診斷碼在 score 算完後才附加）。
+    基準取自加碼前的實測值。"""
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    baseline = {"free": (13, 7, "s2_b_left_0.555_0.815"),
+                "left": (5, 1, "s2_b_left_0.555_0.815"),
+                "right": (4, 2, "s2_a_right_0.740_1.000")}
+    for side, (n_cand, n_elig, chosen_id) in baseline.items():
+        plan = s2.build_s2_plan(raw, width=4032, height=3024,
+                                expected_source_photo_index=0,
+                                sofa_side=side, can_float=False)
+        cands = plan.get("candidates") or []
+        eligible = [c for c in cands if c.get("eligible")]
+        assert len(cands) == n_cand, f"{side}: 候選數量變了"
+        assert len(eligible) == n_elig, f"{side}: 合格數量變了"
+        assert plan.get("chosen_candidate_id") == chosen_id, f"{side}: 選中的候選變了"
+        # 合格候選不得帶此碼
+        for c in eligible:
+            assert not any("CANDIDATE_NEAR_LANDING" in f for f in (c.get("fail_codes") or []))
