@@ -3593,37 +3593,49 @@ def _record_validation_attempt_inner(
 _GUIDE_TRACE_MAX = 12
 
 
+def _safe_file_sha256(path) -> str | None:
+    if not path:
+        return None
+    try:
+        return _source_file_sha256(path)
+    except Exception:
+        return None
+
+
 def guide_trace_record(*, stage: str, attempt, layout_mode, guide_path,
-                       source_photo_path=None, source_photo_key=None,
+                       original_source_path=None, original_source_key=None,
+                       guide_canvas_path=None,
                        coordinate_space=None, skip_reason=None,
                        attached=None, reference_count=None) -> dict:
     """單筆 guide 觀測紀錄。
 
     只存 sha256 / 檔名 / storage key；絕不存本機暫存路徑、data URL、
     簽名網址或任何外部 request 內容（Railway 重啟後本機路徑也無意義）。
+
+    身分刻意拆成兩個，不可合併：
+      * original_source_key / original_source_sha256 — 客戶上傳的那張原圖；
+      * guide_canvas_sha256 — guide 實際畫在哪張影像上（裁切/zoom 後會不同）。
+    合成一組會讓「guide 是不是畫在對的原圖上」變成答不出來的問題。
     """
-    guide_sha = guide_name = None
+    guide_sha = _safe_file_sha256(guide_path)
+    guide_name = None
     if guide_path:
         try:
-            guide_sha = _source_file_sha256(guide_path)
             guide_name = Path(str(guide_path)).name
         except Exception:
-            guide_sha = None
-    src_sha = None
-    if source_photo_path:
-        try:
-            src_sha = _source_file_sha256(source_photo_path)
-        except Exception:
-            src_sha = None
+            guide_name = None
     return {
         "stage": str(stage),
         "attempt": attempt,
         "layout_mode": layout_mode,
         "guide_created": bool(guide_path),
+        # 路徑有值不代表檔案讀得到；讀不到的 guide 等於沒有，要分得出來
+        "guide_artifact_readable": bool(guide_sha),
         "guide_sha256": guide_sha,
         "guide_basename": guide_name,
-        "source_photo_key": source_photo_key,
-        "source_photo_sha256": src_sha,
+        "original_source_key": original_source_key,
+        "original_source_sha256": _safe_file_sha256(original_source_path),
+        "guide_canvas_sha256": _safe_file_sha256(guide_canvas_path),
         "coordinate_space": coordinate_space,
         "attached_to_generation_request": attached,
         "reference_count": reference_count,
@@ -3646,6 +3658,29 @@ def append_guide_trace(render: dict, record: dict) -> None:
             del trace[:-_GUIDE_TRACE_MAX]
     except Exception:
         pass
+
+
+def merge_dropped_render_diagnostics(dropped: dict, final_render: dict) -> dict:
+    """Phase3 收尾：把最新診斷同步回既有的 dropped_renders 條目。
+
+    dropped_renders 是 Phase3 之前就寫好的，Phase3 之後 render 上會多出新的
+    validation_history 與 guide_trace。以前這裡只搬 history，導致 Phase3 的
+    guide 使用狀況在資料庫裡完全看不到——而 incomplete 收尾正是這條路徑。
+    抽成共用 helper 就不會再各搬各的漏掉欄位。
+    只覆蓋診斷欄位，不動 style / room_type / reason 等既有內容。
+    """
+    if not isinstance(dropped, dict) or not isinstance(final_render, dict):
+        return dropped
+    history = list(final_render.get("validation_history") or [])
+    dropped["validation_history"] = history
+    dropped["validation_attempt_count"] = len(history)
+    if history:
+        dropped["validation_stage"] = history[-1].get("validation_stage")
+    trace = final_render.get("_guide_trace")
+    # 只有真的有新紀錄才覆蓋，否則會把生成階段留下的 trace 洗掉
+    if isinstance(trace, list) and trace:
+        dropped["guide_trace"] = list(trace)
+    return dropped
 
 
 def _validation_diagnostics(render: dict) -> dict:
@@ -4925,6 +4960,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     blocked_rects=_blocked_crop,
                     living_bbox=_living_bbox_crop,
                 )
+                # 走完全部前置檢查卻仍畫不出來，是另一種失敗，要跟「被前面擋掉」分開
+                layout_guide_skip_reasons[_vi] = (
+                    None if layout_guide_paths[_vi] else "guide_render_returned_empty")
 
         # ── S2 authoritative geometry Contract；flag off 時保留 S1 shadow ──
         layout_contract_shadows: list[dict] = []
@@ -5086,14 +5124,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if rt == "living":
                     # 純診斷：規劃階段先記一筆，讓「還沒生成就被擋掉」的張數
                     # （s2_preflight_blocked）也留得下 guide 紀錄。
+                    _origin = uncropped_bases.get(vi) or base
                     append_guide_trace(copy, guide_trace_record(
                         stage="plan",
                         attempt=0,
                         layout_mode=copy["_layout_mode"],
                         guide_path=layout_guide_paths.get(vi),
-                        source_photo_path=base,
-                        source_photo_key=photo_key_by_local.get(
-                            str(uncropped_bases.get(vi) or base)),
+                        # 原圖身分與 guide 畫布身分分開存：裁切/zoom 後兩者不同張
+                        original_source_path=_origin,
+                        original_source_key=photo_key_by_local.get(str(_origin)),
+                        guide_canvas_path=base,
                         coordinate_space=(
                             "living_zone_zoom_crop" if zone_cropped
                             else "cropped_source" if cropped
@@ -6628,11 +6668,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             if (_dropped.get("style") == _final_r.get("style")
                                     and _dropped.get("room_type")
                                     == (_final_r.get("room_type") or _final_r.get("_room_type"))):
-                                _history = list(_final_r.get("validation_history") or [])
-                                _dropped["validation_history"] = _history
-                                _dropped["validation_attempt_count"] = len(_history)
-                                if _history:
-                                    _dropped["validation_stage"] = _history[-1].get("validation_stage")
+                                merge_dropped_render_diagnostics(_dropped, _final_r)
                                 break
                     _post_rj["validation_summary"] = _post_vs
                     _post_rj.pop("repairing", None)
