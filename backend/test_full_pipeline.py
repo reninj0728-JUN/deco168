@@ -947,6 +947,35 @@ def _gpt_image2_mask_repair_prompt(reference_map: list[dict],
     )
 
 
+def record_guide_attach(render, *, stage, attempt, image_urls, guide_url) -> None:
+    """純診斷：在真正送出生成請求的最後一刻，記錄 guide 有沒有在 image_urls 裡。
+
+    不能事後推測——壞參考圖重試會把 URL 從 image_urls 濾掉（見 file_download_error
+    分支），只有在呼叫點量才是真的。身分（sha256／來源照片）由 api.py 的 plan
+    紀錄帶上，這裡不重複雜湊、不存 URL 內容、不存簽名網址。
+    觀測用，不得參與任何交付／驗證／重試判斷，例外一律吞掉不影響生成。
+    """
+    try:
+        trace = render.get("_guide_trace")
+        if not isinstance(trace, list):
+            trace = []
+            render["_guide_trace"] = trace
+        urls = list(image_urls or [])
+        trace.append({
+            "stage": str(stage or "initial"),
+            "attempt": attempt,
+            "layout_mode": render.get("_layout_mode"),
+            "guide_created": bool(guide_url),
+            "attached_to_generation_request": bool(guide_url) and guide_url in urls,
+            "reference_count": len(urls),
+            "skip_reason": None,
+        })
+        if len(trace) > 12:
+            del trace[:-12]
+    except Exception:
+        pass
+
+
 def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str = "output",
                      analysis: dict | None = None, design_mode: str = "furnish",
                      zoning: dict | None = None,
@@ -1131,6 +1160,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "attempt":          attempt,
                     "stage":            stage,
                 }
+                record_guide_attach(
+                    render, stage=stage, attempt=attempt,
+                    image_urls=a_inputs["image_urls"], guide_url=_bound_guide_url,
+                )
                 try:
                     result, img_bytes = _fal_subscribe_timed(
                         "fal-ai/nano-banana-pro/edit",
@@ -1288,6 +1321,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             attempt_args = fal_args
             _last_err = None
             for _try in range(3):   # image_size 保險絲 + 壞參考圖各可能吃掉一次
+                record_guide_attach(
+                    render, stage=stage, attempt=attempt,
+                    image_urls=attempt_args.get("image_urls"), guide_url=_guide_url,
+                )
                 try:
                     result, img_bytes = _fal_subscribe_timed(
                         render_model, attempt_args, log_ctx=log_ctx,

@@ -3585,6 +3585,69 @@ def _record_validation_attempt_inner(
     return event
 
 
+# ── guide 觀測（純診斷）──────────────────────────────────────────────
+# 2026-07-28：失敗的客廳走 dropped_renders，而那裡不存 reference_map，導致
+# 「guide 有沒有真的送進生成請求」在失敗樣本上完全量不到（交付樣本 36 張裡
+# 只有 6 張帶 guide，但失敗那 89 張比不了）。這組欄位只寫不讀：不得參與任何
+# 交付／驗證／重試判斷，純粹讓下一批真實訂單自己把答案寫進資料庫。
+_GUIDE_TRACE_MAX = 12
+
+
+def guide_trace_record(*, stage: str, attempt, layout_mode, guide_path,
+                       source_photo_path=None, source_photo_key=None,
+                       coordinate_space=None, skip_reason=None,
+                       attached=None, reference_count=None) -> dict:
+    """單筆 guide 觀測紀錄。
+
+    只存 sha256 / 檔名 / storage key；絕不存本機暫存路徑、data URL、
+    簽名網址或任何外部 request 內容（Railway 重啟後本機路徑也無意義）。
+    """
+    guide_sha = guide_name = None
+    if guide_path:
+        try:
+            guide_sha = _source_file_sha256(guide_path)
+            guide_name = Path(str(guide_path)).name
+        except Exception:
+            guide_sha = None
+    src_sha = None
+    if source_photo_path:
+        try:
+            src_sha = _source_file_sha256(source_photo_path)
+        except Exception:
+            src_sha = None
+    return {
+        "stage": str(stage),
+        "attempt": attempt,
+        "layout_mode": layout_mode,
+        "guide_created": bool(guide_path),
+        "guide_sha256": guide_sha,
+        "guide_basename": guide_name,
+        "source_photo_key": source_photo_key,
+        "source_photo_sha256": src_sha,
+        "coordinate_space": coordinate_space,
+        "attached_to_generation_request": attached,
+        "reference_count": reference_count,
+        "skip_reason": skip_reason,
+    }
+
+
+def append_guide_trace(render: dict, record: dict) -> None:
+    """把一筆觀測紀錄接到 render 上（就地累積，跨 attempt 不覆蓋）。
+    絕不可拋例外影響生成流程。"""
+    if not isinstance(render, dict) or not isinstance(record, dict):
+        return
+    try:
+        trace = render.get("_guide_trace")
+        if not isinstance(trace, list):
+            trace = []
+            render["_guide_trace"] = trace
+        trace.append(record)
+        if len(trace) > _GUIDE_TRACE_MAX:
+            del trace[:-_GUIDE_TRACE_MAX]
+    except Exception:
+        pass
+
+
 def _validation_diagnostics(render: dict) -> dict:
     """整理可安全寫入 result_json 的驗證歷程與最終狀態。"""
     history = list(render.get("validation_history") or [])
@@ -3608,11 +3671,14 @@ def _validation_diagnostics(render: dict) -> dict:
         failure_class = "render_quality"
     else:
         failure_class = None
+    guide_trace = render.get("_guide_trace")
     return {
         "failure_class": failure_class,
         "validation_stage": history[-1].get("validation_stage") if history else None,
         "validation_attempt_count": len(history),
         "validation_history": history,
+        # 純診斷：失敗樣本也要看得到 guide 鏈（交付樣本才有的 reference_map 補不了這塊）
+        "guide_trace": list(guide_trace) if isinstance(guide_trace, list) else [],
         "validation_final": {
             "ok": validation.get("ok"),
             "hard_fail": validation.get("hard_fail"),
@@ -4352,6 +4418,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # r2_keys_to_delete: pipeline 跑完後要清掉的 R2 物件
         r2_keys_to_delete: list[str] = []
         resolved_paths: list[str] = []
+        # 純診斷：本機底圖 → 原始 storage key。guide trace 只存 key，不存本機暫存路徑。
+        photo_key_by_local: dict[str, str] = {}
         for p in photo_paths:
             if p.startswith("r2://"):
                 key = p[len("r2://"):]
@@ -4362,6 +4430,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if local:
                     _normalize_photo_orientation(local)
                     resolved_paths.append(local)
+                    photo_key_by_local[str(local)] = key
                     r2_keys_to_delete.append(key)
                 else:
                     print(f"[pipeline] R2 影片 {key} 下載失敗，跳過")
@@ -4375,6 +4444,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if local:
                     _normalize_photo_orientation(local)
                     resolved_paths.append(local)
+                    photo_key_by_local[str(local)] = key
                 else:
                     print(f"[pipeline] Supabase 影片 {key} 下載失敗，跳過")
             else:
@@ -4791,11 +4861,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         _entrance_bbox_1000 = _entrance_zone_for_guide.get("bbox_on_best_photo")
         layout_guide_paths: dict[int, str | None] = {}
         layout_guide_modes: dict[int, str] = {}
+        # 純診斷：guide 沒畫成時是哪一條路徑擋的。只寫不讀，不參與任何交付/驗證/重試判斷。
+        layout_guide_skip_reasons: dict[int, str | None] = {}
         for _vi, (_bp, _rt) in enumerate(zip(flux_bases, angle_room_types)):
             if _rt == "living" and os.environ.get("LAYOUT_GUIDE", "1").strip() != "0":
                 if _conservative_layout_reason:
                     layout_guide_paths[_vi] = None
                     layout_guide_modes[_vi] = "conservative_no_binding"
+                    layout_guide_skip_reasons[_vi] = "conservative_no_binding"
                     continue
                 layout_guide_modes[_vi] = (
                     "auto_float" if _sofa_side_for_guide == "free" and _auto_float_for_guide
@@ -4805,12 +4878,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 if zone_crop_flags[_vi]:
                     print(f"[pipeline] guide[{_vi}] 略過：zone crop 尚無可驗證座標轉換")
                     layout_guide_paths[_vi] = None
+                    layout_guide_skip_reasons[_vi] = "zone_crop_no_verified_transform"
                     continue
                 _source_matches_zoning = _zoning_bbox_matches_source(
                     crop_source_paths[_vi], image_paths, user_zoning_v2 or {})
                 if user_zoning_v2 and not _source_matches_zoning:
                     print(f"[pipeline] guide[{_vi}] 略過：底圖不是 zoning 主視角，禁止跨照片套 bbox")
                     layout_guide_paths[_vi] = None
+                    layout_guide_skip_reasons[_vi] = "base_not_zoning_primary_photo"
                     continue
                 _door_bbox_crop = None
                 _blocked_crop: list[tuple] = []
@@ -4839,6 +4914,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 except Exception as _map_err:
                     print(f"[pipeline] zoning bbox→guide 映射失敗: {_map_err}")
                     layout_guide_paths[_vi] = None
+                    layout_guide_skip_reasons[_vi] = "zoning_bbox_map_exception"
                     continue
                 layout_guide_paths[_vi] = _build_layout_guide_image(
                     _bp, job_dir, _vi, _sofa_side_for_guide,
@@ -4896,6 +4972,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         door_excluded_flags[_vi] = False
                         layout_guide_paths[_vi] = _artifacts["guide_path"]
                         layout_guide_modes[_vi] = "auto_s2_contract"
+                        layout_guide_skip_reasons[_vi] = None
                     elif _s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum):
                         # S2 的幾何模型建立在「兩面相對長牆＋共同深度軸」上，只吃
                         # 正面拍攝的長條房。兩種「S2 模型化不了這房型」都回退 legacy：
@@ -4938,6 +5015,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             layout_guide_modes[_vi] = "living_zone_zoom"
                             if _zoom_guide:
                                 layout_guide_paths[_vi] = _zoom_guide
+                                layout_guide_skip_reasons[_vi] = None
+                            else:
+                                layout_guide_skip_reasons[_vi] = "zoom_guide_rebuild_failed"
                     else:
                         # 判官真的驗過而且判不安全 → 不得回退 S2，但保留 legacy
                         # 引導圖（如果前面 _build_layout_guide_image 已建好）。
@@ -4946,6 +5026,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         # 禁區，至少讓模型看得到門邊淨空要求；生成後閘門照樣把關。
                         if not layout_guide_paths.get(_vi):
                             layout_guide_paths.pop(_vi, None)
+                            layout_guide_skip_reasons.setdefault(
+                                _vi, "s2_blocked_no_legacy_guide")
                         layout_guide_modes[_vi] = "s2_blocked_legacy"
                     continue
 
@@ -5001,6 +5083,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     "legacy_fallback" if vi in layout_contract_s2_waived
                     else "s2_contract" if layout_guide_modes.get(vi) == "auto_s2_contract"
                     else layout_guide_modes.get(vi) or "legacy")
+                if rt == "living":
+                    # 純診斷：規劃階段先記一筆，讓「還沒生成就被擋掉」的張數
+                    # （s2_preflight_blocked）也留得下 guide 紀錄。
+                    append_guide_trace(copy, guide_trace_record(
+                        stage="plan",
+                        attempt=0,
+                        layout_mode=copy["_layout_mode"],
+                        guide_path=layout_guide_paths.get(vi),
+                        source_photo_path=base,
+                        source_photo_key=photo_key_by_local.get(
+                            str(uncropped_bases.get(vi) or base)),
+                        coordinate_space=(
+                            "living_zone_zoom_crop" if zone_cropped
+                            else "cropped_source" if cropped
+                            else "uncropped_source"),
+                        skip_reason=layout_guide_skip_reasons.get(vi),
+                    ))
                 # 兩套規劃器都描述不了、又沒有 guide 時，只在大門已確認完全出鏡
                 # 才允許單次生成。門仍可見或狀態未知時，裸生只會把家具貼回門邊。
                 # 豁免旗標要顯式帶到生成端：付費前閘門的全域開關會蓋掉
