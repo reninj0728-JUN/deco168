@@ -1402,33 +1402,93 @@ _BARE_CM_RE = re.compile(r'(?<!\d)(\d+)\s*cm', re.IGNORECASE)
 _NON_WIDTH_PREFIX_RE = re.compile(r'(?:高|深|直徑|dia|ø|[hd])\s*$', re.IGNORECASE)
 
 
+# 型號碼（W2002 / Y9031 / J01Q08）：字母後接 4 位以上數字，一律不是尺寸。
+# 2026-07-28：「電視櫃1.8M 原木色 W2002」被抽成 2002cm 塞進 prompt 的
+# 「render it at TRUE SCALE」——錯尺寸比沒尺寸更糟，先剃掉再解析。
+_MODEL_CODE_RE = re.compile(r'[A-Za-z]\s?\d{4,}')
+# 合理橫寬範圍（cm）。超出範圍寧可回 None 讓 prompt 沉默，不要餵假數字。
+_WIDTH_MIN_CM, _WIDTH_MAX_CM = 25, 400
+# 有標籤的尺寸：長/寬/深/高 與 W/D/H
+# 尾端 (?!\d) 不可拿掉：否則「寬2002」會被截成 200 —— 悄悄取錯位數比抓不到更糟。
+_LABELLED_DIM_RE = re.compile(
+    r'(長|寬|深|高|[WDHwdh])\s*(?:度)?\s*[:：]?\s*(\d{2,3}(?:\.\d+)?)(?!\d)')
+_LABEL_CANON = {"W": "寬", "D": "深", "H": "高"}
+
+
+def _labelled_dims(text: str) -> dict:
+    """抓出有標籤的尺寸 → {'長':240,'寬':85,'高':78}。只留第一次出現的值。"""
+    out: dict[str, float] = {}
+    for m in _LABELLED_DIM_RE.finditer(text):
+        key = m.group(1)
+        key = _LABEL_CANON.get(key.upper(), key) if key.isascii() else key
+        out.setdefault(key, float(m.group(2)))
+    return out
+
+
+def _width_from_labels(labels: dict) -> float | None:
+    """哪一個標籤才是『橫向寬度』——靠語意，不是靠順序。
+
+      長240 × 寬85  × 高78 → 240（有『長』時，『寬』指的是深度）
+      寬200 × 深43  × 高31 → 200（有『深』標了深度，『寬』就是橫寬）
+      W270  × D90   × H80  → 270（同上，W/D/H 正規化後同一條規則）
+    """
+    if "長" in labels and "寬" in labels:
+        return labels["長"]
+    if "寬" in labels:
+        return labels["寬"]
+    if "長" in labels:
+        return labels["長"]
+    return None
+
+
+def _sane_width(value) -> int | None:
+    """超出合理範圍就當沒抓到——寧可沉默，不要給模型假比例。"""
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not (_WIDTH_MIN_CM <= v <= _WIDTH_MAX_CM):
+        return None
+    return int(round(v))
+
+
 def _extract_width_cm(dims: str, allow_bare: bool = False) -> int | None:
     """從 dimensions 字串抓寬度（cm）。真實目錄（momo/pchome 爬蟲）格式很雜，
     只認 'W270' 會漏掉大多數真實商品（例：'-270cm-'）。依序嘗試：
-      1. 'W270' / 'W 270' / '寬270' 標準格式（所有品類）
-      2. allow_bare=True 時才收裸數字+cm（'-270cm-' / '長270cm'）——只給 sofa 用，
+      1. 有標籤的完整尺寸（長×寬×高 / 寬×深×高 / W×D×H）——靠語意選橫寬
+      2. '120*60*45CM' 三圍：第一個數字
+      3. 台尺、公尺
+      4. allow_bare=True 時才收裸數字+cm（'-270cm-' / '長270cm'）——只給 sofa 用，
          且數字必須完整（不能從 '高180cm' 中段配出 80，GPT round-3 抓漏）、
          前綴是 高/深/H/D/Dia/直徑 一律不當寬度。
-    抓不到回 None（不過濾，維持原行為）。"""
+    抓不到、或抓到的值不合理，一律回 None（讓 prompt 沉默，不給假比例）。"""
     if not dims:
         return None
-    w_match = re.search(r'[W寬]\s*(\d+)', dims)
-    if w_match:
-        return int(w_match.group(1))
+    dims = _MODEL_CODE_RE.sub(" ", dims)   # 先剃型號，否則 W2002 會被當成 2002cm
+    w = _sane_width(_width_from_labels(_labelled_dims(dims)))
+    if w is not None:
+        return w
     # 「120*60*45CM」三圍格式：第一個數字＝寬/長（電商慣例），
     # 不能落到裸 cm 分支抓到最後的 45（那是高度）——錯的尺寸提示比沒有更糟。
     tri = re.search(r'(\d{2,3})\s*[*xX×]\s*\d{2,3}', dims)
     if tri:
-        return int(tri.group(1))
+        return _sane_width(tri.group(1))
     # 台尺標寬（50873CF0：「9.7尺L型電視櫃」=294cm 塞進主臥）。1 台尺=30.3cm。
     chi_ft = re.search(r'(\d+(?:\.\d+)?)\s*尺', dims)
     if chi_ft:
-        return int(round(float(chi_ft.group(1)) * 30.3))
+        return _sane_width(float(chi_ft.group(1)) * 30.3)
+    # 公尺標寬（「電視櫃1.8M」）。要求帶小數點：品牌 3M 不會寫成 3.0M，
+    # 少收幾筆總比把品牌名當成 300cm 好。
+    metre = re.search(r'(\d\.\d+)\s*[Mm](?![a-zA-Z0-9])', dims)
+    if metre:
+        return _sane_width(float(metre.group(1)) * 100)
     if allow_bare:
         for m in _BARE_CM_RE.finditer(dims):
             if _NON_WIDTH_PREFIX_RE.search(dims[:m.start(1)]):
                 continue   # 高180cm / D90cm / Dia40cm：非寬度標記，跳過
-            return int(m.group(1))
+            return _sane_width(m.group(1))
     return None
 
 
