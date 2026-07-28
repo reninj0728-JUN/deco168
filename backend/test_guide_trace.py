@@ -272,6 +272,69 @@ def test_phase3_merge_keeps_non_diagnostic_fields():
     assert dropped["style"] == "modern"
 
 
+# ── 8. Phase3 必須配到「對的視角」，不能只比 style+room_type ────────
+def _living(style, angle, stage):
+    return {"style": style, "room_type": "living", "angle_label": angle,
+            "validation_history": [{"validation_stage": stage}],
+            "_guide_trace": [{"stage": stage, "angle": angle}]}
+
+
+def test_phase3_matches_the_right_angle_when_style_and_room_collide():
+    """同風格兩個客廳視角：Phase3 的紀錄不可寫到第一張符合者身上。"""
+    finals = [_living("modern", "主視角", "phase3-A"),
+              _living("modern", "客廳另一角", "phase3-B")]
+    dropped_a = {"style": "modern", "room_type": "living", "angle_label": "主視角"}
+    dropped_b = {"style": "modern", "room_type": "living", "angle_label": "客廳另一角"}
+
+    api.merge_dropped_render_diagnostics(
+        dropped_a, api.find_dropped_render_match(dropped_a, finals))
+    api.merge_dropped_render_diagnostics(
+        dropped_b, api.find_dropped_render_match(dropped_b, finals))
+
+    assert dropped_a["guide_trace"][0]["angle"] == "主視角"
+    assert dropped_b["guide_trace"][0]["angle"] == "客廳另一角"
+    assert dropped_a["validation_stage"] == "phase3-A"
+    assert dropped_b["validation_stage"] == "phase3-B"
+
+
+def test_phase3_refuses_to_guess_when_angle_cannot_be_matched():
+    """標了視角卻對不上任何一張 → 寧可不寫，也不要寫到別張去。"""
+    finals = [_living("modern", "主視角", "phase3-A")]
+    dropped = {"style": "modern", "room_type": "living", "angle_label": "完全不同的角度"}
+    assert api.find_dropped_render_match(dropped, finals) is None
+
+
+def test_phase3_falls_back_when_no_angle_info_exists():
+    """舊資料兩邊都沒有 angle_label 時仍要配得上，不可因為變嚴格而整個不同步。"""
+    finals = [{"style": "modern", "room_type": "living",
+               "validation_history": [{"validation_stage": "phase3"}]}]
+    dropped = {"style": "modern", "room_type": "living"}
+    match = api.find_dropped_render_match(dropped, finals)
+    assert match is not None
+    api.merge_dropped_render_diagnostics(dropped, match)
+    assert dropped["validation_stage"] == "phase3"
+
+
+def test_phase3_match_respects_room_type_and_style():
+    finals = [_living("modern", "主視角", "A"),
+              {"style": "nordic", "room_type": "living", "angle_label": "主視角"},
+              {"style": "modern", "room_type": "bedroom", "angle_label": "主視角"}]
+    assert api.find_dropped_render_match(
+        {"style": "modern", "room_type": "living", "angle_label": "主視角"},
+        finals)["validation_history"][0]["validation_stage"] == "A"
+    assert api.find_dropped_render_match(
+        {"style": "luxury", "room_type": "living"}, finals) is None
+
+
+def test_phase3_finalizer_uses_the_match_helper():
+    """證明收尾點真的改用比對函式，而不是又在原地比 style+room_type。"""
+    tree = ast.parse(Path(api.__file__).read_text(encoding="utf-8"))
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "find_dropped_render_match"]
+    assert calls, "find_dropped_render_match 沒有被任何地方呼叫"
+
+
 def test_phase3_finalizer_actually_calls_the_merge_helper():
     """證明收尾點真的接上了共用 helper，而不是又各搬各的。"""
     tree = ast.parse(Path(api.__file__).read_text(encoding="utf-8"))

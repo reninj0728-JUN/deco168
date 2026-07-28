@@ -3660,6 +3660,38 @@ def append_guide_trace(render: dict, record: dict) -> None:
         pass
 
 
+def _render_angle_label(entry: dict) -> str | None:
+    return (entry or {}).get("angle_label") or (entry or {}).get("_angle_label")
+
+
+def find_dropped_render_match(dropped: dict, finals) -> dict | None:
+    """替 dropped_renders 條目找出對應的 final render。
+
+    同一風格可能有兩個客廳視角（主視角＋另一角度）。只比 style+room_type
+    會把 Phase3 的診斷寫到第一張符合者身上，等於串錯視角。
+    有 angle_label 就必須精準比對；標了視角卻對不上任何一張時寧可不寫，
+    也不要寫到別張去。兩邊都沒有視角資訊（舊資料）才退回寬鬆比對。
+    """
+    if not isinstance(dropped, dict):
+        return None
+    candidates = [
+        r for r in (finals or [])
+        if isinstance(r, dict)
+        and dropped.get("style") == r.get("style")
+        and dropped.get("room_type") == (r.get("room_type") or r.get("_room_type"))
+    ]
+    if not candidates:
+        return None
+    angle = _render_angle_label(dropped)
+    if angle:
+        exact = [r for r in candidates if _render_angle_label(r) == angle]
+        if exact:
+            return exact[0]
+        if any(_render_angle_label(r) for r in candidates):
+            return None
+    return candidates[0]
+
+
 def merge_dropped_render_diagnostics(dropped: dict, final_render: dict) -> dict:
     """Phase3 收尾：把最新診斷同步回既有的 dropped_renders 條目。
 
@@ -6664,12 +6696,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                 if isinstance(_post_repair_row.get("result_json"), dict) else {})
                     _post_vs = _post_rj.get("validation_summary") or {}
                     for _dropped in (_post_vs.get("dropped_renders") or []):
-                        for _final_r in final:
-                            if (_dropped.get("style") == _final_r.get("style")
-                                    and _dropped.get("room_type")
-                                    == (_final_r.get("room_type") or _final_r.get("_room_type"))):
-                                merge_dropped_render_diagnostics(_dropped, _final_r)
-                                break
+                        _match = find_dropped_render_match(_dropped, final)
+                        if _match is not None:
+                            merge_dropped_render_diagnostics(_dropped, _match)
                     _post_rj["validation_summary"] = _post_vs
                     _post_rj.pop("repairing", None)
                     _post_rj["repair_incomplete"] = True
