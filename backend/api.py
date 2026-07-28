@@ -3668,9 +3668,12 @@ def find_dropped_render_match(dropped: dict, finals) -> dict | None:
     """替 dropped_renders 條目找出對應的 final render。
 
     同一風格可能有兩個客廳視角（主視角＋另一角度）。只比 style+room_type
-    會把 Phase3 的診斷寫到第一張符合者身上，等於串錯視角。
-    有 angle_label 就必須精準比對；標了視角卻對不上任何一張時寧可不寫，
-    也不要寫到別張去。兩邊都沒有視角資訊（舊資料）才退回寬鬆比對。
+    會把 Phase3 的診斷寫到第一張符合者身上，等於串錯視角——而診斷寫錯張
+    比沒寫更糟，這整套觀測就是為了不讓資料說謊。
+
+    規則只有一條：**不明確就不寫**。
+      * dropped 標了視角 → 必須有候選的視角完全相同，否則 None；
+      * dropped 沒標視角（舊資料）→ 只有候選唯一時才算不明確以外的情況。
     """
     if not isinstance(dropped, dict):
         return None
@@ -3684,12 +3687,11 @@ def find_dropped_render_match(dropped: dict, finals) -> dict | None:
         return None
     angle = _render_angle_label(dropped)
     if angle:
+        # 標了視角就必須對得上；對不上時任何回退都是猜，寧可不寫
         exact = [r for r in candidates if _render_angle_label(r) == angle]
-        if exact:
-            return exact[0]
-        if any(_render_angle_label(r) for r in candidates):
-            return None
-    return candidates[0]
+        return exact[0] if exact else None
+    # dropped 沒有視角資訊（舊資料）：只有「候選唯一」才不算猜
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def merge_dropped_render_diagnostics(dropped: dict, final_render: dict) -> dict:

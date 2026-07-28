@@ -304,8 +304,9 @@ def test_phase3_refuses_to_guess_when_angle_cannot_be_matched():
     assert api.find_dropped_render_match(dropped, finals) is None
 
 
-def test_phase3_falls_back_when_no_angle_info_exists():
-    """舊資料兩邊都沒有 angle_label 時仍要配得上，不可因為變嚴格而整個不同步。"""
+def test_phase3_falls_back_only_when_the_candidate_is_unique():
+    """舊資料兩邊都沒有 angle_label、且候選唯一時仍要配得上，
+    不可因為變嚴格而連唯一解都不同步。"""
     finals = [{"style": "modern", "room_type": "living",
                "validation_history": [{"validation_stage": "phase3"}]}]
     dropped = {"style": "modern", "room_type": "living"}
@@ -313,6 +314,41 @@ def test_phase3_falls_back_when_no_angle_info_exists():
     assert match is not None
     api.merge_dropped_render_diagnostics(dropped, match)
     assert dropped["validation_stage"] == "phase3"
+
+
+def test_phase3_refuses_when_dropped_has_angle_but_finals_have_none():
+    """dropped 標了視角、finals 全沒標 → 無從對應，不可退回第一張。"""
+    finals = [{"style": "modern", "room_type": "living",
+               "validation_history": [{"validation_stage": "A"}]},
+              {"style": "modern", "room_type": "living",
+               "validation_history": [{"validation_stage": "B"}]}]
+    dropped = {"style": "modern", "room_type": "living", "angle_label": "主視角"}
+    assert api.find_dropped_render_match(dropped, finals) is None
+
+
+def test_phase3_refuses_when_dropped_has_no_angle_but_finals_do():
+    """dropped 沒視角、finals 有多個不同視角 → 同樣是猜，不可寫。"""
+    finals = [_living("modern", "主視角", "A"), _living("modern", "客廳另一角", "B")]
+    dropped = {"style": "modern", "room_type": "living"}
+    assert api.find_dropped_render_match(dropped, finals) is None
+
+
+def test_phase3_refuses_when_multiple_candidates_all_lack_angle():
+    """兩邊都沒視角但候選超過一張——GPT 給的最小修正在這裡仍會回傳第一張，
+    那還是猜。不明確就不寫。"""
+    finals = [{"style": "modern", "room_type": "living",
+               "validation_history": [{"validation_stage": "A"}]},
+              {"style": "modern", "room_type": "living",
+               "validation_history": [{"validation_stage": "B"}]}]
+    dropped = {"style": "modern", "room_type": "living"}
+    assert api.find_dropped_render_match(dropped, finals) is None
+
+
+def test_phase3_single_candidate_with_matching_angle_still_works():
+    """收緊之後最常見的正常情境不可被誤殺。"""
+    finals = [_living("modern", "主視角", "phase3")]
+    dropped = {"style": "modern", "room_type": "living", "angle_label": "主視角"}
+    assert api.find_dropped_render_match(dropped, finals) is finals[0]
 
 
 def test_phase3_match_respects_room_type_and_style():
