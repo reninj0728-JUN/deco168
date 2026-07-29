@@ -573,13 +573,24 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
         return s if s in ("left", "right") else ""
     # 「沙發不靠牆」（大客廳設計創意選項）：side 綁定與左右驗收全部關閉，
     # 由 prompt 的 FREE-STANDING SOFA 段接手（走道/焦點牆/客廳區鐵則不放寬）。
-    _sofa_free = str(pz_living.get("sofa_side") or "").strip().lower() == "free"
+    sofa_side_source = str(pz_living.get("sofa_side_source") or "").strip().lower()
+    # zoning 頁會預先勾選 Gemini 建議；只有客戶真的點左／右才是硬綁定。
+    # 舊資料沒有 source 時維持原行為，避免回溯訂單被偷偷換側。
+    _sofa_free = (
+        str(pz_living.get("sofa_side") or "").strip().lower() == "free"
+        or sofa_side_source == "ai_default"
+    )
     if layout_choice == "B":
         sofa_side = _norm_side(pz_living.get("alt_sofa_side")) or _norm_side(pz_living.get("sofa_side"))
         tv_side   = _norm_side(pz_living.get("alt_tv_side"))   or _norm_side(pz_living.get("tv_side"))
     else:
         sofa_side = _norm_side(pz_living.get("sofa_side"))
         tv_side   = _norm_side(pz_living.get("tv_side"))
+    recommended_sofa_side = sofa_side
+    recommended_tv_side = tv_side
+    if sofa_side_source == "ai_default":
+        sofa_side = ""
+        tv_side = ""
     # tv_side 缺值時用 sofa_side 的對面補上
     if sofa_side and not tv_side:
         tv_side = "right" if sofa_side == "left" else "left"
@@ -631,6 +642,9 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
             "sofa_side":                sofa_side,             # "left"/"right"/"" — 共用 ground truth
             "tv_side":                  tv_side,               # sofa_side 的對面
             "sofa_side_confidence":     sofa_side_confidence,  # "high"/"medium"/"low"/""
+            "sofa_side_source":         sofa_side_source,
+            "recommended_sofa_side":    recommended_sofa_side,
+            "recommended_tv_side":      recommended_tv_side,
             "coffee_table_position":    "in front of the sofa, on top of the rug",
             "rug_anchor":               "anchored under the coffee table in the living zone",
             "accent_chair_position":    "",

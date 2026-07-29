@@ -242,6 +242,7 @@
   var currentZoning = null;
   var currentChoice = 'A';
   var currentSofaSide = 'right';   // 預設值；renderResult 會覆寫成分析建議的值
+  var currentSofaSideSource = 'ai_default';
 
   function showError(msg) {
     document.getElementById('loadingBox').style.display = 'none';
@@ -312,7 +313,7 @@
     var isLongRoom = roomShape.trim().length >= 2 &&
       /長條|狹長|長型|長形|長方|long|elongated|rectangular/i.test(roomShape);
     if (isLongRoom) {
-      setSofaSide(aiSide);
+      setSofaSide(aiSide, 'ai_default');
       document.getElementById('sofaSideTitle').textContent = '沙發靠哪一側長牆？';
       document.getElementById('sofaSideAI').textContent = '（建議靠' + sideZh + '，可調整）';
       document.getElementById('sofaSideChooser').style.display = 'flex';
@@ -320,6 +321,7 @@
       document.getElementById('sofaSideHint').style.display = 'block';
     } else {
       currentSofaSide = 'free'; // 非長型房未讓客戶指定，必須走 AI 自動配置
+      currentSofaSideSource = 'ai_default';
       document.getElementById('sofaSideTitle').textContent = '沙發位置';
       document.getElementById('sofaSideAI').textContent = '';
       document.getElementById('sofaSideChooser').style.display = 'none';
@@ -370,8 +372,9 @@
   });
 
   // 沙發選擇（'free' = 客戶無指定，交給 AI 依門窗、走道、空間大小自動配置）
-  function setSofaSide(side) {
+  function setSofaSide(side, source) {
     currentSofaSide = (side === 'left' || side === 'free') ? side : 'right';
+    currentSofaSideSource = source || currentSofaSideSource || 'ai_default';
     ['left', 'right', 'free'].forEach(function(s) {
       var el = document.getElementById(s === 'left' ? 'sideLeft' : s === 'right' ? 'sideRight' : 'sideFree');
       if (el) el.classList.toggle('selected', currentSofaSide === s);
@@ -379,9 +382,9 @@
       if (inp) inp.checked = currentSofaSide === s;
     });
   }
-  document.getElementById('sideLeft').addEventListener('click', function(){ setSofaSide('left'); });
-  document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right'); });
-  document.getElementById('sideFree').addEventListener('click', function(){ setSofaSide('free'); });
+  document.getElementById('sideLeft').addEventListener('click', function(){ setSofaSide('left', 'user_explicit'); });
+  document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right', 'user_explicit'); });
+  document.getElementById('sideFree').addEventListener('click', function(){ setSofaSide('free', 'user_auto'); });
 
   // 3. 服務方案 + 付款（Stage 1：原 checkout 邏輯併入本頁）
   // 單一真實來源：全室(plan B) ⟺ space_type=whole ⟺ render_angle=multi；
@@ -517,7 +520,12 @@
           lz.alt_sofa_side = currentSofaSide;
           lz.alt_tv_side = oppSide;
         }
-        lz.sofa_side_confidence = (currentSofaSide === 'free') ? '' : 'high';
+        lz.sofa_side_source = currentSofaSideSource || 'ai_default';
+        if (currentSofaSide === 'free') {
+          lz.sofa_side_confidence = '';
+        } else if (currentSofaSideSource === 'user_explicit') {
+          lz.sofa_side_confidence = 'high';
+        }
         // 只有實際點選靠左／靠右才算客戶明確指定；AI auto 不可冒充 high confidence。
         localStorage.setItem('deco_zoning_json', JSON.stringify(currentZoning));
       } catch (e) {
