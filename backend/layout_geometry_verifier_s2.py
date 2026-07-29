@@ -650,13 +650,15 @@ def _finalize_blocked_verification(
 
 _VERIFIER_PROMPT = """You are the final structural geometry gate before a paid interior render.
 Image 1 is the original source photo and is the only visual evidence.
-Image 2 is the S2 guide drawn on that exact photo. Guide colours: red = entrance door and
-entrance landing ONLY (hard no-go), green sofa footprint, blue TV/media-console footprint,
-yellow seated sofa-to-TV centre axis.
-The circulation walkway is deliberately NOT painted red for wall-anchored layouts: a sofa or
-console standing against a wall is expected to sit inside the walkway polygon. Walkway is judged
-on whether a connected path still remains around the furniture, NOT on zero overlap. Never fail a
-footprint merely because it lies inside the walkway area.
+Image 2 is the S2 guide drawn on that exact photo. Guide colours: red = the entrance hard no-go
+zone, which covers the entrance door, the entrance landing, and — when present — the compact-entry
+safety buffer beside the door; green sofa footprint, blue TV/media-console footprint, yellow
+seated sofa-to-TV centre axis.
+The circulation walkway is deliberately NOT painted red for wall-anchored layouts: wall-anchored
+furniture MAY overlap the walkway polygon, provided a connected path still remains around it.
+Judge the walkway on whether someone can still walk through, NOT on zero overlap. Do not fail a
+footprint merely because it lies inside the walkway area — but DO fail it when no usable path
+remains past the furniture.
 Do not trust any SAFE label. Inspect the original source photo and return strict JSON only.
 
 Hard checks — each value must be exactly pass, fail, or uncertain. Apply the candidate-specific
