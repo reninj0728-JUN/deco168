@@ -18,6 +18,8 @@ v2 vs v1（zoning.py）差異：
 """
 import os
 import json
+import hashlib
+from datetime import datetime, timezone
 import time
 from pathlib import Path
 
@@ -243,26 +245,79 @@ def normalize_struct_geometry_payload(result: dict, photo_count: int) -> dict:
     return normalized
 
 
+_RETRY_INSTRUCTION = (
+    "Your previous response was malformed JSON. Return the same answer again as one "
+    "complete strict JSON object only. Do not add markdown or commentary."
+)
+
+# 解析／正規化契約的版本。**改動 normalize_struct_geometry_payload 的行為時要手動 bump。**
+# 這是幾何快取該失效的訊號；拿 code_revision 當訊號會讓每次無關部署都清空整份快取。
+NORMALIZER_VERSION = "2026-07-30"
+
+
+# 送模設定的**唯一來源**：送出與 provenance 都走這一份，改了指紋就會跟著變。
+_GENERATION_CONFIG_KWARGS = {"response_mime_type": "application/json"}
+_GENERATION_CONFIG_OBSERVED = ("response_mime_type", "temperature", "seed",
+                               "top_p", "top_k", "candidate_count")
+
+
+def _generation_config_snapshot(types_module) -> dict:
+    """從實際送模用的同一份設定取值，不是另抄一份字面值。
+
+    未設的欄位讀出來是 None＝用模型預設；哪天有人鎖了 temperature 或 seed，
+    request_fingerprint 會自己跟著變，不會拿舊設定的幾何誤命中。
+    """
+    try:
+        cfg = types_module.GenerateContentConfig(**_GENERATION_CONFIG_KWARGS)
+        snapshot = {k: getattr(cfg, k, None) for k in _GENERATION_CONFIG_OBSERVED}
+    except Exception:
+        snapshot = dict(_GENERATION_CONFIG_KWARGS)
+    return {k: (v if v is None or isinstance(v, (str, int, float, bool)) else str(v))
+            for k, v in snapshot.items()}
+
+
+def _canonical_sha256(payload) -> str:
+    """對結構做 canonical JSON（排序鍵、無空白）後雜湊——欄位順序不得影響指紋。"""
+    return hashlib.sha256(json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode("utf-8")).hexdigest()
+
+
 def _generate_json_with_retry(
     *, client, types_module, parts: list, model: str, max_attempts: int = 2,
+    attempt_trace: list | None = None,
 ) -> dict:
-    """Request strict JSON, retrying once only for malformed/empty model output."""
+    """Request strict JSON, retrying once only for malformed/empty model output.
+
+    `attempt_trace` 為純觀測輸出：每次實際送出都追加一筆，讓 provenance 能說出
+    「最終這份幾何是第幾次嘗試、那次的 request 有沒有被追加修復提示詞」。
+    只記雜湊與結果，不記模型回應內容。
+    """
     last_error = None
     for attempt in range(max(1, int(max_attempts))):
         contents = list(parts)
+        extra_sha = None
         if attempt:
-            contents.append(
-                "Your previous response was malformed JSON. Return the same answer again as one "
-                "complete strict JSON object only. Do not add markdown or commentary."
-            )
+            contents.append(_RETRY_INSTRUCTION)
+            extra_sha = hashlib.sha256(_RETRY_INSTRUCTION.encode("utf-8")).hexdigest()
+
+        def _record(outcome: str) -> None:
+            if attempt_trace is not None:
+                attempt_trace.append({
+                    "attempt": attempt + 1,
+                    "extra_prompt_sha256": extra_sha,
+                    "outcome": outcome,
+                })
+
         response = client.models.generate_content(
             model=model,
             contents=contents,
-            config=types_module.GenerateContentConfig(response_mime_type="application/json"),
+            config=types_module.GenerateContentConfig(**_GENERATION_CONFIG_KWARGS),
         )
         text = (response.text or "").strip()
         if not text:
             last_error = json.JSONDecodeError("empty response", "", 0)
+            _record("empty_response")
             continue
         try:
             try:
@@ -271,10 +326,93 @@ def _generate_json_with_retry(
                 result, _ = json.JSONDecoder().raw_decode(text)
             if not isinstance(result, dict):
                 raise json.JSONDecodeError("top-level JSON must be an object", text, 0)
+            _record("ok")
             return result
         except json.JSONDecodeError as exc:
             last_error = exc
+            _record("invalid_json")
     raise last_error or json.JSONDecodeError("invalid JSON response", "", 0)
+
+
+def _build_provenance(*, model_id: str, prompt_text: str, sent_media: list[dict],
+                      normalized: dict, generation_config: dict | None = None,
+                      attempt_trace: list[dict] | None = None) -> dict:
+    """這一次 zoning 到底是「哪張影像、哪個模型、哪份 prompt、哪版程式」跑出來的。
+
+    2026-07-30 受控三跑證實：同一份請求會產生結構不同的幾何（living_floor 4↔6 點、
+    候選數 7/6/5、連沙發左右都不同）。要做版本化幾何快取，就得先有可信的 key 材料；
+    而在此之前 result_json 只有寫死的 build_tag（十天沒變過），model 與 schema
+    根本沒被記錄，歷史單連「同一天是不是同一版」都無法確認。
+
+    **純觀測欄位：只寫不讀。** pipeline 任何判斷都不得依賴它。
+    只存雜湊與版本，不存 prompt 原文、簽名網址或金鑰。
+
+    兩個指紋刻意分開，因為它們失效的時機不同：
+      request_fingerprint    ── 送進模型的東西（模型／送模設定／已格式化 prompt／
+                                實際送出的影像位元組與 MIME）。canonical JSON 後雜湊，
+                                欄位順序不影響結果。
+      interpreter_fingerprint ── 回應被怎麼解讀（schema 版本＋normalizer 版本）。
+    快取 key 兩個都要看：請求一樣但解析器換了，舊幾何一樣不能用。
+    `code_revision` **故意不進任何指紋**——這專案天天推 master，把 commit sha 綁進
+    key 會讓每次無關部署都清空整份快取；它只作為觀測欄位，要失效請 bump
+    NORMALIZER_VERSION。
+    """
+    prompt_sha = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
+    gen_cfg = dict(generation_config or {})
+    struct = (normalized or {}).get("struct_geometry_v1") or {}
+    schema_version = struct.get("schema_version") or "struct-geometry-v1"
+    attempts = [
+        {
+            "attempt": a.get("attempt"),
+            "retry_suffix": bool(a.get("extra_prompt_sha256")),
+            "outcome": a.get("outcome"),
+            # 該次「實際送出」的 request：base 請求 ＋ 有沒有被追加修復提示詞
+            "request_fingerprint": _canonical_sha256({
+                "base": _canonical_sha256({
+                    "model": model_id, "generation_config": gen_cfg,
+                    "prompt_sha256": prompt_sha,
+                    "sent_media": [{"kind": m["kind"], "index": m["index"],
+                                    "sha256": m["sha256"], "mime": m.get("mime")}
+                                   for m in sent_media],
+                }),
+                "extra_prompt_sha256": a.get("extra_prompt_sha256"),
+            }),
+        }
+        for a in (attempt_trace or [])
+    ]
+    return {
+        "model": model_id,
+        # /health 用的同一個來源；本機或取不到時記 unknown，不可拿來當快取 key
+        "code_revision": (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "")[:8] or "unknown",
+        "schema_version": schema_version,
+        "normalizer_version": NORMALIZER_VERSION,
+        "prompt_sha256": prompt_sha,
+        "prompt_chars": len(prompt_text),
+        # 送模設定：目前只設 response_mime_type，temperature/seed 未設＝用預設
+        "generation_config": gen_cfg,
+        "sent_media": sent_media,
+        "source_photo_index": struct.get("source_photo_index"),
+        "request_fingerprint": _canonical_sha256({
+            "model": model_id,
+            "generation_config": gen_cfg,
+            "prompt_sha256": prompt_sha,
+            "sent_media": [{"kind": m["kind"], "index": m["index"],
+                            "sha256": m["sha256"], "mime": m.get("mime")}
+                           for m in sent_media],
+        }),
+        "fingerprint_inputs": ["model", "generation_config", "prompt_sha256",
+                               "sent_media[].kind", "sent_media[].index",
+                               "sent_media[].sha256", "sent_media[].mime"],
+        "interpreter_fingerprint": _canonical_sha256({
+            "schema_version": schema_version,
+            "normalizer_version": NORMALIZER_VERSION,
+        }),
+        # 最終這份幾何是第幾次嘗試回來的；retry 會追加修復提示詞＝送出的 request 不同
+        "attempt_count": len(attempts),
+        "used_retry": any(a["retry_suffix"] for a in attempts),
+        "attempts": attempts,
+        "captured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
 
 
 def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) -> dict:
@@ -316,34 +454,50 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) ->
     except Exception:
         def _downscale_for_vision(d, m, **kw): return d, m
     parts: list = []
-    for path in valid_photos:
-        with open(path, "rb") as f:
-            _d, _m = _downscale_for_vision(f.read(), _resolve_mime(path))
+    # 記錄「實際送出」的影像指紋——不是原始檔，縮圖後的位元組才是模型看到的東西。
+    sent_media: list[dict] = []
+    for kind, paths in (("photo", valid_photos), ("video_frame", valid_videos)):
+        for index, path in enumerate(paths):
+            with open(path, "rb") as f:
+                _d, _m = _downscale_for_vision(f.read(), _resolve_mime(path))
             parts.append(types.Part.from_bytes(data=_d, mime_type=_m))
-    for path in valid_videos:
-        with open(path, "rb") as f:
-            _d, _m = _downscale_for_vision(f.read(), _resolve_mime(path))
-            parts.append(types.Part.from_bytes(data=_d, mime_type=_m))
+            sent_media.append({
+                "kind": kind,
+                "index": index,
+                "sha256": hashlib.sha256(_d).hexdigest(),
+                "bytes": len(_d),
+                "mime": _m,
+            })
 
     video_note = (
         f"，外加 {len(valid_videos)} 張影片擷取畫面（給你看更全面動線）"
         if valid_videos else ""
     )
-    parts.append(PROMPT.format(photo_count=len(valid_photos), video_note=video_note))
+    prompt_text = PROMPT.format(photo_count=len(valid_photos), video_note=video_note)
+    parts.append(prompt_text)
+    model_id = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 
     print(f"[zoning_v2] photos={len(valid_photos)} video_frames={len(valid_videos)}")
     t0 = time.time()
+    attempt_trace: list[dict] = []
     try:
         result = _generate_json_with_retry(
             client=client,
             types_module=types,
             parts=parts,
-            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+            model=model_id,
             max_attempts=2,
+            attempt_trace=attempt_trace,
         )
         elapsed = time.time() - t0
         print(f"[zoning_v2] Gemini 耗時 {elapsed:.1f}s")
-        return normalize_struct_geometry_payload(result, photo_count=len(valid_photos))
+        normalized = normalize_struct_geometry_payload(
+            result, photo_count=len(valid_photos))
+        normalized["_provenance"] = _build_provenance(
+            model_id=model_id, prompt_text=prompt_text, sent_media=sent_media,
+            normalized=normalized, generation_config=_generation_config_snapshot(types),
+            attempt_trace=attempt_trace)
+        return normalized
     except json.JSONDecodeError as e:
         return {"error": f"json decode: {str(e)[:200]}", "overall_confidence": "none"}
     except Exception as e:

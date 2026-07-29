@@ -9,6 +9,10 @@ import zoning_v2
 class _Config:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        # 真的 types.GenerateContentConfig 是把設定放成屬性；stub 也要照做，
+        # 否則「provenance 快照取自實際送出設定」的測試會對著假物件空過。
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 
 class _Types:
