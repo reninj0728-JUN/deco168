@@ -650,8 +650,13 @@ def _finalize_blocked_verification(
 
 _VERIFIER_PROMPT = """You are the final structural geometry gate before a paid interior render.
 Image 1 is the original source photo and is the only visual evidence.
-Image 2 is the S2 guide drawn on that exact photo. Guide colours: red entrance/landing/walkway,
-green sofa footprint, blue TV/media-console footprint, yellow seated sofa-to-TV centre axis.
+Image 2 is the S2 guide drawn on that exact photo. Guide colours: red = entrance door and
+entrance landing ONLY (hard no-go), green sofa footprint, blue TV/media-console footprint,
+yellow seated sofa-to-TV centre axis.
+The circulation walkway is deliberately NOT painted red for wall-anchored layouts: a sofa or
+console standing against a wall is expected to sit inside the walkway polygon. Walkway is judged
+on whether a connected path still remains around the furniture, NOT on zero overlap. Never fail a
+footprint merely because it lies inside the walkway area.
 Do not trust any SAFE label. Inspect the original source photo and return strict JSON only.
 
 Hard checks — each value must be exactly pass, fail, or uncertain. Apply the candidate-specific
@@ -695,7 +700,8 @@ JSON schema:
 
 _FLOATING_VERIFIER_PROMPT = r"""
 You are auditing an intentional floating-sofa S2 layout guide against its source room photo.
-Image 1 is the uncropped source. Image 2 is the guide: red entrance/walkway forbidden zones,
+Image 1 is the uncropped source. Image 2 is the guide: red entrance/landing/walkway forbidden
+zones (a floating sofa genuinely may not overlap the walkway, so it IS painted red here),
 green floating sofa footprint, blue intended-wall TV/media-console footprint, yellow viewing axis.
 The green sofa is NOT supposed to touch either wall. Do not require the GREEN sofa to touch either wall.
 The candidate-specific text below names the intended TV wall; audit the BLUE TV against that wall only.

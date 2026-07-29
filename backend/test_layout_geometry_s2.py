@@ -794,3 +794,76 @@ def test_truly_broken_polygon_still_blocked():
 
     assert plan["disposition"] == "BLOCKED"
     assert "INVALID_GEOMETRY" in plan["unsafe_codes"]
+
+
+# ── 走道口徑統一：漆成紅的必須等於規劃器真的禁止重疊的 ──────────────────
+def _guide_zone_ids(chosen_sofa_side: str) -> list[str]:
+    """重現 render_s2_guide 決定「哪些元素漆紅」的那段邏輯。"""
+    ids = ["door_quad", "entrance_landing"]
+    if str(chosen_sofa_side or "").strip().lower() == "free":
+        ids.append("walkway")
+    return ids
+
+
+def _red_pixel_ratio_inside(guide_path, polygon, width, height):
+    """多邊形內有多少比例是紅色禁區塗層。"""
+    from PIL import Image, ImageDraw
+    import numpy as np
+    with Image.open(guide_path) as opened:
+        arr = np.asarray(opened.convert("RGB"), dtype=int)
+    mask_img = Image.new("L", (arr.shape[1], arr.shape[0]), 0)
+    ImageDraw.Draw(mask_img).polygon(
+        [(int(p[0]), int(p[1])) for p in polygon], fill=255)
+    mask = np.asarray(mask_img) > 0
+    if not mask.any():
+        return 0.0
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    reddish = (r > g + 40) & (r > b + 40)
+    return float((reddish & mask).sum()) / float(mask.sum())
+
+
+def test_wall_anchored_guide_does_not_paint_walkway_as_forbidden(tmp_path):
+    """D5D0BDDE 根因：walkway 被漆紅 + 圖例寫「紅區一律淨空」，但規劃器對靠牆
+    候選只要求走道仍連通（floating_walkway_clear 只在 free 時禁止重疊）。
+    判官照紅區判 → 回「綠色沙發框落於紅區玄關通道內」→ 配置前檢擋死。
+    漆成紅的必須等於規劃器真的禁止的。"""
+    raw = _safe_geometry()
+    plan = s2.build_s2_plan(raw, width=1000, height=700,
+                            expected_source_photo_index=0, sofa_side="free")
+    assert plan["disposition"] == "SAFE_FOR_GENERATION", plan.get("unsafe_codes")
+    chosen = next(c for c in plan["candidates"]
+                  if c["candidate_id"] == plan["chosen_candidate_id"])
+    assert chosen["sofa_side"] in ("left", "right"), "此 fixture 需為靠牆候選才驗得到"
+
+    photo = tmp_path / "room.jpg"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    guide = tmp_path / "guide.jpg"
+    s2.render_s2_guide(photo, guide, plan)
+
+    geometry = {item.get("geometry_id"): item for item in plan.get("geometry") or []}
+    walkway = (geometry.get("walkway") or {}).get("shape", {}).get("coordinates")
+    landing = (geometry.get("entrance_landing") or {}).get("shape", {}).get("coordinates")
+    assert walkway and landing, "測試前提：走道與玄關幾何都要在"
+
+    walkway_red = _red_pixel_ratio_inside(guide, walkway, 1000, 700)
+    landing_red = _red_pixel_ratio_inside(guide, landing, 1000, 700)
+    assert landing_red > 0.2, f"玄關硬禁區必須保持紅色（實得 {landing_red:.2f}）"
+    assert walkway_red < 0.2, (
+        f"靠牆候選不該把走道漆成紅色禁區（實得 {walkway_red:.2f}）——"
+        "那正是判官判死 D5D0BDDE 的矛盾")
+
+
+def test_floating_candidate_still_paints_walkway_red(tmp_path):
+    """浮動候選『真的』不准壓走道（floating_walkway_clear），所以它照樣漆紅。
+    不可為了修靠牆而把浮動的真實限制一起拿掉。"""
+    assert "walkway" in _guide_zone_ids("free")
+    assert "walkway" not in _guide_zone_ids("left")
+    assert "walkway" not in _guide_zone_ids("right")
+
+
+def test_legend_matches_what_is_actually_painted(tmp_path):
+    """圖例不可寫得比實際漆的紅區更嚴——那就是語意矛盾的來源。"""
+    import inspect
+    src = inspect.getsource(s2.render_s2_guide)
+    assert "RED = DOOR / ENTRANCE ONLY" in src, "靠牆候選要有專屬圖例"
+    assert "_floating_candidate" in src, "圖例必須跟著實際漆的紅區走"

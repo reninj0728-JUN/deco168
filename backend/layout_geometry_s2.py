@@ -1290,7 +1290,18 @@ def render_s2_guide(photo_path: str | Path, out_path: str | Path, plan: dict) ->
     # 這裡只把紅區裡「家具要放的那一塊」挖掉，不動任何合格判定。
     zone_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
     zone_draw = ImageDraw.Draw(zone_layer, "RGBA")
-    for geometry_id in ("door_quad", "entrance_landing", "walkway"):
+    # 漆成紅的＝規劃器真的禁止重疊的，兩者必須一致。
+    # D5D0BDDE：walkway 被 Gemini 畫成佔地板 49%，而規劃器對靠牆候選只要求
+    # 「放了家具後走道仍連通」（floating_walkway_clear 只在 sofa_side=="free"
+    # 時才禁止重疊）。以前三個元素一律漆紅 + 圖例寫「紅區一律淨空」，於是同一張
+    # 引導圖同時說「沙發放這裡」和「這裡完全淨空」——判官照著紅區判，回
+    # 「綠色沙發框落於紅區玄關通道內」，配置前檢就擋死。挖空只蓋掉像素，
+    # 語意矛盾還在。這裡讓 walkway 只在「規劃器真的禁止重疊」的浮動候選才漆紅。
+    _floating_candidate = str(chosen.get("sofa_side") or "").strip().lower() == "free"
+    _hard_zone_ids = ["door_quad", "entrance_landing"]
+    if _floating_candidate:
+        _hard_zone_ids.append("walkway")
+    for geometry_id in _hard_zone_ids:
         item = geometry_by_id.get(geometry_id) or {}
         shape = item.get("shape") or {}
         points = shape.get("coordinates") if shape.get("type") == "polygon" else None
@@ -1333,10 +1344,14 @@ def render_s2_guide(photo_path: str | Path, out_path: str | Path, plan: dict) ->
     # 標籤一律留在頂部，因為蓋住牆腳線會讓 S2 幾何驗證誤判
     # （實測 left_wall_floor_alignment／sofa_back_contact 直接變 fail）。
     legend_font = _label_font(max(26, width // 46))
+    # 圖例必須跟實際漆的紅區一致：靠牆候選沒漆 walkway，就不能寫得像整片走道
+    # 都是禁區（那正是 D5D0BDDE 讓判官判死的那句矛盾）。
     legend_lines = (
         ("PUT THE SOFA INSIDE THE GREEN FLOOR SHAPE", (60, 245, 110, 255)),
         ("PUT THE TV CONSOLE INSIDE THE BLUE FLOOR SHAPE", (90, 175, 255, 255)),
-        ("KEEP EVERY RED ZONE COMPLETELY EMPTY", (255, 95, 95, 255)),
+        (("KEEP EVERY RED ZONE COMPLETELY EMPTY" if _floating_candidate
+          else "RED = DOOR / ENTRANCE ONLY - KEEP IT COMPLETELY EMPTY"),
+         (255, 95, 95, 255)),
     )
     lx, ly = max(20, width // 60), max(20, height // 60)
     line_h = max(34, width // 40)
