@@ -894,25 +894,52 @@ def test_floating_candidate_still_paints_walkway_red(tmp_path):
         "規劃器對浮動候選是真的禁止重疊的")
 
 
-def test_wall_anchored_legend_does_not_claim_walkway_is_forbidden(tmp_path):
-    """圖例不可寫得比實際漆的紅區更嚴——那就是語意矛盾的來源。
-    量算出來的圖例像素，不是搜尋原始碼字串（GPT 抓漏）。"""
-    import numpy as np
-    from PIL import Image as _Image
-    raw = _safe_geometry()
+def _rendered_legend_texts(raw, tmp_path, monkeypatch, *, can_float=False):
+    """攔截 ImageDraw.text 實際收到的字串——量像素分不出寫了什麼內容。"""
+    from PIL import ImageDraw
+    captured: list[str] = []
+    original = ImageDraw.ImageDraw.text
+
+    def spy(self, xy, text="", *args, **kwargs):
+        if isinstance(text, str):
+            captured.append(text)
+        return original(self, xy, text, *args, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", spy)
     plan = s2.build_s2_plan(raw, width=1000, height=700,
-                            expected_source_photo_index=0, sofa_side="free")
+                            expected_source_photo_index=0,
+                            sofa_side="free", can_float=can_float)
+    assert plan["disposition"] == "SAFE_FOR_GENERATION", plan.get("unsafe_codes")
     chosen = next(c for c in plan["candidates"]
                   if c["candidate_id"] == plan["chosen_candidate_id"])
-    assert chosen["sofa_side"] in ("left", "right"), "此 fixture 需為靠牆候選"
     photo = tmp_path / "room.jpg"
-    _Image.new("RGB", (1000, 700), "white").save(photo)
-    guide = tmp_path / "guide_wall.jpg"
-    s2.render_s2_guide(photo, guide, plan)
-    # 圖例畫在左上角；靠牆候選那一行必須是「門/玄關限定」，不是「每個紅區」
-    with _Image.open(guide) as opened:
-        crop = np.asarray(opened.convert("RGB"))[:200, :700]
-    # 圖例文字是淡紅色 (255,95,95)；只確認該行存在且不是空的
-    reddish_text = ((crop[..., 0] > 200) & (crop[..., 1] > 60)
-                    & (crop[..., 1] < 160) & (crop[..., 2] > 60) & (crop[..., 2] < 160))
-    assert reddish_text.sum() > 50, "靠牆候選的紅色圖例文字沒畫出來"
+    Image.new("RGB", (1000, 700), "white").save(photo)
+    s2.render_s2_guide(photo, tmp_path / "guide_legend.jpg", plan)
+    return chosen["sofa_side"], captured
+
+
+def test_wall_anchored_legend_does_not_claim_walkway_is_forbidden(tmp_path, monkeypatch):
+    """圖例不可寫得比實際漆的紅區更嚴——那正是判官判死 D5D0BDDE 的矛盾。
+
+    必須斷言文字內容：只數紅色像素的話，正確與錯誤圖例都會通過（GPT 抓漏）。
+    """
+    side, texts = _rendered_legend_texts(_safe_geometry(), tmp_path, monkeypatch)
+    assert side in ("left", "right"), f"此 fixture 需為靠牆候選，實得 {side}"
+    joined = " | ".join(texts)
+    assert "RED = DOOR / ENTRANCE ONLY" in joined, (
+        f"靠牆候選圖例沒有門/玄關限定的措辭：{joined}")
+    assert "KEEP EVERY RED ZONE COMPLETELY EMPTY" not in joined, (
+        f"靠牆候選不該宣稱整片紅區淨空（走道沒漆紅）：{joined}")
+
+
+def test_floating_legend_still_says_every_red_zone_empty(tmp_path, monkeypatch):
+    """浮動候選的走道是真禁區，圖例照舊要求整片紅區淨空。"""
+    raw = _safe_geometry()
+    raw["elements"]["walkway"]["polygon_yx1000"] = [
+        [430, 250], [430, 380], [1000, 420], [1000, 220],
+    ]
+    side, texts = _rendered_legend_texts(raw, tmp_path, monkeypatch, can_float=True)
+    assert side == "free", f"此情境需選到浮動候選，實得 {side}"
+    joined = " | ".join(texts)
+    assert "KEEP EVERY RED ZONE COMPLETELY EMPTY" in joined, joined
+    assert "RED = DOOR / ENTRANCE ONLY" not in joined, joined
