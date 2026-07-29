@@ -196,7 +196,13 @@ def test_missing_door_evidence_is_unknown_not_safe():
 
 
 def test_margin_matches_validator_verdict_at_the_threshold():
-    """餘裕 <1 必定是驗收會擋的，>1 必定是驗收放行的——同一把尺的定義。"""
+    """餘裕與**這條確定性 2D 門距閘門**的判定必須一致：<1 ⟺ 這條閘門會擋。
+
+    範圍僅限 `_door_adjacency_violation` 這一條。餘裕 >1 只代表不被它擋，
+    **不代表整張圖會通過**——Gemini 仍可能獨立判 furniture_blocks_door=true
+    （1F24858B 第 2 次重試：x_gap 48 ≥ 門檻 36、確定性閘門回 None，
+    仍被文字判斷擋掉），也可能死在商品可見性或其他硬傷。
+    """
     from gemini_analyze import _door_adjacency_violation
     door = _rect(0, 0, 100, 900)
     for gap_px, expect_blocked in ((10, True), (20, True), (40, False), (60, False)):
