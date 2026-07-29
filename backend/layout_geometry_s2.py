@@ -290,6 +290,64 @@ def _shared_door_gap_violation(sofa, tv, door_poly, width: int, height: int):
     })
 
 
+# 驗收判定「與門無垂直重疊＝根本不相鄰」時的餘裕代表值。
+# 只用於候選排序，不參與任何門檻比較；取有限值是因為候選要進 JSON 契約。
+DOOR_GAP_MARGIN_NOT_ADJACENT = 99.0
+
+
+def _shared_door_gap_margin(sofa, tv, door_poly, width: int, height: int):
+    """這個候選的門距安全餘裕：沙發與電視櫃各自「離自己門檻多遠」，取**較小者**。
+
+    刻意共用 gemini_analyze.door_gap_measurements——跟 _shared_door_gap_violation
+    同一把尺，不另寫公式。門距原本只是及格／不及格，於是規劃器會選到「剛好壓線」
+    的候選（1F24858B：選了 0.449 門寬，同批有更寬鬆的沒選），出圖時模型稍微偏
+    一點就掉到驗收門檻以下。把餘裕拿來排序，壓線候選才不會贏過寬鬆候選。
+
+    兩件事必須跟驗收對齊，否則還是兩把尺：
+      * 沙發門檻 0.25、電視櫃 0.28 不同 → 各自除以自己的門檻再比，才是同一個
+        安全尺度（0.30 對沙發是 1.20 倍安全，對電視櫃只有 1.07 倍）。
+      * 驗收只在「與門有垂直重疊」時才判門距 → 沒有垂直重疊的家具視為安全，
+        不可拿它的 x-gap 把餘裕拉低。
+
+    回傳 None 只代表「量不到」（缺門框證據），呼叫端不得當成「很安全」。
+    """
+    try:
+        from gemini_analyze import (door_gap_measurements,
+                                    DOOR_GAP_MIN_FOCAL, DOOR_GAP_MIN_SOFA)
+    except Exception:
+        return None
+    measured = door_gap_measurements({
+        "entrance_door": _bbox_yx1000(door_poly, width, height),
+        "sofa":          _bbox_yx1000(sofa, width, height),
+        "focal_anchor":  _bbox_yx1000(tv, width, height),
+    })
+    if not measured:
+        return None                      # 沒有門框證據 → 不知道，不是安全
+    margins = []
+    for name, threshold in (("focal_anchor", DOOR_GAP_MIN_FOCAL),
+                            ("sofa", DOOR_GAP_MIN_SOFA)):
+        item = measured.get(name)
+        if item is None:
+            continue
+        if item["y_overlap"] <= 0:
+            continue                     # 驗收認定不相鄰 → 不構成門距風險
+        margins.append(item["ratio"] / threshold)
+    if not margins:
+        return DOOR_GAP_MARGIN_NOT_ADJACENT   # 兩件都與門無垂直重疊＝安全
+    return min(margins)
+
+
+def _candidate_selection_key(candidate: dict):
+    """候選比較鍵：先比門距安全餘裕，其次才比原本分數。
+
+    左／右／free 一律保留，不禁止任何牆面——只是同樣合格時，優先挑離門有餘裕的。
+    量不到餘裕的排在有量到的後面：缺值是「不知道」，不是「很安全」。
+    """
+    margin = candidate.get("door_gap_margin")
+    return (margin is not None, margin if margin is not None else 0.0,
+            candidate.get("score", 0.0))
+
+
 def _footprint(side: str, own_line, opposite_line, t0: float, t1: float, depth: float):
     own0, own1 = _line_point(own_line, t0), _line_point(own_line, t1)
     opp0, opp1 = _line_point(opposite_line, t0), _line_point(opposite_line, t1)
@@ -871,6 +929,7 @@ def _candidate(
     # Fal 照著錯誤目標畫，再被後段閘門擋掉（客廳落選 65% 是「家具擋門」）。
     door_gap_violation = _shared_door_gap_violation(sofa, tv, door_poly, width, height)
     door_gap_clear = door_gap_violation is None
+    door_gap_margin = _shared_door_gap_margin(sofa, tv, door_poly, width, height)
     floating_walkway_clear = (
         sofa_side != "free" or not _polygon_intersects(sofa, walkway)
     )
@@ -954,6 +1013,8 @@ def _candidate(
         "source_geometry_ids": list(source_ids),
         "door_axis_separation_deg": round(door_angle, 3),
         "entrance_clearance_px": round(entrance_clearance, 3),
+        "door_gap_margin": (None if door_gap_margin is None
+                            else round(door_gap_margin, 4)),
         "minimum_entrance_clearance_px": round(minimum_entrance_clearance, 3),
         "floating_walkway_clear": floating_walkway_clear,
         "sofa_footprint": sofa,
@@ -1122,7 +1183,7 @@ def build_s2_plan(
         return _blocked(*(failures or ["NO_VIABLE_LAYOUT"]), geometry=geometry,
                         candidates=candidates, reason_class="NO_VIABLE_LAYOUT")
 
-    chosen = max(eligible, key=lambda candidate: candidate["score"])
+    chosen = max(eligible, key=_candidate_selection_key)
     # 退化浮動守門（雙條件）：浮動 F 有 +12 固定加分會贏過合格的靠牆 A/B，但 F
     # 把沙發浮在 0.60–0.80、貼近電視牆，對「不適合浮動的房型」（全室/長條/有走道）
     # 會擠成小方塊 → 引導圖爛 → 模型連敗（173C14C5）。
@@ -1132,7 +1193,7 @@ def build_s2_plan(
     if not can_float and chosen.get("candidate_type") == "F":
         wall_bound = [c for c in eligible if c.get("candidate_type") in ("A", "B")]
         if wall_bound:
-            chosen = max(wall_bound, key=lambda c: c["score"])
+            chosen = max(wall_bound, key=_candidate_selection_key)
     return {
         "planner_version": PLANNER_VERSION,
         "disposition": "SAFE_FOR_GENERATION",

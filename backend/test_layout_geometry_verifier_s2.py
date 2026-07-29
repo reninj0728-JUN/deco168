@@ -516,6 +516,28 @@ def test_flaky_hard_fail_is_rechecked_and_passes(tmp_path):
     assert len(calls) >= 3, "硬失敗必須重問，不可一次就擋死"
 
 
+def _planner_first_sides(raw: dict) -> tuple[str, str]:
+    """規劃器初選的那一側，以及對側。
+
+    這兩個測試驗的是「一側共同失敗後，驗證器切到對側候選」。先試哪一側是規劃器
+    排序的結果——一旦候選排序調整（例如把門距安全餘裕納入比較），先試的側別就會
+    變，測試會以「情境不再重現」的形式假性失敗，而不是因為驗證器壞了。
+    所以側別從 plan 推導，不寫死；行為（失敗→切一次對側）照樣被完整驗證，
+    而且仍然走完整的 build_s2_plan，規劃器↔驗證器的銜接沒有被解耦掉。
+    """
+    plan = geometry_s2.build_s2_plan(
+        raw, width=1000, height=700, expected_source_photo_index=0,
+        sofa_side="free", can_float=False)
+    assert plan["disposition"] == "SAFE_FOR_GENERATION", plan.get("unsafe_codes")
+    first = verifier_s2._chosen_candidate(plan)["sofa_side"]
+    assert first in ("left", "right"), f"初選不是靠牆候選：{first}"
+    other = "right" if first == "left" else "left"
+    assert any(
+        c["eligible"] and c["sofa_side"] == other for c in plan["candidates"]
+    ), f"前提不成立：沒有合格的 {other} 側候選可切換"
+    return first, other
+
+
 def test_common_fail_switches_once_to_best_opposite_candidate(tmp_path, monkeypatch):
     """2CD074F0／BDD0C702｜左側候選共同 fail 後，應改驗最佳右側候選一次。"""
     photo = tmp_path / "room.jpg"
@@ -523,21 +545,24 @@ def test_common_fail_switches_once_to_best_opposite_candidate(tmp_path, monkeypa
     # Railway 可把一般上限降到 2；相反側仍必須有且只有一次驗證機會。
     monkeypatch.setattr(verifier_s2, "S2_VERIFY_MAX_ATTEMPTS", 2)
     calls = []
+    raw = _safe_geometry()
+    first_side, other_side = _planner_first_sides(raw)
 
     def candidate_verifier(_photo, _guide, attempt_number, plan=None):
         chosen = verifier_s2._chosen_candidate(plan)
         calls.append((attempt_number, chosen.get("candidate_id"), chosen.get("sofa_side")))
-        if chosen.get("sofa_side") == "right":
+        if chosen.get("sofa_side") == other_side:
             return copy.deepcopy(HARD_PASS)
         failed = copy.deepcopy(HARD_PASS)
         failed["sofa_back_contact"] = "fail"
-        failed["left_wall_floor_alignment"] = "fail"
+        failed[f"{first_side}_wall_floor_alignment"] = "fail"
         failed["overall"] = "fail"
-        failed["unsafe_codes"] = ["SOFA_NOT_WALL_ANCHORED", "LEFT_WALL_ALIGNMENT_MISMATCH"]
+        failed["unsafe_codes"] = [
+            "SOFA_NOT_WALL_ANCHORED", f"{first_side.upper()}_WALL_ALIGNMENT_MISMATCH"]
         return failed
 
     result = verifier_s2.verify_and_replan_s2(
-        raw_geometry=_safe_geometry(),
+        raw_geometry=raw,
         photo_path=photo,
         output_dir=tmp_path,
         expected_source_photo_index=0,
@@ -546,15 +571,15 @@ def test_common_fail_switches_once_to_best_opposite_candidate(tmp_path, monkeypa
         floor_reference_estimator=_observed_floor_reference,
     )
 
-    assert [side for _attempt, _candidate, side in calls] == ["left", "left", "right"]
+    assert [side for _attempt, _candidate, side in calls] == [
+        first_side, first_side, other_side]
     assert result["plan"]["disposition"] == "SAFE_FOR_GENERATION"
-    assert verifier_s2._chosen_candidate(result["plan"])["sofa_side"] == "right"
+    assert verifier_s2._chosen_candidate(result["plan"])["sofa_side"] == other_side
     retry = result["plan"]["geometry_verification"]["candidate_retry"]
-    assert retry["from_sofa_side"] == "left"
-    assert retry["to_sofa_side"] == "right"
-    assert retry["trigger_common_failures"] == [
-        "left_wall_floor_alignment", "sofa_back_contact",
-    ]
+    assert retry["from_sofa_side"] == first_side
+    assert retry["to_sofa_side"] == other_side
+    assert retry["trigger_common_failures"] == sorted(
+        [f"{first_side}_wall_floor_alignment", "sofa_back_contact"])
     failed_ids = set(result["plan"]["geometry_verification"]["failed_candidate_ids"])
     assert retry["from_candidate_id"] in failed_ids
     failed_candidate = next(
@@ -573,6 +598,8 @@ def test_valid_wall_correction_from_opposite_candidate_replans_and_reverifies(
     Image.new("RGB", (1000, 700), "white").save(photo)
     calls = []
     floor_reference_inputs = []
+    raw = _safe_geometry()
+    first_side, other_side = _planner_first_sides(raw)
 
     def tracking_floor_reference(_photo, polygon):
         floor_reference_inputs.append(copy.deepcopy(polygon))
@@ -584,21 +611,23 @@ def test_valid_wall_correction_from_opposite_candidate_replans_and_reverifies(
         if attempt_number == 4:
             return copy.deepcopy(HARD_PASS)
         failed = copy.deepcopy(HARD_PASS)
-        failed["left_wall_floor_alignment"] = "fail"
+        failed[f"{first_side}_wall_floor_alignment"] = "fail"
         failed["overall"] = "fail"
-        if chosen.get("sofa_side") == "left":
+        if chosen.get("sofa_side") == first_side:
             failed["sofa_back_contact"] = "fail"
             failed["unsafe_codes"] = ["SOFA_NOT_WALL_ANCHORED"]
         else:
             failed["tv_wall_contact"] = "fail"
             failed["unsafe_codes"] = ["TV_NOT_WALL_ANCHORED"]
-            failed["corrected_left_wall_floor_segment_yx1000"] = [
-                [820, 90], [357, 430],
-            ]
+            # 修正的是「初選那一側」的牆；座標鏡射以配合側別
+            segment = [[820, 90], [357, 430]]
+            if first_side == "right":
+                segment = [[point[0], 1000 - point[1]] for point in segment]
+            failed[f"corrected_{first_side}_wall_floor_segment_yx1000"] = segment
         return failed
 
     result = verifier_s2.verify_and_replan_s2(
-        raw_geometry=_safe_geometry(),
+        raw_geometry=raw,
         photo_path=photo,
         output_dir=tmp_path,
         expected_source_photo_index=0,
@@ -608,7 +637,8 @@ def test_valid_wall_correction_from_opposite_candidate_replans_and_reverifies(
         can_float=False,
     )
 
-    assert [side for _attempt, _candidate, side in calls] == ["left", "left", "right", "left"]
+    assert [side for _attempt, _candidate, side in calls] == [
+        first_side, first_side, other_side, first_side]
     assert [attempt for attempt, _candidate, _side in calls] == [1, 2, 3, 4]
     assert len(floor_reference_inputs) == 2
     assert floor_reference_inputs[0] != floor_reference_inputs[1]
@@ -621,7 +651,8 @@ def test_valid_wall_correction_from_opposite_candidate_replans_and_reverifies(
     assert result["plan"]["chosen_candidate_id"] not in failed_ids
     assert retry["from_candidate_id"] in retry["pre_correction_failed_candidate_ids"]
     assert retry["post_correction_geometry_revision"] == "wall_correction_1"
-    assert result["raw_geometry"]["elements"]["left_wall_floor"]["status"] == "verifier_corrected"
+    assert result["raw_geometry"]["elements"][
+        f"{first_side}_wall_floor"]["status"] == "verifier_corrected"
 
 
 def test_persistent_hard_fail_blocks_early_without_burning_rechecks(tmp_path):

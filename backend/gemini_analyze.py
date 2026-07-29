@@ -553,32 +553,54 @@ DOOR_GAP_MIN_FOCAL = 0.28
 DOOR_GAP_MIN_SOFA = 0.25
 
 
+def _valid_render_bbox(b) -> bool:
+    return (isinstance(b, (list, tuple)) and len(b) == 4
+            and all(isinstance(x, (int, float)) for x in b)
+            and b[2] > b[0] and b[3] > b[1])
+
+
+def door_gap_measurements(rb: dict) -> dict:
+    """各家具與大門的門距量測：{物件名: {ratio, x_gap, door_w, y_overlap}}。
+
+    這是**唯一一份**門距量法。`_door_adjacency_violation` 用它判違規，規劃器
+    要拿「安全餘裕」排序候選時也用它——兩端共用同一把尺，才不會再出現
+    「規劃 pass、成品 fail」（規劃器把過不了驗收的目標框交給 Fal）。
+    缺門框證據或該家具框無效 → 該項不列入（呼叫端自行決定如何處理缺值）。
+    """
+    out: dict[str, dict] = {}
+    if not isinstance(rb, dict):
+        return out
+    door = rb.get("entrance_door")
+    if not _valid_render_bbox(door):
+        return out
+    door_w = door[3] - door[1]
+    for nm in ("focal_anchor", "sofa"):
+        b = rb.get(nm)
+        if not _valid_render_bbox(b):
+            continue
+        x_gap = max(door[1] - b[3], b[1] - door[3], 0)
+        out[nm] = {
+            "ratio": x_gap / door_w,
+            "x_gap": x_gap,
+            "door_w": door_w,
+            "y_overlap": min(door[2], b[2]) - max(door[0], b[0]),
+        }
+    return out
+
+
 def _door_adjacency_violation(rb: dict) -> tuple | None:
     """門邊淨空幾何判定；同牆深處焦點不可只用 2D x-gap 誤殺。
 
     客廳的 focal_anchor / sofa 框與 entrance_door 框「重疊、或水平間距
     低於各自門檻且垂直有交集」→ 回 (物件名, 間距, 門寬, 門檻)；否則 None。
     門檻由使用者接受／拒絕校準庫決定，不接受 AI 布林自行豁免。"""
-    if not isinstance(rb, dict):
-        return None
-
-    def _valid(b):
-        return (isinstance(b, (list, tuple)) and len(b) == 4
-                and all(isinstance(x, (int, float)) for x in b)
-                and b[2] > b[0] and b[3] > b[1])
-
-    door = rb.get("entrance_door")
-    if not _valid(door):
-        return None
-    door_w = door[3] - door[1]
+    measured = door_gap_measurements(rb)
     for nm, thr in (("focal_anchor", DOOR_GAP_MIN_FOCAL), ("sofa", DOOR_GAP_MIN_SOFA)):
-        b = rb.get(nm)
-        if not _valid(b):
+        m = measured.get(nm)
+        if not m:
             continue
-        x_gap = max(door[1] - b[3], b[1] - door[3], 0)
-        y_overlap = min(door[2], b[2]) - max(door[0], b[0])
-        if x_gap < thr * door_w and y_overlap > 0:
-            return (nm, x_gap, door_w, thr)
+        if m["ratio"] < thr and m["y_overlap"] > 0:
+            return (nm, m["x_gap"], m["door_w"], thr)
     return None
 
 

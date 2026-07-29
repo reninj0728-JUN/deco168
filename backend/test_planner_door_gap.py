@@ -100,7 +100,11 @@ def test_diagnostic_code_changes_no_behaviour():
     """驗收條件：候選數量、合格數、最終選定候選都不得改變（診斷碼在 score 算完後才附加）。
     基準取自加碼前的實測值。"""
     raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    baseline = {"free": (13, 7, "s2_b_left_0.555_0.815"),
+    # 2026-07-29 golden 更新：候選比較鍵改成「先比門距安全餘裕、再比原分數」
+    # （1F24858B：規劃器選了 0.449 門寬的壓線候選，同批有更寬鬆的沒選，出圖後
+    # 掉到驗收門檻以下）。候選數與合格數皆未變——只有 free 模式選中的候選變成
+    # 餘裕較大的那個，這正是本次刻意的行為變更。左右綁邊的結果不受影響。
+    baseline = {"free": (13, 7, "s2_a_right_0.740_1.000"),
                 "left": (5, 1, "s2_b_left_0.555_0.815"),
                 "right": (4, 2, "s2_a_right_0.740_1.000")}
     for side, (n_cand, n_elig, chosen_id) in baseline.items():
@@ -112,6 +116,99 @@ def test_diagnostic_code_changes_no_behaviour():
         assert len(cands) == n_cand, f"{side}: 候選數量變了"
         assert len(eligible) == n_elig, f"{side}: 合格數量變了"
         assert plan.get("chosen_candidate_id") == chosen_id, f"{side}: 選中的候選變了"
+        eligible_list = eligible
+        # 釘規則而不是釘快照：選中的候選必須是「同一個候選池裡」餘裕最大的。
+        # 候選池要跟選擇時一致——can_float=False 時浮動 F 已被浮動守門排除，
+        # 拿 F 來比會得到假的最大值。fixture 換掉也不會讓這條失去意義。
+        if eligible_list and plan.get("chosen_candidate_id"):
+            pool = [c for c in eligible_list if c.get("candidate_type") in ("A", "B")]                 or eligible_list
+            picked = next(c for c in eligible_list
+                          if c["candidate_id"] == plan["chosen_candidate_id"])
+            best_margin = max(c.get("door_gap_margin") or 0.0 for c in pool)
+            assert (picked.get("door_gap_margin") or 0.0) == best_margin, (
+                f"{side}: 選中的候選餘裕不是同池最大 "
+                f"({picked.get('door_gap_margin')} < {best_margin})")
+
         # 合格候選不得帶此碼
         for c in eligible:
             assert not any("CANDIDATE_NEAR_LANDING" in f for f in (c.get("fail_codes") or []))
+
+
+# ── 直接測門距餘裕公式本身（不是只驗排序服從欄位）──────────────────────
+def _rect(x0, y0, x1, y1):
+    """畫素座標的矩形 footprint。"""
+    return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+
+
+W_PX, H_PX = 1000, 1000
+
+
+def _margin(sofa, tv, door):
+    return s2._shared_door_gap_margin(sofa, tv, door, W_PX, H_PX)
+
+
+def test_margin_is_normalised_by_each_items_own_threshold():
+    """沙發門檻 0.25、電視櫃 0.28 不同——同樣的 x-gap 對兩者的安全程度不同。
+    不各自除以自己的門檻，就不是同一個安全尺度（GPT 抓漏）。"""
+    door = _rect(0, 0, 100, 900)          # 門寬 100px
+    # 兩者與門的 x-gap 都是 30px → 原始 ratio 都是 0.30
+    sofa = _rect(130, 100, 300, 800)
+    tv = _rect(130, 100, 300, 800)
+    margin = _margin(sofa, tv, door)
+    assert margin is not None
+    # 標準化後：沙發 0.30/0.25 = 1.20、電視櫃 0.30/0.28 ≈ 1.071 → 取較小者
+    assert abs(margin - (0.30 / 0.28)) < 0.02, (
+        f"應取電視櫃的 1.071（較嚴的那個），實得 {margin}")
+    assert margin < 0.30 / 0.25, "沒有各自標準化：不該等於沙發的 1.20"
+
+
+def test_items_without_vertical_overlap_do_not_drag_margin_down():
+    """驗收只在「與門有垂直重疊」時才判門距。沒有重疊的家具不構成門距風險，
+    不可拿它的 x-gap 把餘裕拉低——否則排序與驗收仍是兩把尺（GPT 抓漏）。"""
+    door = _rect(0, 0, 100, 400)          # 門只佔畫面上半 y 0~400
+    near_but_below = _rect(105, 600, 300, 900)   # x 很近，但 y 完全在門下方
+    far_and_overlapping = _rect(400, 100, 600, 300)
+    margin_pair = _margin(near_but_below, far_and_overlapping, door)
+    margin_far_only = _margin(far_and_overlapping, far_and_overlapping, door)
+    assert margin_pair is not None and margin_far_only is not None
+    assert margin_pair >= margin_far_only, (
+        f"沒有垂直重疊的家具把餘裕拉低了：{margin_pair} < {margin_far_only}")
+
+
+def test_no_vertical_overlap_at_all_is_safe_not_unknown():
+    """兩件都與門無垂直重疊＝驗收判定不相鄰＝安全；
+    不可跟「量不到資料」一樣回 None（None 會被排序當成最差）。"""
+    door = _rect(0, 0, 100, 300)
+    below_a = _rect(200, 600, 400, 900)
+    below_b = _rect(500, 600, 700, 900)
+    margin = _margin(below_a, below_b, door)
+    assert margin == s2.DOOR_GAP_MARGIN_NOT_ADJACENT, f"實得 {margin}"
+
+
+def test_missing_door_evidence_is_unknown_not_safe():
+    """門框證據無效（退化成零寬）→ None（不知道），呼叫端不得當成很安全。
+    這跟「確定不相鄰」必須分得開——後者才是安全。"""
+    degenerate_door = _rect(50, 100, 50, 400)     # 零寬，_valid_render_bbox 會擋掉
+    margin = _margin(_rect(200, 100, 400, 300), _rect(500, 100, 700, 300),
+                     degenerate_door)
+    assert margin is None, f"量不到門框卻回了 {margin}"
+    assert margin != s2.DOOR_GAP_MARGIN_NOT_ADJACENT
+
+
+def test_margin_matches_validator_verdict_at_the_threshold():
+    """餘裕 <1 必定是驗收會擋的，>1 必定是驗收放行的——同一把尺的定義。"""
+    from gemini_analyze import _door_adjacency_violation
+    door = _rect(0, 0, 100, 900)
+    for gap_px, expect_blocked in ((10, True), (20, True), (40, False), (60, False)):
+        sofa = _rect(100 + gap_px, 100, 300, 800)
+        tv = _rect(700, 100, 900, 800)
+        margin = _margin(sofa, tv, door)
+        rb = {
+            "entrance_door": s2._bbox_yx1000(door, W_PX, H_PX),
+            "sofa": s2._bbox_yx1000(sofa, W_PX, H_PX),
+            "focal_anchor": s2._bbox_yx1000(tv, W_PX, H_PX),
+        }
+        blocked = _door_adjacency_violation(rb) is not None
+        assert blocked is expect_blocked, f"gap={gap_px}px 驗收判定不如預期"
+        assert (margin < 1.0) is blocked, (
+            f"gap={gap_px}px：餘裕 {margin:.3f} 與驗收判定 {blocked} 不一致")

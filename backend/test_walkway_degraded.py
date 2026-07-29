@@ -70,7 +70,11 @@ def test_fail_code_says_walkway_data_is_degraded_not_furniture():
 def test_good_walkway_room_is_untouched():
     """回歸：走道正常的房完全不受影響（候選數、合格數、選中候選皆不變）。"""
     raw = json.loads(GOOD.read_text(encoding="utf-8"))
-    baseline = {"free": (13, 7, "s2_b_left_0.555_0.815"),
+    # 2026-07-29 golden 更新：候選比較鍵改成「先比門距安全餘裕、再比原分數」
+    # （1F24858B：規劃器選了 0.449 門寬的壓線候選，同批有更寬鬆的沒選，出圖後
+    # 掉到驗收門檻以下）。候選數與合格數皆未變——只有 free 模式選中的候選變成
+    # 餘裕較大的那個，這正是本次刻意的行為變更。左右綁邊的結果不受影響。
+    baseline = {"free": (13, 7, "s2_a_right_0.740_1.000"),
                 "left": (5, 1, "s2_b_left_0.555_0.815"),
                 "right": (4, 2, "s2_a_right_0.740_1.000")}
     for side, (nc, ne, chosen) in baseline.items():
@@ -80,5 +84,18 @@ def test_good_walkway_room_is_untouched():
         assert len(cands) == nc, f"{side}: 候選數量變了"
         assert len([c for c in cands if c.get("eligible")]) == ne, f"{side}: 合格數變了"
         assert plan.get("chosen_candidate_id") == chosen, f"{side}: 選中候選變了"
+        eligible_list = [c for c in cands if c.get("eligible")]
+        # 釘規則而不是釘快照：選中的候選必須是「同一個候選池裡」餘裕最大的。
+        # 候選池要跟選擇時一致——can_float=False 時浮動 F 已被浮動守門排除，
+        # 拿 F 來比會得到假的最大值。fixture 換掉也不會讓這條失去意義。
+        if eligible_list and plan.get("chosen_candidate_id"):
+            pool = [c for c in eligible_list if c.get("candidate_type") in ("A", "B")]                 or eligible_list
+            picked = next(c for c in eligible_list
+                          if c["candidate_id"] == plan["chosen_candidate_id"])
+            best_margin = max(c.get("door_gap_margin") or 0.0 for c in pool)
+            assert (picked.get("door_gap_margin") or 0.0) == best_margin, (
+                f"{side}: 選中的候選餘裕不是同池最大 "
+                f"({picked.get('door_gap_margin')} < {best_margin})")
+
         assert not any("FLOOR_PATH" in f for c in cands for f in (c.get("fail_codes") or [])), \
             "走道正常時不該走 fallback"
