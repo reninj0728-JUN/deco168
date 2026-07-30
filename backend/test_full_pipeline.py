@@ -915,18 +915,22 @@ def _gpt_image2_mask_repair_prompt(reference_map: list[dict],
             if wall_side in {"LEFT", "RIGHT"} else
             "Keep the console on its original side-wall in Image #1. "
         )
+        # EAF26AF6：舊文「only forward/back」讓模型沿牆進深滑、門距 2→0；
+        # 藍框已是「過門淨空 +（必要時）對正沙發」的確定位置——必須整顆塞進藍框。
         return (
             "MASKED LOCAL CONSOLE DOOR-CLEARANCE REPAIR ONLY. Image #1 is the previous "
             "furnished render. "
             f"Image #{local_index} is the same render with a RED old-console zone and a BLUE "
             "new-console target past the entrance door. Inside the WHITE editable mask area, completely "
             "erase the old TV/media console from the RED zone and reconstruct the exposed wall "
-            "and floor. Place exactly one low media console (with TV) fully inside the BLUE target, "
+            "and floor. Place exactly one low media console (with TV) fully inside the BLUE target — "
+            "the BLUE box is binding: it is already past the door clearance on the original wall. "
             + wall_lock +
-            "Move it only forward/back along that same wall; never move it across the room, onto the "
-            "sofa wall, or outside the BLUE target. "
+            "Slide the console along that same wall away from the entrance door into the BLUE box "
+            "(lateral clear of the door first; only adjust depth if the blue box requires it). "
+            "Never move it across the room, onto the sofa wall, or outside the BLUE target. "
             + product_lock +
-            "leaving at least 0.28× door-width of bare wall between the far door frame and the "
+            "Leave at least 0.28× door-width of bare wall between the far door frame and the "
             "console start. LOCK the sofa, rug, coffee table, entrance door, intercom, walls, "
             "ceiling, floor, lighting, camera and perspective — do not move or redesign the sofa. "
             "Never leave a ghost/duplicate console near the door. Preserve every pixel in BLACK mask "

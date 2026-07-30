@@ -705,9 +705,13 @@ class DoorAwareLayoutTests(unittest.TestCase):
             "console_axis_alignment_edit": True,
         })
         self.assertIn("DOOR-CLEARANCE + AXIS", prompt)
-        self.assertIn("forward/back on that same wall", prompt)
+        self.assertIn("clear the entrance laterally", prompt)
         self.assertIn("directly opposite", prompt)
+        self.assertIn("door clearance is mandatory", prompt)
         self.assertNotIn("LATERALLY ONLY", prompt)
+        # EAF26AF6：必須先橫向離門；可禁止「只前後滑仍貼門」
+        self.assertIn("laterally", prompt.lower())
+        self.assertIn("never slide only forward/back", prompt.lower())
 
         repaired = {
             **blocked,
@@ -725,6 +729,91 @@ class DoorAwareLayoutTests(unittest.TestCase):
         }
         accepted, reason = api._console_repair_candidate_is_monotonic(blocked, repaired)
         self.assertTrue(accepted, reason)
+
+    def test_eaf26_real_candidate_still_rejected_when_door_gap_worsens(self):
+        """EAF26AF6 真實候選：TV x 未移、門距 2→0 更差、對向 90→31。
+
+        這張**不是**「修好被 25 掐死」——門距惡化，必須拒收，禁止交付貼門圖。
+        舊碼可能先報 31>25 遮住門距；新碼應明確因 door gap stalled 拒絕。
+        """
+        previous = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "furniture_blocks_door": True,
+            "focal_door_axis_conflict": {
+                "pair_abs_delta_y": 90,
+                "door_gap_ratio": 0.014,
+            },
+            "render_bboxes": {
+                "entrance_door": [200, 110, 850, 258],
+                "focal_anchor": [435, 260, 635, 396],  # x 260–396, gap≈2
+                "sofa": [470, 617, 780, 891],
+            },
+        }
+        # 實測：x 仍 260–396；門右緣 258→261；gap 2→0；y 往鏡頭移改善對向
+        real_failed_repair = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "furniture_blocks_door": True,
+            "render_bboxes": {
+                "entrance_door": [200, 110, 850, 261],
+                "focal_anchor": [500, 260, 700, 396],
+                "sofa": [470, 617, 780, 891],
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(
+            previous, real_failed_repair)
+        self.assertFalse(accepted)
+        self.assertIn("door gap stalled", reason)
+
+    def test_axis_repair_accepts_pair_31_only_when_door_gap_actually_improves(self):
+        """潛伏缺陷：門距真改善且對向 90→31 時，不得再用絕對 25 誤殺。
+
+        這不是 EAF26 當時那張圖（那張 x 沒動、門距更差）；是「若修復真的離門」
+        時候選閘必須與交付 EXTREME 一致，避免比校準接受組更嚴。
+        """
+        previous = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "furniture_blocks_door": True,
+            "focal_door_axis_conflict": {
+                "pair_abs_delta_y": 90,
+                "door_gap_ratio": 0.014,
+            },
+            "render_bboxes": {
+                "entrance_door": [200, 110, 850, 258],
+                "focal_anchor": [435, 260, 635, 396],
+                "sofa": [470, 617, 780, 891],
+            },
+        }
+        truly_improved = {
+            "camera_axis_preserved": True,
+            "passage_openings_preserved": True,
+            "furniture_blocks_door": False,
+            "render_bboxes": {
+                "entrance_door": [200, 110, 850, 258],
+                "focal_anchor": [556, 320, 756, 500],  # 橫向離門 + |Δy|=31
+                "sofa": [470, 617, 780, 891],
+            },
+        }
+        self.assertEqual(
+            api._pair_center_delta(truly_improved, tolerance=0)["abs_delta_y"], 31)
+        accepted, reason = api._console_repair_candidate_is_monotonic(
+            previous, truly_improved)
+        self.assertTrue(accepted, reason)
+
+        worse_pair = {
+            **truly_improved,
+            "render_bboxes": {
+                "entrance_door": [200, 110, 850, 258],
+                "focal_anchor": [400, 320, 600, 500],  # |Δy| 極端
+                "sofa": [470, 617, 780, 891],
+            },
+        }
+        accepted, reason = api._console_repair_candidate_is_monotonic(
+            previous, worse_pair)
+        self.assertFalse(accepted)
+        self.assertTrue("extreme" in reason or "regressed" in reason, reason)
 
     def test_e9_console_target_preserves_already_passed_pair_axis(self):
         """E9CD7958｜電視櫃避門只准水平移位，不得破壞原本已通過的沙發／TV 深度對正。"""

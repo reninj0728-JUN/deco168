@@ -4362,18 +4362,9 @@ def _console_repair_candidate_is_monotonic(
                 and prev.get("passage_openings_preserved") is not False)):
         return False, "camera/passage regressed"
 
-    if isinstance(prev.get("focal_door_axis_conflict"), dict):
-        remaining_pair = _pair_center_delta(cand, tolerance=PAIR_CENTER_TOLERANCE)
-        if remaining_pair:
-            return False, ("console/sofa axis target missed "
-                           f"({remaining_pair['abs_delta_y']}/1000 > "
-                           f"{PAIR_CENTER_TOLERANCE})")
-
-    pair = _pair_center_delta(cand, tolerance=PAIR_CENTER_EXTREME)
-    if cand.get("focal_anchor_misaligned_with_sofa") is True or pair:
-        delta = (pair or {}).get("abs_delta_y")
-        return False, f"pair alignment regressed{f' ({delta}/1000)' if delta is not None else ''}"
-
+    # 門距單調必須先算：EAF26AF6 實測修復候選是門距 2→0 更差、對向 90→31；
+    # 舊版先用 PAIR_CENTER_TOLERANCE=25 回報，log 完全看不到門距惡化。
+    # 先查門距＝可診斷；25 不得當複合修復的絕對交付門檻（交付硬閘是 EXTREME）。
     try:
         from gemini_analyze import _door_adjacency_violation
         prev_violation = _door_adjacency_violation(prev.get("render_bboxes") or {})
@@ -4388,6 +4379,37 @@ def _console_repair_candidate_is_monotonic(
             cand_gap = float(cand_violation[1]) / max(1.0, float(cand_violation[2]))
             if cand_gap - prev_gap <= RETRY_PROGRESS_EPS["door_gap"]:
                 return False, f"console door gap stalled ({prev_gap:.2f}→{cand_gap:.2f})"
+
+    prev_pair = _pair_center_delta(prev, tolerance=0)
+    cand_pair = _pair_center_delta(cand, tolerance=0)
+    prev_abs = int((prev_pair or {}).get("abs_delta_y") or 0)
+    cand_abs = int((cand_pair or {}).get("abs_delta_y") or 0)
+
+    if isinstance(prev.get("focal_door_axis_conflict"), dict):
+        # 複合修復（門距+對向）：藍框目標是 EXTREME 內 + 不比上一輪更歪。
+        # 不得要求 ≤25——那是美感微調，不是硬擋；31 已優於接受組裡的 32/50/60/89。
+        if cand_abs > PAIR_CENTER_EXTREME:
+            return False, (
+                f"console/sofa axis still extreme "
+                f"({cand_abs}/1000 > {PAIR_CENTER_EXTREME})"
+            )
+        if cand_abs - prev_abs > RETRY_PROGRESS_EPS["pair_align"]:
+            return False, (
+                f"console/sofa axis regressed ({prev_abs}→{cand_abs}/1000)"
+            )
+    else:
+        pair = _pair_center_delta(cand, tolerance=PAIR_CENTER_EXTREME)
+        if cand.get("focal_anchor_misaligned_with_sofa") is True or pair:
+            delta = (pair or {}).get("abs_delta_y")
+            return False, (
+                f"pair alignment regressed"
+                f"{f' ({delta}/1000)' if delta is not None else ''}"
+            )
+        # 純避門：對向原本已過，不得變差超過 eps（仍可比 25 寬，但不能退步）
+        if prev_abs <= PAIR_CENTER_TOLERANCE and cand_abs - prev_abs > RETRY_PROGRESS_EPS["pair_align"]:
+            return False, (
+                f"pair alignment regressed ({prev_abs}→{cand_abs}/1000)"
+            )
     return True, ""
 
 
