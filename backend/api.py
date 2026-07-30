@@ -3838,6 +3838,280 @@ def _s2_verifier_unstable(summary: dict | None) -> bool:
     return len(set(field_sets)) >= 2
 
 
+# 只核准「多抽 1 次」。這是成本上限，不是預設值——環境變數與函式參數都不得超過。
+_S2_ZONING_RESAMPLE_HARD_CAP = 2
+
+# 一看就知道是檔案系統路徑、不是 storage key 的開頭段。
+_LOCAL_PATH_FIRST_SEGMENTS = frozenset({
+    "app", "tmp", "temp", "var", "jobs", "home", "mnt", "media", "users",
+    "opt", "srv", "root", "private",
+})
+
+
+def _is_portable_photo_key(key: str | None) -> bool:
+    """這個 key 跨容器／跨部署還對得起來嗎？
+
+    `canonical_photo_key` 只做正規化，**不會**把本機路徑轉成 storage key：
+      * `C:\\Users\\...\\photo.jpg` → `C:/Users/.../photo.jpg`
+      * `/app/jobs/FD73C48C/photo.jpg` → `app/jobs/FD73C48C/photo.jpg`
+    兩者都沒有觸發 basename fallback，就這樣被寫進 result_json。
+    它正常的產物是 `<upload_id>/<filename>`（兩段），所以用段數＋系統目錄
+    開頭來認出路徑。
+    """
+    parts = [p for p in str(key or "").strip().split("/") if p]
+    if not parts or len(parts) > 2:
+        return False
+    return parts[0].lower().rstrip(":") not in _LOCAL_PATH_FIRST_SEGMENTS
+
+
+def _portable_photo_key(photo_path, *, zoning: dict | None = None,
+                        key_by_local: dict | None = None) -> str:
+    """診斷用的可攜照片識別：上傳綁定 → 本機路徑對照表 → 最後才 basename。"""
+    raw = str(photo_path or "")
+    bind = (zoning or {}).get("_source_binding") if isinstance(zoning, dict) else None
+    for candidate in (
+        (bind or {}).get("photo_key") if isinstance(bind, dict) else None,
+        (key_by_local or {}).get(raw),
+    ):
+        key = canonical_photo_key(candidate)
+        if _is_portable_photo_key(key):
+            return key
+    return Path(raw).name
+
+
+def _struct_geometry_sha256(zoning: dict | None) -> str | None:
+    """這次判官到底驗的是哪一份幾何。
+
+    只有 commit（重抽後合格）才會把新幾何寫回訂單；**第 2 抽仍失敗時**，
+    判官的判決來自新幾何、訂單存的卻是舊幾何——沒有這個雜湊，下次查死因會
+    再一次「線上結果與存檔對不起來」（E64D1C31 那類盲區）。
+    """
+    struct = (zoning or {}).get("struct_geometry_v1") if isinstance(zoning, dict) else None
+    if not isinstance(struct, dict):
+        return None
+    return hashlib.sha256(json.dumps(
+        struct, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode("utf-8")).hexdigest()
+
+
+def _s2_zoning_resample_max() -> int:
+    """S2 硬擋時，同一張照片最多跑幾次 zoning（含第一次）。
+
+    2026-07-30：同圖受控三跑證實幾何非確定；FD73C48C 抽到的左牆近端在門口截斷
+    （846/128），而受控三跑有 3/3 拉到畫面角（~980/0）——判官咬的正是這個元素。
+    所以「付 Fal 前再抽一次」有根據。**但只准多抽 1 次**：每次重抽不只多 1 次
+    zoning flash，後面還要再跑整輪 S2 判官（歷史上單輪可到 3 次 Gemini）。
+    預設與硬上限都是 2；設 1 = 關閉重抽。要放寬得先量 hard_block 佔比。
+    """
+    try:
+        n = int(os.environ.get("S2_ZONING_RESAMPLE_MAX", str(_S2_ZONING_RESAMPLE_HARD_CAP)))
+    except (TypeError, ValueError):
+        n = _S2_ZONING_RESAMPLE_HARD_CAP
+    return max(1, min(n, _S2_ZONING_RESAMPLE_HARD_CAP))
+
+
+# 基礎設施性質的碼：重抽只會再錯一次，不該花錢。
+_S2_INFRA_UNSAFE_CODES = frozenset({"S2_PIPELINE_ERROR"})
+
+
+def _s2_would_hard_block(summary: dict | None, artifacts: dict | None) -> bool:
+    """這次 S2 結果若繼續走，會變成 s2_blocked_legacy（付費前擋死）嗎？
+
+    **正向認列**：只有「判官真的執行過、給出一致的 fail 欄位、而且沒有例外」
+    才算幾何硬擋，值得重抽一份結構觀測。任何不確定都回 False（不花錢）。
+
+    刻意排除：
+      * `S2_PIPELINE_ERROR` / `verification_exception_type`——基礎設施壞了，
+        重抽只是再壞一次（api.py 的 fail-closed 分支會寫 verification_status="fail"
+        且 attempt_count=0，光看 status 會誤判成幾何問題）。
+      * 模型化不了／判官不穩 → 本來就走 waive legacy，不擋生成，不必重抽。
+      * fail 但講不出失敗欄位 → 不是幾何硬擋。
+    """
+    if isinstance(artifacts, dict) and artifacts.get("eligible"):
+        return False
+    if not isinstance(summary, dict) or not summary:
+        return False
+    if summary.get("verification_exception_type"):
+        return False
+    codes = {str(c) for c in (summary.get("unsafe_codes") or [])}
+    codes |= {str(c) for c in (summary.get("verification_unsafe_codes") or [])}
+    if codes & _S2_INFRA_UNSAFE_CODES:
+        return False
+    if summary.get("verification_status") != "fail":
+        return False
+    if int(summary.get("verification_attempt_count") or 0) <= 0:
+        return False
+    if not (summary.get("verification_failed_fields") or {}):
+        return False
+    if _s2_model_not_applicable(summary) or _s2_verifier_unstable(summary):
+        return False
+    return True
+
+
+# 重抽時允許被換掉的欄位＝純結構觀測。其餘一律保留原單。
+_S2_RESAMPLE_GEOMETRY_FIELDS = (
+    "struct_geometry_v1", "_source_binding", "_provenance", "best_photo_index",
+)
+
+
+def _s2_zoning_with_resampled_geometry(original: dict | None,
+                                       resampled: dict | None) -> dict | None:
+    """只把幾何換成新抽的那份，客戶在分區頁確認過的東西一律保留。
+
+    重抽的目的只有一個：換一份結構觀測。`proposed_zones` 裡的 `sofa_side` /
+    `sofa_side_source` / `alt_*` 是**客戶的決定**，整包覆蓋會讓新一輪 Gemini 的
+    AI 建議冒充客戶硬綁左右（e318392 修過同一類問題）。
+
+    附帶好處：沙發側別與 can_float 都不是從幾何推導的
+    （`_guide_sofa_side` 讀 furniture_placement_rules / entrance_zone，
+    `_room_can_float_sofa` 讀 analysis + zones），所以只換幾何時這兩個訊號
+    在各次嘗試之間必然一致，不會出現「新牆線配舊擺法假設」。
+    """
+    if not isinstance(resampled, dict):
+        return None
+    merged = dict(original) if isinstance(original, dict) else {}
+    for key in _S2_RESAMPLE_GEOMETRY_FIELDS:
+        if key in resampled:
+            merged[key] = resampled[key]
+    return merged
+
+
+def _recompute_zoning_v2_for_s2_retry(
+    photo_path: str,
+    *,
+    previous_zoning: dict | None = None,
+) -> dict | None:
+    """同一張合約底圖再跑一次 zoning v2（只送這張，避免換圖換座標）。
+
+    失敗回 None。成功時綁定沿用舊 photo_key（若有），best/source index 鎖 0。
+    """
+    try:
+        from zoning_v2 import compute_zoning_v2
+    except ImportError as exc:
+        print(f"[pipeline] S2 zoning 重抽：import 失敗 {exc}")
+        return None
+    path = Path(photo_path)
+    if not path.is_file():
+        print(f"[pipeline] S2 zoning 重抽：找不到照片 {photo_path}")
+        return None
+    try:
+        zres = compute_zoning_v2([path], video_keyframes=None)
+    except Exception as exc:
+        print(f"[pipeline] S2 zoning 重抽：compute 例外 {type(exc).__name__}: {exc}")
+        return None
+    if not isinstance(zres, dict) or zres.get("error"):
+        print(f"[pipeline] S2 zoning 重抽：模型錯誤 { (zres or {}).get('error') }")
+        return None
+    prev_bind = (
+        (previous_zoning or {}).get("_source_binding")
+        if isinstance(previous_zoning, dict) else None
+    ) or {}
+    zres["best_photo_index"] = 0
+    zres["_source_binding"] = {
+        "photo_key": (
+            str(prev_bind.get("photo_key") or "").strip()
+            or canonical_photo_key(str(path))
+            or path.name
+        ),
+        "sha256": _source_file_sha256(path),
+    }
+    sg = zres.get("struct_geometry_v1")
+    if isinstance(sg, dict):
+        sg["source_photo_index"] = 0
+    return zres
+
+
+def _s2_contract_with_zoning_resample(
+    *,
+    initial_zoning_v2: dict | None,
+    photo_path: str,
+    max_attempts: int | None = None,
+    run_contract,
+    rezone=None,
+) -> tuple[dict, dict, dict | None, list[dict]]:
+    """S2 合約：若會硬擋，重抽 zoning 再規劃，直到合格／改走 waive／用盡次數。
+
+    run_contract(zv2) -> (summary, artifacts)
+    rezone(previous_zv2) -> new_zv2 | None   （可注入 mock；預設呼叫 Gemini）
+
+    回傳 (summary, artifacts, zoning_v2_to_commit, attempt_log)
+    zoning_v2_to_commit：只有「重抽後變 eligible」才是新幾何；否則 None（保留原單）。
+    """
+    # 硬上限無條件夾住：`max_attempts` 是為了測試可注入，不是繞過成本核准的後門。
+    attempts = max(1, min(_S2_ZONING_RESAMPLE_HARD_CAP, int(
+        max_attempts if max_attempts is not None else _s2_zoning_resample_max())))
+    current = initial_zoning_v2
+    log: list[dict] = []
+    summary: dict = {}
+    artifacts: dict = {"eligible": False}
+    commit: dict | None = None
+
+    for i in range(attempts):
+        summary, artifacts = run_contract(current)
+        if not isinstance(summary, dict):
+            summary = {}
+        if not isinstance(artifacts, dict):
+            artifacts = {"eligible": False}
+        # 觀測指紋：只讀欄位寫進 log，不做任何分支判斷（AST 契約：不得 if _provenance）
+        _prov_blob = current.get("_provenance") if isinstance(current, dict) else None
+        _prov_fp = (
+            _prov_blob.get("request_fingerprint")
+            if isinstance(_prov_blob, dict) else None
+        )
+        entry = {
+            "attempt": i + 1,
+            "eligible": bool(artifacts.get("eligible")),
+            "verification_status": summary.get("verification_status"),
+            "unsafe_codes": list(summary.get("unsafe_codes") or []),
+            "hard_block": _s2_would_hard_block(summary, artifacts),
+            "waive_model": _s2_model_not_applicable(summary),
+            "waive_unstable": _s2_verifier_unstable(summary),
+            "provenance_fp": _prov_fp,
+            # 這一次判官驗的是哪份幾何。第 2 抽仍失敗時訂單存的是舊幾何，
+            # 沒有這個雜湊就沒辦法把線上判決對回任何一份幾何。
+            "geometry_sha256": _struct_geometry_sha256(current),
+        }
+        log.append(entry)
+        if artifacts.get("eligible"):
+            if i > 0 and isinstance(current, dict):
+                commit = current
+            break
+        if not _s2_would_hard_block(summary, artifacts):
+            # waive 路徑或非硬擋：不再重抽
+            break
+        if i + 1 >= attempts:
+            break
+        rezone_fn = rezone
+        if rezone_fn is None:
+            rezone_fn = lambda prev: _recompute_zoning_v2_for_s2_retry(
+                photo_path, previous_zoning=prev)
+        merged = _s2_zoning_with_resampled_geometry(current, rezone_fn(current))
+        if not isinstance(merged, dict):
+            log.append({
+                "attempt": i + 2,
+                "eligible": False,
+                "hard_block": True,
+                "rezone_failed": True,
+            })
+            break
+        new_z = merged
+        print(f"[pipeline] S2 硬擋 → 重抽 zoning "
+              f"({i + 1}/{attempts} 已用，再試第 {i + 2} 次)")
+        current = new_z
+
+    # 重抽過、最後仍被擋 → commit 是 None，訂單留著舊幾何，
+    # 但判官其實是對「最後那份重抽幾何」下判決的。把那份留在診斷裡，
+    # 否則下次查這張單會再撞一次「線上判決與存檔幾何對不起來」。
+    if commit is None and len(log) > 1 and isinstance(current, dict):
+        last_struct = current.get("struct_geometry_v1")
+        if isinstance(last_struct, dict) and (
+                _struct_geometry_sha256(current)
+                != _struct_geometry_sha256(initial_zoning_v2)):
+            log[-1]["verified_struct_geometry_v1"] = last_struct
+
+    return summary, artifacts, commit, log
+
+
 def _crop_to_living_zone(base_path: str, job_dir, idx: int,
                          living_bbox1000, pad: float = 0.04):
     """裁到分區層認出來的客廳區——S2 描述不了整個房型時的最後一招。
@@ -5017,6 +5291,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         layout_contract_artifacts: dict[int, dict] = {}
         # S2 模型化不了的視角：豁免付費前 S2 強制，改走 legacy 門感知引導
         layout_contract_s2_waived: set[int] = set()
+        # 硬擋時同圖重抽 zoning 的觀測紀錄（付 Fal 前；不進布局規則）
+        s2_zoning_resample_log: list[dict] = []
         _s2_enabled = _layout_contract_s2_enabled()
         try:
             _sofa_mode_shadow = _guide_sofa_side(zoning_result)
@@ -5034,17 +5310,48 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 # S2 只在未裁切、包含大門與完整牆腳的原圖座標工作。
                 _contract_photo = uncropped_bases.get(_vi) or crop_source_paths[_vi] or _bp
                 if _s2_enabled:
-                    _sum, _artifacts = _run_layout_contract_s2(
-                        job_id=job_id,
-                        job_dir=job_dir,
+                    def _run_one_s2(_zv2, *, _photo=_contract_photo, _view=_vi,
+                                    _sofa=_sofa_mode_shadow, _float=_can_float_shadow,
+                                    _legacy=zoning_result):
+                        return _run_layout_contract_s2(
+                            job_id=job_id,
+                            job_dir=job_dir,
+                            photo_path=_photo,
+                            view_index=_view,
+                            user_zoning_v2=_zv2,
+                            legacy_zoning=_legacy,
+                            sofa_mode=_sofa,
+                            image_paths=image_paths,
+                            can_float=_float,
+                        )
+
+                    _sum, _artifacts, _zv2_commit, _zlog = _s2_contract_with_zoning_resample(
+                        initial_zoning_v2=user_zoning_v2,
                         photo_path=_contract_photo,
-                        view_index=_vi,
-                        user_zoning_v2=user_zoning_v2,
-                        legacy_zoning=zoning_result,
-                        sofa_mode=_sofa_mode_shadow,
-                        image_paths=image_paths,
-                        can_float=_can_float_shadow,
+                        run_contract=_run_one_s2,
                     )
+                    if _zlog:
+                        # 不存 Railway 容器的完整路徑：容器一換就失效，還把執行環境
+                        # 寫進客戶訂單。photo_key ＋ sha 才是跨部署對得起來的識別。
+                        s2_zoning_resample_log.append({
+                            "view_index": _vi,
+                            "photo_key": _portable_photo_key(
+                                _contract_photo, zoning=user_zoning_v2,
+                                key_by_local=photo_key_by_local),
+                            "photo_sha256": _source_file_sha256(_contract_photo),
+                            "attempts": _zlog,
+                        })
+                    # 重抽後合格：只把幾何換掉。
+                    # 刻意**不**重跑 flatten／不重算 _sofa_mode_shadow／_can_float_shadow——
+                    # _s2_zoning_with_resampled_geometry 只換結構觀測，proposed_zones 與
+                    # existing_zones 原樣保留，所以 flatten 出來會是同一份，重跑只是多一次
+                    # 有副作用的機會（_auto_can_float 重算），而且一旦換側就等於用 AI 建議
+                    # 冒充客戶指定（e318392 修過的那類錯）。
+                    if isinstance(_zv2_commit, dict):
+                        user_zoning_v2 = _zv2_commit
+                        print(f"[pipeline] S2 重抽 zoning 成功 view={_vi} "
+                              f"attempts={len(_zlog)} → 已替換幾何"
+                              f"（側別 {_sofa_mode_shadow} / can_float {_can_float_shadow} 不變）")
                     layout_contract_shadows.append(_sum)
                     layout_contract_artifacts[_vi] = _artifacts
                     if _artifacts.get("eligible"):
@@ -6286,6 +6593,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "version": "phase0_v3",
                 "affects_delivery": False,
                 "items": layout_contract_shadows,
+            }
+        # S2 硬擋時同圖重抽 zoning 的觀測紀錄（付 Fal 前；純診斷）
+        if s2_zoning_resample_log:
+            result_json_payload["s2_zoning_resample"] = {
+                "max_attempts": _s2_zoning_resample_max(),
+                "views": s2_zoning_resample_log,
             }
         if top_render_mode:
             result_json_payload["render_mode"] = top_render_mode

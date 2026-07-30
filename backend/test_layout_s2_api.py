@@ -498,6 +498,482 @@ def test_waiver_branch_honours_verifier_instability():
     assert "_s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum)" in source
 
 
+def test_s2_would_hard_block_only_when_not_eligible_and_not_waive():
+    art_ok = {"eligible": True}
+    assert api._s2_would_hard_block({"verification_status": "fail"}, art_ok) is False
+
+    # 結構不足、判官沒跑 → waive，不是硬擋
+    struct_fail = {
+        "verification_status": None,
+        "verification_attempt_count": 0,
+        "unsafe_codes": ["NO_USABLE_WALL"],
+    }
+    assert api._s2_model_not_applicable(struct_fail) is True
+    assert api._s2_would_hard_block(struct_fail, {"eligible": False}) is False
+
+    # 判官真的跑過、欄位一致、無例外 → 硬擋（FD73 型）
+    hard = {
+        "verification_status": "fail",
+        "verification_attempt_count": 3,
+        "verification_failed_fields": {"left_wall_floor_alignment": "fail",
+                                       "tv_wall_contact": "fail"},
+        "unsafe_codes": ["GEOM_NOT_ELIGIBLE"],
+        "verification_history": [
+            {"outcome": "hard_fail", "left_wall_floor_alignment": "fail",
+             "sofa_back_contact": "fail"},
+            {"outcome": "hard_fail", "left_wall_floor_alignment": "fail",
+             "tv_wall_contact": "fail"},
+        ],
+    }
+    assert api._s2_verifier_unstable(hard) is False
+    assert api._s2_would_hard_block(hard, {"eligible": False}) is True
+
+
+def test_s2_zoning_resample_max_bounds(monkeypatch):
+    """只核准多抽 1 次 → 預設與硬上限都是 2。"""
+    monkeypatch.delenv("S2_ZONING_RESAMPLE_MAX", raising=False)
+    assert api._s2_zoning_resample_max() == 2
+    monkeypatch.setenv("S2_ZONING_RESAMPLE_MAX", "1")
+    assert api._s2_zoning_resample_max() == 1
+    monkeypatch.setenv("S2_ZONING_RESAMPLE_MAX", "99")
+    assert api._s2_zoning_resample_max() == 2
+    monkeypatch.setenv("S2_ZONING_RESAMPLE_MAX", "nope")
+    assert api._s2_zoning_resample_max() == 2
+
+
+def test_s2_contract_with_zoning_resample_stops_on_first_eligible():
+    """第 1 次就合格 → 不重抽、不替換 zoning。"""
+    calls = {"n": 0, "rezone": 0}
+
+    def run_contract(zv2):
+        calls["n"] += 1
+        return ({"verification_status": "pass"}, {"eligible": True, "guide_path": "g"})
+
+    def rezone(prev):
+        calls["rezone"] += 1
+        return {"_provenance": {"request_fingerprint": "x"}}
+
+    summary, art, commit, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"id": "orig"},
+        photo_path="/tmp/p.jpg",
+        max_attempts=3,
+        run_contract=run_contract,
+        rezone=rezone,
+    )
+    assert art["eligible"] is True
+    assert calls["n"] == 1 and calls["rezone"] == 0
+    assert commit is None
+    assert len(log) == 1 and log[0]["eligible"] is True
+
+
+def test_s2_contract_with_zoning_resample_retries_until_eligible():
+    """硬擋一次後重抽，第 2 次合格 → 重抽 1 次並 commit 換過幾何的那份。"""
+    hard = _hard_block_summary()
+    states = iter([
+        (hard, {"eligible": False}),
+        ({"verification_status": "pass"}, {"eligible": True, "guide_path": "g"}),
+    ])
+    rezoned = []
+
+    def run_contract(zv2):
+        return next(states)
+
+    def rezone(prev):
+        z = {"struct_geometry_v1": {"id": f"z{len(rezoned) + 1}"},
+             "_provenance": {"request_fingerprint": f"fp{len(rezoned)}"}}
+        rezoned.append(z)
+        return z
+
+    summary, art, commit, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"}},
+        photo_path="/tmp/p.jpg",
+        max_attempts=2,
+        run_contract=run_contract,
+        rezone=rezone,
+    )
+    assert art["eligible"] is True
+    assert len(rezoned) == 1
+    assert commit["struct_geometry_v1"] == rezoned[-1]["struct_geometry_v1"]
+    assert commit["_provenance"]["request_fingerprint"] == "fp0"
+    assert [e["eligible"] for e in log] == [False, True]
+
+
+def test_s2_contract_with_zoning_resample_does_not_retry_on_waive():
+    """模型化不了 → waive，不重抽。"""
+    struct = {
+        "verification_status": None,
+        "verification_attempt_count": 0,
+        "unsafe_codes": ["NO_USABLE_WALL"],
+    }
+    calls = {"n": 0, "rezone": 0}
+
+    def run_contract(zv2):
+        calls["n"] += 1
+        return (struct, {"eligible": False})
+
+    def rezone(prev):
+        calls["rezone"] += 1
+        return {"id": "new"}
+
+    summary, art, commit, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"id": "orig"},
+        photo_path="/tmp/p.jpg",
+        max_attempts=3,
+        run_contract=run_contract,
+        rezone=rezone,
+    )
+    assert art["eligible"] is False
+    assert calls["n"] == 1 and calls["rezone"] == 0
+    assert commit is None
+    assert log[0]["waive_model"] is True
+
+
+def test_s2_contract_with_zoning_resample_exhausts_then_stays_blocked():
+    """N 次都硬擋 → 不 commit，log 長度 = N，且與今天一樣維持 incomplete。"""
+    hard = _hard_block_summary()
+    rezoned = []
+
+    def run_contract(zv2):
+        return (hard, {"eligible": False})
+
+    def rezone(prev):
+        z = {"struct_geometry_v1": {"id": len(rezoned)}}
+        rezoned.append(z)
+        return z
+
+    summary, art, commit, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"}},
+        photo_path="/tmp/p.jpg",
+        max_attempts=2,
+        run_contract=run_contract,
+        rezone=rezone,
+    )
+    assert art["eligible"] is False
+    assert commit is None
+    assert len(rezoned) == 1  # 第 1 次用原幾何，只再重抽 1 次
+    assert len(log) == 2
+    assert all(e.get("hard_block") for e in log)
+
+
+def test_s2_would_hard_block_accepts_the_real_geometry_block():
+    """先釘住正例，否則下面每條「不准重抽」都可能只是因為函式永遠回 False。"""
+    assert api._s2_would_hard_block(
+        _hard_block_summary(), {"eligible": False}) is True
+
+
+# 每個案例只破壞一個條件，其餘保持合格 —— 否則拿掉任一守門都不會讓測試變紅
+# （我第一版把多個不合格條件塞在同一個 fixture，蓄意破壞驗出三個空洞）。
+@pytest.mark.parametrize("field,value,why", [
+    ("verification_exception_type", "ValueError", "判官丟例外＝基礎設施壞了"),
+    ("verification_attempt_count", 0, "判官根本沒跑過"),
+    ("verification_failed_fields", {}, "fail 但講不出哪個欄位"),
+    ("verification_status", "pass", "判官沒判 fail"),
+])
+def test_s2_would_hard_block_needs_every_condition(field, value, why):
+    summary = dict(_hard_block_summary())
+    summary[field] = value
+    assert api._s2_would_hard_block(summary, {"eligible": False}) is False, why
+
+
+@pytest.mark.parametrize("code_field", ["unsafe_codes", "verification_unsafe_codes"])
+def test_s2_would_hard_block_rejects_infrastructure_code(code_field):
+    """S2 的 fail-closed 分支會寫 verification_status='fail'，光看 status
+    會把「程式炸了」當成「幾何硬擋」，白花一次 zoning ＋一整輪判官。"""
+    summary = dict(_hard_block_summary())
+    summary[code_field] = ["S2_PIPELINE_ERROR"]
+    assert api._s2_would_hard_block(summary, {"eligible": False}) is False
+
+
+def test_s2_would_hard_block_defers_to_waive_when_verifier_is_unstable():
+    """判官失敗欄位亂跳＝S2 對這房型算不穩，該回退 legacy 引導，不是花錢重抽幾何。
+
+    這條刻意用「其他條件全部合格、只有 history 欄位不一致」的 summary——
+    第一版測試沒有這種案例，於是拿掉 waive 守門也不會變紅（蓄意破壞驗出來的）。
+    """
+    summary = dict(_hard_block_summary())
+    summary["verification_history"] = [
+        {"outcome": "hard_fail", "left_wall_floor_alignment": "fail"},
+        {"outcome": "hard_fail", "walkway_connected": "fail"},
+    ]
+    assert api._s2_verifier_unstable(summary) is True
+    assert api._s2_would_hard_block(summary, {"eligible": False}) is False
+
+
+def test_s2_would_hard_block_rejects_unknown_state():
+    """空 summary → 不知道發生什麼，不花錢。"""
+    assert api._s2_would_hard_block({}, {"eligible": False}) is False
+    assert api._s2_would_hard_block(None, {"eligible": False}) is False
+    assert api._s2_would_hard_block(
+        _hard_block_summary(), {"eligible": True}) is False
+
+
+def test_s2_resample_max_is_capped_at_one_extra_draw(monkeypatch):
+    """每次重抽 = 1 次 zoning flash + 整輪 S2 判官；只核准多抽 1 次。"""
+    monkeypatch.delenv("S2_ZONING_RESAMPLE_MAX", raising=False)
+    assert api._s2_zoning_resample_max() == 2
+    for raw in ("3", "5", "99"):
+        monkeypatch.setenv("S2_ZONING_RESAMPLE_MAX", raw)
+        assert api._s2_zoning_resample_max() == 2, f"{raw} 應被夾到 2"
+    monkeypatch.setenv("S2_ZONING_RESAMPLE_MAX", "1")
+    assert api._s2_zoning_resample_max() == 1, "設 1 要能關閉重抽"
+
+
+def test_max_attempts_argument_cannot_bypass_the_hard_cap():
+    """max_attempts 是為了測試可注入，不是繞過成本核准的後門。"""
+    hard = _hard_block_summary()
+    rezoned = []
+    _s, _a, _c, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"}},
+        photo_path="/tmp/p.jpg",
+        max_attempts=99,
+        run_contract=lambda z: (hard, {"eligible": False}),
+        rezone=lambda prev: rezoned.append(1) or {"struct_geometry_v1": {"id": len(rezoned)}},
+    )
+    assert len(rezoned) == 1, f"max_attempts=99 仍只准重抽 1 次，實際 {len(rezoned)}"
+    assert len(log) == 2
+
+
+def test_every_attempt_records_which_geometry_was_judged():
+    """第 2 抽仍失敗時訂單存的是舊幾何——沒有雜湊就對不回任何一份幾何。"""
+    hard = _hard_block_summary()
+    _s, _a, commit, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"}},
+        photo_path="/tmp/p.jpg",
+        max_attempts=2,
+        run_contract=lambda z: (hard, {"eligible": False}),
+        rezone=lambda prev: {"struct_geometry_v1": {"id": "resampled"}},
+    )
+    assert commit is None, "全敗就不該改動訂單的 zoning"
+    shas = [e.get("geometry_sha256") for e in log]
+    assert all(shas), f"每次 attempt 都要記幾何雜湊，實際 {shas}"
+    assert shas[0] != shas[1], "兩次驗的是不同幾何，雜湊不可相同"
+    assert shas[0] == api._struct_geometry_sha256({"struct_geometry_v1": {"id": "orig"}})
+    # 判官最後判的那份幾何必須留得住，否則下次查死因又對不起來
+    assert log[-1]["verified_struct_geometry_v1"] == {"id": "resampled"}
+
+
+def test_no_leftover_geometry_when_nothing_was_resampled():
+    """第一次就結案時不該塞多餘幾何進診斷（payload 不要無謂長大）。"""
+    _s, _a, _c, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"}},
+        photo_path="/tmp/p.jpg",
+        max_attempts=2,
+        run_contract=lambda z: ({"verification_status": "pass"}, {"eligible": True}),
+        rezone=lambda prev: {"struct_geometry_v1": {"id": "should-not-happen"}},
+    )
+    assert len(log) == 1
+    assert "verified_struct_geometry_v1" not in log[0]
+
+
+@pytest.mark.parametrize("raw", [
+    r"C:\Users\user\AppData\Local\Temp\jobs\FD73C48C\photo_01.jpg",
+    "/app/jobs/FD73C48C/photo_01.jpg",
+    "/tmp/upload/photo_01.jpg",
+    r"D:\railway\photo_01.jpg",
+])
+def test_portable_photo_key_never_leaks_a_local_path(raw):
+    """canonical_photo_key 只正規化斜線——本機路徑會原封不動被吐回來。
+
+    這條是行為測：直接餵真實的 Windows／容器路徑，斷言輸出不含磁碟機、
+    父目錄與反斜線。舊測試只擋「直接寫 str(_contract_photo)」，抓不到
+    經由 canonical_photo_key 的間接洩漏。
+    """
+    key = api._portable_photo_key(raw)
+    assert key == "photo_01.jpg", key
+    assert "\\" not in key and "/" not in key
+    assert ":" not in key
+    for leak in ("Users", "AppData", "app", "tmp", "jobs", "railway", "FD73C48C"):
+        assert leak not in key, f"{leak} 洩漏進 photo_key：{key}"
+
+
+def test_portable_photo_key_prefers_the_upload_binding():
+    """有上傳綁定就用它——那才是跨容器對得起來的識別。"""
+    zoning = {"_source_binding": {"photo_key": "upload-abc/photo_01.jpg"}}
+    assert api._portable_photo_key(
+        "/app/jobs/J/photo_01.jpg", zoning=zoning) == "upload-abc/photo_01.jpg"
+    # 綁定本身是容器路徑時不可採用，要退到 basename
+    bad_bind = {"_source_binding": {"photo_key": "/app/jobs/J/photo_01.jpg"}}
+    assert api._portable_photo_key(
+        "/app/jobs/J/photo_01.jpg", zoning=bad_bind) == "photo_01.jpg"
+
+
+def test_portable_photo_key_falls_back_to_the_local_key_map():
+    assert api._portable_photo_key(
+        "/app/jobs/J/photo_01.jpg",
+        key_by_local={"/app/jobs/J/photo_01.jpg": "uploads/up-9/photo_01.jpg"},
+    ) == "up-9/photo_01.jpg"
+
+
+def test_is_portable_photo_key_accepts_real_storage_keys():
+    """先釘正例，否則上面每條「不可洩漏」都可能只是因為函式永遠退回 basename。"""
+    assert api._is_portable_photo_key("upload-abc/photo_01.jpg") is True
+    assert api._is_portable_photo_key("photo_01.jpg") is True
+    assert api._is_portable_photo_key("app/jobs/J/photo.jpg") is False
+    assert api._is_portable_photo_key("C:/Users/u/photo.jpg") is False
+    assert api._is_portable_photo_key("tmp/photo.jpg") is False
+    assert api._is_portable_photo_key("") is False
+
+
+def test_resample_diagnostics_do_not_store_server_paths():
+    """診斷不可寫入 Railway 容器的完整路徑（換容器就失效，還洩執行環境）。"""
+    source = Path(api.__file__).read_text(encoding="utf-8")
+    block = source.split("s2_zoning_resample_log.append(")[1][:460]
+    assert "_portable_photo_key(" in block, "必須走可攜 key，不可直接用 canonical"
+    assert "photo_sha256" in block
+    assert 'str(_contract_photo),' not in block, "又把完整路徑存回去了"
+
+
+def test_resample_never_spends_more_than_the_capped_draws(monkeypatch):
+    """不給 max_attempts 時，實際重抽次數必須受環境上限約束。"""
+    monkeypatch.delenv("S2_ZONING_RESAMPLE_MAX", raising=False)
+    hard = _hard_block_summary()
+    rezoned = []
+    api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"}},
+        photo_path="/tmp/p.jpg",
+        run_contract=lambda z: (hard, {"eligible": False}),
+        rezone=lambda prev: rezoned.append(1) or {"struct_geometry_v1": {"id": len(rezoned)}},
+    )
+    assert len(rezoned) == 1, f"只准多抽 1 次，實際 {len(rezoned)}"
+
+
+def _hard_block_summary():
+    return {
+        "verification_status": "fail",
+        "verification_attempt_count": 3,
+        "verification_failed_fields": {"left_wall_floor_alignment": "fail"},
+        "unsafe_codes": ["GEOM_NOT_ELIGIBLE"],
+        "verification_history": [
+            {"outcome": "hard_fail", "left_wall_floor_alignment": "fail"},
+            {"outcome": "hard_fail", "left_wall_floor_alignment": "fail"},
+        ],
+    }
+
+
+def test_resample_swaps_geometry_and_keeps_the_customer_side():
+    """重抽只換結構觀測。整包換掉會讓新一輪 Gemini 的 AI 建議冒充客戶硬綁左右。"""
+    original = {
+        "struct_geometry_v1": {"id": "old-geom"},
+        "best_photo_index": 0,
+        "proposed_zones": {"living_zone": {
+            "sofa_side": "left", "sofa_side_source": "user_explicit",
+            "alt_sofa_side": "right"}},
+        "existing_zones": {"walkway": {"where": "中央"}},
+        "overall_confidence": "high",
+    }
+    resampled = {
+        "struct_geometry_v1": {"id": "new-geom"},
+        "best_photo_index": 0,
+        "_source_binding": {"photo_key": "k", "sha256": "s"},
+        "_provenance": {"request_fingerprint": "fp-new"},
+        # 新一輪 Gemini 自己的建議——絕對不可蓋掉客戶的選擇
+        "proposed_zones": {"living_zone": {
+            "sofa_side": "right", "sofa_side_source": "ai_default"}},
+        "existing_zones": {"walkway": {"where": "靠左"}},
+    }
+    merged = api._s2_zoning_with_resampled_geometry(original, resampled)
+    assert merged["struct_geometry_v1"] == {"id": "new-geom"}, "幾何要換新"
+    assert merged["_provenance"]["request_fingerprint"] == "fp-new"
+    assert merged["_source_binding"] == {"photo_key": "k", "sha256": "s"}
+    living = merged["proposed_zones"]["living_zone"]
+    assert living["sofa_side"] == "left", "客戶選的側別被覆蓋了"
+    assert living["sofa_side_source"] == "user_explicit", "來源被覆蓋＝AI 冒充客戶"
+    assert living["alt_sofa_side"] == "right"
+    assert merged["existing_zones"] == {"walkway": {"where": "中央"}}
+    assert merged["overall_confidence"] == "high"
+    assert api._s2_zoning_with_resampled_geometry(original, None) is None
+
+
+def test_resample_keeps_derived_sofa_side_stable_across_attempts():
+    """幾何換了，_guide_sofa_side 導出的側別必須不變——否則就是「新牆線配舊擺法」。"""
+    original = {
+        "struct_geometry_v1": {"id": "old"},
+        "proposed_zones": {"living_zone": {
+            "where": "靠右長牆", "sofa_side": "right",
+            "sofa_side_source": "user_explicit"}},
+        "existing_zones": {},
+    }
+    merged = api._s2_zoning_with_resampled_geometry(
+        original, {"struct_geometry_v1": {"id": "new"},
+                   "proposed_zones": {"living_zone": {
+                       "sofa_side": "left", "sofa_side_source": "ai_default"}}})
+    before = api._guide_sofa_side(api.flatten_zoning_v2_to_v1(original, "A"))
+    after = api._guide_sofa_side(api.flatten_zoning_v2_to_v1(merged, "A"))
+    assert before == after == "right"
+
+
+def test_run_contract_sees_the_resampled_geometry():
+    """重抽後那一次規劃，收到的必須是新幾何——不是又拿舊的跑一遍。"""
+    seen = []
+    hard = _hard_block_summary()
+    outcomes = iter([
+        (hard, {"eligible": False}),
+        ({"verification_status": "pass"}, {"eligible": True, "guide_path": "g"}),
+    ])
+
+    def run_contract(zv2):
+        seen.append((zv2 or {}).get("struct_geometry_v1", {}).get("id"))
+        return next(outcomes)
+
+    _s, _a, commit, log = api._s2_contract_with_zoning_resample(
+        initial_zoning_v2={"struct_geometry_v1": {"id": "orig"},
+                           "proposed_zones": {"living_zone": {"sofa_side": "left"}}},
+        photo_path="/tmp/p.jpg",
+        max_attempts=2,
+        run_contract=run_contract,
+        rezone=lambda prev: {"struct_geometry_v1": {"id": "resampled"}},
+    )
+    assert seen == ["orig", "resampled"]
+    assert commit["struct_geometry_v1"] == {"id": "resampled"}
+    # 合格後提交的那份，客戶側別仍在
+    assert commit["proposed_zones"]["living_zone"]["sofa_side"] == "left"
+    # commit 已經帶著新幾何了，診斷不該再複製一份大 blob 進 result_json
+    assert "verified_struct_geometry_v1" not in log[-1]
+    assert [e["geometry_sha256"] for e in log] == [
+        api._struct_geometry_sha256({"struct_geometry_v1": {"id": "orig"}}),
+        api._struct_geometry_sha256({"struct_geometry_v1": {"id": "resampled"}}),
+    ]
+
+
+def test_pipeline_hard_block_path_actually_calls_the_resample_helper(monkeypatch):
+    """行為測：走硬擋路徑時，pipeline 真的會呼叫 resample helper。
+
+    先前這條只 grep api.py 的字串——而 helper 的 def 本身就含那個字串，
+    所以把 run_pipeline 裡真正的呼叫整段刪掉，測試照樣綠。
+    """
+    import ast
+    import inspect
+    tree = ast.parse(inspect.getsource(api.run_pipeline))
+    calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", None) == "_s2_contract_with_zoning_resample"
+    ]
+    assert calls, "run_pipeline 內找不到對 resample helper 的實際呼叫"
+    kwargs = {kw.arg for kw in calls[0].keywords}
+    assert {"initial_zoning_v2", "photo_path", "run_contract"} <= kwargs, kwargs
+    # 而且 _run_layout_contract_s2 不再被 run_pipeline 直接呼叫繞過重抽
+    direct = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", None) == "_run_layout_contract_s2"
+    ]
+    for node in direct:
+        assert any(
+            isinstance(fn, ast.FunctionDef) and fn.name == "_run_one_s2"
+            and fn.lineno <= node.lineno <= (fn.end_lineno or node.lineno)
+            for fn in ast.walk(tree) if isinstance(fn, ast.FunctionDef)
+        ), "run_pipeline 直接呼叫 S2 合約＝繞過重抽路徑"
+
+
+def test_pipeline_does_not_reflatten_after_resample():
+    """重抽只換幾何，flatten 出來必然相同；重跑只是多一次改到客戶側別的機會。"""
+    source = Path(api.__file__).read_text(encoding="utf-8")
+    block = source.split("_zv2_commit, dict")[1][:700]
+    assert "flatten_zoning_v2_to_v1" not in block, "重抽提交後不應再 flatten"
+    assert "_guide_sofa_side" not in block, "重抽提交後不應重算側別"
+
+
 def test_s2_preflight_blocked_result_is_terminal_and_not_infrastructure():
     blocked = api._s2_preflight_blocked_result({
         "style": "nordic",
