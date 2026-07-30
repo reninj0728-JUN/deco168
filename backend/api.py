@@ -2225,6 +2225,104 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
 
 # 綁邊靠牆家具允許越過畫面中線的比例（透視下牆面會內收，留一點寬容）
 BOUND_WALL_HALF_TOLERANCE = 0.08
+# 門軸走道厚度上限（相對短邊）：禁止把整間房塗灰，只要「門→對面」通道。
+_DOOR_AISLE_THICK_MAX_FRAC = 0.28
+_DOOR_AISLE_THICK_MIN_FRAC = 0.10
+
+
+def _living_door_axis_clear_rect(
+    W: int,
+    H: int,
+    entrance_side: str = "",
+    entrance_bbox: tuple | None = None,
+    living_bbox: tuple | None = None,
+) -> tuple[int, int, int, int] | None:
+    """客廳大門禁大型家具區：從門沿進出軸延伸到對面牆／客廳邊，不是門框旁一小條。
+
+    產品規則（用戶 2026-07-30）：
+      大門前方到對面牆壁 = 灰色通道 = 沙發／電視櫃等大型家具禁止；
+      沙發只與電視面對面，左右無所謂。書房／臥室不走這條。
+
+    幾何：
+      - 走道厚度 ≈ 門洞較短邊（開門寬），夾在 [10%, 28%] 短邊，避免整圖塗死；
+      - 左／右牆門：沿水平伸到客廳對邊；
+      - 後牆／畫面上方門：沿垂直伸到客廳下緣；
+      - 無 bbox 時用 entrance_side 給保守預設帶。
+    """
+    if W <= 1 or H <= 1:
+        return None
+    short = float(min(W, H))
+    thick_min = int(short * _DOOR_AISLE_THICK_MIN_FRAC)
+    thick_max = int(short * _DOOR_AISLE_THICK_MAX_FRAC)
+    living = None
+    if isinstance(living_bbox, (list, tuple)) and len(living_bbox) == 4:
+        try:
+            lx0, ly0, lx1, ly1 = [int(v) for v in living_bbox]
+            if lx1 > lx0 and ly1 > ly0:
+                living = (max(0, lx0), max(0, ly0), min(W, lx1), min(H, ly1))
+        except (TypeError, ValueError):
+            living = None
+    if living is None:
+        living = (0, 0, W, H)
+    lx0, ly0, lx1, ly1 = living
+
+    ent = entrance_side if entrance_side in ("left", "right") else ""
+    if entrance_bbox and len(entrance_bbox) == 4:
+        try:
+            dx0, dy0, dx1, dy1 = [int(v) for v in entrance_bbox]
+        except (TypeError, ValueError):
+            return None
+        if dx1 <= dx0 or dy1 <= dy0:
+            return None
+        door_w = dx1 - dx0
+        door_h = dy1 - dy0
+        # 門框幾乎蓋滿畫面＝標記垃圾／退化案例 → 整圖禁大型家具，逼 fail closed
+        if (door_w * door_h) >= (W * H * 0.55):
+            return (0, 0, W, H)
+        door_cx = (dx0 + dx1) / 2.0
+        door_cy = (dy0 + dy1) / 2.0
+        # 走道「寬度」用門洞較短邊，不用整扇門高度——否則左牆高門 bbox 會把
+        # 通道 y 拉成半張圖，planner 全滅（與「到對面牆」無關的誤傷）。
+        opening = max(1, min(door_w, door_h))
+        thick = int(max(thick_min, min(thick_max, opening * 1.05)))
+        if not ent:
+            if door_cx <= W * 0.40:
+                ent = "left"
+            elif door_cx >= W * 0.60:
+                ent = "right"
+            else:
+                ent = "back"
+        pad = max(2, int(short * 0.01))
+        if ent == "left":
+            # 門在左牆 → 通道往右到客廳右緣（對面方向）；y 取門中心一帶
+            x0 = max(0, min(dx0, lx0) - pad)
+            x1 = min(W, max(lx1, dx1))
+            y0 = max(0, int(round(door_cy - thick / 2.0)))
+            y1 = min(H, int(round(door_cy + thick / 2.0)))
+        elif ent == "right":
+            x0 = max(0, min(lx0, dx0))
+            x1 = min(W, max(dx1, lx1) + pad)
+            y0 = max(0, int(round(door_cy - thick / 2.0)))
+            y1 = min(H, int(round(door_cy + thick / 2.0)))
+        else:
+            # 門在進深端／畫面上方：通道往鏡頭方向（+y）到客廳下緣
+            x0 = max(0, int(round(door_cx - thick / 2.0)))
+            x1 = min(W, int(round(door_cx + thick / 2.0)))
+            y0 = max(0, min(dy0, ly0) - pad)
+            y1 = min(H, max(ly1, dy1))
+        if x1 - x0 < 8 or y1 - y0 < 8:
+            return None
+        return (int(x0), int(y0), int(x1), int(y1))
+
+    # 無門框 bbox：用側別給一條到對面的保守通道
+    thick = int(max(thick_min, min(thick_max, short * 0.14)))
+    if ent == "left":
+        cy = int(H * 0.55)
+        return (0, max(0, cy - thick // 2), lx1, min(H, cy + thick // 2))
+    if ent == "right":
+        cy = int(H * 0.55)
+        return (lx0, max(0, cy - thick // 2), W, min(H, cy + thick // 2))
+    return None
 
 
 def _layout_guide_plan(W: int, H: int, sofa_side: str,
@@ -2248,31 +2346,13 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
     # 電視櫃真的在右牆。改成綁邊時焦點牆＝對牆後，禁區降到 37%，配置有解。
     if side in ("left", "right"):
         focal = "right" if side == "left" else "left"
-    margin_x = int(W * 0.02)
-    door_clear = None
-    if entrance_bbox:
-        dx0, dy0, dx1, _dy1 = [int(v) for v in entrance_bbox]
-        door_w = max(1, dx1 - dx0)
-        clear_x0 = dx0 - margin_x
-        clear_x1 = dx1 + margin_x
-        # TV 與入口同牆時保留完整 entrance bbox 寬。10AAED25 實圖證明，
-        # 把禁區縮成半寬雖能讓固定螢幕矩形通過，TV 框卻會浮在中央走道，
-        # 並非可驗證的入口側實牆段。沒有牆面 polygon / usable segment 時，
-        # 寧可讓 planner 無解並在付費前 fail closed，不得靠縮禁區硬湊 valid。
-        # 沙發與入口同牆、門留在沙發背後時，使用者已確認只需過外門框與開門弧；
-        # 再多延伸會把 2879173D 的合法沙發位整段吃掉。
-        if focal == ent == "left":
-            clear_x1 += door_w
-        elif focal == ent == "right":
-            clear_x0 -= door_w
-        door_clear = (
-            max(0, clear_x0), max(0, dy0 - int(H * 0.04)),
-            min(W, clear_x1), H,
-        )
-    elif ent == "left":
-        door_clear = (0, int(H * 0.28), int(W * 0.30), H)
-    elif ent == "right":
-        door_clear = (int(W * 0.70), int(H * 0.28), W, H)
+    # 客廳：門軸走道從門延伸到對面（禁大型家具），取代「只護門框旁一豎條」。
+    door_clear = _living_door_axis_clear_rect(
+        W, H,
+        entrance_side=ent,
+        entrance_bbox=entrance_bbox,
+        living_bbox=living_bbox,
+    )
 
     def _ordered(rect):
         if not rect or len(rect) != 4:
@@ -2342,21 +2422,49 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
         sofa_w, sofa_h = 0.38, 0.48
         y_starts = (0.38, 0.08)
 
+    # 門軸走道（寬帶橫貫畫面）vs 舊式門旁豎條：抽樣策略不同。
+    # 橫貫走道用「不與 door_clear 相交」即可；豎條才用「從 clear 終點後開始」。
+    _clear_w_frac = (
+        (door_clear[2] - door_clear[0]) / max(1.0, float(W))
+        if door_clear else 0.0
+    )
+    _axis_aisle = bool(door_clear) and _clear_w_frac >= 0.55
+    if _axis_aisle and door_clear:
+        # 優先抽走道上方／下方的 y，避免沙發-TV 橫軸落在門廊裡（視線掃門）。
+        _cy0 = door_clear[1] / max(1.0, float(H))
+        _cy1 = door_clear[3] / max(1.0, float(H))
+        _prefer_y = []
+        if _cy0 > 0.20:
+            _prefer_y.append(max(0.06, _cy0 - 0.28))
+            _prefer_y.append(max(0.06, _cy0 - 0.16))
+        if _cy1 < 0.82:
+            _prefer_y.append(min(0.72, _cy1 + 0.02))
+            _prefer_y.append(min(0.72, _cy1 + 0.10))
+        _seen = set()
+        _merged = []
+        for _y in list(_prefer_y) + list(y_starts):
+            _k = round(float(_y), 3)
+            if _k in _seen:
+                continue
+            _seen.add(_k)
+            _merged.append(float(_y))
+        y_starts = tuple(_merged)
+
     sofa = tv = None
     chosen = side_candidates[0]
     tv_w = 0.24
     for candidate_side in side_candidates:
         sw, sh = int(W * sofa_w), int(H * sofa_h)
         if candidate_side == "left":
-            # 門在左時，沙發候選必須從 door_clear 終點之後開始，
-            # 不能再從門框旁抽樣。
+            # 門在左且禁區是豎條時：沙發從 clear 右緣之後開始。
+            # 門軸橫貫走道時：靠牆 x 抽樣，y 已避開走道。
             min_left = 0.08
-            if door_clear and ent == "left":
+            if door_clear and ent == "left" and not _axis_aisle:
                 min_left = max(min_left, door_clear[2] / max(1, W) + 0.01)
             sx_starts = tuple(x for x in (min_left, 0.32, 0.50) if x + sofa_w <= 0.98)
             if not sx_starts:
                 sx_starts = (min(0.70, min_left),)
-            if door_clear and focal == ent == "right":
+            if door_clear and focal == ent == "right" and not _axis_aisle:
                 # 電視在右側門牆：候選必須完整落在 door_clear 左邊。
                 max_tv_start = door_clear[0] / max(1, W) - tv_w - 0.01
                 tx_starts = tuple(
@@ -2368,12 +2476,12 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
             facing = "right"
         else:
             max_right = 1 - 0.08 - sofa_w
-            if door_clear and ent == "right":
+            if door_clear and ent == "right" and not _axis_aisle:
                 max_right = min(max_right, door_clear[0] / max(1, W) - sofa_w - 0.01)
             sx_starts = tuple(x for x in (max_right, 1 - 0.32 - sofa_w, 1 - 0.50 - sofa_w) if x >= 0.02)
             if not sx_starts:
                 sx_starts = (max(0.02, max_right),)
-            if door_clear and focal == ent == "left":
+            if door_clear and focal == ent == "left" and not _axis_aisle:
                 # 2CD074F0：固定 4/18/28% 三個電視候選全落在 44% door_clear
                 # 內。和沙發避門相同，從禁區終點後才開始嘗試電視框。
                 min_tv_start = door_clear[2] / max(1, W) + 0.01
@@ -2502,9 +2610,9 @@ def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
             cv2.addWeighted(overlay, 0.20, img, 0.80, 0, img)
             cv2.rectangle(img, (x0, y0), (x1, y1), red,
                           max(6, W // 320), cv2.LINE_AA)
-            cv2.putText(img, "RED DOOR ZONE - NO FURNITURE",
+            cv2.putText(img, "RED DOOR AISLE - NO LARGE FURNITURE",
                         (x0 + 12, min(H - 25, y1 - 30)),
-                        cv2.FONT_HERSHEY_SIMPLEX, max(0.7, W / 1700),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.65, W / 1800),
                         red, max(3, W // 600), cv2.LINE_AA)
 
         _door_keep_clear(plan["door_clear"])

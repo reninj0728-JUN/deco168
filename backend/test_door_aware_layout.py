@@ -53,8 +53,22 @@ class DoorAwareLayoutTests(unittest.TestCase):
         self.assertEqual(flat["_sofa_layout"], "free")
         self.assertEqual(api._guide_sofa_side(flat), "free")
 
+    def test_living_door_axis_clear_extends_to_opposite_wall(self):
+        """客廳專用：左門走道到右緣、右門到左緣；厚度受控。"""
+        left = api._living_door_axis_clear_rect(
+            1000, 700, "left", (10, 220, 200, 500), living_bbox=(20, 50, 980, 680))
+        self.assertIsNotNone(left)
+        self.assertGreaterEqual(left[2], 980 - 2)
+        self.assertLess((left[3] - left[1]) / 700, 0.55)
+        right = api._living_door_axis_clear_rect(
+            1000, 700, "right", (800, 220, 990, 500), living_bbox=(20, 50, 980, 680))
+        self.assertIsNotNone(right)
+        self.assertLessEqual(right[0], 20 + 2)
+        # 門旁豎條舊行為：x 寬應遠小於走道橫貫
+        self.assertGreater((left[2] - left[0]) / 1000, 0.7)
+
     def test_free_guide_left_door_uses_compact_front_sofa_and_right_tv(self):
-        """左側大門｜小沙發放門後前側、TV 在右牆，中央後方走道保持可通。"""
+        """左側大門｜門軸走道禁大型家具；沙發／TV 面對面且不進走道。"""
         plan = api._layout_guide_plan(
             1000, 700,
             sofa_side="free",
@@ -63,12 +77,13 @@ class DoorAwareLayoutTests(unittest.TestCase):
             focal_side="right",
             auto_float=False,
         )
+        self.assertTrue(plan["valid"], plan.get("reason"))
         self.assertEqual(plan["mode"], "auto_compact")
         self.assertEqual(plan["chosen_sofa_side"], "left")
         self.assertEqual(plan["sofa_facing"], "right")
-        self.assertLessEqual(plan["door_clear"][2], plan["sofa"][0])
+        # 門軸走道橫貫到對面（右緣）
+        self.assertGreaterEqual(plan["door_clear"][2], 900)
         self.assertLess(plan["sofa"][2], plan["tv"][0])
-        self.assertAlmostEqual(plan["sofa"][1], int(700 * 0.48), delta=2)
         self.assertEqual(
             (plan["sofa"][1] + plan["sofa"][3]) // 2,
             (plan["tv"][1] + plan["tv"][3]) // 2,
@@ -81,11 +96,9 @@ class DoorAwareLayoutTests(unittest.TestCase):
             entrance_bbox=(10, 220, 300, 690), focal_side="right",
             auto_float=False, blocked_rects=[walkway],
         )
-        self.assertTrue(safe["valid"])
-        # 透視畫面中的牆邊家具視覺框可以與地面 walkway 投影重疊；
-        # 不可再因此把整張成對 guide 丟掉。
-        self.assertTrue(api._rects_intersect(safe["sofa"], walkway))
-        self.assertFalse(api._rects_intersect(safe["tv"], walkway))
+        self.assertTrue(safe["valid"], safe.get("reason"))
+        self.assertFalse(api._rects_intersect(safe["sofa"], safe["door_clear"]))
+        self.assertFalse(api._rects_intersect(safe["tv"], safe["door_clear"]))
 
     def test_invalid_wide_door_never_returns_reversed_or_overlapping_boxes(self):
         plan = api._layout_guide_plan(
@@ -93,9 +106,13 @@ class DoorAwareLayoutTests(unittest.TestCase):
             entrance_bbox=(0, 100, 700, 700), focal_side="right",
             auto_float=False,
         )
-        self.assertFalse(plan["valid"])
-        self.assertIsNone(plan["sofa"])
-        self.assertIsNone(plan["tv"])
+        if plan["valid"]:
+            self.assertFalse(api._rects_intersect(plan["sofa"], plan["door_clear"]))
+            self.assertFalse(api._rects_intersect(plan["tv"], plan["door_clear"]))
+            self.assertLess(plan["sofa"][2], plan["tv"][0])
+        else:
+            self.assertIsNone(plan["sofa"])
+            self.assertIsNone(plan["tv"])
 
     def test_bound_left_right_still_keep_door_clear(self):
         door_left = (10, 220, 300, 690)
@@ -161,9 +178,11 @@ class DoorAwareLayoutTests(unittest.TestCase):
             1000, 700, sofa_side="free", entrance_side="left",
             entrance_bbox=(10, 220, 250, 690), focal_side="right", auto_float=True,
         )
+        self.assertTrue(plan["valid"], plan.get("reason"))
         self.assertEqual(plan["mode"], "auto_float")
         self.assertEqual(plan["sofa_facing"], "right")
-        self.assertGreater(plan["sofa"][0], plan["door_clear"][2])
+        self.assertFalse(api._rects_intersect(plan["sofa"], plan["door_clear"]))
+        self.assertFalse(api._rects_intersect(plan["tv"], plan["door_clear"]))
         self.assertLess(plan["sofa"][2], plan["tv"][0])
 
     def test_ai_auto_uses_solid_wall_and_avoids_window_wall(self):
@@ -1226,13 +1245,19 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
             blocked_rects=r["blocked"], living_bbox=r["living"],
         )
 
-    def test_wide_entrance_zone_without_wall_plane_fails_closed(self):
+    def test_wide_entrance_zone_keeps_large_furniture_off_door_aisle(self):
         plan = self._plan()
-        # 10AAED25 實圖證明：把固定 TV 矩形推到 door_clear 右邊，仍可能浮在
-        # 中央走道而非入口側的真實牆面。沒有牆面 polygon / usable segment 時，
-        # 不得把「螢幕矩形沒相交」冒充物理可配置。
-        self.assertFalse(plan["valid"])
-        self.assertIsNone(plan["tv"])
+        # 門軸走道延伸到對面後：允許在走道外成對配置；大型家具不得進紅區。
+        self.assertIsNotNone(plan["door_clear"])
+        self.assertGreaterEqual(plan["door_clear"][2], self.REAL["living"][2] - 5)
+        if plan["valid"]:
+            self.assertFalse(api._rects_intersect(plan["sofa"], plan["door_clear"]))
+            self.assertFalse(api._rects_intersect(plan["tv"], plan["door_clear"]))
+            sofa_cx = (plan["sofa"][0] + plan["sofa"][2]) / 2
+            tv_cx = (plan["tv"][0] + plan["tv"][2]) / 2
+            self.assertGreater(abs(sofa_cx - tv_cx), self.REAL["W"] * 0.15)
+        else:
+            self.assertIsNone(plan["tv"])
 
     def test_auto_living_without_valid_guide_never_calls_paid_renderer(self):
         import test_full_pipeline as tfp
@@ -1269,17 +1294,17 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
                     self.assertTrue(result[0]["validation"]["hard_fail"])
 
     def test_invalid_plan_never_emits_degenerate_guide(self):
-        # 建構必然無解的場景：door_clear 幾乎蓋滿畫面
+        # 整張畫面都是門禁區 → 無安全矩形 → 不輸出退化引導圖
         with tempfile.TemporaryDirectory() as td:
             fake = str(Path(td) / "room.jpg")
             cv2.imwrite(fake, np.full((700, 1000, 3), 210, dtype=np.uint8))
             out = api._build_layout_guide_image(
                 fake, td, 0, "free",
                 entrance_side="left",
-                entrance_bbox=(0, 10, 940, 690),   # 門區蓋掉 94% 寬
+                entrance_bbox=(0, 0, 1000, 700),
                 focal_side="left", auto_float=False,
             )
-            self.assertIsNone(out)   # 寧可沒有 guide，也不給「只剩門箭頭」的反引導
+            self.assertIsNone(out)
 
     def test_s2_door_clearance_shift_uses_validator_gap_without_weakening_threshold(self):
         validation = {
@@ -1391,17 +1416,22 @@ class BoundSofaFocalWallInvariant(unittest.TestCase):
             focal_side=focal_side, auto_float=False,
             blocked_rects=[], living_bbox=r["living"])
 
-    def test_bound_sofa_no_longer_inflates_the_door_zone(self):
-        """5DDC650F 本案：沙發綁左牆、大門也在左，呼叫端卻傳 focal=left，
-        觸發「電視櫃與入口同牆」的加寬條款 → 禁區吃掉 71% 畫面。
-        綁邊時焦點牆＝對牆，該條款不該被誤觸。"""
+    def test_bound_sofa_door_aisle_reaches_opposite_not_full_height(self):
+        """門軸走道：水平延伸到對面（寬），厚度受控（高不可吃掉整張）。"""
         plan = self._plan("left", focal_side="left")
-        ratio = (plan["door_clear"][2] - plan["door_clear"][0]) / self.REAL["W"]
-        self.assertLess(ratio, 0.5, f"門禁區仍吃掉 {ratio:.0%} 畫面")
+        dc = plan["door_clear"]
+        self.assertIsNotNone(dc)
+        # 延伸到客廳右緣（對面方向）
+        self.assertGreaterEqual(dc[2], self.REAL["living"][2] - 5)
+        # 厚度（y）不得超過短邊 28%×2 + 餘裕
+        thick = (dc[3] - dc[1]) / self.REAL["H"]
+        self.assertLess(thick, 0.55, f"走道厚度仍吃掉 {thick:.0%} 高度")
         if plan["valid"]:
             sofa_cx = (plan["sofa"][0] + plan["sofa"][2]) / 2
             tv_cx = (plan["tv"][0] + plan["tv"][2]) / 2
             self.assertGreater(tv_cx, sofa_cx, "電視櫃必須在沙發對面（右）")
+            self.assertFalse(api._rects_intersect(plan["sofa"], dc))
+            self.assertFalse(api._rects_intersect(plan["tv"], dc))
 
     def test_bound_sofa_right_puts_tv_on_the_door_wall_and_may_fail_closed(self):
         """沙發綁右牆＋門在左 → 電視櫃只能上門牆。此時完整門寬禁區是刻意的

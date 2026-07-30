@@ -361,7 +361,7 @@ def test_zoom_path_is_wired_into_the_s2_waiver():
 
 
 def test_2cd074f0_tv_target_moves_past_left_door_clearance():
-    """2CD074F0｜左側門禁區到 44%，TV 必須從禁區終點後取樣，不得只試 4/18/28%。"""
+    """2CD074F0｜門軸走道橫貫後：TV／沙發不得進入走道，且面對面分牆。"""
     plan = api._layout_guide_plan(
         880, 780, "free",
         entrance_side="left",
@@ -370,13 +370,15 @@ def test_2cd074f0_tv_target_moves_past_left_door_clearance():
         auto_float=False,
         living_bbox=(40, 40, 840, 740),
     )
-    assert plan["valid"] is True
+    assert plan["valid"] is True, plan.get("reason")
     assert plan["chosen_sofa_side"] == "right"
-    assert plan["tv"][0] > plan["door_clear"][2]
+    assert plan["door_clear"][2] >= 840 - 5  # 延伸到客廳右緣
+    assert not api._rects_intersect(plan["tv"], plan["door_clear"])
+    assert not api._rects_intersect(plan["sofa"], plan["door_clear"])
 
 
 def test_2cd074f0_tv_target_mirrors_past_right_door_clearance():
-    """同一規則左右鏡像：右側門牆的 TV 必須完整落在 door_clear 左邊。"""
+    """同一規則左右鏡像：右門走道延伸到左緣，大型家具不進走道。"""
     plan = api._layout_guide_plan(
         880, 780, "free",
         entrance_side="right",
@@ -385,9 +387,11 @@ def test_2cd074f0_tv_target_mirrors_past_right_door_clearance():
         auto_float=False,
         living_bbox=(40, 40, 840, 740),
     )
-    assert plan["valid"] is True
+    assert plan["valid"] is True, plan.get("reason")
     assert plan["chosen_sofa_side"] == "left"
-    assert plan["tv"][2] < plan["door_clear"][0]
+    assert plan["door_clear"][0] <= 40 + 5
+    assert not api._rects_intersect(plan["tv"], plan["door_clear"])
+    assert not api._rects_intersect(plan["sofa"], plan["door_clear"])
 
 
 def test_zoom_guide_reports_door_visibility_from_actual_crop(tmp_path):
