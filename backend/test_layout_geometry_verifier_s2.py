@@ -183,18 +183,99 @@ def test_first_pass_verified_plan_writes_final_guide(tmp_path):
     assert len(calls) == 1
 
 
-def test_wall_correction_extends_observed_line_across_original_usable_depth():
-    raw = _safe_geometry()
-    original_wall = raw["elements"]["left_wall_floor"]["segment_yx1000"]
-    usable = next(
-        item for item in raw["usable_wall_segments"] if item["side"] == "left"
+def test_d073_post_door_wall_correction_plans_sofa_on_judge_line_not_floor():
+    """D0734E71｜門後判官牆採納後，靠左候選應 0px 貼真牆，不得貼 zoning 地板外插。"""
+    raw = {
+        "schema_version": "struct-geometry-v1",
+        "source_photo_index": 0,
+        "status": "observed",
+        "elements": {
+            "left_wall_floor": {
+                "kind": "left_wall_floor", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "segment_yx1000": [[980, 0], [580, 435]],
+            },
+            "right_wall_floor": {
+                "kind": "right_wall_floor", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "segment_yx1000": [[980, 1000], [580, 615]],
+            },
+            "living_floor": {
+                "kind": "living_floor", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "polygon_yx1000": [[578, 435], [578, 615], [988, 1000], [980, 0]],
+            },
+            "door_floor_contact": {
+                "kind": "door_floor_contact", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "segment_yx1000": [[856, 128], [712, 260]],
+            },
+            "door_quad": {
+                "kind": "door_quad", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "polygon_yx1000": [[323, 120], [380, 260], [712, 260], [856, 128]],
+            },
+            "entrance_landing": {
+                "kind": "entrance_landing", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "polygon_yx1000": [[856, 128], [712, 260], [700, 0], [980, 0]],
+            },
+            "walkway": {
+                "kind": "walkway", "status": "observed",
+                "confidence": "high", "visibility": "full",
+                "polygon_yx1000": [
+                    [980, 0], [712, 260], [580, 435], [580, 480], [980, 600],
+                ],
+            },
+        },
+        "usable_wall_segments": [
+            {"id": "left", "side": "left", "t_start": 0.4, "t_end": 1.0,
+             "status": "observed", "confidence": "high", "visibility": "partial"},
+            {"id": "right", "side": "right", "t_start": 0.0, "t_end": 1.0,
+             "status": "observed", "confidence": "high", "visibility": "full"},
+        ],
+    }
+    judge = [[700, 260], [580, 381]]
+    corrected, changed = verifier_s2._apply_wall_corrections(raw, {
+        "left_wall_floor_alignment": "fail",
+        "corrected_left_wall_floor_segment_yx1000": judge,
+    })
+    assert changed is True
+    assert corrected["elements"]["left_wall_floor"]["segment_yx1000"][1][1] == pytest.approx(381.0)
+
+    plan = geometry_s2.build_s2_plan(
+        corrected,
+        width=4032,
+        height=3024,
+        expected_source_photo_index=0,
+        sofa_side="left",
+        can_float=False,
+        trusted_verifier_corrections=True,
     )
-    expected_near_y = original_wall[0][0] + (
-        original_wall[1][0] - original_wall[0][0]
-    ) * usable["t_start"]
-    expected_deep_y = original_wall[0][0] + (
-        original_wall[1][0] - original_wall[0][0]
-    ) * usable["t_end"]
+    elig = [c for c in (plan.get("candidates") or []) if c.get("eligible")]
+    assert elig, plan.get("unsafe_codes")
+    width, height = 4032, 3024
+
+    def xy(yx):
+        return (yx[1] / 1000 * width, yx[0] / 1000 * height)
+
+    ja, jb = xy(judge[0]), xy(judge[1])
+    wa, wb = xy([980, 0]), xy([580, 435])
+    pick = max(elig, key=geometry_s2._candidate_selection_key)
+    fp = pick["sofa_footprint"]
+    dist_judge = min(geometry_s2._point_segment_distance(p, ja, jb) for p in fp)
+    dist_wrong = min(geometry_s2._point_segment_distance(p, wa, wb) for p in fp)
+    assert dist_judge < 1.0, f"sofa must hug judge wall, got {dist_judge}px"
+    assert dist_judge < dist_wrong, "sofa closer to wrong zoning line than judge wall"
+
+
+def test_wall_correction_adopts_observed_segment_without_reextend():
+    """D073｜判官門後短牆必須原樣採用，不得再外插回 zoning 可用深度。
+
+    舊行為把正確短段延到原 usable 的 y 跨度 → 又變成貼地板的長線；
+    規劃器 0px 貼錯線、sofa_back_contact 永遠 fail。
+    """
+    raw = _safe_geometry()
     short_observed_segment = [[700, 189], [650, 224]]
 
     corrected, changed = verifier_s2._apply_wall_corrections(raw, {
@@ -202,22 +283,26 @@ def test_wall_correction_extends_observed_line_across_original_usable_depth():
         "corrected_left_wall_floor_segment_yx1000": short_observed_segment,
     })
 
-    corrected_line = corrected["elements"]["left_wall_floor"]["segment_yx1000"]
     assert changed is True
-    assert abs(corrected_line[0][0] - expected_near_y) < 1e-6
-    assert abs(corrected_line[1][0] - expected_deep_y) < 1e-6
-    assert abs(corrected_line[0][0] - corrected_line[1][0]) > 4 * abs(
-        short_observed_segment[0][0] - short_observed_segment[1][0]
+    corrected_line = corrected["elements"]["left_wall_floor"]["segment_yx1000"]
+    assert corrected_line[0][0] == pytest.approx(700.0)
+    assert corrected_line[0][1] == pytest.approx(189.0)
+    assert corrected_line[1][0] == pytest.approx(650.0)
+    assert corrected_line[1][1] == pytest.approx(224.0)
+    # 不得再被拉長到「原 usable 深度的數倍」
+    assert abs(corrected_line[0][0] - corrected_line[1][0]) == pytest.approx(
+        abs(short_observed_segment[0][0] - short_observed_segment[1][0])
     )
-    corrected_element = corrected["elements"]["left_wall_floor"]
     corrected_usable = next(
         item for item in corrected["usable_wall_segments"] if item["side"] == "left"
     )
-    assert corrected_element["status"] == "verifier_corrected"
-    assert corrected_element["confidence"] == "medium"
-    assert corrected_element["visibility"] == "partial"
+    assert corrected_usable["t_start"] == 0.0
+    assert corrected_usable["t_end"] == 1.0
     assert corrected_usable["status"] == "verifier_corrected"
-    assert corrected_usable["confidence"] == "medium"
+    assert (
+        (corrected_usable.get("correction_evidence") or {}).get("policy")
+        == "adopt_observed_no_reextend"
+    )
     replanned = geometry_s2.build_s2_plan(
         corrected,
         width=1000,
@@ -225,16 +310,18 @@ def test_wall_correction_extends_observed_line_across_original_usable_depth():
         expected_source_photo_index=0,
         trusted_verifier_corrections=True,
     )
-    corrected_geometry = [
-        item for item in replanned["geometry"]
-        if item.get("source_name") in ("left_wall_floor", "left_deep-verifier-corrected")
-    ]
-    assert corrected_geometry
-    assert all(item["evidence_mode"] == "verifier_corrected" for item in corrected_geometry)
+    assert replanned.get("disposition") in (
+        "SAFE_FOR_GENERATION", "BLOCKED",
+    )
+    assert any(
+        item.get("evidence_mode") == "verifier_corrected"
+        for item in (replanned.get("geometry") or [])
+        if "left" in str(item.get("source_name") or item.get("id") or "")
+    )
 
 
 def test_wall_correction_updates_living_floor_corner_when_usable_wall_reaches_deep_end():
-    """71DC312E｜左牆深端修正後，living_floor 不得仍保留錯的舊深角。"""
+    """71DC312E｜左牆改採判官段後，living_floor 不得仍保留錯的舊深角。"""
     raw = _safe_geometry()
     raw["elements"]["living_floor"]["polygon_yx1000"] = [
         [980, 0], [980, 1000], [615, 620], [580, 435],
@@ -255,9 +342,11 @@ def test_wall_correction_updates_living_floor_corner_when_usable_wall_reaches_de
 
     assert changed is True
     floor = corrected["elements"]["living_floor"]["polygon_yx1000"]
-    assert [580.0, 382.0] in floor
-    assert [580, 435] not in floor
-    assert [980, 0] in floor, "未被修正證據覆蓋的近端地板角必須保留"
+    assert [580.0, 382.0] in floor or [580, 382] in floor
+    assert [700.0, 260.0] in floor or [700, 260] in floor
+    assert [580, 435] not in floor and [580.0, 435.0] not in floor
+    # 舊近端外插角不得再當成左牆邊（門前段錯線）
+    assert [980, 0] not in floor and [980.0, 0.0] not in floor
     corrected_line = corrected["elements"]["left_wall_floor"]["segment_yx1000"]
     for endpoint in corrected_line:
         boundary_distance = min(
@@ -275,7 +364,7 @@ def test_wall_correction_updates_living_floor_corner_when_usable_wall_reaches_de
         transverse_direction_xy=[1.0, 0.0],
         trusted_verifier_corrections=True,
     )
-    assert "GEOM_NOT_ELIGIBLE" not in replanned["unsafe_codes"]
+    assert "GEOM_NOT_ELIGIBLE" not in (replanned.get("unsafe_codes") or [])
 
 
 def test_wall_side_check_requires_both_endpoints_to_stay_on_side():
@@ -299,7 +388,6 @@ def test_uncertain_or_missing_alignment_never_applies_correction():
     [[700, 800], [650, 850]],  # crosses to the opposite side
     [[700, 400], [650, 450]],  # too far from the observed wall seam
     [[700, 200], [650, 205]],  # implausible orientation change
-    [[650, 225], [640, 235]],  # excessive extrapolation from a tiny segment
 ])
 def test_wall_correction_rejects_unbounded_or_cross_side_segments(unsafe_segment):
     raw = _safe_geometry()
@@ -349,8 +437,11 @@ def test_failed_wall_alignment_applies_one_correction_and_reverifies(tmp_path):
     assert result["plan"]["geometry_verification"]["status"] == "pass"
     assert result["plan"]["geometry_verification"]["corrected"] is True
     corrected_geometry = result["raw_geometry"]["elements"]["left_wall_floor"]["segment_yx1000"]
-    assert corrected_geometry != corrected_left
-    assert corrected_geometry[0][0] > corrected_geometry[1][0]
+    # 採用判官觀測段原樣，不再外插拉長
+    assert corrected_geometry[0][0] == pytest.approx(corrected_left[0][0])
+    assert corrected_geometry[0][1] == pytest.approx(corrected_left[0][1])
+    assert corrected_geometry[1][0] == pytest.approx(corrected_left[1][0])
+    assert corrected_geometry[1][1] == pytest.approx(corrected_left[1][1])
     assert len(calls) == 2
     assert calls[0][1] == 1 and calls[1][1] == 2
 

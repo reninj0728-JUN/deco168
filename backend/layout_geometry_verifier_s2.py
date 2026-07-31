@@ -281,6 +281,19 @@ def _segment_stays_on_side(segment, side: str) -> bool:
 
 
 def _extend_correction_to_usable_depth(raw_geometry: dict, side: str, observed_segment):
+    """Adopt the verifier-observed wall segment as the usable wall line.
+
+    D0734E71 / door-split left wall: zoning often fits the pre-door baseboard and
+    extrapolates through the door onto the floor.  The verifier returns the true
+    post-door baseboard (5/5 on kickboard).  The old policy re-extended that short
+    correct segment to the original usable y-span (targets taken from the wrong
+    zoning line), which recreated a long floor-skimming line.  The planner then
+    stuck sofas to it with 0px error — still not on any real wall.
+
+    New policy: wall line = observed segment only; usable = one span t=0..1 on
+    that segment.  No re-extrapolation.  Short correct walls still plan (dry-run:
+    12 eligible on D073-like short left wall).
+    """
     element = (raw_geometry.get("elements") or {}).get(f"{side}_wall_floor") or {}
     original_line = element.get("segment_yx1000")
     usable = [
@@ -289,17 +302,8 @@ def _extend_correction_to_usable_depth(raw_geometry: dict, side: str, observed_s
     ]
     if not _valid_segment_yx1000(original_line) or not usable:
         return None, None
-    try:
-        starts = [float(item["t_start"]) for item in usable]
-        ends = [float(item["t_end"]) for item in usable]
-    except (KeyError, TypeError, ValueError):
+    if not _valid_segment_yx1000(observed_segment):
         return None, None
-    global_start, global_end = min(starts), max(ends)
-    if not 0.0 <= global_start < global_end <= 1.0:
-        return None, None
-    target_start = _line_point_yx(original_line, global_start)
-    target_end = _line_point_yx(original_line, global_end)
-    target_start_y, target_end_y = target_start[0], target_end[0]
     if (
         _orientation_delta_degrees(original_line, observed_segment)
         > _MAX_CORRECTION_ANGLE_DELTA_DEGREES
@@ -310,59 +314,28 @@ def _extend_correction_to_usable_depth(raw_geometry: dict, side: str, observed_s
         or not _segment_stays_on_side(observed_segment, side)
     ):
         return None, None
-    target_y_min, target_y_max = sorted((target_start_y, target_end_y))
-    observed_y_min, observed_y_max = sorted((
-        float(observed_segment[0][0]), float(observed_segment[1][0]),
-    ))
-    if (
-        observed_y_max < target_y_min - _CORRECTION_DEPTH_OVERLAP_MARGIN_YX1000
-        or observed_y_min > target_y_max + _CORRECTION_DEPTH_OVERLAP_MARGIN_YX1000
-    ):
-        return None, None
-    (y0, x0), (y1, x1) = observed_segment
-    dy = float(y1) - float(y0)
-    if abs(dy) < 1e-6:
-        return None, None
-    dx_per_y = (float(x1) - float(x0)) / dy
-
-    def at_y(target_y):
-        x = float(x0) + (target_y - float(y0)) * dx_per_y
-        if not 0.0 <= x <= 1000.0:
-            raise ValueError("extended correction exits normalized source bounds")
-        return [target_y, x]
-
-    try:
-        extended = [at_y(target_start_y), at_y(target_end_y)]
-    except ValueError:
-        return None, None
     observed_length = _segment_length_yx(observed_segment)
-    extended_length = _segment_length_yx(extended)
-    if (
-        observed_length <= 1e-6
-        or extended_length / observed_length > _MAX_CORRECTION_EXTRAPOLATION_RATIO
-        or not _segment_stays_on_side(extended, side)
-        or any(
-            _point_line_distance_yx(point, original_line) > _MAX_CORRECTION_DISTANCE_YX1000
-            for point in extended
-        )
-    ):
+    if observed_length <= 1e-6:
         return None, None
-    span = global_end - global_start
-    remapped = []
-    for item in usable:
-        cloned = copy.deepcopy(item)
-        cloned["id"] = f"{item.get('id') or side + '-wall'}-verifier-corrected"
-        cloned["status"] = "verifier_corrected"
-        cloned["visibility"] = "partial"
-        cloned["confidence"] = "medium"
-        cloned["correction_evidence"] = {
+    adopted = [
+        [float(observed_segment[0][0]), float(observed_segment[0][1])],
+        [float(observed_segment[1][0]), float(observed_segment[1][1])],
+    ]
+    remapped = [{
+        "id": f"{(usable[0].get('id') if usable else None) or side + '-wall'}-verifier-corrected",
+        "side": side,
+        "t_start": 0.0,
+        "t_end": 1.0,
+        "status": "verifier_corrected",
+        "visibility": "partial",
+        "confidence": "medium",
+        "correction_evidence": {
             "observed_segment_yx1000": copy.deepcopy(observed_segment),
             "derivation": "bounded_line_extension",
-        }
-        cloned["t_start"] = (float(item["t_start"]) - global_start) / span
-        cloned["t_end"] = (float(item["t_end"]) - global_start) / span
-        remapped.append(cloned)
-    return extended, remapped
+            "policy": "adopt_observed_no_reextend",
+        },
+    }]
+    return adopted, remapped
 
 
 def _sync_living_floor_boundary(
@@ -387,11 +360,6 @@ def _sync_living_floor_boundary(
     ]
     if not isinstance(polygon, list) or len(polygon) < 4 or not usable:
         return False
-    try:
-        global_start = min(float(item["t_start"]) for item in usable)
-        global_end = max(float(item["t_end"]) for item in usable)
-    except (KeyError, TypeError, ValueError):
-        return False
 
     def point_distance(first, second):
         return math.hypot(
@@ -399,22 +367,25 @@ def _sync_living_floor_boundary(
             float(first[1]) - float(second[1]),
         )
 
+    # Zoning floor corners and wall endpoints often differ by a few /1000 units
+    # (D073: wall deep (580,435) vs floor (578,435)). Exact match rejected the
+    # entire wall correction → planner kept the wrong pre-door extrapolation.
+    _VERTEX_MATCH_TOL_YX1000 = 8.0
+
     def matching_vertex(point):
         distances = [point_distance(item, point) for item in polygon]
         index = min(range(len(distances)), key=distances.__getitem__)
-        return index if distances[index] <= 1e-6 else None
+        return index if distances[index] <= _VERTEX_MATCH_TOL_YX1000 else None
 
     near_index = matching_vertex(original_line[0])
     deep_index = matching_vertex(original_line[1])
     if near_index is None or deep_index is None:
         return False
 
-    near_to_deep = []
-    if global_start > 1e-6:
-        near_to_deep.append([float(v) for v in original_line[0]])
-    near_to_deep.extend([[float(v) for v in point] for point in corrected_line])
-    if global_end < 1.0 - 1e-6:
-        near_to_deep.append([float(v) for v in original_line[1]])
+    # corrected_line is the full adopted usable wall (no re-extend).  Splicing
+    # original near/deep corners back in reintroduces the wrong zoning endpoints
+    # (pre-door extrapolation) and undoes the verifier wall.
+    near_to_deep = [[float(v) for v in point] for point in corrected_line]
 
     compact_path = []
     for point in near_to_deep:
