@@ -261,6 +261,66 @@ _SPACE_LABEL = {
 }
 
 
+_ANALYSIS_JSON_RETRY_INSTRUCTION = (
+    "Your previous response was not valid JSON. Return the same answer again as one "
+    "complete strict JSON object only. Do not add markdown, comments, or trailing text."
+)
+
+
+def _generate_analysis_json_with_retry(
+    *, client, types_module, model: str, contents: list,
+    system_instruction, max_attempts: int = 2,
+) -> dict:
+    """空間分析的 JSON 防護：寬鬆解析 ＋ 壞掉就重問一次。
+
+    9904366C：Gemini 回的 JSON 在第 43 行中段斷裂，而這個呼叫點只有
+    `raw_decode`——它只救得了「尾端多垃圾」，救不了中段斷裂。整張單在第 1 步
+    就死成「處理失敗，請聯絡客服」：13 秒、進度 0、客戶什麼都沒拿到。
+    最近 200 單有 9 張死在同一個訊息（4.5%）。
+
+    這個 repo 早就有兩套解法，只是這裡兩套都沒接上：
+      * `zoning_v2._generate_json_with_retry` —— 壞 JSON 重問一次
+      * `gemini_analyze._json_loads_lenient` —— 去 markdown fence ＋
+        `_repair_json_text` 修字串中段斷裂／尾逗號／截斷
+    這裡把既有的兩套接起來，不新增機制。重問只在失敗時發生，
+    正常單的成本完全不變。
+    """
+    from gemini_analyze import _json_loads_lenient
+
+    # 上限無條件夾住：只准為壞 JSON 多問一次，不做成可以無限重試的後門。
+    last_error: Exception | None = None
+    for attempt in range(max(1, min(2, int(max_attempts)))):
+        payload = list(contents)
+        if attempt:
+            payload.append(_ANALYSIS_JSON_RETRY_INSTRUCTION)
+        resp = client.models.generate_content(
+            model=model,
+            contents=payload,
+            config=types_module.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+            ),
+        )
+        raw_text = (getattr(resp, "text", None) or "").strip()
+        if not raw_text:
+            last_error = ValueError("Gemini 空間分析回了空字串")
+            print(f"  [分析] 第 {attempt + 1} 次回了空字串")
+            continue
+        try:
+            parsed = _json_loads_lenient(raw_text)
+        except ValueError as exc:          # JSONDecodeError 也是 ValueError
+            last_error = exc
+            print(f"  [分析] 第 {attempt + 1} 次 JSON 解析失敗：{str(exc)[:110]}")
+            continue
+        if not isinstance(parsed, dict):
+            last_error = ValueError("空間分析 JSON 頂層必須是物件")
+            continue
+        if attempt:
+            print(f"  [分析] 重問第 {attempt + 1} 次後解析成功")
+        return parsed
+    raise last_error or ValueError("Gemini 空間分析 JSON 無法解析")
+
+
 def analyze_image(image_path: str, user_styles: list[str] | None = None,
                   extra_photos: list[str] | None = None,
                   space_type: str = "living",
@@ -648,13 +708,13 @@ photo_classifications 必須有 {photo_count} 個元素，每張照片各一個�
 
     t0 = time.time()
     try:
-        resp = client.models.generate_content(
+        # 重試要在刪影片之前跑完，否則第二次就沒有影片可看了。
+        result = _generate_analysis_json_with_retry(
+            client=client,
+            types_module=types,
             model="gemini-3.5-flash",
             contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=_get_system_prompt(),
-                response_mime_type="application/json",
-            ),
+            system_instruction=_get_system_prompt(),
         )
     finally:
         # 用完即刪 Gemini Files 上的影片（隱私 + 清理）
@@ -665,13 +725,6 @@ photo_classifications 必須有 {photo_count} 個元素，每張照片各一個�
             except Exception as e:
                 print(f"  [影片] 清除例外（可忽略）: {e}")
     elapsed = time.time() - t0
-
-    # Gemini 偶爾在合法 JSON 之後追加 garbage（"Extra data"）→ 用 raw_decode 只取第一個 valid JSON
-    raw_text = (resp.text or "").strip()
-    try:
-        result = json.loads(raw_text)
-    except json.JSONDecodeError:
-        result, _ = json.JSONDecoder().raw_decode(raw_text)
     dims = result.get('room_dimensions', {})
     print(f"  耗時：{elapsed:.1f}s")
     print(f"  空間：{result.get('space_type')} {result.get('estimated_size')}")
