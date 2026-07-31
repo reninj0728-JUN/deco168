@@ -256,6 +256,57 @@ def _line_point(line, t: float):
     return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
+# 門要算「貼在這面牆上」，超過牆長這個比例就是另一面牆的門被投影過來。
+_DOOR_ON_WALL_MAX_OFFSET_RATIO = 0.08
+
+
+def _t_on_line(line, point) -> float:
+    """把一個點投影到牆線上，回傳參數 t（可能落在 0–1 之外）。"""
+    (ax, ay), (bx, by) = line
+    dx, dy = bx - ax, by - ay
+    denom = dx * dx + dy * dy
+    if denom <= 0:
+        return 0.0
+    return ((point[0] - ax) * dx + (point[1] - ay) * dy) / denom
+
+
+def _door_span_on_wall(door_contact, line):
+    """大門在這面牆上實際佔用的 t 區間；門不在這面牆就回 None。
+
+    91F88E0F：zoning 標了一段 id="left_wall_after_door"、t=0.25–1.0，
+    但把大門投影到同一條牆線上，門實際佔用 t=0.333–0.637——
+    **那段「門後可用牆」有 30% 就是大門本身**。規劃器照著擺，靠左牆的家具
+    全部落在門上，門距 0/137，13 個候選全數不合格、判官連跑都沒跑到。
+
+    宣告的 t 範圍會騙人，門的位置得自己算——門洞與牆線本來就在同一份資料裡。
+    """
+    if not line or not isinstance(door_contact, (list, tuple)) or len(door_contact) != 2:
+        return None
+    wall_length = _distance(line[0], line[1])
+    if wall_length <= 0:
+        return None
+    for point in door_contact:
+        clamped = min(1.0, max(0.0, _t_on_line(line, point)))
+        if _distance(point, _line_point(line, clamped)) > (
+                wall_length * _DOOR_ON_WALL_MAX_OFFSET_RATIO):
+            return None                      # 這扇門不在這面牆上
+    values = sorted(_t_on_line(line, point) for point in door_contact)
+    low, high = max(0.0, values[0]), min(1.0, values[1])
+    return (low, high) if high > low else None
+
+
+def _wall_spans_outside_door(t0: float, t1: float, door_span):
+    """把大門佔用的區間從可用牆段裡挖掉，回傳剩下的段（可能 0、1 或 2 段）。"""
+    if not door_span:
+        return [(t0, t1)]
+    low, high = door_span
+    spans = []
+    for start, end in ((t0, min(t1, low)), (max(t0, high), t1)):
+        if end - start >= MIN_WALL_SPAN_T:
+            spans.append((start, end))
+    return spans
+
+
 def _mix(a, b, amount: float):
     return (a[0] + (b[0] - a[0]) * amount, a[1] + (b[1] - a[1]) * amount)
 
@@ -723,6 +774,9 @@ def _normalize_observed(
         side: (by_name.get(f"{side}_wall_floor") or {}).get("shape", {}).get("coordinates")
         for side in ("left", "right")
     }
+    door_floor_contact = (
+        (by_name.get("door_floor_contact") or {}).get("shape") or {}
+    ).get("coordinates")
     segments = {"left": [], "right": []}
     for index, segment in enumerate(raw.get("usable_wall_segments") or []):
         if not isinstance(segment, dict) or segment.get("side") not in segments:
@@ -754,31 +808,44 @@ def _normalize_observed(
         if not line:
             unsafe.append("MISSING_WALL_PLANE_EVIDENCE")
             continue
-        wall_shape = {
-            "type": "segment",
-            "coordinates": [_line_point(line, t0), _line_point(line, t1)],
-        }
-        geometry_id = f"usable_wall_{side}_{index + 1}"
-        geometry.append(_shape_geometry(
-            geometry_id,
-            "usable_wall_segment",
-            wall_shape,
-            str(segment.get("id") or geometry_id),
-            evidence_mode=str(segment.get("status") or ""),
-            evidence_details={
-                "status": segment.get("status"),
-                "confidence": segment.get("confidence"),
-                "visibility": segment.get("visibility"),
-                "correction_evidence": segment.get("correction_evidence"),
-            },
-        ))
-        segments[side].append({
-            "geometry_id": geometry_id,
-            "t_start": t0,
-            "t_end": t1,
-            "side": side,
-            "coordinates": wall_shape["coordinates"],
-        })
+        # 宣告的 t 範圍可能蓋過大門（91F88E0F：id 叫 left_wall_after_door 卻
+        # 從門前 0.25 一路蓋到 1.0，而門佔 0.333–0.637）。門的位置自己算，挖掉。
+        spans = _wall_spans_outside_door(
+            t0, t1, _door_span_on_wall(door_floor_contact, line))
+        if not spans:
+            unsafe.append("NO_USABLE_WALL")
+            continue
+        for piece, (span_start, span_end) in enumerate(spans):
+            wall_shape = {
+                "type": "segment",
+                "coordinates": [_line_point(line, span_start),
+                                _line_point(line, span_end)],
+            }
+            geometry_id = f"usable_wall_{side}_{index + 1}"
+            if len(spans) > 1:
+                geometry_id = f"{geometry_id}_{piece + 1}"
+            geometry.append(_shape_geometry(
+                geometry_id,
+                "usable_wall_segment",
+                wall_shape,
+                str(segment.get("id") or geometry_id),
+                evidence_mode=str(segment.get("status") or ""),
+                evidence_details={
+                    "status": segment.get("status"),
+                    "confidence": segment.get("confidence"),
+                    "visibility": segment.get("visibility"),
+                    "correction_evidence": segment.get("correction_evidence"),
+                    "declared_span": [t0, t1],
+                    "door_excluded": [span_start, span_end] != [t0, t1],
+                },
+            ))
+            segments[side].append({
+                "geometry_id": geometry_id,
+                "t_start": span_start,
+                "t_end": span_end,
+                "side": side,
+                "coordinates": wall_shape["coordinates"],
+            })
 
     if trusted_verifier_corrections:
         raw_floor = elements.get("living_floor") or {}
