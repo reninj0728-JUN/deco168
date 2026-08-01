@@ -267,7 +267,10 @@ def test_provenance_is_write_only_across_backend():
     backend = Path(z2.__file__).parent
     offenders = []
     for path in sorted(backend.glob("*.py")):
-        if path.name.startswith("test_"):
+        # `_` 開頭的是離線診斷腳本（_diag / _trend / _deploy_guard），不在 pipeline 裡。
+        # 讀 _provenance 正是它們的工作——_trend.py 就是靠它分辨照片是不是同一張。
+        # 這條契約要擋的是「production 判斷依賴觀測欄位」，不是禁止工具查看它。
+        if path.name.startswith(("test_", "_")):
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
