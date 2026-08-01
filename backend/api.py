@@ -1697,12 +1697,106 @@ def _s2_repair_target_box(
     )
 
 
+def _measured_sofa_width_px(validation: dict | None, source_width: float) -> float | None:
+    """模型這一次實際畫出來的沙發有多寬（換算回合約的原圖座標）。"""
+    box = ((validation or {}).get("render_bboxes") or {}).get("sofa")
+    if not (isinstance(box, (list, tuple)) and len(box) == 4 and source_width > 0):
+        return None
+    try:
+        width = abs(float(box[3]) - float(box[1]))
+    except (TypeError, ValueError):
+        return None
+    return (width / 1000.0 * source_width) if width > 0 else None
+
+
+def _scale_polygon_about_centre(points, target_width: float):
+    xs = [float(p[0]) for p in points]
+    current = max(xs) - min(xs)
+    if current <= 0 or target_width <= 0:
+        return [[float(p[0]), float(p[1])] for p in points]
+    factor = target_width / current
+    cx = sum(float(p[0]) for p in points) / len(points)
+    cy = sum(float(p[1]) for p in points) / len(points)
+    return [[cx + (float(p[0]) - cx) * factor,
+             cy + (float(p[1]) - cy) * factor] for p in points]
+
+
+def _s2_candidate_for_measured_sofa(contract: dict | None,
+                                    validation: dict | None) -> str | None:
+    """用「模型實際畫出來的沙發寬度」重挑一個容得下它的候選。
+
+    09B924C4：規劃叫模型在 64/1000 寬的框裡畫沙發，模型畫了 176——多出來的
+    112 往左溢出，正好蓋在大門上。四次修復在門邊來回震盪（門距 0→15→145→0），
+    因為每一次都拿**同一個過小的目標框**重畫。
+
+    24 張真單量到模型一律畫得比目標大（中位 2.93x）。事前不可預測
+    （單間 0.94–2.72 倍門寬，用全域係數推會毀掉僅有的成功單），
+    事後很穩（單內多次渲染只差 13%）。所以第一張畫完之後才有資格重挑：
+    把每個候選的 footprint 放大到實測寬度，挑門距餘裕最大的那個。
+
+    回 None＝沒有更好的位置，維持原候選（不得因為重挑失敗就放寬任何閘門）。
+    """
+    if not isinstance(contract, dict):
+        return None
+    chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+    source = contract.get("source") or {}
+    size = source.get("size") or {}
+    try:
+        source_w = float(size.get("width") or 0)
+        source_h = float(size.get("height") or 0)
+    except (TypeError, ValueError):
+        return None
+    measured = _measured_sofa_width_px(validation, source_w)
+    if not measured or source_h <= 0:
+        return None
+    geometry = {item.get("geometry_id"): item
+                for item in contract.get("geometry") or [] if isinstance(item, dict)}
+
+    def _coords(geometry_id):
+        return ((geometry.get(geometry_id) or {}).get("shape") or {}).get("coordinates")
+
+    door = next((((item or {}).get("shape") or {}).get("coordinates")
+                 for item in contract.get("geometry") or []
+                 if isinstance(item, dict) and item.get("kind") == "door_quad"), None)
+    if not door:
+        return None
+    try:
+        from layout_geometry_s2 import _shared_door_gap_margin
+    except Exception:
+        return None
+    best_id, best_margin = None, None
+    for candidate in contract.get("candidates") or []:
+        if not isinstance(candidate, dict) or not candidate.get("eligible"):
+            continue
+        sofa = _coords(candidate.get("sofa_footprint_geometry_id"))
+        tv = _coords(candidate.get("tv_footprint_geometry_id"))
+        if not sofa or not tv:
+            continue
+        try:
+            margin = _shared_door_gap_margin(
+                _scale_polygon_about_centre(sofa, measured),
+                _scale_polygon_about_centre(tv, measured * 0.55),
+                door, int(source_w), int(source_h))
+        except Exception:
+            margin = None
+        if margin is None or margin < 1.0:
+            continue
+        if best_margin is None or margin > best_margin:
+            best_id, best_margin = candidate.get("candidate_id"), margin
+    if not best_id or best_id == chosen_id:
+        return None
+    print(f"[repair] 依實測沙發寬 {measured:.0f}px 重挑候選："
+          f"{chosen_id} → {best_id}（門距餘裕 {best_margin:.2f}）")
+    return best_id
+
+
 def _build_s2_sofa_repair_guide(
     previous_render_path: str,
     contract_path: str,
     output_path: str,
     validation: dict | None = None,
     compact_entry_mode: bool = False,
+    candidate_id: str | None = None,
 ) -> str | None:
     """Overlay immutable Contract targets on the previous furnished render for local sofa repair."""
     try:
@@ -1713,7 +1807,11 @@ def _build_s2_sofa_repair_guide(
         if not previous.is_file() or not contract_file.is_file():
             return None
         contract = json.loads(contract_file.read_text(encoding="utf-8"))
-        chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+        # 第一張畫完之後才知道模型會畫多大；用實測寬度重挑一個容得下它的候選，
+        # 否則修復會拿同一個過小的目標框重畫，家具照樣溢到門上（09B924C4）。
+        chosen_id = (candidate_id
+                     or _s2_candidate_for_measured_sofa(contract, validation)
+                     or (contract.get("decision") or {}).get("chosen_candidate_id"))
         chosen = next(
             (item for item in contract.get("candidates") or []
              if item.get("candidate_id") == chosen_id),
