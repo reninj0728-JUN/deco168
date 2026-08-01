@@ -4416,6 +4416,27 @@ def _s2_contract_with_zoning_resample(
     return summary, artifacts, commit, log
 
 
+def _s2_blocked_fallback_enabled() -> bool:
+    """S2 判官擋死時退回 legacy（客廳區特寫、門裁出鏡頭），而不是給客戶零圖。
+
+    2026-08-01 用戶裁決：「零圖傷害最大，客人會覺得被騙」。
+    在此之前，判官驗過且判不安全 → `s2_blocked_legacy` → 付費前檢擋死 → 交付 0 張。
+
+    離線唯讀量測（7 張 S2 判官擋死的單，套上 production 的 `_door_exclusion_limits`
+    裁切後）：**legacy 規劃器 7/7 都產得出配置**——「S2 擋死」不等於「這房間無解」，
+    只等於「S2 這套模型描述不了它」。而 legacy 的解法是把大門裁出鏡頭外
+    （見 `_crop_to_living_zone`），門的問題物理上消失。
+
+    ⚠️ 誠實但書：7/7 只證明「規劃階段沒被一起擋死」，**不是救援率**——
+    沒生圖、沒過判官、沒交付。legacy 這條路沒有 S2 幾何判官把關，
+    生成後改由門距（0.25/0.28 門寬，使用者校準）／走道／可見性等既有閘門負責。
+    這是「一張沒有 S2 把關但門已出鏡的圖」對上「零圖」的取捨，不是品質升級。
+
+    `S2_BLOCKED_FALLBACK=0`（Railway env）可即時關回「擋死＝零圖」。
+    """
+    return os.environ.get("S2_BLOCKED_FALLBACK", "1").strip() != "0"
+
+
 def _crop_to_living_zone(base_path: str, job_dir, idx: int,
                          living_bbox1000, pad: float = 0.04):
     """裁到分區層認出來的客廳區——S2 描述不了整個房型時的最後一招。
@@ -5692,7 +5713,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         layout_guide_paths[_vi] = _artifacts["guide_path"]
                         layout_guide_modes[_vi] = "auto_s2_contract"
                         layout_guide_skip_reasons[_vi] = None
-                    elif _s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum):
+                    elif (_s2_model_not_applicable(_sum) or _s2_verifier_unstable(_sum)
+                          or _s2_blocked_fallback_enabled()):
                         # S2 的幾何模型建立在「兩面相對長牆＋共同深度軸」上，只吃
                         # 正面拍攝的長條房。兩種「S2 模型化不了這房型」都回退 legacy：
                         # ①連候選都生不出來（NO_USABLE_WALL，3135DE37 斜角方正房）；
@@ -5701,8 +5723,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         #   每次亂跳＝判官對此房型不確定，不是穩定的真不安全）。
                         # 「這個房型我模型化不了」不等於「這個配置不安全」：前者交回
                         # legacy 門感知引導＋生成後校準閘門把關，後者才該擋。
-                        _waive_why = ("verifier_unstable" if _s2_verifier_unstable(_sum)
-                                      else ",".join(_sum.get("unsafe_codes") or []))
+                        # 第三種情形（2026-08-01 新增）：判官驗過且判不安全。
+                        # 以前這條走 else → s2_blocked_legacy → 付費前檢擋死 → 客戶零圖。
+                        # 用戶裁決「零圖傷害最大」＋離線量到 legacy 對這類單 7/7 出得了
+                        # 配置，改成一律退 legacy。見 _s2_blocked_fallback_enabled。
+                        _waive_why = (
+                            "verifier_unstable" if _s2_verifier_unstable(_sum)
+                            else ",".join(_sum.get("unsafe_codes") or [])
+                            or "verifier_blocked")
+                        if not (_s2_model_not_applicable(_sum)
+                                or _s2_verifier_unstable(_sum)):
+                            _waive_why = f"verifier_blocked({_waive_why})"
                         print(f"[pipeline] S2 不適用此房型（{_waive_why}）"
                               "→ 回退 legacy 門感知引導，不擋生成")
                         layout_contract_s2_waived.add(_vi)
@@ -5738,8 +5769,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             else:
                                 layout_guide_skip_reasons[_vi] = "zoom_guide_rebuild_failed"
                     else:
-                        # 判官真的驗過而且判不安全 → 不得回退 S2，但保留 legacy
-                        # 引導圖（如果前面 _build_layout_guide_image 已建好）。
+                        # 只有 S2_BLOCKED_FALLBACK=0（急救關閉退回機制）才會走到這裡：
+                        # 判官驗過且判不安全 → 不回退 S2，付費前檢會擋死（客戶零圖）。
+                        # 保留 legacy 引導圖（如果前面 _build_layout_guide_image 已建好）。
                         # 30FBA4A5 教訓：舊版直接 pop 拔掉引導圖 → 模型在零引導
                         # 下自己擺 → 沙發貼死門框（gap=0）。legacy 引導圖帶 door_clear
                         # 禁區，至少讓模型看得到門邊淨空要求；生成後閘門照樣把關。
