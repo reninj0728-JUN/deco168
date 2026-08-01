@@ -1984,10 +1984,21 @@ def build_nano_banana_inputs(
                 "Choose the exact floor position and TV alignment while preserving that chosen side. "
             )
             _float_note = "Do not float or flip the sofa away from the customer's chosen side. "
+        # 引導圖上那條從大門橫貫到對面牆的紅帶（entrance_hard_no_go）要用文字
+        # 講明白它是什麼。只說「紅色是門／玄關」時，模型會把橫貫的紅帶當背景，
+        # 沙發照樣擺在進門的必經路徑上。座標仍只在幾何端，這裡只描述語意。
+        _no_go_sec = (
+            "One of the RED zones is a band that starts at the entrance door and runs "
+            "straight across the floor to the opposite wall. That band is the walk-in "
+            "path from the front door; no sofa, TV console, coffee table, rug edge, "
+            "cabinet or plant may stand anywhere on it. "
+            if entry.get("_s2_entrance_no_go_side") else ""
+        )
         layout_guide_sec = (
             f"LAYOUT CONSTRAINT MAP: reference image #{_guide_idx} is the SAME room photo with "
             "three binding overlays. Every RED ENTRANCE, WALKWAY or NO FURNITURE zone must remain "
             "completely EMPTY. RED = forbidden entrance, walkway or no-furniture zones. "
+            + _no_go_sec +
             "GREEN SOFA TARGET = the sofa body must occupy that exact target zone. "
             "BLUE TV / MEDIA-CONSOLE TARGET = the TV and media console must occupy that "
             "exact target zone. The GREEN and BLUE target centres must sit on one shared cross-room "
@@ -2325,6 +2336,13 @@ def build_anchored_inputs(
             "furniture outside red. The final image must be a clean photorealistic edit of Image 1 with "
             "ZERO guide graphics: no red/green/blue/yellow fills, outlines, dots, labels, or lines."
         )
+        # 同一塊 entrance_hard_no_go：引導圖漆紅、prompt 講清楚它是進門通道。
+        if entry.get("_s2_entrance_no_go_side"):
+            guide_lines.append(
+                "One red band in Image 3 starts at the entrance door and crosses the floor to "
+                "the opposite wall. That band is the walk-in path from the front door: no sofa, "
+                "TV console, coffee table, cabinet, rug edge or plant may stand on any part of it."
+            )
         next_idx = 4
 
     add_lines: list[str] = []

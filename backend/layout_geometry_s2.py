@@ -57,7 +57,8 @@ def _unique(values):
     return list(dict.fromkeys(value for value in values if value))
 
 
-def _blocked(*codes: str, geometry=None, candidates=None, reason_class="INSUFFICIENT_EVIDENCE") -> dict:
+def _blocked(*codes: str, geometry=None, candidates=None, entrance_no_go=None,
+             reason_class="INSUFFICIENT_EVIDENCE") -> dict:
     return {
         "planner_version": PLANNER_VERSION,
         "disposition": "BLOCKED",
@@ -68,6 +69,8 @@ def _blocked(*codes: str, geometry=None, candidates=None, reason_class="INSUFFIC
         "candidate_type": None,
         "geometry": list(geometry or []),
         "candidates": list(candidates or []),
+        # 被擋掉時也要看得見禁區狀態，否則「為什麼全滅」又要靠猜。
+        "entrance_hard_no_go": dict(entrance_no_go or {}),
     }
 
 
@@ -606,12 +609,16 @@ def _cross_line_target(point, vanishing, direction):
     return (point[0] + direction[0], point[1] + direction[1])
 
 
-def _paired_cross_sections(
-    living_floor, left_wall, right_wall, s0: float, s1: float,
-    transverse_direction_xy=None,
-):
-    """Pair opposite wall points through one observed transverse direction."""
-    vanishing = None
+def _resolve_transverse(living_floor, transverse_direction_xy=None):
+    """橫斷面基準的**唯一**解析路徑，回傳 (vanishing, direction)。
+
+    給定 direction_xy（plan 層 transverse_reference 量到的實測地板橫軸）就用它，
+    否則退回 living_floor 自己推出來的滅點／方向。三個呼叫端（配對橫斷面、
+    共同區間、門前禁區）刻意共用這一份：只要有人自己抄一份，禁區與候選就會
+    落在兩套橫軸上，「禁區座標與候選無關」這件事馬上破功。
+
+    ⚠️ 輸入只有 living_floor 與 plan 層基準，**沒有任何候選欄位**。
+    """
     direction = None
     if isinstance(transverse_direction_xy, (list, tuple)) and len(transverse_direction_xy) == 2:
         try:
@@ -621,9 +628,17 @@ def _paired_cross_sections(
                 direction = (dx / magnitude, dy / magnitude)
         except (TypeError, ValueError):
             direction = None
-    if direction is None:
-        vanishing = _transverse_vanishing_point(living_floor)
-        direction = _transverse_direction(living_floor)
+    if direction is not None:
+        return None, direction
+    return _transverse_vanishing_point(living_floor), _transverse_direction(living_floor)
+
+
+def _paired_cross_sections(
+    living_floor, left_wall, right_wall, s0: float, s1: float,
+    transverse_direction_xy=None,
+):
+    """Pair opposite wall points through one observed transverse direction."""
+    vanishing, direction = _resolve_transverse(living_floor, transverse_direction_xy)
     if vanishing is None and direction is None:
         raise ValueError("transverse floor geometry is unavailable")
 
@@ -664,19 +679,7 @@ def _line_parameter(point, line) -> float:
 def _projective_common_interval(
     living_floor, left_wall, right_wall, transverse_direction_xy=None,
 ):
-    vanishing = None
-    direction = None
-    if isinstance(transverse_direction_xy, (list, tuple)) and len(transverse_direction_xy) == 2:
-        try:
-            dx, dy = float(transverse_direction_xy[0]), float(transverse_direction_xy[1])
-            magnitude = math.hypot(dx, dy)
-            if magnitude > 1e-9:
-                direction = (dx / magnitude, dy / magnitude)
-        except (TypeError, ValueError):
-            direction = None
-    if direction is None:
-        vanishing = _transverse_vanishing_point(living_floor)
-        direction = _transverse_direction(living_floor)
+    vanishing, direction = _resolve_transverse(living_floor, transverse_direction_xy)
     if vanishing is None and direction is None:
         return None
     mapped_parameters = []
@@ -693,6 +696,147 @@ def _projective_common_interval(
     if end - start < MIN_WALL_SPAN_T:
         return None
     return start, end
+
+
+# 門前禁區退化下限（佔畫面比例）。門開在進深端（後牆）時，門的地面接觸線本身
+# 就沿著橫軸，兩條橫斷面線幾乎重合、夾不出有意義的帶 → 這個下限把它認出來。
+# 這不是可調的鬆緊旋鈕：真實側牆門夾出來的帶佔畫面 1–10%，離 0.002 有一個
+# 數量級以上，任何落在中間的值都不會改變任何一單的判定。
+ENTRANCE_NO_GO_MIN_AREA_FRAC = 0.002
+# 兩條橫斷面線之間的最小垂直距離（px）。低於一個像素在定義上就不是一條帶。
+_NO_GO_MIN_BAND_THICKNESS_PX = 1.0
+
+
+def _clip_polygon_halfplane(polygon, line_a, line_b, inside_point):
+    """Sutherland–Hodgman：把多邊形裁到「與 inside_point 同側」的半平面。
+
+    刻意用半平面裁切，而不是「把門的端點沿橫軸打到牆線上求交點」。
+    後者用的是**無限長**的牆線，交點可能落在滅點的另一側、跑到畫面外幾千像素
+    （D0734E71 fixture 實測角點 (-4817,-3932)、禁區吃掉 80% 畫面、候選全滅）。
+    半平面交集本身就是凸的，而且會自動排除「滅點後方」那一塊。
+    """
+    reference = _orient(line_a, line_b, inside_point)
+    if reference == 0:
+        return []
+
+    def inside(point):
+        value = _orient(line_a, line_b, point)
+        return value == 0 or (value > 0) == (reference > 0)
+
+    output = []
+    count = len(polygon)
+    for index in range(count):
+        current = polygon[index]
+        following = polygon[(index + 1) % count]
+        current_in, following_in = inside(current), inside(following)
+        if current_in:
+            output.append(current)
+        if current_in != following_in:
+            crossing = _line_intersection(line_a, line_b, current, following)
+            if crossing is not None:
+                output.append(crossing)
+    return output
+
+
+def _no_go_unavailable(reason: str) -> dict:
+    return {"status": "unavailable", "polygon": None,
+            "door_wall_side": None, "reason": reason}
+
+
+def _door_wall_side(door_contact, left_line, right_line):
+    """大門貼在哪一面側牆上；兩面都算不上就回 None（門在後牆／標記退化）。"""
+    scored = []
+    for side, line in (("left", left_line), ("right", right_line)):
+        if not line or _door_span_on_wall(door_contact, line) is None:
+            continue
+        scored.append((
+            sum(_point_segment_distance(point, line[0], line[1])
+                for point in door_contact),
+            side,
+        ))
+    return min(scored)[1] if scored else None
+
+
+def entrance_hard_no_go_polygon(
+    items: dict, *, width: int, height: int, transverse_direction_xy=None,
+) -> dict:
+    """門前禁區：大門的地面接觸線沿橫軸掃到**對面牆**，整條帶禁止大型家具。
+
+    這是把 legacy `_living_door_axis_clear_rect` 的產品口徑搬進 S2 的投影世界。
+    產品規則（用戶 2026-07-30）：大門前方到對面牆壁＝通道＝沙發／電視櫃禁止。
+    S2 以前只有 door_quad ＋ entrance_landing 那一小塊，分區頁畫給客戶看的那條
+    灰帶從來不是 s2_contract 遵守的規則，沙發才會理直氣壯站在門口（0B1D1360）。
+
+    ⚠️【絕對不可以】讀任何候選欄位（view_axis／transverse_vanishing_point／
+    sofa_footprint …）。用候選算出來的東西當禁區，等於「候選定義禁區、再用禁區
+    證明候選沒碰禁區」——換一個候選禁區就跟著移動，測不出任何違規。
+    輸入只有 door_floor_contact / left_wall_floor / right_wall_floor / living_floor
+    與 plan 層的 transverse_reference，這件事由
+    `test_zone_is_identical_across_ab_and_left_right_candidates` 直接鎖死。
+
+    回傳 {"status", "polygon", "door_wall_side", "reason"}。
+    status != "observed" 時 polygon 是 None，呼叫端**不得當成安全**——維持既有
+    門距／落腳區判定（＝今天的行為，不放寬也不新增封鎖），並且把 reason 記進
+    plan 讓它看得見；靜默消失正是 door_gap 那次的教訓。
+    """
+
+    def _coords(name):
+        shape = ((items.get(name) or {}).get("shape") or {})
+        return shape.get("coordinates") or None
+
+    door_contact = _coords("door_floor_contact")
+    left_line = _coords("left_wall_floor")
+    right_line = _coords("right_wall_floor")
+    living_floor = _coords("living_floor")
+    if (not door_contact or len(door_contact) != 2 or not left_line
+            or len(left_line) != 2 or not right_line or len(right_line) != 2
+            or not living_floor or len(living_floor) < 4):
+        return _no_go_unavailable("missing_observed_geometry")
+    if width <= 0 or height <= 0:
+        return _no_go_unavailable("invalid_frame_size")
+
+    vanishing, direction = _resolve_transverse(living_floor, transverse_direction_xy)
+    if vanishing is None and direction is None:
+        return _no_go_unavailable("no_transverse_reference")
+
+    # 過門的兩個地面端點各拉一條橫斷面線，兩線之間夾出的帶就是「從門走進來會
+    # 經過的地面」；再把它裁進 living_floor，帶自然終止在對面牆上（地板本來就
+    # 被兩面牆夾住）＝ legacy「門→對面牆」的同一個口徑。
+    first, second = door_contact[0], door_contact[1]
+    try:
+        first_target = _cross_line_target(first, vanishing, direction)
+        second_target = _cross_line_target(second, vanishing, direction)
+    except ValueError:
+        return _no_go_unavailable("no_transverse_reference")
+    # 門的地面線本身就沿著橫軸（門開在進深端／標記退化）時，兩條線重合、
+    # 夾不出帶。用「另一個端點離這條線多遠」量帶厚，低於一個像素就是退化。
+    thickness = min(
+        _point_segment_distance(second, first, first_target),
+        _point_segment_distance(first, second, second_target),
+    )
+    if thickness < _NO_GO_MIN_BAND_THICKNESS_PX:
+        return _no_go_unavailable(f"degenerate_band(thickness={thickness:.3f}px)")
+
+    polygon = list(living_floor)
+    polygon = _clip_polygon_halfplane(polygon, first, first_target, second)
+    if len(polygon) >= 3:
+        polygon = _clip_polygon_halfplane(polygon, second, second_target, first)
+    if len(polygon) < 3:
+        return _no_go_unavailable("band_misses_living_floor")
+    if not all(all(math.isfinite(value) for value in point) for point in polygon):
+        return _no_go_unavailable("non_finite_intersection")
+    area = abs(_polygon_area(polygon))
+    if area < ENTRANCE_NO_GO_MIN_AREA_FRAC * float(width) * float(height):
+        return _no_go_unavailable(
+            f"degenerate_band(area_frac={area / (float(width) * float(height)):.5f})")
+
+    return {
+        "status": "observed",
+        "polygon": [[float(x), float(y)] for x, y in polygon],
+        "door_wall_side": _door_wall_side(door_contact, left_line, right_line),
+        "reason": None,
+        "area_fraction": round(area / (float(width) * float(height)), 5),
+    }
 
 
 def _shape_geometry(
@@ -909,6 +1053,7 @@ def _candidate(
     compact_entry: bool = False,
     float_tv_side: str = "right",
     walkway_usable: bool | None = None,
+    entrance_no_go=None,
 ):
     left0, left1 = paired["left0"], paired["left1"]
     right0, right1 = paired["right0"], paired["right1"]
@@ -1000,12 +1145,26 @@ def _candidate(
     floating_walkway_clear = (
         sofa_side != "free" or not _polygon_intersects(sofa, walkway)
     )
+    # 門前禁區：大門地面線橫掃到對面牆的整條帶，大型家具一律禁止。
+    # 這塊由 build_s2_plan 算一次後傳進來（不依賴任何候選欄位），規劃期四個
+    # 消費端讀同一份（候選淘汰／引導圖／prompt／修復目標框）；以前 S2 只有
+    # door_quad + entrance_landing 那一小塊，分區頁畫給客戶看的灰帶根本不是
+    # s2_contract 遵守的規則。⚠️ 生成後驗收【不】讀它，見 api._fail_closed_validation。
+    # entrance_no_go 為 None＝算不出來（門開在進深端／標記退化），此時維持既有
+    # 門距與落腳區判定，**不得**當成「這裡很安全」。
+    no_go_offenders = []
+    if entrance_no_go:
+        if _polygon_intersects(sofa, entrance_no_go):
+            no_go_offenders.append("SOFA")
+        if _polygon_intersects(tv, entrance_no_go):
+            no_go_offenders.append("TV")
     invariants = {
         "photo_binding_valid": True,
         "transform_chain_valid": True,
         "door_floor_contact_valid": True,
         "entrance_landing_clear": landing_clear,
         "door_gap_clear": door_gap_clear,
+        "entrance_no_go_clear": not no_go_offenders,
         "walkway_clear": walkway_clear,
         "living_floor_valid": True,
         "usable_wall_valid": True,
@@ -1027,6 +1186,9 @@ def _candidate(
         fail_codes.append(
             f"CANDIDATE_DOOR_GAP_{_who.upper()}"
             f"({_gap:.0f}/{_door_w:.0f}<{_thr})")
+    if no_go_offenders:
+        fail_codes.append(
+            f"CANDIDATE_IN_ENTRANCE_NO_GO({'+'.join(no_go_offenders)})")
     if not landing_clear:
         fail_codes.append("CANDIDATE_HITS_ENTRANCE")
     if not walkway_clear:
@@ -1080,6 +1242,7 @@ def _candidate(
         "source_geometry_ids": list(source_ids),
         "door_axis_separation_deg": round(door_angle, 3),
         "entrance_clearance_px": round(entrance_clearance, 3),
+        "entrance_no_go_offenders": list(no_go_offenders),
         "door_gap_margin": (None if door_gap_margin is None
                             else round(door_gap_margin, 4)),
         "minimum_entrance_clearance_px": round(minimum_entrance_clearance, 3),
@@ -1140,6 +1303,31 @@ def build_s2_plan(
     door_contact = items["door_floor_contact"]["shape"]["coordinates"]
     door_x = (door_contact[0][0] + door_contact[1][0]) / 2.0
     door_side = "left" if door_x < width / 2.0 else "right"
+
+    # 門前禁區只算這一次。整份 plan（候選淘汰／引導圖／prompt／修復／生成後驗收）
+    # 都讀這一份，不准任何一端自己再算一次——兩份就會漂移，正是門距那次的教訓。
+    entrance_no_go = entrance_hard_no_go_polygon(
+        items, width=width, height=height,
+        transverse_direction_xy=transverse_direction_xy,
+    )
+    no_go_polygon = entrance_no_go.get("polygon")
+    if no_go_polygon:
+        geometry.append(_shape_geometry(
+            "entrance_hard_no_go",
+            "entrance_hard_no_go",
+            {"type": "polygon",
+             "coordinates": [(float(x), float(y)) for x, y in no_go_polygon]},
+            "entrance_hard_no_go",
+            evidence_mode="derived",
+            evidence_details={
+                "derivation": "door_floor_contact_swept_along_transverse_reference",
+                "door_wall_side": entrance_no_go.get("door_wall_side"),
+                "area_fraction": entrance_no_go.get("area_fraction"),
+            },
+        ))
+    else:
+        print("[s2-plan] 門前禁區算不出來："
+              f"{entrance_no_go.get('reason')} → 維持既有門距／落腳區判定")
 
     allowed_sofa_sides = (
         {"left", "right", "free"} if sofa_side == "free" else {sofa_side}
@@ -1218,6 +1406,7 @@ def build_s2_plan(
                         t0, t1, items, source_ids, door_side, width, height,
                         float_tv_side=float_only_tv_side or "right",
                         walkway_usable=_walkway_usable,
+                        entrance_no_go=no_go_polygon,
                     ))
 
             compact_length = min(0.12, overlap_end - overlap_start)
@@ -1239,16 +1428,19 @@ def build_s2_plan(
                         compact_t0, compact_t1, items, source_ids,
                         door_side, width, height, compact_entry=True,
                         walkway_usable=_walkway_usable,
+                        entrance_no_go=no_go_polygon,
                     ))
 
     if not candidates:
         return _blocked("NO_USABLE_WALL", "CANDIDATE_GEOMETRY_INCOMPLETE",
-                        geometry=geometry, reason_class="NO_VIABLE_LAYOUT")
+                        geometry=geometry, entrance_no_go=entrance_no_go,
+                        reason_class="NO_VIABLE_LAYOUT")
     eligible = [candidate for candidate in candidates if candidate["eligible"]]
     if not eligible:
         failures = _unique(code for candidate in candidates for code in candidate["fail_codes"])
         return _blocked(*(failures or ["NO_VIABLE_LAYOUT"]), geometry=geometry,
-                        candidates=candidates, reason_class="NO_VIABLE_LAYOUT")
+                        candidates=candidates, entrance_no_go=entrance_no_go,
+                        reason_class="NO_VIABLE_LAYOUT")
 
     chosen = max(eligible, key=_candidate_selection_key)
     # 退化浮動守門（雙條件）：浮動 F 有 +12 固定加分會贏過合格的靠牆 A/B，但 F
@@ -1271,6 +1463,7 @@ def build_s2_plan(
         "candidate_type": chosen["candidate_type"],
         "door_side": door_side,
         "transverse_reference": dict(transverse_reference or {}),
+        "entrance_hard_no_go": entrance_no_go,
         "geometry": geometry,
         "candidates": candidates,
     }
@@ -1365,9 +1558,15 @@ def render_s2_guide(photo_path: str | Path, out_path: str | Path, plan: dict) ->
     # 「綠色沙發框落於紅區玄關通道內」，配置前檢就擋死。挖空只蓋掉像素，
     # 語意矛盾還在。這裡讓 walkway 只在「規劃器真的禁止重疊」的浮動候選才漆紅。
     _floating_candidate = str(chosen.get("sofa_side") or "").strip().lower() == "free"
-    _hard_zone_ids = ["door_quad", "entrance_landing"]
+    # entrance_hard_no_go 一律漆紅：它是規劃器**真的**拿來淘汰候選的禁區
+    # （invariants["entrance_no_go_clear"]），所以「畫的紅區＝規劃器禁止的」
+    # 這個一致性成立，不會重演 D5D0BDDE 的語意矛盾。合格候選必然不碰它，
+    # 下面的 punch 對它是空操作。plan 沒有這塊時（門在進深端／標記退化）
+    # geometry 裡就沒有這個 id，迴圈自動略過。
+    _hard_zone_ids = ["door_quad", "entrance_landing", "entrance_hard_no_go"]
     if _floating_candidate:
         _hard_zone_ids.append("walkway")
+    _has_no_go = "entrance_hard_no_go" in geometry_by_id
     for geometry_id in _hard_zone_ids:
         item = geometry_by_id.get(geometry_id) or {}
         shape = item.get("shape") or {}
@@ -1417,6 +1616,8 @@ def render_s2_guide(photo_path: str | Path, out_path: str | Path, plan: dict) ->
         ("PUT THE SOFA INSIDE THE GREEN FLOOR SHAPE", (60, 245, 110, 255)),
         ("PUT THE TV CONSOLE INSIDE THE BLUE FLOOR SHAPE", (90, 175, 255, 255)),
         (("KEEP EVERY RED ZONE COMPLETELY EMPTY" if _floating_candidate
+          else "RED = DOOR + WALK-IN PATH ACROSS THE ROOM - KEEP EMPTY"
+          if _has_no_go
           else "RED = DOOR / ENTRANCE ONLY - KEEP IT COMPLETELY EMPTY"),
          (255, 95, 95, 255)),
     )

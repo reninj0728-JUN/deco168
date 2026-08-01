@@ -430,14 +430,19 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
             verifier_corrected
             and correction_derivation == "wall_floor_boundary_sync"
         )
+        # 門前禁區是從觀測幾何推出來的，不是 Gemini 觀測到的東西。標成 observed
+        # 會把來源寫成 zoning_v2.struct_geometry_v1＝謊報 provenance。
+        derived_zone = evidence_mode == "derived"
         record = _s2_geometry_record(
             geometry_id=geometry_id,
             kind=kind,
             shape=shape,
             source_photo_key=source_photo_key,
-            mode="inferred" if verifier_corrected else "observed",
+            mode="inferred" if (verifier_corrected or derived_zone) else "observed",
             producer_name=(
-                "layout_geometry_verifier_s2.wall_floor_boundary_sync"
+                "layout_geometry_s2.entrance_hard_no_go_polygon"
+                if derived_zone
+                else "layout_geometry_verifier_s2.wall_floor_boundary_sync"
                 if floor_boundary_sync
                 else (
                     "layout_geometry_verifier_s2.bounded_wall_correction"
@@ -446,11 +451,18 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
             ),
             passed_checks=["PHOTO_BINDING_VALID", "TRANSFORM_CHAIN_VALID", "GEOMETRY_VALID"],
             notes=(
-                "Bounded verifier correction; partial/medium derived evidence, final verifier pass required."
+                "Entrance walk-in band swept deterministically from the observed door "
+                "floor contact across the room; no candidate geometry is used."
+                if derived_zone
+                else "Bounded verifier correction; partial/medium derived evidence, final verifier pass required."
                 if verifier_corrected
                 else "Visible structure annotated on the bound source photo and normalized by S2."
             ),
         )
+        if derived_zone:
+            record["evidence"]["producer"]["version"] = "s2-entrance-no-go-v1"
+            record["evidence"]["producer"]["model"] = None
+            record["validation"]["notes"].append("derived_from_observed_geometry_only")
         if verifier_corrected:
             record["evidence"]["confidence"] = 0.65
             record["evidence"]["visibility"] = "partial"
@@ -540,6 +552,16 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
             _s2_constraint("VIEW_AXIS_CLEAR_OF_DOOR", ["door_quad", derived_ids["view_axis"]], "The seated forward axis stays outside the entrance door field."),
             _s2_constraint("ORIENTATIONS_ALIGNED", [derived_ids["sofa_orientation"], derived_ids["tv_orientation"]], "Sofa and TV normals face each other."),
         ]
+        # 門前禁區進 constraints，才會被 layout_preflight_s2._formal_plan_hash 收進
+        # 指紋——付費前防篡改涵蓋這塊禁區，而不是只有 sofa/tv 目標框。
+        if "entrance_hard_no_go" in existing_ids:
+            constraints.append(_s2_constraint(
+                "ENTRANCE_NO_GO_CLEAR",
+                ["entrance_hard_no_go", derived_ids["sofa_footprint"],
+                 derived_ids["tv_footprint"]],
+                "Sofa and TV footprints stay outside the entrance walk-in band that "
+                "runs from the door floor contact across the room to the opposite wall.",
+            ))
         if raw_candidate.get("candidate_type") == "F":
             float_proven = bool((raw_candidate.get("invariants") or {}).get("float_proven"))
             constraints.append({
@@ -710,6 +732,11 @@ def build_layout_contract_s2(
         "s2_candidate_audit": audit,
         "geometry_verification": copy.deepcopy(geometry_verification),
         "transverse_reference": copy.deepcopy(transverse_reference),
+        # 門前禁區的存在與否要在合約層看得見：算不出來時（門開在進深端／標記
+        # 退化）不能靜默消失，否則事後查不出這單到底有沒有受這條規則保護。
+        "entrance_hard_no_go": copy.deepcopy(plan.get("entrance_hard_no_go") or {}),
+        "s2_entrance_no_go_door_wall_side": (
+            (plan.get("entrance_hard_no_go") or {}).get("door_wall_side")),
     })
     base["version_chain"]["builder"]["version"] = "s2-contract-v1"
     base["version_chain"]["contract_hash"] = recompute_contract_hash(base)

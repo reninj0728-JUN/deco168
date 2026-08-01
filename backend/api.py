@@ -1652,6 +1652,52 @@ def _s2_door_clearance_shift_px(validation: dict | None, width: int, sofa_side: 
     return -round(shift_norm * width / 1000.0)
 
 
+def _s2_entrance_no_go_points(contract: dict | None, width: float, height: float):
+    """合約裡那**唯一一份**門前禁區，縮放到 width×height 的畫布座標。
+
+    規劃器（layout_geometry_s2.entrance_hard_no_go_polygon）算一次、寫進合約
+    geometry；引導圖、修復遮罩、修復目標框、生成後驗收全部讀這一份，沒有人
+    自己再算。合約幾何在 source_px_xy，而 S2 的 model_input 是宣告過的 identity
+    transform、付費前檢又比對過 base 與 source 的 sha256／size 完全相同，
+    所以等比例縮放就對得上成品座標。
+
+    ⚠️ 回 None 只代表「這單算不出禁區」（門開在進深端／標記退化），
+    **不代表安全**——呼叫端一律維持既有行為，不得因此放寬任何閘門。
+    """
+    if not isinstance(contract, dict) or width <= 0 or height <= 0:
+        return None
+    shape = next(
+        ((item or {}).get("shape") or {} for item in contract.get("geometry") or []
+         if isinstance(item, dict) and item.get("geometry_id") == "entrance_hard_no_go"),
+        None,
+    )
+    points = (shape or {}).get("coordinates")
+    if not points or len(points) < 3:
+        return None
+    size = (contract.get("source") or {}).get("size") or {}
+    try:
+        source_w = float(size.get("width") or 0)
+        source_h = float(size.get("height") or 0)
+    except (TypeError, ValueError):
+        return None
+    if source_w <= 0 or source_h <= 0:
+        return None
+    return [(float(x) * width / source_w, float(y) * height / source_h)
+            for x, y in points]
+
+
+def _box_hits_entrance_no_go(box, no_go_points) -> bool:
+    """矩形 (x0,y0,x1,y1) 有沒有壓到門前禁區。禁區缺席一律回 False（＝維持現狀）。"""
+    if not box or not no_go_points:
+        return False
+    from layout_geometry_s2 import _polygon_intersects
+    x0, y0, x1, y1 = [float(value) for value in box]
+    return _polygon_intersects(
+        [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+        [(float(px), float(py)) for px, py in no_go_points],
+    )
+
+
 def _s2_repair_target_box(
     validation: dict | None,
     width: int,
@@ -1865,6 +1911,13 @@ def _build_s2_sofa_repair_guide(
         axis_pts = _pts(axis)
         draw.polygon(landing_pts, fill=(220, 25, 25, 125))
         draw.line(landing_pts + [landing_pts[0]], fill=(240, 20, 20, 255), width=5)
+        # 門前禁區跟首渲引導圖畫的是同一塊（合約 geometry 的同一個 id）。
+        # 修復時如果只護落腳區，模型就會把沙發推到門正前方那條走進來的路上。
+        no_go_pts = _s2_entrance_no_go_points(contract, image.width, image.height)
+        if no_go_pts:
+            zone = [(round(x), round(y)) for x, y in no_go_pts]
+            draw.polygon(zone, fill=(220, 25, 25, 110))
+            draw.line(zone + [zone[0]], fill=(240, 20, 20, 255), width=6)
         sofa_side = next(
             (str(note).split("=", 1)[1] for note in chosen.get("notes") or []
              if str(note).startswith("sofa_side=")),
@@ -1884,6 +1937,11 @@ def _build_s2_sofa_repair_guide(
             validation, image.width, image.height, sofa_side, sofa_pts,
             compact_entry_mode=compact_entry_mode,
             prefer_contract_target=bool(_repicked))
+        # 目標框壓到門前禁區就不能用——那等於叫模型把沙發搬進門口。退回合約
+        # footprint（規劃階段已通過 entrance_no_go_clear，必然在禁區外）。
+        if target_box and _box_hits_entrance_no_go(target_box, no_go_pts):
+            print("[repair] 沙發目標框落在門前禁區 → 改用合約 footprint")
+            target_box = None
         if target_box:
             tx0, ty0, tx1, ty1 = target_box
             sofa_pts = [(tx0, ty0), (tx1, ty0), (tx1, ty1), (tx0, ty1)]
@@ -1956,6 +2014,18 @@ def _build_s2_sofa_edit_mask(
             validation, width, height, sofa_side, target_points,
             compact_entry_mode=compact_entry_mode,
             prefer_contract_target=bool(_repicked))
+        # 與 _build_s2_sofa_repair_guide 同一套退回規則：目標框壓到門前禁區時，
+        # 兩邊都改用（已位移的）合約 footprint。引導圖畫哪裡、遮罩就開哪裡，
+        # 不能一邊叫沙發搬家、另一邊只在舊位置開洞（8beef63 那次的坑）。
+        # ⚠️ 禁區**不塗黑**：現在那張沙發很可能正壓在禁區上，把禁區鎖死等於
+        # 讓錯的沙發永遠擦不掉，修復必然失敗。
+        no_go_pts = _s2_entrance_no_go_points(contract, width, height)
+        if target_box and _box_hits_entrance_no_go(target_box, no_go_pts):
+            _xs = [float(p[0]) for p in target_points]
+            _ys = [float(p[1]) for p in target_points]
+            target_box = (max(0, round(min(_xs))), max(0, round(min(_ys))),
+                          min(width - 1, round(max(_xs))),
+                          min(height - 1, round(max(_ys))))
         if not target_box:
             return None
         pad_x, pad_y = width * 0.006, height * 0.035
@@ -3689,6 +3759,19 @@ def _is_quota_outage(err: str | None) -> bool:
             or "credits are depleted" in e or "quota" in e)
 
 
+# 門前禁區【刻意不當生成後交付閘門】——這是實測結論，不是還沒做完。
+#
+# 拿 86 筆真成品判定（raw_verdict 裡有 render_bboxes）比對離線重建的禁區，
+# 四種碰撞判準（整個 2D bbox／底邊中點／底邊中間 50%／25%）**全部**都把
+# 39606371 這張【已交付】的客廳圖判成違規——而且換成「家具站的那一點」也一樣，
+# 代表電視櫃的落地點**真的**落在門掃過去的那條帶裡，不是 2D 外框的假重疊。
+# 但那張圖用戶收下了：櫃子好好靠著右牆、進門動線是通的。
+#
+# 結論：「門→對面牆整條禁大型家具」是**規劃期的指引**，不是交付標準。
+# 用戶接受靠在對面牆上、位於該帶深度的家具。硬拿它當閘門＝拿已交付的單
+# 換 2–3 張本來就 hard_fail 的落選圖，純虧。
+# 生成後的門邊防線維持 `_door_adjacency_violation`（0.25/0.28 門寬，
+# 出自使用者裁決校準庫），那一條才是對齊用戶標準的。
 def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
     """B1（B0CDF6A0 根治）：驗證崩潰（ok=None/缺失）不得當通過。
     客廳 → 標 hard_fail 進 Z3/Phase2/Phase3 補生鏈，寧可誤擋不裸奔交付；
@@ -5771,6 +5854,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 copy["_layout_geometry_verification_s2"] = _s2_artifact.get("verification_path")
                 copy["_layout_geometry_verification_s2_sha256"] = _s2_artifact.get("verification_sha256")
                 copy["_layout_guide_s2_sha256"] = _s2_artifact.get("guide_sha256")
+                # 生成 prompt 也要講同一塊禁區：引導圖已經把它漆紅，但文字若只說
+                # 「紅色是門／玄關」，模型就不知道那條橫貫的紅帶是進門通道。
+                # 只帶「有沒有／門在哪面牆」這個訊號，座標仍只有幾何端持有。
+                copy["_s2_entrance_no_go_side"] = (
+                    ((_s2_artifact.get("contract") or {}).get("extensions") or {})
+                    .get("s2_entrance_no_go_door_wall_side"))
                 copy["_uncropped_base"] = uncropped_bases.get(vi)  # Phase3 補生退回原圖用
                 copy["_palette"] = palettes.get(copy.get("style") or "")  # 使用者選的色系→注入 prompt
                 if rt == "living" and _living_alt_paths:

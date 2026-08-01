@@ -1,0 +1,168 @@
+{
+ "status": "observed",
+ "elements": {
+  "walkway": {
+   "kind": "walkway",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     650,
+     500
+    ],
+    [
+     630,
+     750
+    ],
+    [
+     980,
+     950
+    ],
+    [
+     980,
+     400
+    ]
+   ]
+  },
+  "door_quad": {
+   "kind": "door_quad",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     297,
+     825
+    ],
+    [
+     295,
+     962
+    ],
+    [
+     680,
+     964
+    ],
+    [
+     663,
+     832
+    ]
+   ]
+  },
+  "living_floor": {
+   "kind": "living_floor",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     620,
+     50
+    ],
+    [
+     600,
+     380
+    ],
+    [
+     680,
+     520
+    ],
+    [
+     980,
+     400
+    ],
+    [
+     980,
+     30
+    ]
+   ]
+  },
+  "left_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     980,
+     30
+    ],
+    [
+     682,
+     205
+    ]
+   ]
+  },
+  "entrance_landing": {
+   "kind": "entrance_landing",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     663,
+     832
+    ],
+    [
+     680,
+     964
+    ],
+    [
+     730,
+     960
+    ],
+    [
+     700,
+     800
+    ]
+   ]
+  },
+  "right_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     980,
+     960
+    ],
+    [
+     663,
+     832
+    ]
+   ]
+  },
+  "door_floor_contact": {
+   "kind": "door_floor_contact_edge",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     663,
+     832
+    ],
+    [
+     680,
+     964
+    ]
+   ]
+  }
+ },
+ "schema_version": "struct-geometry-v1",
+ "uncertainty_notes": "現場結構清晰。右側有臥室與通道開口，因此右側牆面無法作為連續使用的實牆。",
+ "validation_errors": [],
+ "source_photo_index": 0,
+ "usable_wall_segments": [
+  {
+   "id": "left_wall_main",
+   "side": "left",
+   "t_end": 0.95,
+   "status": "observed",
+   "t_start": 0,
+   "confidence": "high",
+   "visibility": "full"
+  }
+ ]
+}

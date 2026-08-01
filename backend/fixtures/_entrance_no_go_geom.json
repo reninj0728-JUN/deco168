@@ -1,0 +1,177 @@
+{
+ "status": "observed",
+ "elements": {
+  "walkway": {
+   "kind": "walkway",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     702,
+     266
+    ],
+    [
+     580,
+     437
+    ],
+    [
+     580,
+     560
+    ],
+    [
+     990,
+     430
+    ]
+   ]
+  },
+  "door_quad": {
+   "kind": "door_quad",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     326,
+     120
+    ],
+    [
+     382,
+     259
+    ],
+    [
+     745,
+     258
+    ],
+    [
+     847,
+     128
+    ]
+   ]
+  },
+  "living_floor": {
+   "kind": "living_floor",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     650,
+     0
+    ],
+    [
+     990,
+     0
+    ],
+    [
+     990,
+     1000
+    ],
+    [
+     616,
+     617
+    ],
+    [
+     580,
+     437
+    ]
+   ]
+  },
+  "left_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     847,
+     128
+    ],
+    [
+     578,
+     386
+    ]
+   ]
+  },
+  "entrance_landing": {
+   "kind": "entrance_landing",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "polygon_yx1000": [
+    [
+     847,
+     128
+    ],
+    [
+     745,
+     258
+    ],
+    [
+     702,
+     266
+    ],
+    [
+     900,
+     100
+    ]
+   ]
+  },
+  "right_wall_floor": {
+   "kind": "wall_floor_boundary",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     988,
+     980
+    ],
+    [
+     616,
+     617
+    ]
+   ]
+  },
+  "door_floor_contact": {
+   "kind": "door_floor_contact_edge",
+   "status": "observed",
+   "confidence": "high",
+   "visibility": "full",
+   "segment_yx1000": [
+    [
+     847,
+     128
+    ],
+    [
+     745,
+     258
+    ]
+   ]
+  }
+ },
+ "schema_version": "struct-geometry-v1",
+ "uncertainty_notes": "大門後方的玄關牆面已被門扇涵蓋，左牆可用牆面自對講機旁開始計算",
+ "validation_errors": [],
+ "source_photo_index": 0,
+ "usable_wall_segments": [
+  {
+   "id": "left_wall_post_door",
+   "side": "left",
+   "t_end": 1,
+   "status": "observed",
+   "t_start": 0.35,
+   "confidence": "high",
+   "visibility": "full"
+  },
+  {
+   "id": "right_wall_full",
+   "side": "right",
+   "t_end": 1,
+   "status": "observed",
+   "t_start": 0,
+   "confidence": "high",
+   "visibility": "full"
+  }
+ ]
+}
