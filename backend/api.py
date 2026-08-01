@@ -4438,13 +4438,20 @@ def _s2_blocked_fallback_enabled() -> bool:
 
 
 def _crop_to_living_zone(base_path: str, job_dir, idx: int,
-                         living_bbox1000, pad: float = 0.04):
-    """裁到分區層認出來的客廳區——S2 描述不了整個房型時的最後一招。
+                         living_bbox1000, pad: float = 0.04,
+                         entrance_bbox1000=None):
+    """裁到分區層認出來的客廳區，**並把大門推出鏡頭外**——S2 描述不了房型時的最後一招。
 
     用戶提案：既然分區層能準確認出「哪一塊是客廳」，就把那一塊特寫裁出來再擺家具。
-    928AD8B4 實測有效：那張斜角照裁出客廳區後是 2016x1815（解析度足夠、不失真），
-    畫面剩左右兩面實牆＋後方落地窗，大門與兩扇臥室門全部出鏡——
-    門的問題物理上消失，相對兩牆也回來了，正是幾何規劃器要的結構。
+    928AD8B4 實測有效：那張斜角照裁出客廳區後畫面剩左右兩面實牆＋後方落地窗。
+
+    ⚠️ 2D212624 教訓（2026-08-01）：舊版**只**裁客廳區、完全沒碰門。
+    928AD8B4 之所以「大門出鏡」是運氣——那張的 living_zone 剛好不含門。
+    這張照片的 living_zone 幾乎蓋滿整張（含大門），裁完門還在畫面裡 →
+    電視櫃緊貼大門（門距 0.050 門寬，需 0.28）→ 落選。
+    docstring 當初承諾「門的問題物理上消失」，實作卻沒有保證它，這裡補上：
+    沿用 `_crop_region_base` 同一個 `_door_exclusion_limits`，把裁切邊界推過門框。
+    （刻意共用同一個函式，不另寫一套緩衝算法——兩套門排除口徑就是這系列問題的病根。）
 
     回傳 (裁切後路徑, crop_box)；裁不動就回 None。
     """
@@ -4463,13 +4470,31 @@ def _crop_to_living_zone(base_path: str, job_dir, idx: int,
         y1 = int(min(H, (ly1 / 1000.0 + pad) * H))
         if x1 - x0 < W * 0.30 or y1 - y0 < H * 0.30:
             return None          # 裁得太小＝分區可能抓錯，寧可不裁
+        # 大門推出鏡頭外。推完太窄就放棄推（寧可門在畫面裡，也不要一張只剩牆的廢底圖）。
+        door_excluded = False
+        if isinstance(entrance_bbox1000, (list, tuple)) and len(entrance_bbox1000) == 4:
+            try:
+                _d_x0 = int(float(entrance_bbox1000[1]) / 1000.0 * W)
+                _d_x1 = int(float(entrance_bbox1000[3]) / 1000.0 * W)
+                _lo, _hi = _door_exclusion_limits(W, _d_x0, _d_x1)
+                _nx0, _nx1 = max(x0, _lo), min(x1, _hi)
+                if (_nx0, _nx1) != (x0, x1) and (_nx1 - _nx0) >= W * 0.30:
+                    print(f"[pipeline] 客廳區特寫：大門推出鏡頭 x {x0}->{_nx0}, {x1}->{_nx1}"
+                          f"（門 px {_d_x0}-{_d_x1}）")
+                    x0, x1 = _nx0, _nx1
+                    door_excluded = True
+                elif (_nx0, _nx1) != (x0, x1):
+                    print(f"[pipeline] 客廳區特寫：門排除後過窄（{_nx1-_nx0}px），維持原裁切")
+            except (TypeError, ValueError):
+                pass
         crop = img[y0:y1, x0:x1]
         if crop.size == 0:
             return None
         out = str(Path(job_dir) / f"crop_living_zone_{idx:02d}.jpg")
         if not cv2.imwrite(out, crop):
             return None
-        print(f"[pipeline] 客廳區特寫裁切 {W}x{H} → {x1-x0}x{y1-y0}（門窗雜訊出鏡）")
+        print(f"[pipeline] 客廳區特寫裁切 {W}x{H} → {x1-x0}x{y1-y0}"
+              f"（大門{'已' if door_excluded else '未'}出鏡）")
         return out, (x0, y0, x1, y1)
     except Exception as e:
         print(f"[pipeline] 客廳區裁切失敗（略過）: {type(e).__name__}: {str(e)[:80]}")
@@ -5744,8 +5769,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         # 規劃器就有解了（928AD8B4 實測）。
                         _lz_bbox = ((zoning_result.get("zones") or {}).get(
                             "living_zone") or {}).get("bbox_on_best_photo")
+                        # 2D212624：living_zone 幾乎蓋滿整張（含大門），只裁客廳區
+                        # 門還在畫面裡 → 電視櫃緊貼大門落選。把入口 bbox 一起傳進去，
+                        # 讓裁切把門推出鏡頭（門在鏡外＝對門問題物理上不存在）。
+                        _ent_bbox = ((zoning_result.get("zones") or {}).get(
+                            "entrance_zone") or {}).get("bbox_on_best_photo")
                         _zoom = _crop_to_living_zone(
-                            _contract_photo, job_dir, _vi, _lz_bbox)
+                            _contract_photo, job_dir, _vi, _lz_bbox,
+                            entrance_bbox1000=_ent_bbox)
                         if _zoom:
                             _zoom_base, _zoom_box = _zoom
                             flux_bases[_vi] = _zoom_base
