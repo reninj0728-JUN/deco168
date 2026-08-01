@@ -1659,13 +1659,20 @@ def _s2_repair_target_box(
     sofa_side: str,
     contract_target_points: list[tuple[float, float]],
     compact_entry_mode: bool = False,
+    prefer_contract_target: bool = False,
 ) -> tuple[int, int, int, int] | None:
     sofa = ((validation or {}).get("render_bboxes") or {}).get("sofa")
     if not isinstance(sofa, list) or len(sofa) != 4 or not contract_target_points:
         return None
     # 8AD3E711：沙發貼錯邊 → 目標＝contract 對牆 footprint 的外接框（真跨房搬移），
     # 不是拿當前沙發同牆滑。footprint 點已由呼叫端縮放＋門距位移過。
-    if (validation or {}).get("sofa_on_wrong_side") is True:
+    #
+    # prefer_contract_target：呼叫端依「模型實際畫出來的沙發寬度」重挑到另一個
+    # 容得下它的候選時，也要走同一條真搬移路徑。否則下面那段只會把**當前**沙發
+    # 沿同一面牆推一下（old_w*0.83 + door_clearance_shift），完全不看新候選——
+    # 09B924C4 四次修復門距 0→15→145→0 在門邊來回彈，就是因為它從頭到尾
+    # 都在同一面牆上滑，從來沒有真的換過位置。
+    if (validation or {}).get("sofa_on_wrong_side") is True or prefer_contract_target:
         _xs = [float(pt[0]) for pt in contract_target_points]
         _ys = [float(pt[1]) for pt in contract_target_points]
         _fx0, _fx1, _fy0, _fy1 = min(_xs), max(_xs), min(_ys), max(_ys)
@@ -1809,8 +1816,8 @@ def _build_s2_sofa_repair_guide(
         contract = json.loads(contract_file.read_text(encoding="utf-8"))
         # 第一張畫完之後才知道模型會畫多大；用實測寬度重挑一個容得下它的候選，
         # 否則修復會拿同一個過小的目標框重畫，家具照樣溢到門上（09B924C4）。
-        chosen_id = (candidate_id
-                     or _s2_candidate_for_measured_sofa(contract, validation)
+        _repicked = candidate_id or _s2_candidate_for_measured_sofa(contract, validation)
+        chosen_id = (_repicked
                      or (contract.get("decision") or {}).get("chosen_candidate_id"))
         chosen = next(
             (item for item in contract.get("candidates") or []
@@ -1875,7 +1882,8 @@ def _build_s2_sofa_repair_guide(
             draw.rectangle(old_box, fill=(220, 25, 25, 115), outline=(240, 20, 20, 255), width=5)
         target_box = _s2_repair_target_box(
             validation, image.width, image.height, sofa_side, sofa_pts,
-            compact_entry_mode=compact_entry_mode)
+            compact_entry_mode=compact_entry_mode,
+            prefer_contract_target=bool(_repicked))
         if target_box:
             tx0, ty0, tx1, ty1 = target_box
             sofa_pts = [(tx0, ty0), (tx1, ty0), (tx1, ty1), (tx0, ty1)]
@@ -1912,7 +1920,13 @@ def _build_s2_sofa_edit_mask(
                 or not isinstance(door_box, list) or len(door_box) != 4):
             return None
         contract = json.loads(contract_file.read_text(encoding="utf-8"))
-        chosen_id = (contract.get("decision") or {}).get("chosen_candidate_id")
+        # ⚠️ 必須跟 _build_s2_sofa_repair_guide 用**完全相同的運算式**挑候選。
+        # 8beef63 只讓引導圖依實測尺寸重挑，遮罩仍讀合約原本的 chosen_candidate_id：
+        # 引導圖叫沙發搬到新位置，可編輯的白色遮罩卻還開在舊位置——模型想照做也
+        # 沒有可畫的範圍。兩邊吃同一份 contract 與 validation，運算式一致就必然一致。
+        _repicked = _s2_candidate_for_measured_sofa(contract, validation)
+        chosen_id = (_repicked
+                     or (contract.get("decision") or {}).get("chosen_candidate_id"))
         chosen = next((item for item in contract.get("candidates") or []
                        if item.get("candidate_id") == chosen_id), None)
         geometry = {item.get("geometry_id"): item for item in contract.get("geometry") or []
@@ -1940,7 +1954,8 @@ def _build_s2_sofa_edit_mask(
         current_x1, current_y1 = sx1 * width / 1000.0, sy1 * height / 1000.0
         target_box = _s2_repair_target_box(
             validation, width, height, sofa_side, target_points,
-            compact_entry_mode=compact_entry_mode)
+            compact_entry_mode=compact_entry_mode,
+            prefer_contract_target=bool(_repicked))
         if not target_box:
             return None
         pad_x, pad_y = width * 0.006, height * 0.035

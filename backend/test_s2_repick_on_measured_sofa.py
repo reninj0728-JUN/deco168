@@ -150,3 +150,114 @@ def test_repair_guide_falls_back_to_the_original_choice():
     import inspect
     source = inspect.getsource(api._build_s2_sofa_repair_guide)
     assert 'or (contract.get("decision") or {}).get("chosen_candidate_id")' in source
+
+
+# ── 給遮罩測試用的合約 fixture ─────────────────────────────────
+def _write_contract(tmp_path, contract, previous_size=(4032, 3024)):
+    from PIL import Image
+    prev = tmp_path / "prev.png"
+    Image.new("RGB", previous_size, "white").save(prev)
+    cf = tmp_path / "contract.json"
+    cf.write_text(__import__("json").dumps(contract), encoding="utf-8")
+    return str(prev), str(cf)
+
+
+def _contract_with_axis_and_landing(chosen="far_from_door"):
+    c = _contract(chosen)
+    for cand in c["candidates"]:
+        cand["view_axis_geometry_id"] = "axis"
+    c["geometry"] += [
+        {"geometry_id": "axis", "shape": {"coordinates": [[1500.0, 1800.0], [2600.0, 1800.0]]}},
+        {"kind": "entrance_landing", "geometry_id": "landing",
+         "shape": {"coordinates": _quad(480, 1040, 2000, 2300)}},
+    ]
+    return c
+
+
+
+
+
+# ── 引導圖與遮罩必須指向同一個候選 ──────────────────────────────
+def _mask_inputs(tmp_path, contract):
+    from PIL import Image
+    prev = tmp_path / "prev.png"
+    Image.new("RGB", (SRC_W, SRC_H), "white").save(prev)
+    cf = tmp_path / "c.json"
+    cf.write_text(__import__("json").dumps(contract), encoding="utf-8")
+    return str(prev), str(cf)
+
+
+def test_guide_and_mask_pick_the_candidate_with_the_same_expression():
+    """8beef63 只改了引導圖：引導叫沙發搬去新位置，遮罩還開在舊位置。
+
+    兩支吃同一份 contract 與 validation；只要挑候選的運算式一致，就必然一致。
+    """
+    import inspect
+    guide = inspect.getsource(api._build_s2_sofa_repair_guide)
+    mask = inspect.getsource(api._build_s2_sofa_edit_mask)
+    for needle in ("_s2_candidate_for_measured_sofa(contract, validation)",
+                   'or (contract.get("decision") or {}).get("chosen_candidate_id")'):
+        assert needle in guide, f"引導圖少了 {needle}"
+        assert needle in mask, f"遮罩少了 {needle}（會開在舊候選位置）"
+
+
+def test_repick_actually_changes_the_mask(tmp_path):
+    """行為測：重挑會不會真的把可編輯區換到新候選。
+
+    比較「有別的候選可換」與「只有一個候選」兩份合約產出的遮罩——
+    若重挑沒有影響遮罩，兩張圖會一模一樣。
+    """
+    from PIL import Image
+    import numpy as np
+    validation = _validation(180)
+    validation["render_bboxes"]["entrance_door"] = [220, 120, 520, 260]
+
+    def _mask(contract, name):
+        prev = tmp_path / f"{name}_prev.png"
+        Image.new("RGB", (SRC_W, SRC_H), "white").save(prev)
+        cf = tmp_path / f"{name}.json"
+        cf.write_text(__import__("json").dumps(contract), encoding="utf-8")
+        out = api._build_s2_sofa_edit_mask(
+            str(prev), str(cf), validation, str(tmp_path / f"{name}.png"))
+        return np.asarray(Image.open(out).convert("L")) if out else None
+
+    with_alt = _contract_with_axis_and_landing("near_door")
+    only_one = _contract_with_axis_and_landing("near_door")
+    only_one["candidates"] = [c for c in only_one["candidates"]
+                              if c["candidate_id"] == "near_door"]
+    assert api._s2_candidate_for_measured_sofa(with_alt, validation) == "far_from_door"
+    assert api._s2_candidate_for_measured_sofa(only_one, validation) is None
+    a, b = _mask(with_alt, "alt"), _mask(only_one, "one")
+    # ⚠️ 不可以 skip：產出路徑被改壞時，測試會從紅燈變成跳過，防護就沒了。
+    assert a is not None and b is not None, "遮罩沒產出——這本身就是回歸"
+    assert not np.array_equal(a, b), "重挑之後遮罩完全沒變＝可編輯區仍開在舊位置"
+
+
+def test_repick_actually_changes_the_guide_box(tmp_path):
+    """引導圖的綠框也要跟著換位置。
+
+    ⚠️ 這條是蓄意破壞驗出來補的：只拿掉引導圖那邊的 prefer_contract_target 時，
+    原本沒有任何測試變紅——遮罩換了、引導圖還畫在舊位置，兩張圖各指一邊。
+    """
+    from PIL import Image
+    import numpy as np
+    validation = _validation(180)
+    validation["render_bboxes"]["entrance_door"] = [220, 120, 520, 260]
+
+    def _guide(contract, name):
+        prev = tmp_path / f"g_{name}_prev.png"
+        Image.new("RGB", (SRC_W, SRC_H), "white").save(prev)
+        cf = tmp_path / f"g_{name}.json"
+        cf.write_text(__import__("json").dumps(contract), encoding="utf-8")
+        out = api._build_s2_sofa_repair_guide(
+            str(prev), str(cf), str(tmp_path / f"g_{name}.jpg"), validation=validation)
+        return np.asarray(Image.open(out).convert("RGB")) if out else None
+
+    with_alt = _contract_with_axis_and_landing("near_door")
+    only_one = _contract_with_axis_and_landing("near_door")
+    only_one["candidates"] = [c for c in only_one["candidates"]
+                              if c["candidate_id"] == "near_door"]
+    a, b = _guide(with_alt, "alt"), _guide(only_one, "one")
+    # ⚠️ 不可以 skip：理由同上。
+    assert a is not None and b is not None, "引導圖沒產出——這本身就是回歸"
+    assert not np.array_equal(a, b), "重挑之後綠框完全沒變＝引導仍畫在舊位置"
