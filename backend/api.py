@@ -7990,11 +7990,22 @@ async def api_zoning(upload_id: str = Form(...),
     }
     existing_path = tmp_dir / "z_overlay_existing.png"
     proposed_path = tmp_dir / "z_overlay_proposed.png"
+    # 門→對面牆的禁區帶：讀規劃器那**同一份**幾何（entrance_hard_no_go_polygon），
+    # 不在這裡另外拉一個灰色 bbox。客戶在確認頁看到的，就是生成端真正遵守的那塊。
+    # 算不出來（門開在進深端／標記退化）就回 None，照舊只畫 zones，不畫假的給客戶看。
+    try:
+        from zoning_v2 import entrance_no_go_polygon_for_overlay
+        _no_go_norm = entrance_no_go_polygon_for_overlay(
+            best_photo, zoning.get("struct_geometry_v1"))
+    except Exception as _e:
+        print(f"[/api/zoning] 門前禁區略過: {type(_e).__name__}: {str(_e)[:90]}")
+        _no_go_norm = None
     try:
         draw_overlay(best_photo, zoning.get("existing_zones", {}),
                      "EXISTING ZONES (AI inferred original use)", existing_path)
         draw_overlay(best_photo, zoning.get("proposed_zones", {}),
-                     "PROPOSED ZONES (AI suggested layout)", proposed_path)
+                     "PROPOSED ZONES (AI suggested layout)", proposed_path,
+                     entrance_no_go_norm=_no_go_norm)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"overlay generation failed: {e}"})
 

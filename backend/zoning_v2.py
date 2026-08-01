@@ -527,8 +527,75 @@ ZONE_LABEL_EN = {
 }
 
 
-def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path):
-    """在 best_photo 上畫透明色塊 + 文字標籤，輸出 PNG 到 out_path"""
+def entrance_no_go_polygon_for_overlay(best_photo: Path, struct_geometry_v1):
+    """分區確認頁要畫的「門→對面牆」禁區，**讀規劃器那同一份幾何**。
+
+    ⚠️ 刻意直接呼叫 `layout_geometry_s2.entrance_hard_no_go_polygon()`，不在這裡
+    另外拉一個灰色 bbox——多畫一份就是第三套口徑，那正是這條帶當初出問題的原因
+    （legacy 有門軸淨空帶、S2 沒繼承、分區頁又畫另一種方框）。
+
+    回 None＝這張算不出禁區（門開在進深端／標記退化），照舊只畫 zones，不騙客戶。
+    整個包在 try 裡：分區頁在關鍵路徑上，畫不出來絕不能讓它 500。
+    """
+    try:
+        import cv2
+        import numpy as np
+
+        import layout_floor_reference_s2 as lfr
+        import layout_geometry_s2 as lgs2
+
+        elements = (struct_geometry_v1 or {}).get("elements")
+        if not isinstance(elements, dict):
+            return None
+        arr = np.frombuffer(Path(best_photo).read_bytes(), dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            return None
+        height, width = img.shape[:2]
+
+        def shape_of(name):
+            raw = elements.get(name) or {}
+            seg = raw.get("segment_yx1000")
+            poly = raw.get("polygon_yx1000")
+            pts = seg or poly
+            if not pts:
+                return None
+            return {"shape": {"coordinates": [
+                (p[1] / 1000.0 * width, p[0] / 1000.0 * height) for p in pts]}}
+
+        items = {}
+        for name in ("door_floor_contact", "left_wall_floor",
+                     "right_wall_floor", "living_floor"):
+            got = shape_of(name)
+            if got is None:
+                return None
+            items[name] = got
+
+        living_raw = (elements.get("living_floor") or {}).get("polygon_yx1000")
+        reference = lfr.estimate_transverse_floor_reference(best_photo, living_raw)
+        direction = (reference.get("direction_xy")
+                     if isinstance(reference, dict)
+                     and reference.get("status") == "observed" else None)
+        result = lgs2.entrance_hard_no_go_polygon(
+            items, width=width, height=height, transverse_direction_xy=direction)
+        if result.get("status") != "observed" or not result.get("polygon"):
+            print(f"[zoning-overlay] 門前禁區算不出來（{result.get('reason')}），只畫 zones")
+            return None
+        # 回正規化座標，讓 draw_overlay 用它自己的縮放後尺寸換算
+        return [[x / width, y / height] for x, y in result["polygon"]]
+    except Exception as exc:
+        print(f"[zoning-overlay] 門前禁區略過: {type(exc).__name__}: {str(exc)[:90]}")
+        return None
+
+
+def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path,
+                 entrance_no_go_norm=None):
+    """在 best_photo 上畫透明色塊 + 文字標籤，輸出 PNG 到 out_path
+
+    entrance_no_go_norm：門→對面牆禁區的正規化多邊形（0~1），由
+    `entrance_no_go_polygon_for_overlay()` 產生。給了就用「不放大型家具」同一個
+    灰色畫成多邊形——那條帶跟著地板透視走，不是軸對齊方框，畫成矩形會失真。
+    """
     import cv2
     import numpy as np
 
@@ -566,6 +633,19 @@ def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path):
             cv2.rectangle(img,     (x0, y0), (x1, y1), color, 3)
         except Exception as e:
             print(f"  bbox 解析失敗 {zone_name}: {e}")
+
+    # 門→對面牆的禁區帶。用「不放大型家具」同一個灰，客戶不需要學新圖例；
+    # 畫成多邊形而不是矩形，因為它跟著地板透視走（矩形會蓋到牆面與家具區）。
+    if entrance_no_go_norm:
+        try:
+            pts = np.array([[int(x * W), int(y * H)] for x, y in entrance_no_go_norm],
+                           dtype=np.int32)
+            if len(pts) >= 3:
+                grey = ZONE_COLORS["no_large_furniture_zone"]
+                cv2.fillPoly(overlay, [pts], grey)
+                cv2.polylines(img, [pts], True, grey, 3)
+        except Exception as e:
+            print(f"  門前禁區繪製失敗（略過）: {type(e).__name__}: {e}")
 
     blended = cv2.addWeighted(overlay, 0.35, img, 0.65, 0)
     final = blended  # 不再加標題列（前端有頁面標題）
