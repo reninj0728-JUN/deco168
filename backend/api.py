@@ -6798,6 +6798,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "reason":      str(reason)[:240],
                 "layout_mode": r.get("_layout_mode") or "legacy",
                 "blocked_render_url": _blocked_url,       # 未通過品檢的版本（可眼球校準）
+                # 2D212624 盲區：落選單沒存裁切資訊，事後查不出「門到底有沒有
+                # 被推出鏡頭」——只能靠肉眼看落選圖猜。退回 legacy 這條路的成敗
+                # 完全繫於門有沒有出鏡，這三個欄位讓它變成可查的事實。
+                "cropped":       bool(r.get("cropped")),
+                "crop_note":     r.get("crop_note"),
+                "door_excluded": bool(r.get("door_excluded")),
                 **_validation_diagnostics(r),
             })
 

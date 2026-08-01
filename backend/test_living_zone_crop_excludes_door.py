@@ -99,3 +99,19 @@ def test_door_exclusion_shares_one_implementation():
     import inspect
     src = inspect.getsource(api._crop_to_living_zone)
     assert "_door_exclusion_limits(" in src, "客廳區特寫沒有共用同一個門排除函式"
+
+
+def test_dropped_render_records_crop_facts():
+    """落選單必須存下裁切事實，否則「門有沒有出鏡」事後只能靠肉眼猜。
+
+    2D212624 診斷時就撞到這個盲區：diag 看得到 layout_mode=legacy_fallback，
+    卻看不到 door_excluded / crop_note，無法判斷是「門排除沒生效」還是
+    「根本沒走這條路」。退回 legacy 的成敗完全繫於門有沒有出鏡。
+    """
+    import inspect
+    src = inspect.getsource(api)
+    marker = '"blocked_render_url": _blocked_url,'
+    assert marker in src
+    tail = src.split(marker, 1)[1][:600]
+    for field in ('"cropped":', '"crop_note":', '"door_excluded":'):
+        assert field in tail, f"落選單沒存 {field}——門是否出鏡查不到"
