@@ -158,10 +158,17 @@ def _sweep_stale_jobs() -> int:
         print(f"[watchdog] 掃描失敗（不阻斷啟動）: {type(e).__name__}: {str(e)[:150]}")
     return 0
 
-# ── Storage 保留期自動清理：renders/uploads 超過 STORAGE_RETENTION_DAYS 的檔案
-#    自動刪（2026-07 超額 4.3GB 被 Supabase 停權事故的根治）。每次部署啟動時跑，
-#    在背景 thread 執行避免拖慢啟動健康檢查。 ──
-STORAGE_RETENTION_DAYS = int(os.environ.get("STORAGE_RETENTION_DAYS") or "14")
+# ── 保留期自動清理：storage 檔案與訂單內容都只留 RETENTION_DAYS 天
+#    （2026-07 超額 4.3GB 被 Supabase 停權事故的根治）。每次部署啟動時跑，
+#    在背景 thread 執行避免拖慢啟動健康檢查。
+#
+#    2026-08-03 由 14 改 30 天：實測 30 天保留 121 筆訂單（14 天只留 48 筆），
+#    資料庫仍只有 1.8MB。之所以還這麼小，是因為撐爆 DB 的 400MB base64
+#    （reference_map 存整張照片）全在 6 月，而 30 天前正好是 7/04，整批都在
+#    清理範圍內。再往後放就會踩到 6 月尾巴：45 天 → 230MB、60 天 → 400MB。
+#    storage 與 orders 共用同一個天數，不要兩邊各寫各的。 ──
+RETENTION_DAYS = int(os.environ.get("STORAGE_RETENTION_DAYS") or "30")
+STORAGE_RETENTION_DAYS = RETENTION_DAYS      # 舊名保留，避免其他引用處壞掉
 
 def _storage_list_prefix(bucket: str, prefix: str) -> list:
     r = _req.post(f"{SUPABASE_URL}/storage/v1/object/list/{bucket}",
@@ -195,7 +202,7 @@ def _storage_walk_old(bucket: str, prefix: str, cutoff, depth: int = 0) -> list[
 def _purge_expired_storage():
     from datetime import datetime, timedelta, timezone
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=STORAGE_RETENTION_DAYS)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
         total = 0
         for bucket in ("renders", "uploads"):
             old = _storage_walk_old(bucket, "", cutoff)
@@ -206,15 +213,50 @@ def _purge_expired_storage():
                 if r.ok:
                     total += len(chunk)
         if total:
-            print(f"[storage-cleanup] 已清 {total} 個超過 {STORAGE_RETENTION_DAYS} 天的檔案")
+            print(f"[storage-cleanup] 已清 {total} 個超過 {RETENTION_DAYS} 天的檔案")
     except Exception as e:
         print(f"[storage-cleanup] 清理失敗（不影響服務）: {type(e).__name__}: {str(e)[:150]}")
+
+def _purge_expired_orders():
+    """訂單內容也只留 RETENTION_DAYS 天——storage 早就在清了，DB 從來沒清過。
+
+    2026-08-03 實測：232 筆訂單佔 450MB（免費版上限 500MB 的 90%），其中
+    7/16 前的 175 筆就佔 400MB——幾乎全是 6 月「reference_map 存 base64 整張照片」
+    的歷史包袱（6 月底已修，7 月起每筆只剩 14KB）。storage 的 14 天清理只刪檔案，
+    orders 這張表沒人清，所以一路累積。
+
+    **只清空 result_json，保留這一列**（job_id/status/created_at）：
+      * 清空後每列只剩約 200 bytes，一年幾千單也才幾百 KB，等於不佔空間。
+      * 保留列才能讓結果頁回「這張設計已超過保留期」，而不是 404 或壞掉的空白頁。
+        客戶把網址存書籤、三週後回來點開，看到「已過期」比看到錯誤好。
+    """
+    from datetime import datetime, timedelta, timezone
+    try:
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(days=RETENTION_DAYS)).isoformat()
+        r = _req.patch(
+            f"{SUPABASE_URL}/rest/v1/orders",
+            params={"created_at": f"lt.{cutoff}", "result_json": "not.is.null"},
+            json={"result_json": None,
+                  "message": f"此設計已超過 {RETENTION_DAYS} 天保留期，如需重新產出請聯絡客服"},
+            headers={**_SB_HEADERS, "Prefer": "return=headers-only,count=exact"},
+            timeout=60,
+        )
+        if r.ok:
+            rng = r.headers.get("content-range") or ""
+            print(f"[orders-cleanup] 已清空超過 {RETENTION_DAYS} 天的訂單內容 ({rng})")
+        else:
+            print(f"[orders-cleanup] 清理失敗 HTTP {r.status_code}: {r.text[:150]}")
+    except Exception as e:
+        print(f"[orders-cleanup] 清理失敗（不影響服務）: {type(e).__name__}: {str(e)[:150]}")
+
 
 @app.on_event("startup")
 def _startup_watchdog():
     _sweep_stale_jobs()
     import threading
     threading.Thread(target=_purge_expired_storage, daemon=True).start()
+    threading.Thread(target=_purge_expired_orders, daemon=True).start()
 
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
@@ -8025,8 +8067,8 @@ async def api_zoning(upload_id: str = Form(...),
         "photo_key": best_source_key,
         "sha256": _source_file_sha256(best_photo),
     }
-    existing_path = tmp_dir / "z_overlay_existing.png"
-    proposed_path = tmp_dir / "z_overlay_proposed.png"
+    existing_path = tmp_dir / "z_overlay_existing.jpg"
+    proposed_path = tmp_dir / "z_overlay_proposed.jpg"
     # 門→對面牆的禁區帶：讀規劃器那**同一份**幾何（entrance_hard_no_go_polygon），
     # 不在這裡另外拉一個灰色 bbox。客戶在確認頁看到的，就是生成端真正遵守的那塊。
     # 算不出來（門開在進深端／標記退化）就回 None，照舊只畫 zones，不畫假的給客戶看。
@@ -8059,7 +8101,11 @@ async def api_zoning(upload_id: str = Form(...),
                 headers={
                     "apikey":        SUPABASE_KEY,
                     "Authorization": f"Bearer {SUPABASE_KEY}",
-                    "Content-Type":  "image/png",
+                    # 分區圖已改 JPEG（PNG 每張 1.9MB、JPEG q88 約 0.2MB）。
+                    # 副檔名決定 Content-Type，不要寫死 image/png——寫死會讓
+                    # JPEG bytes 被當成 PNG 送，瀏覽器不一定吃。
+                    "Content-Type":  ("image/png" if local.suffix.lower() == ".png"
+                                      else "image/jpeg"),
                     "x-upsert":      "true",
                 },
                 timeout=30,
@@ -8082,8 +8128,8 @@ async def api_zoning(upload_id: str = Form(...),
             pass
         return None
 
-    overlay_existing_url = _upload_overlay(existing_path, "zoning_overlay_existing.png")
-    overlay_proposed_url = _upload_overlay(proposed_path, "zoning_overlay_proposed.png")
+    overlay_existing_url = _upload_overlay(existing_path, "zoning_overlay_existing.jpg")
+    overlay_proposed_url = _upload_overlay(proposed_path, "zoning_overlay_proposed.jpg")
 
     return {
         "upload_id":            upload_id,

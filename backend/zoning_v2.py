@@ -650,6 +650,9 @@ def draw_overlay(best_photo: Path, zones: dict, title: str, out_path: Path,
     blended = cv2.addWeighted(overlay, 0.35, img, 0.65, 0)
     final = blended  # 不再加標題列（前端有頁面標題）
 
-    ok, buf = cv2.imencode(".png", final)
+    # 分區確認頁只是給客戶「看」的確認圖，不提供下載、不是成品。
+    # PNG 每張約 1.9MB（78 張佔 Storage 146MB、53%）；JPEG q88 約 0.2MB，
+    # 肉眼看不出差別。成品渲染圖早就是 JPEG 了，這裡是漏網的最後一處。
+    ok, buf = cv2.imencode(".jpg", final, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
     out_path.write_bytes(buf.tobytes())
     print(f"  {out_path.name} ({final.shape[1]}x{final.shape[0]})")
