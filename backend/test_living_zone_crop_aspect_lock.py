@@ -224,17 +224,26 @@ def test_only_proven_model_gets_the_aspect_lock(monkeypatch):
     """白名單：只有 gpt-image-2 收斂，其餘一律回 None。
 
     ⚠️ 這條是修一個真 bug 的回歸鎖。舊版寫成
-        if model == gpt2: ... else: <用 banana 的 enum>
-    於是**任何**不認得的模型都被當成 banana，會照一份沒有證據的比例裁圖，
-    而且靜默無訊息。白名單才不會有這種漏斗。
+        if model == gpt2: ... else: <用另一個模型的 enum>
+    於是**任何**不認得的模型都會照一份沒有證據的比例裁圖，而且靜默無訊息。
+    白名單才不會有這種漏斗。
+
+    2026-08-04 起渲染模型已硬綁 gpt-image-2，所以這條測的是守門本身還在，
+    不是「env 會不會換模型」——直接替換解析函式，不繞 env。
     """
-    monkeypatch.setenv("RENDER_MODEL", GPT2)
     assert api._model_output_ar_for(2561, 1905) == pytest.approx(1.5, abs=0.01)
 
-    for other in (BANANA, "some/unknown/model-v9", "fal-ai/flux/dev", "", "auto"):
-        monkeypatch.setenv("RENDER_MODEL", other)
+    for other in ("fal-ai/nano-banana-pro/edit", "some/unknown/model-v9", "", "auto"):
+        monkeypatch.setattr(api, "_legacy_render_model", lambda _m=other: _m)
         assert api._model_output_ar_for(2561, 1905) is None, (
             f"model={other!r} 竟然拿到了收斂目標——白名單破了")
+
+
+def test_whitelist_matches_the_only_render_model():
+    """白名單常數必須等於生成端唯一的模型，不得各寫各的。"""
+    from test_full_pipeline import RENDER_MODEL
+    assert api._ASPECT_LOCKED_MODEL == RENDER_MODEL, (
+        f"裁切端鎖 {api._ASPECT_LOCKED_MODEL}、生成端跑 {RENDER_MODEL}")
 
 
 def test_threshold_lookup_failure_also_skips(monkeypatch):
@@ -254,52 +263,50 @@ def test_threshold_lookup_failure_also_skips(monkeypatch):
     assert api._model_output_ar_for(2703, 2389) is None
 
 
-def test_banana_is_excluded_because_it_never_sends_aspect_ratio():
-    """絆線：banana 之所以被排除，是因為非 anchored 請求根本不送 aspect_ratio。
+def test_no_other_render_endpoint_remains():
+    """絆線：生成端不得再有第二個渲染模型端點。
 
-    `prompt_builder` 有一份十檔 aspect_ratio enum，看起來可以拿來收斂，但那份
-    只有 `build_anchored_inputs` 會送。非 anchored 的 banana fal_args 沒有這個
-    欄位 ⇒ 拿 enum 當「模型會照這個比例輸出」是一廂情願。
-
-    **如果哪天非 anchored 也開始送 aspect_ratio，這條會失敗**——那就是可以把
-    banana 納入比例鎖的訊號，不是要把這條測試刪掉。
+    2026-08-04 移除 nano-banana 殘黨——它一單也沒跑過，卻讓每個下游都得處理
+    「萬一翻回去」的假想情況（比例桶就為此繞了一大圈）。這條擋它回來：
+    只要 `generate_renders` 又出現別的 fal 模型字串，比例鎖的白名單前提就破了，
+    必須重新確認那個模型的輸出比例可不可證。
     """
     import inspect
     import test_full_pipeline as tfp
-    lines = [ln for ln in inspect.getsource(tfp.generate_renders).splitlines()
-             if "aspect_ratio" in ln]
-    assert lines, "generate_renders 完全沒有 aspect_ratio，前提變了"
-    non_anchored = [ln.strip() for ln in lines if "a_inputs" not in ln]
-    assert not non_anchored, (
-        "非 anchored 路徑現在有送 aspect_ratio 了 → 可以考慮把 banana 納入比例鎖；"
-        f"先確認送出去的值與裁切端同一份 enum。相關行：{non_anchored}")
-    assert any('"aspect_ratio"' in ln for ln in lines), (
-        "anchored 路徑不再把 aspect_ratio 放進 fal_args，前提變了")
+    src = inspect.getsource(tfp.generate_renders)
+    for gone in ("nano-banana", "aspect_ratio", "build_anchored_inputs", "use_anchored"):
+        assert gone not in src, f"generate_renders 又出現 {gone!r}——白名單前提要重驗"
+    assert "RENDER_MODEL" in src, "生成端沒有引用唯一的 RENDER_MODEL 常數"
+    assert tfp.RENDER_MODEL == "openai/gpt-image-2/edit"
 
 
-def test_render_model_resolution_shares_the_generator_default(monkeypatch):
-    """連「沒設 RENDER_MODEL 時預設哪個模型」都必須跟生成端同一份。
+def test_render_model_resolution_shares_the_generator(monkeypatch):
+    """裁切端解析出來的模型，必須就是生成端會用的那個，不得自己寫一份。
 
-    生成端 `_resolve_render_model` 的預設是 banana。裁切端若自己寫成
-    gpt-image-2，env 沒設時就會照錯模型裁——而且不會有任何錯誤訊息。
+    以前這裡是「連預設值都要一致」；模型硬綁之後改成更強的斷言：
+    **env 怎麼設都不影響**，兩邊永遠同值。
     """
     from test_full_pipeline import _resolve_render_model
-    monkeypatch.delenv("RENDER_MODEL", raising=False)
-    assert api._legacy_render_model() == _resolve_render_model(None)
-    assert api._legacy_render_model() == BANANA, "裁切端的預設跟生成端不一致"
+    for env in (GPT2, "fal-ai/nano-banana-pro/edit", "亂寫", None):
+        if env is None:
+            monkeypatch.delenv("RENDER_MODEL", raising=False)
+        else:
+            monkeypatch.setenv("RENDER_MODEL", env)
+        assert api._legacy_render_model() == _resolve_render_model(None) == GPT2, (
+            f"RENDER_MODEL={env!r} 竟然改變了模型解析")
     src = inspect.getsource(api._legacy_render_model)
     assert "_resolve_render_model" in src, "沒有共用生成端的解析函式"
 
 
-@pytest.mark.parametrize("model", [BANANA, "some/unknown/model-v9"])
+@pytest.mark.parametrize("model", ["fal-ai/nano-banana-pro/edit", "some/unknown/model-v9"])
 def test_unproven_model_keeps_the_unconverged_box(tmp_path, monkeypatch, model):
     """非 gpt-image-2 時整條收斂跳過：裁切框必須完全等於未收斂的框。
 
-    ⚠️ 前一版這條測試是假的——它 monkeypatch 讓 banana 函式拋例外才拿到 None，
-    但真實的未知模型不會拋例外，會安靜地走進 banana 分支。這裡改成只設
-    `RENDER_MODEL`、不碰任何內部函式，測的才是真實路徑。
+    ⚠️ 有一版這條測試是假的——它 monkeypatch 讓另一個模型的比例函式拋例外才
+    拿到 None，但真實的未知模型不會拋例外，會安靜地走進那個分支。現在模型已
+    硬綁，這裡替換的是解析函式本身，測的是白名單守門的行為。
     """
-    monkeypatch.setenv("RENDER_MODEL", model)
+    monkeypatch.setattr(api, "_legacy_render_model", lambda: model)
     out = api._crop_to_living_zone(
         str(_photo(tmp_path, name=f"u_{model.replace('/', '_')}.jpg")), tmp_path, 9,
         LIVING_FULL_1000, entrance_bbox1000=DOOR_1000)

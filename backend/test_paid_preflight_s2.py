@@ -29,20 +29,25 @@ def test_s2_global_flag_blocks_living_render_when_metadata_is_missing(tmp_path, 
 
 
 def test_s2_required_forces_multi_image_gpt_image2_mode(monkeypatch):
+    """S2 一律走 multi-image edit；env 與 override 都不得把模型換掉。
+
+    2026-08-04：`_resolve_generation_mode` 改回單一 bool（anchored 分支連同
+    nano-banana 端點一起移除），`_resolve_render_model` 硬綁 gpt-image-2。
+    """
     monkeypatch.setenv("USE_NANO_BANANA", "0")
     monkeypatch.setenv("USE_ANCHORED_MODE", "0")
     monkeypatch.setenv("RENDER_MODEL", "fal-ai/nano-banana-pro/edit")
 
     assert pipeline._resolve_generation_mode(
-        [{"_layout_contract_s2_required": True}], force_anchored=False,
-    ) == (True, False)
+        [{"_layout_contract_s2_required": True}]) is True
+    assert pipeline._resolve_generation_mode(
+        [{"_layout_contract_s2_required": False}]) is False
+    # env 設成別的模型、override 也傳別的模型，都不得改變結果
     assert pipeline._resolve_render_model(
         {"_layout_contract_s2_required": True},
         override="fal-ai/nano-banana-pro/edit",
     ) == "openai/gpt-image-2/edit"
-    assert pipeline._resolve_generation_mode(
-        [{"_layout_contract_s2_required": False}], force_anchored=False,
-    ) == (False, False)
+    assert pipeline._resolve_render_model(None) == pipeline.RENDER_MODEL
 
 
 def test_s2_required_render_cannot_bypass_preflight_via_room_type(tmp_path, monkeypatch):

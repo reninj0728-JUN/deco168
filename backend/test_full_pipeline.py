@@ -39,7 +39,7 @@ def _get_system_prompt():
 
 from google.genai import types
 from furniture_match import enrich_renders
-from prompt_builder import build_nano_banana_inputs, build_anchored_inputs
+from prompt_builder import build_nano_banana_inputs
 import fal_client
 import requests
 
@@ -905,32 +905,37 @@ def _save_render_jpg(img_bytes: bytes, out_path: str) -> None:
             f.write(img_bytes)
 
 
-def _resolve_generation_mode(enriched_renders: list[dict], force_anchored: bool) -> tuple[bool, bool]:
-    """S2 requires multi-image GPT Image 2; Flux and Banana anchored are both invalid."""
+def _resolve_generation_mode(enriched_renders: list[dict],
+                             force_anchored: bool = False) -> bool:
+    """要不要走 multi-image edit 分支（S2 一律要）。
+
+    2026-08-04：anchored 模式連同它直呼 `fal-ai/nano-banana-pro/edit` 的分支
+    一起移除了，所以不再回傳第二個旗標。`force_anchored` 參數留著只為不動
+    api.py 那 7 個呼叫點（它在那邊還牽著 MAX_RETRY），這裡不再有作用。"""
     s2_force_gpt_image2 = any(
         bool(render.get("_layout_contract_s2_required"))
         for render in (enriched_renders or [])
         if isinstance(render, dict)
     )
-    use_nano = (
+    return (
         os.environ.get("USE_NANO_BANANA", "0").strip() == "1"
         or s2_force_gpt_image2
     )
-    use_anchored = use_nano and not s2_force_gpt_image2 and (
-        force_anchored
-        or os.environ.get("USE_ANCHORED_MODE", "0").strip() == "1"
-    )
-    return use_nano, use_anchored
 
 
-def _resolve_render_model(render: dict | None, override: str | None = None) -> str:
-    if isinstance(render, dict) and (
-            render.get("_layout_contract_s2_required") is True
-            or render.get("_force_mask_local_edit") is True):
-        return "openai/gpt-image-2/edit"
-    return (
-        override or os.environ.get("RENDER_MODEL", "fal-ai/nano-banana-pro/edit")
-    ).strip()
+RENDER_MODEL = "openai/gpt-image-2/edit"
+
+
+def _resolve_render_model(render: dict | None = None, override: str | None = None) -> str:
+    """渲染模型只有一個：gpt-image-2。
+
+    2026-08-04 收斂：以前這裡讀 `RENDER_MODEL` env、預設 nano-banana，但
+    Railway 從頭到尾都設 gpt-image-2，nano-banana 一單也沒跑過。留著那個
+    env 分支的唯一效果，是讓每個下游都得處理「萬一翻回 banana」的假想情況
+    （裁切端的比例桶就為此繞了一大圈）。`override` 也是死的：唯一的呼叫端
+    `_phase3_base_strategies` 每個策略都傳 None，註解裡的「策略B 換渲染模型」
+    從來沒實作過。參數保留只為不動呼叫端簽章。"""
+    return RENDER_MODEL
 
 
 def _gpt_image2_mask_data_url(render: dict | None) -> str | None:
@@ -1070,7 +1075,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
     customer_notes / budget_tier: Phase A 帶入 Nano Banana prompt（仍只 USE_NANO_BANANA=1 時生效）
     retry_context: C2.3 第二次 retry 用，含前次 sofa_pct / anchor_pct，附加進 prompt
     """
-    use_nano, use_anchored = _resolve_generation_mode(enriched_renders, force_anchored)
+    use_nano = _resolve_generation_mode(enriched_renders)
     s2_gpt_image2 = any(
         isinstance(render, dict) and render.get("_layout_contract_s2_required") is True
         for render in (enriched_renders or [])
@@ -1079,10 +1084,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
     print(f"\n{'='*56}")
     if s2_gpt_image2:
         print("[Step 3] GPT Image 2 multi-image S2 edit")
-    elif use_anchored:
-        print("[Step 3] Nano Banana Pro ANCHORED MODE（USE_NANO_BANANA=1, USE_ANCHORED_MODE=1）")
     elif use_nano:
-        print("[Step 3] Nano Banana Pro 生成渲染圖（USE_NANO_BANANA=1）")
+        print("[Step 3] GPT Image 2 multi-image edit 生成渲染圖")
     else:
         print("[Step 3] Flux Kontext Pro 生成渲染圖")
     print(f"{'='*56}")
@@ -1204,73 +1207,6 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
 
         # ── USE_NANO_BANANA=1：multi-image edit 分支 ──
         if use_nano:
-            # ── USE_ANCHORED_MODE=1：D' 驗證過的 anchored 配方 ──
-            if use_anchored:
-                base_path = image_paths[idx % len(img_urls)]
-                src_dims = _source_dims(base_path)
-                a_inputs = build_anchored_inputs(
-                    render, base_image_url, source_dims=src_dims,
-                    layout_guide_url=_bound_guide_url,
-                    retry_context=retry_context,
-                )
-                print(f"  Nano Banana ANCHORED refs: {len(a_inputs['image_urls'])} 張 "
-                      f"(prompt {len(a_inputs['prompt'])} chars, "
-                      f"aspect_ratio={a_inputs['aspect_ratio']}, seed={a_inputs['seed']})")
-                log_ctx = {
-                    "job_id":           job_id,
-                    "upload_id_masked": upload_id_masked,
-                    "render_mode":      "anchored",
-                    "style":            style,
-                    "render_index":     idx,
-                    "attempt":          attempt,
-                    "stage":            stage,
-                }
-                record_guide_attach(
-                    render, stage=stage, attempt=attempt,
-                    image_urls=a_inputs["image_urls"], guide_url=_bound_guide_url,
-                )
-                try:
-                    result, img_bytes = _fal_subscribe_timed(
-                        "fal-ai/nano-banana-pro/edit",
-                        {
-                            "image_urls":     a_inputs["image_urls"],
-                            "prompt":         a_inputs["prompt"],
-                            "system_prompt":  a_inputs["system_prompt"],
-                            "resolution":     a_inputs["resolution"],
-                            "aspect_ratio":   a_inputs["aspect_ratio"],
-                            "seed":           a_inputs["seed"],
-                            "output_format":  a_inputs["output_format"],
-                        },
-                        log_ctx=log_ctx,
-                    )
-                    out_path = os.path.join(output_dir, f"render_{style}.jpg")
-                    _save_render_jpg(img_bytes, out_path)
-                    results.append({
-                        **render,
-                        "render_path": out_path,
-                        "reference_map": a_inputs["reference_map"],
-                        "notes": a_inputs["notes"],
-                        "unmatched_visual_items": a_inputs["unmatched_visual_items"],
-                        "pipeline_version": "nano-banana-anchored-v1",
-                        "render_mode": "anchored",
-                    })
-                except (FalGenerationTimeout, FalResultDownloadError):
-                    # C2.6 Patch A: 不吞 fal 明確例外; 讓 run_pipeline outer except 標 failed.
-                    # _fal_subscribe_timed 已印 structured log, 不必重複.
-                    raise
-                except Exception as e:
-                    results.append({
-                        **render,
-                        "render_path": None,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                        "reference_map": a_inputs.get("reference_map", []),
-                        "notes": a_inputs.get("notes", ""),
-                        "unmatched_visual_items": a_inputs.get("unmatched_visual_items", []),
-                        "pipeline_version": "nano-banana-anchored-v1",
-                        "render_mode": "anchored",
-                    })
-                continue   # 跳過底下的既有 nano-banana 與 Flux 分支
 
             # 跨房一致性：api.py 在 entry 上掛「同風格已完成的客廳成品圖」路徑
             _cons_url = None
@@ -1311,12 +1247,10 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 "attempt":          attempt,
                 "stage":            stage,
             }
-            # ── Model-specific payload (env-gated, 預設保守 Nano Banana) ──
-            # RENDER_MODEL 預設 fal-ai/nano-banana-pro/edit (現況). 改為
-            # openai/gpt-image-2/edit 啟用 GPT Image 2 medium 降成本.
-            # 兩組 args 不同, 不能用同一份 payload 餵.
+            # 渲染模型只有 gpt-image-2 一個（見 `_resolve_render_model`）。
+            # 這個 if 保留成守門：模型若被換掉，fal_args 不會被靜默沿用。
             render_model = _resolve_render_model(render, render_model_override)
-            if render_model == "openai/gpt-image-2/edit":
+            if render_model == RENDER_MODEL:
                 # gpt-image-2 傾向 auto zoom-in / 重構成 staged 室內攝影棚.
                 # 補硬性 camera constraints 鎖原圖視角 + 廣角縱深 + 前景地板.
                 # image_size=auto 明確設定 (即便目前已是預設, 防未來預設變動).
@@ -1374,13 +1308,13 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                               f"mode={render.get('_edit_mask_mode') or 'sofa'} "
                               f"(short prompt {len(fal_args['prompt'])} chars)")
             else:
-                fal_args = {
-                    "image_urls":    inputs["image_urls"],
-                    "prompt":        inputs["prompt"],
-                    "system_prompt": inputs["system_prompt"],
-                    "resolution":    "1K",
-                    "output_format": "png",
-                }
+                # 到不了：`_resolve_render_model` 永遠回 RENDER_MODEL。留這個分支是
+                # 為了「換模型」時炸得明確，而不是沿用上一個模型的 fal_args 或
+                # 丟一個看不懂的 NameError。
+                raise RuntimeError(
+                    f"未知的渲染模型 {render_model!r}——payload 格式未定義。"
+                    f"目前只支援 {RENDER_MODEL}；要新增模型必須同時確認它的輸出"
+                    f"比例桶（見 api._model_output_ar_for 的白名單）。")
             # fal 偶爾抓不到某張參考商品圖（例：PChome 圖）→ file_download_error，整張 render 失敗。
             # 對策：移除 fal 抓不到的參考圖（保留房間底圖）後重試一次，避免一張外部圖掛掉整個風格。
             attempt_args = fal_args
@@ -1403,7 +1337,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                         "notes": inputs["notes"],
                         "unmatched_visual_items": inputs["unmatched_visual_items"],
                         "pipeline_version": (
-                            "gpt-image-2-s2-v1" if _is_s2_gpt else "nano-banana-v1"
+                            "gpt-image-2-s2-v1" if _is_s2_gpt else "gpt-image-2-legacy-v1"
                         ),
                         "render_model": render_model,   # 實際用的模型（banana / gpt-image-2），方便 debug
                         "render_mode": "gpt-image-2-s2" if _is_s2_gpt else "legacy",
@@ -1459,7 +1393,7 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                     "notes": inputs.get("notes", ""),
                     "unmatched_visual_items": inputs.get("unmatched_visual_items", []),
                     "pipeline_version": (
-                        "gpt-image-2-s2-v1" if _is_s2_gpt else "nano-banana-v1"
+                        "gpt-image-2-s2-v1" if _is_s2_gpt else "gpt-image-2-legacy-v1"
                     ),
                     "render_model": render_model,
                     "render_mode": "gpt-image-2-s2" if _is_s2_gpt else "legacy",
