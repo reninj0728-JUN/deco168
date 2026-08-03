@@ -2356,6 +2356,73 @@ def _door_exclusion_limits(W: int, door_x0: int, door_x1: int) -> tuple[int, int
     return (0, W)
 
 
+def _legacy_render_model() -> str:
+    """legacy 這條路沒有 S2 contract，模型純由 `RENDER_MODEL` 決定。
+
+    刻意呼叫 `_resolve_render_model(None)` 而不是自己讀 env——連「沒設時預設
+    banana」這個行為都必須跟生成端同一份，否則裁切會照著另一個模型的比例裁。"""
+    try:
+        from test_full_pipeline import _resolve_render_model
+        return _resolve_render_model(None)
+    except Exception:
+        return (os.environ.get("RENDER_MODEL") or "fal-ai/nano-banana-pro/edit").strip()
+
+
+# 唯一「輸出比例可證」的模型。白名單而非黑名單：不認得的模型一律跳過收斂，
+# 而不是猜一個比例去裁——猜錯就是白砍畫面，而且不會有任何錯誤訊息。
+_ASPECT_LOCKED_MODEL = "openai/gpt-image-2/edit"
+
+
+def _model_output_ar_for(cw: int, ch: int) -> float | None:
+    """裁切框尺寸 → 模型真的會輸出的寬高比；無法證明時回 None（＝跳過收斂）。
+
+    **只對 gpt-image-2 生效**，因為只有它的輸出比例是可證的：
+    `test_full_pipeline._gpt_image_size_for` 明文把 image_size 釘成三種尺寸之一，
+    模型別無選擇。回傳的目標是穩定不動點，收斂後仍落在同一檔，不需迭代。
+
+    ⚠️ **nano-banana 刻意不納入**，雖然 `prompt_builder` 有一份十檔 aspect_ratio
+    enum 看起來可以用。理由是那份 enum 只有 anchored 路徑會送
+    （`build_anchored_inputs` 才組 aspect_ratio）；**非 anchored 的 banana 請求
+    只送 image_urls/prompt/system_prompt/resolution/output_format，沒有
+    aspect_ratio**。拿 enum 當成「模型會照這個比例輸出」是程式端一廂情願，
+    沒有證據。要納入 banana，先確認生成請求真的送了 aspect_ratio，或實測它
+    不送參數時的輸出比例——`test_only_proven_model_gets_the_aspect_lock`
+    那組測試會在條件成立時提醒。
+
+    跳過收斂＝維持這條路徑一直以來的行為，不會比現在更糟。"""
+    model = _legacy_render_model()
+    if model != _ASPECT_LOCKED_MODEL:
+        print(f"[pipeline] 客廳區特寫：model={model} 的輸出比例無法證明，跳過收斂")
+        return None
+    try:
+        from test_full_pipeline import gpt_output_size_for_ratio
+        size = gpt_output_size_for_ratio(cw / max(1, ch))
+        return float(size["width"]) / float(size["height"])
+    except Exception as e:
+        print(f"[pipeline] 目標比例取不到（model={model}）：{type(e).__name__} → 跳過收斂")
+        return None
+
+
+def _converge_box_to_ar(x0: int, y0: int, x1: int, y1: int,
+                        target_ar: float, *, tol: float = 0.02):
+    """在現有框內收斂到 target_ar——**只裁不補**，回傳的框必定含於輸入框。
+
+    太寬→置中裁寬；太高→偏下裁高（少裁上緣保天花板/間照，多裁前景地板）。
+    裁法與 `_crop_region_base` 的比例鎖一致，刻意不另立一套。"""
+    cw, ch = x1 - x0, y1 - y0
+    ar = cw / max(1, ch)
+    if ar > target_ar + tol:
+        need_w = max(1, int(ch * target_ar))
+        cx = (x0 + x1) // 2
+        nx0 = max(x0, min(cx - need_w // 2, x1 - need_w))
+        return nx0, y0, nx0 + need_w, y1
+    if ar < target_ar - tol:
+        need_h = max(1, int(cw / target_ar))
+        ny0 = y0 + int((ch - need_h) * 0.25)
+        return x0, ny0, x1, ny0 + need_h
+    return x0, y0, x1, y1
+
+
 def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tuple[str, bool, str, bool]:
     """回傳 (要用的底圖路徑, 是否有裁切, 沒裁時的具體原因, 大門是否已排除出鏡)。"""
     zone_key = _RT_TO_ZONE_KEY.get(room_type)
@@ -4529,6 +4596,36 @@ def _crop_to_living_zone(base_path: str, job_dir, idx: int,
                     print(f"[pipeline] 客廳區特寫：門排除後過窄（{_nx1-_nx0}px），維持原裁切")
             except (TypeError, ValueError):
                 pass
+        # ── 比例鎖 ──────────────────────────────────────────────────────
+        # 29C70C03 教訓（2026-08-03）：門排除後是 2561x1905=1.344，但 gpt-image-2
+        # 只輸出固定三種尺寸、這張會拿到 1536x1024=1.500。比例不一致時模型**必須**
+        # 對畫面做裁切／重構／補畫才能填滿輸出框——差多少就有多少畫面不是原照片的。
+        # ⚠️ 比例差只證明「一定會發生重構」，**不能證明它會補在哪一側**；客戶回報
+        # 「感覺不是裁掉是移除掉、空間感也不對」與這 11.6% 的落差時間吻合、方向
+        # 合理，但那是推論不是量測。這道鎖要消除的是**重構壓力本身**。
+        # `_crop_region_base` 早就有這道鎖（F87A75BB 修的），這條客廳區特寫路徑
+        # 一直漏掉，補上。
+        # 目標比例向【實際那個模型】取、不寫死 1.5，兩個理由：
+        #   a) 直式的客廳區若被硬拉成橫式要砍掉一半高度，比留著比例差更糟；
+        #   b) gpt-image-2 與 nano-banana 的比例桶完全不同（見 `_model_output_ar_for`），
+        #      寫死等於賭 RENDER_MODEL 永遠不會被翻回去。
+        # ⚠️ 收斂方向會隨落在哪個桶而變：落 1.5 桶時裁【高】（與門排除的裁寬互不
+        # 干擾），落 1.0 桶時同樣裁【寬】、與門排除**同向疊加**。所以兩道守門
+        # 都要檢查，不能只看其中一邊。
+        _t_ar = _model_output_ar_for(x1 - x0, y1 - y0)
+        if _t_ar is None:
+            print("[pipeline] 客廳區特寫：判不出模型輸出比例，跳過收斂（維持現況）")
+        else:
+            _cx0, _cy0, _cx1, _cy1 = _converge_box_to_ar(x0, y0, x1, y1, _t_ar)
+            if (_cx1 - _cx0) >= W * 0.28 and (_cy1 - _cy0) >= H * 0.28:
+                if (_cx0, _cy0, _cx1, _cy1) != (x0, y0, x1, y1):
+                    print(f"[pipeline] 客廳區特寫：比例收斂 {x1-x0}x{y1-y0} → "
+                          f"{_cx1-_cx0}x{_cy1-_cy0}（目標 {_t_ar:.3f}，"
+                          f"model={_legacy_render_model()}）")
+                x0, y0, x1, y1 = _cx0, _cy0, _cx1, _cy1
+            else:
+                print(f"[pipeline] 客廳區特寫：比例收斂後過小（{_cx1-_cx0}x{_cy1-_cy0}），"
+                      f"維持未收斂裁切（比例差仍在，但總比廢底圖好）")
         crop = img[y0:y1, x0:x1]
         if crop.size == 0:
             return None

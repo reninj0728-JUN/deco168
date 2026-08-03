@@ -860,6 +860,19 @@ def _extract_failed_image_urls(err_text: str) -> list[str]:
     return list(dict.fromkeys(urls))  # 去重保序
 
 
+def gpt_output_size_for_ratio(r: float) -> dict:
+    """寬高比 → gpt-image-2 的固定輸出尺寸。
+
+    抽出來給「裁切端」共用：裁切框要收斂到模型**真的會輸出**的比例，就必須跟
+    這裡讀同一組門檻，不可以各自寫一個常數——兩套口徑正是這系列問題的病根
+    （參照 `_door_exclusion_limits` 也是刻意共用的）。"""
+    if r >= 1.15:
+        return {"width": 1536, "height": 1024}
+    if r <= 0.87:
+        return {"width": 1024, "height": 1536}
+    return {"width": 1024, "height": 1024}
+
+
 def _gpt_image_size_for(base_path: str) -> dict:
     """底圖方向 → 固定輸出尺寸（gpt-image-2 僅支援這三種）。
     F87A75BB 抓漏：image_size=auto 會跟著輸入圖的比例跑——客廳裁切框是
@@ -871,12 +884,7 @@ def _gpt_image_size_for(base_path: str) -> dict:
         from PIL import Image
         with Image.open(base_path) as im:
             w, h = im.size
-        r = w / max(1, h)
-        if r >= 1.15:
-            return {"width": 1536, "height": 1024}
-        if r <= 0.87:
-            return {"width": 1024, "height": 1536}
-        return {"width": 1024, "height": 1024}
+        return gpt_output_size_for_ratio(w / max(1, h))
     except Exception:
         return {"width": 1536, "height": 1024}
 
