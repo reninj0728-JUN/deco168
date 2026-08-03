@@ -39,3 +39,8 @@ R2_KEYS.txt
 # POC 實驗腳本（不進 production）
 backend/poc_*.py
 backend/poc_output/
+
+# 本機暫存／診斷產物（客戶照片、抽幀、zoning dump 都會落在這裡）
+# 2026-08-04：scratchpad/ 一直沒被忽略，裡面躺著 29C70C03 的客戶原始照片，
+# 一個 `git add .` 就會把客戶素材推上 GitHub。
+scratchpad/

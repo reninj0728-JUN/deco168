@@ -586,11 +586,20 @@
     <div class="upload-icon">🎬</div>
     <div class="upload-title">上傳空間影片（選填）</div>
     <div class="upload-hint">
-      影片可選填，<b>對「全室規劃」最有幫助</b>——它讓我們看懂各房間怎麼連、動線與相對位置，
+      <!-- 2026-08-04：這句原本埋在五行文案的最後一句，實測有人沒看到就傳了 200~390MB
+           的影片，而單一空間的訂單後端會直接丟棄（api.py `_is_whole` 分支）。
+           上傳當下前端還不知道 space_type（deco_space_type 在下一頁 style-form 才寫入），
+           所以做不到「單房自動隱藏」，只能把話講在最前面、講到不可能忽略。 -->
+      <div style="border:1px solid var(--gold-lt,#d4b878);border-radius:4px;padding:9px 11px;
+                  margin-bottom:9px;color:var(--gold-lt,#d4b878);line-height:1.6;">
+        <b>只做「單一空間」（例如只設計客廳）的話，請不要上傳影片</b>——
+        單一空間的提案只會用照片，影片不會被使用，上傳只是白等。
+      </div>
+      影片只在<b>「全室規劃」</b>用得到——它讓我們看懂各房間怎麼連、動線與相對位置，
       這是零散照片給不了的；<b>照片仍是設計提案的主要依據</b>。
       <b>建議 15～40 秒</b>：從大門慢慢走進各房間，每個門口停一下對準開口，
       <b>可以邊走邊說需求</b>（例如「這裡當客廳、電視不要對門」），我們會一起聽進去。
-      <span style="color:var(--gold-lt,#d4b878);">單一客廳的單只靠照片就好，影片不會用到</span>；過長影片只會拖慢分析。
+      過長影片只會拖慢分析。
     </div>
     <div class="upload-formats">
       <span class="format-tag">MP4</span>
