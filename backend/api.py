@@ -8106,6 +8106,12 @@ def get_result(job_id: str):
     row = sb_get(job_id)
     if row and row.get("result_json"):
         result = row["result_json"]
+        # 訂單日期：結果頁原本讀 localStorage 的 deco_order_time（客戶瀏覽器本地
+        # 時間戳），同一張單換裝置／無痕就變「—」。這裡把 DB 的 created_at 帶出去，
+        # 前端才有可信來源。（付款日期是另一回事——paid_at/payment/order_no
+        # 目前全空，金流未接通前結果頁不得宣稱付款。）
+        if isinstance(result, dict) and row.get("created_at") and not result.get("created_at"):
+            result = {**result, "created_at": row["created_at"]}
         # render_filename 已在寫入時存好，直接回傳
         return result
 

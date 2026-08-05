@@ -486,8 +486,11 @@ BED_KIDS_PENALTY = -5.0
 # 根因：品名明講自己是「電視櫃/鞋櫃/書桌/邊几」的商品，靠風格/關鍵字評分
 # 就能混進 茶几/電視櫃/床頭桌/臥室收納 槽位——客廳出現兩個電視櫃、
 # 玄關七層鞋櫃當客廳電視櫃、摺疊電腦桌當床頭櫃、9.7尺L型電視櫃塞主臥。
-# 鐵則：品名宣告的主類型與槽位衝突 → Stage A/B 與 nice 池一律排除；
-# Stage C（must-have 跨風格保命）不套用，保證極端狀況仍有貨。
+# 鐵則：品名宣告的主類型與槽位衝突 → Stage A/B 與 nice 池一律排除。
+# Stage C（must-have 跨風格保命）2026-08-05 起也套：先試「守衛內」的池，
+# 真的空了才退回無守衛——否則被 A/B 擋掉的商品會從保命池原路回來
+# （A62AC21A：table 是 study 的 must-have，化妝桌就是這樣被撈回書房的）。
+# must-have 永不缺的保證由「退回無守衛」那一層維持。
 _TV_NAME_KW       = ("電視櫃", "電視機櫃", "電視中空櫃", "tv cabinet", "tv stand")
 _ENTRANCE_NAME_KW = ("鞋櫃", "玄關櫃", "穿鞋椅", "衣帽架")
 _DESK_NAME_KW     = ("書桌", "電腦桌", "辦公桌", "工作桌", "會議桌", "電競桌")
@@ -496,6 +499,15 @@ _SIDE_TABLE_NAME_KW = ("邊几", "角几", "邊桌", "side table")
 # 加旁邊一個矮櫃。模型被告知「這是你的電視櫃」卻拿到衣櫃照片，判官當然判
 # media_console:different。衣櫃／衣櫥／收納櫃體不是電視櫃，也不是茶几。
 _WARDROBE_NAME_KW = ("衣櫃", "衣櫥", "衣物櫃", "吊衣櫃", "被櫥", "wardrobe", "closet")
+# A62AC21A：room_type=study 配到「簡約白色化妝桌椅組合」——書房的核心是工作面，
+# 客戶拿到梳妝台。化妝桌在【臥室】完全合理，所以這條**只掛 study**，不掛 "any"；
+# 也不掛 dining——餐廳走的是 `dining_table` 槽位（見 ROOM_RULES），`table` 在餐廳
+# 根本用不到，掛上去是死規則、還會讓人誤以為餐桌有保護。
+# 實測（dry-run）：擋掉之後 cream 的同風格書桌池會歸零（它那 3 件全是化妝桌），
+# 但 Stage B 相近風格 [modern, muji, nordic, wood] 有 112 件真書桌接手，
+# luxury 也還有 5 件——沒有任何風格會拿不到桌子。
+_VANITY_NAME_KW = ("化妝桌", "化妝台", "梳妝台", "梳妝桌", "美容桌",
+                   "dressing table", "vanity")
 
 # 槽位 → {"any": 任何房型都排除, "<room>": 該房型額外排除}
 SLOT_NAME_GUARDS: dict = {
@@ -507,7 +519,11 @@ SLOT_NAME_GUARDS: dict = {
     "storage":      {"bedroom": _TV_NAME_KW + _ENTRANCE_NAME_KW,
                      "study":   _TV_NAME_KW + _ENTRANCE_NAME_KW},
     "side_table":   {"any": _DESK_NAME_KW},
-    "table":        {"any": _TV_NAME_KW + _ENTRANCE_NAME_KW},
+    # 化妝桌只擋 study；臥室的 table 槽位保留它（梳妝台在臥室是正常需求）。
+    # ⚠️ 不掛 dining：餐廳走的是 `dining_table` 槽位（見 ROOM 定義 must），
+    # `table` 在餐廳根本用不到，掛上去是死規則。
+    "table":        {"any": _TV_NAME_KW + _ENTRANCE_NAME_KW,
+                     "study":  _VANITY_NAME_KW},
 }
 
 
@@ -517,6 +533,14 @@ def violates_slot_guard(target_cat: str, room_mode: str, name_zh: str) -> bool:
     if not guards:
         return False
     nm = (name_zh or "").lower()
+    # 台灣電商標題會塞詞：「學生學習書桌 居家辦公桌 臥室化妝桌 飄窗旁休閒桌
+    # 小護型電腦桌」——這是真書桌，只是標題也塞了「化妝桌」。品名同時宣告
+    # 書桌時，書桌宣告優先，不因為塞詞被誤擋。
+    if (target_cat == "table"
+            and any(k in nm for k in _DESK_NAME_KW)
+            and not any(k.lower() in nm for k in
+                        (tuple(guards.get("any") or ())))):
+        return False
     kws = tuple(guards.get("any") or ()) + tuple(guards.get(room_mode) or ())
     return any(k.lower() in nm for k in kws)
 
@@ -1075,11 +1099,18 @@ def _pick_best_in_category(
     # 否則空格會被從不渲染的 nice-to-have（單椅/邊几）遞補成「圖上沒有的家具」。
     if target_cat in (must_categories if must_categories is not None else LIVING_MUST_HAVE):
         any_style = [it for it in catalog if resolve_category(it) == target_cat]
-        if any_style:
-            chosen = (_scored_in_pool(_filter(any_style, cap), match_style=False)
-                      or _scored_in_pool(any_style, match_style=False))
+        # A62AC21A：`table` 是 study 的 must-have，而 Stage C 原本完全不套槽位守衛
+        # ——所以化妝桌被 Stage A/B 擋掉之後，還是會從這裡被撈回書房。
+        # 先試「有守衛」的池；真的空了才退回無守衛（維持 must-have 永不缺的保證）。
+        guarded = [it for it in any_style
+                   if not violates_slot_guard(target_cat, room_mode, it.get("name_zh") or "")]
+        for pool, tag in ((guarded, "守衛內"), (any_style, "🔴 放寬守衛")):
+            if not pool:
+                continue
+            chosen = (_scored_in_pool(_filter(pool, cap), match_style=False)
+                      or _scored_in_pool(pool, match_style=False))
             if chosen is not None:
-                print(f"[furniture_match] {target_cat} 跨風格保命撈取（同/相近風格無料）")
+                print(f"[furniture_match] {target_cat} 跨風格保命撈取（同/相近風格無料，{tag}）")
                 return chosen
 
     return None

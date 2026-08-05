@@ -230,7 +230,10 @@
   <div class="step-arrow">›</div>
   <div class="step-item done"><div class="step-num">✓</div>設計偏好</div>
   <div class="step-arrow">›</div>
-  <div class="step-item done"><div class="step-num">✓</div>付款完成</div>
+  <!-- DB 的 paid_at / payment / order_no 目前全空，系統無法證明客戶付過款。
+       金流 webhook 接通前不得打勾宣稱「付款完成」——那是每個客戶都會看到、
+       而且自己沒做過的動作。口徑與下方「訂單日期」一致。 -->
+  <div class="step-item done"><div class="step-num">✓</div>訂單成立</div>
   <div class="step-arrow">›</div>
   <div class="step-item done"><div class="step-num">✓</div>生成中</div>
   <div class="step-arrow">›</div>
@@ -254,7 +257,7 @@
   </div>
   <div class="meta-sep">·</div>
   <div class="meta-item">
-    <span class="meta-label">付款日期</span>
+    <span class="meta-label">訂單日期</span>
     <span class="meta-value" id="metaDate">—</span>
   </div>
 </div>
@@ -318,21 +321,106 @@
     }
   })();
 
-  (function fillMeta() {
+  // ⚠️ 必須是具名、可重入的函式，不能只當 IIFE 跑一次：
+  // 它在 script 執行當下就跑，那時 `_hb` 還是 null（要等 loadResult 的 fetch 回來），
+  // 所以「優先吃後端 created_at」若只寫在 IIFE 裡永遠走不到，測試還會全綠。
+  // loadResult 拿到資料後必須再呼叫一次。
+  function fillMeta() {
     // #4：顯示純 job id（與 generate 頁、查詢下載頁一致；查詢頁就是用這個純 id 查），不要加 ORD- 前綴造成「編號不一樣」的誤會
     var orderId   = JOB_ID || (localStorage.getItem('deco_order_id') || '').replace(/^ORD-/, '') || '—';
     var plan      = localStorage.getItem('deco_plan') || 'A';
-    var orderTime = localStorage.getItem('deco_order_time');
     var planLabel = plan === 'B' ? '全室空間' : '單一空間';
+    // ⚠️ 這個欄位原本叫「付款日期」，但它讀的是 localStorage 的 deco_order_time
+    // ——結帳流程在**客戶瀏覽器本地**寫的時間戳，不是後端資料。同一張單換設備
+    // 或清快取就變「—」（實測：不同人看同一單，一個看到日期、一個看到「—」）。
+    // 而且 DB 的 paid_at / payment / order_no 三個欄位目前全是空的，
+    // **系統裡根本沒有任何付款紀錄**。金流串接完成前不得掛「付款」二字。
+    // 改名「訂單日期」，並優先吃後端 created_at，localStorage 只當退路。
+    var orderTime = localStorage.getItem('deco_order_time');
     var timeStr   = '';
-    if (orderTime) {
+    var beCreated = (window._hb && (_hb.created_at || _hb.createdAt)) || null;
+    if (beCreated) {
+      var bd = new Date(beCreated);
+      if (!isNaN(bd.getTime())) {
+        timeStr = bd.getFullYear() + '/' + (bd.getMonth() + 1) + '/' + bd.getDate();
+      }
+    }
+    if (!timeStr && orderTime) {
       var d = new Date(parseInt(orderTime, 10));
-      timeStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+      if (!isNaN(d.getTime())) {
+        timeStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+      }
     }
     document.getElementById('metaOrderId').textContent = orderId;
     document.getElementById('metaPlan').textContent    = planLabel;
     document.getElementById('metaDate').textContent    = timeStr || '—';
-  })();
+  }
+  fillMeta();   // 先用 localStorage 填一次，避免載入中整片「—」
+
+  // 後端有兩套房型命名：rooms[] 用 living_room/dining_room/study_workspace，
+  // renders[] 用 living/dining/study。A62AC21A 因此把同一間客廳算成兩間，
+  // 頁首顯示「4 個空間」但只有 3 個頁籤，客戶會以為少交一間。
+  // 這裡 mirror 後端的 ROOM_TYPE_TO_ZONE（api.py）做歸一化；認不得的房型
+  // 原值回傳，不讓未來新增的房型憑空消失。
+  // ⚠️ 這是顯示層止血。根治是後端寫 rooms[].room_type 時就過同一張表，另開一刀。
+  var ROOM_TYPE_TO_ZONE = {
+    living: 'living', living_room: 'living',
+    dining: 'dining', dining_room: 'dining',
+    bedroom: 'bedroom',
+    study: 'study', study_workspace: 'study',
+    other_room: 'other'
+  };
+  function normalizeRoomType(rt) {
+    if (!rt) return '';
+    // 防禦：函式宣告會被提升，但 `var ROOM_TYPE_TO_ZONE` 的賦值不會——
+    // 頁面前面任何一行拋例外，這裡就會拿到 undefined 而整個複製清單炸掉。
+    return (ROOM_TYPE_TO_ZONE && ROOM_TYPE_TO_ZONE[rt]) || rt;
+  }
+
+  // ── 方案彙總：金額與數量的【單一計算來源】────────────────────────────
+  // renders 同時包含「不同房間」「同一房間的不同視角」「不同風格的替代方案」，
+  // 任何按張數累加的地方都會算錯。94105856 是 6 張＝同一客廳 × 3 視角 × 2 風格：
+  //   · 按張數加 → 沙發 ×6、金額 6 倍、「全室 3 個空間」（其實只有 1 間）
+  //   · 跨風格相加 → 把兩個【擇一】的替代方案加成一筆總價
+  // 三個消費端（複製清單／頁面預算判定／設計手冊 PDF）過去各算各的，
+  // 修一個不會修到另外兩個——所以集中在這裡算一次。
+  //
+  // ⚠️ 房間身分目前用 room_type。全室方案每種房型只保留一間，符合現行產品；
+  // 未來要支援「主臥＋次臥」才需要正式的 room_id。
+  function planTotals(renders) {
+    var styleOrder = [], byStyle = {};
+    (renders || []).forEach(function(r) {
+      var st = r.style || '';
+      var room = normalizeRoomType(r.room_type) || 'unknown';
+      if (!byStyle[st]) {
+        byStyle[st] = { style: st, label: r.style_label || st, order: [], items: {},
+                        softOrder: [], soft: {}, rooms: {} };
+        styleOrder.push(st);
+      }
+      var g = byStyle[st];
+      (r.matched_furniture || []).forEach(function(f) {
+        if (!f.name_zh) return;
+        g.rooms[room] = 1;
+        var key = f.name_zh + '|' + (f.purchase_url || '');
+        if (!g.items[key]) { g.items[key] = { item: f, rooms: {} }; g.order.push(key); }
+        g.items[key].rooms[room] = 1;      // 同房多視角只記一次
+      });
+      (r.soft_furnishing || []).forEach(function(f) {
+        if (!f.name_zh) return;
+        var key = f.name_zh + '|' + (f.purchase_url || '');
+        if (!g.soft[key]) { g.soft[key] = f; g.softOrder.push(key); }
+      });
+    });
+    styleOrder.forEach(function(st) {
+      var g = byStyle[st];
+      g.roomCount = Object.keys(g.rooms).length;
+      g.total = g.order.reduce(function(sum, key) {
+        var e = g.items[key];
+        return sum + (Number(e.item.price_twd) || 0) * (Object.keys(e.rooms).length || 1);
+      }, 0);
+    });
+    return { styleOrder: styleOrder, byStyle: byStyle, multiStyle: styleOrder.length > 1 };
+  }
 
   function updateMetaSummary(data) {
     var renders = (data && data.renders) || [];
@@ -340,11 +428,11 @@
     var styleSet = {}, roomSet = {};
     renders.concat(pending).forEach(function(r) {
       if (r && r.style) styleSet[r.style] = true;
-      var rt = r && r.room_type;
+      var rt = normalizeRoomType(r && r.room_type);
       if (rt) roomSet[rt] = true;
     });
     ((data && data.rooms) || []).forEach(function(r) {
-      var rt = r && r.room_type;
+      var rt = normalizeRoomType(r && r.room_type);
       if (rt) roomSet[rt] = true;
     });
     var styleCount = Object.keys(styleSet).length;
@@ -599,8 +687,11 @@
         }).join('') +
         (total > 0
           ? '<div class="total-bar">' +
-              '<div class="total-label">總計（' + furn.length + ' 件）' +
-                '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:4px;">此搭配預估花費</div>' +
+              '<div class="total-label">總計（' + furn.length + ' 款）' +
+                // ⚠️ 是「款」不是「件」：系統沒有數量辨識，餐廳畫 4 張餐椅、
+                // 主臥左右各一個床頭櫃，這裡都只算 1。講「件」會讓客戶少買。
+                '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:4px;">' +
+                  '此搭配預估花費（每款計 1 件；餐椅等成組家具請依圖確認數量）</div>' +
               '</div>' +
               '<div class="total-price">NT$' + total.toLocaleString() + '</div>' +
             '</div>' + _budgetStatusHtml(group)
@@ -616,21 +707,20 @@
     var BANDS = { tier1: [0, 100000], tier2: [100000, 200000], tier3: [200000, Infinity] };
     var band = BANDS[tier];
     if (!band || !group) return '';
-    var styleTotal = 0, roomCount = 0;
-    (_groups || []).forEach(function(g) {
-      if (g.style !== group.style) return;
-      g.angles.forEach(function(r) {
-        var f = r.matched_furniture || [];
-        if (f.length) roomCount++;
-        f.forEach(function(it) { styleTotal += (it.price_twd || 0); });
-      });
-    });
+    // ⚠️ 舊版對每個【視角】都 roomCount++ 且金額累加：94105856 同一客廳 3 視角
+    // 會顯示「全室 3 個空間」、金額 3 倍，預算達標／超標的判定跟著錯。
+    // 改吃 planTotals 的同一份結果（同房多視角去重、跨風格不相加）。
+    var _pt = planTotals((_hb || {}).renders || []);
+    var _g = _pt.byStyle[group.style];
+    if (!_g) return '';
+    var styleTotal = _g.total, roomCount = _g.roomCount;
     if (!styleTotal) return '';
     var inBand = styleTotal >= band[0] && (band[1] === Infinity || styleTotal <= band[1]);
     var label = ci.budget_label_zh || '';
     // 上方「總計」是單一空間的清單；這行是本風格「全部空間」加總——寫明白，
     // 不然單空間 6.5萬 vs 全室 12.6萬 兩個數字並排看不懂。達標時低調陳述即可。
-    var scope = '全室 ' + roomCount + ' 個空間清單合計 NT$' + styleTotal.toLocaleString();
+    var scope = '全室 ' + roomCount + ' 個空間清單合計 NT$' + styleTotal.toLocaleString()
+              + '（每空間每款計 1 件）';
     var txt;
     if (inBand) {
       txt = scope + '｜符合預算範圍 ' + label;
@@ -656,26 +746,21 @@
       lighting: '燈具',
       mirror:   '掛鏡'
     };
-    var softRefs = (r.reference_map || []).filter(function(ref) {
-      return ref && ref.kind === 'SOFT';
-    });
-    var usedSoftKeys = {};
-    var mainSoft = softRefs.map(function(ref) {
-      var found = soft.find(function(f) {
-        return (ref.id && f.id === ref.id) ||
-               (ref.cat_en && f.category_en === ref.cat_en && (!ref.name_zh || ref.name_zh === f.name_zh));
-      });
-      return found || null;
-    }).filter(Boolean);
-    mainSoft.forEach(function(f) {
-      usedSoftKeys[(f.id || '') + '|' + (f.category_en || '') + '|' + (f.name_zh || '')] = true;
-    });
-    var extraSoft = soft.filter(function(f) {
-      var key = (f.id || '') + '|' + (f.category_en || '') + '|' + (f.name_zh || '');
-      return !usedSoftKeys[key];
-    });
-    // 退路：若沒有 reference_map（例如精簡存檔），仍顯示軟裝，但只露前 3 件，其餘收進「更多」。
-    if (!mainSoft.length && soft.length) { mainSoft = soft.slice(0, 3); extraSoft = soft.slice(3); }
+    // ── 軟裝一律歸「更多搭配建議」，不進主清單（2026-08-05 商業口徑）──
+    // A62AC21A 抓到的承諾風險：臥室清單寫「橘色甜甜圈桌燈／白色方形畫框」，
+    // 成品是白色蘑菇燈＋金框橫幅。根因有兩層：
+    //   ① 非客廳房型走 prompt_builder._build_nonliving_nano_inputs，那條路
+    //      **完全沒有軟裝參考圖邏輯**，軟裝段落寫死 illustrative only——
+    //      模型是被「指示」自由發揮的，不是沒挑到。
+    //   ② 舊版這裡有個 fallback：沒有 SOFT 錨定就硬把前 3 件當主清單顯示，
+    //      還掛「前往購買」。
+    // ⚠️ 而且就算有 SOFT 錨定也不夠：kind=SOFT 只證明「參考圖有送給模型」，
+    //    不證明「模型畫了同款」。客廳盆栽就是例子——參考圖送了，圖上只能
+    //    確認「有植栽」，不能確認同一個水泥盆。軟裝目前**沒有任何商品級
+    //    驗證層**（product_visibility 只驗主家具）。
+    // → 在做出軟裝商品級驗證之前，主清單只放已驗證的 matched_furniture。
+    var mainSoft = [];
+    var extraSoft = soft;
 
     function renderSoftItems(items) {
       return items.map(function(f, j) {
@@ -706,19 +791,19 @@
 
     var mainSoftItems = mainSoft.length ? renderSoftItems(mainSoft) : '';
     var extraSoftItems = extraSoft.length ? renderSoftItems(extraSoft) : '';
-    var softSection = mainSoftItems
+    // ⚠️ 渲染條件必須看「兩者任一非空」。舊版寫成 mainSoftItems ? ... : ''，
+    // 軟裝全部降到 extraSoft 之後會讓整個區塊消失，客戶連建議都看不到。
+    var softSection = (mainSoftItems || extraSoftItems)
       ? '<div class="soft-furnishing-box" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line);">' +
-          '<h3 style="font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;">風格軟裝建議</h3>' +
+          '<h3 style="font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;">更多搭配建議</h3>' +
           '<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-bottom:14px;">' +
-            '依本風格搭配的軟裝建議（窗簾、燈飾、植栽等），可依預算選購；實際渲染畫面可能略有不同，不併入上方主家具總計。' +
+            '以下是依本風格挑選的軟裝（窗簾、燈飾、植栽等），<b>不保證與上方渲染圖為同一款</b>，' +
+            '也不併入主家具總計，可依預算與喜好自由選購。' +
           '</div>' +
           mainSoftItems +
           (extraSoftItems
-            ? '<details style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px;">' +
-                '<summary style="cursor:pointer;color:var(--muted);font-size:11px;letter-spacing:1.5px;">更多搭配建議</summary>' +
-                '<div style="font-size:10px;color:var(--muted);letter-spacing:1.2px;margin-top:10px;">以下為延伸商品，可依需求加購搭配。</div>' +
-                '<div style="margin-top:10px;">' + extraSoftItems + '</div>' +
-              '</details>'
+            ? (mainSoftItems ? '<div style="margin-top:10px;">' : '') + extraSoftItems +
+              (mainSoftItems ? '</div>' : '')
             : '') +
         '</div>'
       : '';
@@ -887,6 +972,9 @@
       })
       .then(function(data) {
         _hb = data;
+        // ⚠️ 一定要在 _hb 有值之後再填一次，否則「優先吃後端 created_at」永遠走不到
+        // （fillMeta 第一次執行時 _hb 還是 null）。
+        try { fillMeta(); } catch (e) { console.warn('訂單資訊更新失敗', e); }
         try { updateMetaSummary(data); } catch (e) { console.warn('方案摘要顯示失敗', e); }
         // 顯示空間分析（讀現有 result_json.analysis，不打新 API）
         try { fillAnalysis(data.analysis || {}); } catch (e) { console.warn('analysis 顯示失敗', e); }
@@ -948,29 +1036,46 @@
       (byStyle[k] = byStyle[k] || { label: r.style_label || k, items: [] }).items.push(r);
     });
     var styleLabels = Object.keys(byStyle).map(function(k) { return byStyle[k].label; });
+    // ⚠️ 舊版 styleTotal 逐【視角】累加、grandTotal 又把【替代風格】相加：
+    // 94105856 的封面總價會是「兩套方案 × 三個視角」的和，完全不是客戶要付的錢。
+    // 金額一律吃 planTotals（同房多視角去重、跨風格各自成一份）。
+    var _pt = planTotals(_hb.renders || []);
     var sections = '', grandTotal = 0, _mainSeen = {}, mainCount = 0;
     Object.keys(byStyle).forEach(function(k) {
-      var g = byStyle[k], styleTotal = 0;
+      var g = byStyle[k];
+      var styleTotal = (_pt.byStyle[k] || {}).total || 0;
       sections += '<section class="style-head"><h2>' + g.label + '</h2></section>';
       g.items.forEach(function(r) {
         var furn = r.matched_furniture || [];
         var total = furn.reduce(function(s, f) { return s + (f.price_twd || 0); }, 0);
-        styleTotal += total;
         furn.forEach(function(f) { var key = (f.name_zh || '') + '|' + (f.purchase_url || ''); if (f.name_zh && !_mainSeen[key]) { _mainSeen[key] = 1; mainCount++; } });
         sections += '<section class="room"><h3>' + (r.angle_label || '') + ' · ' + g.label + '</h3>'
           + (r.render_url ? '<img src="' + r.render_url + '">' : '')
           + (furn.length ? '<table><thead><tr><th>家具</th><th>品牌</th><th>價格</th><th>購買連結</th></tr></thead><tbody>' + _furnRows(furn) + '</tbody></table>' : '')
-          + (total ? '<div class="total">主家具小計：NT$' + total.toLocaleString() + '</div>' : '')
-          + ((r.soft_furnishing || []).length ? '<h4>軟裝參考（不併入主總計）</h4><table><tbody>' + _furnRows(r.soft_furnishing) + '</tbody></table><div class="softnote">軟裝可依預算彈性選購。</div>' : '')
+          + (total ? '<div class="total">本視角家具小計：NT$' + total.toLocaleString()
+                   + '（同一空間的其他視角為同一份家具，不重複計價）</div>' : '')
+          + ((r.soft_furnishing || []).length ? '<h4>更多搭配建議（不併入主總計）</h4><table><tbody>' + _furnRows(r.soft_furnishing) + '</tbody></table><div class="softnote">以上軟裝<b>不保證與渲染圖為同一款</b>，僅供風格搭配參考，可依預算彈性選購。</div>' : '')
           + '</section>';
       });
-      grandTotal += styleTotal;
-      if (styleTotal) sections += '<section class="style-total">「' + g.label + '」主家具預估總計：NT$' + styleTotal.toLocaleString() + '</section>';
+      // 多風格＝替代方案，封面不得出現跨方案總和（那是客戶不會付的數字）。
+      if (!_pt.multiStyle) grandTotal += styleTotal;
+      if (styleTotal) sections += '<section class="style-total">「' + g.label
+        + '」主家具參考合計（每空間每款計 1 件）：NT$' + styleTotal.toLocaleString() + '</section>';
     });
     var body = '<section class="cover"><div class="brand">DECO168</div>'
       + '<h1>專屬設計手冊</h1><div class="meta">' + spaceZh + ' ｜ ' + date + '</div>'
       + (styleLabels.length ? '<div class="styles">設計風格：' + styleLabels.join('　·　') + '</div>' : '')
-      + (grandTotal ? '<div class="grand">主家具預估總計（不含軟裝）：NT$' + grandTotal.toLocaleString() + (mainCount ? '　·　共 ' + mainCount + ' 件' : '') + '</div>' : '')
+      + (_pt.multiStyle
+          ? '<div class="grand">以下為 ' + _pt.styleOrder.length + ' 種風格的<b>替代方案</b>，'
+            + '請擇一採購，<b>金額不可相加</b>；各方案合計見該風格章節末。'
+            + '<div style="font-size:11px;font-weight:400;margin-top:6px;">'
+            + '※ 每空間每款計 1 件。餐椅、床頭櫃等單一空間可能需要多件的商品，'
+            + '請對照渲染圖與現場需求確認數量。</div></div>'
+          : (grandTotal ? '<div class="grand">主家具參考合計（不含軟裝）：NT$' + grandTotal.toLocaleString()
+              + (mainCount ? '　·　共 ' + mainCount + ' 款' : '')
+              + '<div style="font-size:11px;font-weight:400;margin-top:6px;">'
+              + '※ 每空間每款計 1 件。餐椅、床頭櫃等單一空間可能需要多件的商品，'
+              + '請對照渲染圖與現場需求確認數量。</div></div>' : ''))
       + (a.design_analysis ? '<p class="summary">' + a.design_analysis + '</p>' : '') + '</section>'
       + sections;
     var doc = '<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>DECO168 設計手冊</title><style>'
@@ -1001,17 +1106,44 @@
   }
   function copyShoppingList() {
     if (!_hb || !((_hb.renders || []).length)) { alert('尚無清單可複製'); return; }
-    var seen = {}, lines = [];
-    (_hb.renders || []).forEach(function(r) {
-      (r.matched_furniture || []).concat(r.soft_furnishing || []).forEach(function(f) {
-        var key = (f.name_zh || '') + '|' + (f.purchase_url || '');
-        if (f.name_zh && !seen[key]) {
-          seen[key] = 1;
-          lines.push('• ' + f.name_zh + '  ' + _money(f.price_twd) + (f.purchase_url ? '  ' + f.purchase_url : ''));
-        }
+    // ⚠️ 只複製主家具。軟裝沒有商品級驗證，不能掛在「購物清單」下讓客戶照買——
+    // 頁面已把軟裝降到「更多搭配建議」，複製口徑必須跟頁面所見一致，
+    // 否則前端修好了、複製出去還是舊的承諾（A62AC21A 教訓）。
+    // 數量與金額一律吃 planTotals（見該函式的註解），三個出口同一份計算。
+    var _pt = planTotals(_hb.renders || []);
+    var styleOrder = _pt.styleOrder, byStyle = _pt.byStyle, multiStyle = _pt.multiStyle;
+    var sections = styleOrder.map(function(st) {
+      var g = byStyle[st], grand = g.total;
+      var lines = g.order.map(function(key) {
+        var e = g.items[key], f = e.item;
+        var qty = Object.keys(e.rooms).length || 1;
+        var unit = Number(f.price_twd) || 0;
+        // ⚠️ qty 的語意是「這款商品用在幾個【空間】」，不是「總共要買幾件」——
+        // 系統沒有商品數量辨識，只知道某個房間用了某款商品。餐廳畫 4 張餐椅、
+        // 主臥左右各一個床頭櫃，清單都只會算 1 件。措辭必須講準，不然客戶
+        // 把 ×3 當成精確採購數量，成組家具會少買、總價低估。
+        return '• ' + f.name_zh + (qty > 1 ? '  × ' + qty + ' 個空間' : '')
+             + '  ' + _money(unit) + (qty > 1 ? '（單價）' : '')
+             + (f.purchase_url ? '  ' + f.purchase_url : '');
       });
+      var softLines = g.softOrder.map(function(key) {
+        var f = g.soft[key];
+        return '• ' + f.name_zh + '  ' + _money(f.price_twd)
+             + (f.purchase_url ? '  ' + f.purchase_url : '');
+      });
+      return (multiStyle ? '【' + g.label + '】方案\n' : '')
+           + lines.join('\n')
+           + (grand ? '\n參考合計（每空間每款計 1 件）：' + _money(grand) : '')
+           + (softLines.length
+               ? '\n\n── 更多搭配建議（不保證與渲染圖同款）──\n' + softLines.join('\n')
+               : '');
     });
-    var txt = 'DECO168 購物清單\n\n' + lines.join('\n');
+
+    var txt = 'DECO168 購物清單（渲染圖中的主家具）\n'
+            + (multiStyle ? '※ 以下為不同風格的【替代方案】，請擇一採購，金額不可相加。\n' : '')
+            + '※ 數量標示為「使用於幾個空間」，非精確採購件數。餐椅、床頭櫃等\n'
+            + '　 單一空間可能需要多件的商品，請對照渲染圖與現場需求確認數量。\n'
+            + '\n' + sections.join('\n\n' + '─'.repeat(28) + '\n\n');
     var done = function() { alert('已複製購物清單，可貼到記事本 / 賣場搜尋'); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).then(done, function() {
