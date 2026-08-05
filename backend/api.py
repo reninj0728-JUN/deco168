@@ -2985,6 +2985,73 @@ PAIR_CENTER_TOLERANCE = 25
 #   106/110,離接受組最高 89 留 11 點餘裕。只擋「用戶真的拒絕過」的錯位,不擋空窗。）
 PAIR_CENTER_EXTREME = 100
 
+# 中心差指標的【適用前提】：兩個緊湊量體面對面。
+# 757845E3（2026-08-05）：長條走廊型客廳，電視櫃沿右牆延伸佔畫面 31% 寬。
+# 同一單同一配置五次生成，中心差量到 38.5 / 66.5 / 95.5 / 105.5 / 108.5——
+# 跨度 70，而門檻 100 就落在這團雜訊正中間。第 5 次各項全過（門距 0.32>0.25、
+# 必備商品全到、hard_fail=False），只因中心差 109 被翻判，客戶零圖。
+# 量到的其實是「判官這次把電視櫃框畫多大」，不是家具有沒有錯位。
+#
+# 校準庫（fixtures/living_layout_calibration.json）實測信封：
+#   接受組 focal 寬 75~125、高 98~172
+#   被 pair 閘門實際擋下的兩案：6DA08412 寬 117、31E341CF 寬 83（都是緊湊量體）
+#   唯一的大 bbox 案 BB034AB8-nordic 寬 275/高 418，中心差 78 本來就在門檻下
+# → 寬 200 / 高 280 這條線：校準庫 11 個 case 判定全部不變，757845E3#5 獲豁免。
+#
+# ⚠️ 門檻 100 不動（它有用戶裁決背書）。只限制指標的**適用條件**：
+# bbox 明顯沿透視延伸的長櫃，中心點不再有分類力，不得單憑它翻成硬傷。
+FOCAL_COMPACT_MAX_W = 200
+FOCAL_COMPACT_MAX_H = 280
+
+
+def _focal_pair_metric_applicable(validation: dict | None) -> tuple[bool, str]:
+    """中心差指標能不能用在這張圖上。回 (可用, 不可用時的原因)。
+
+    ⚠️ 刻意回傳原因字串而不是靜默跳過：door_gap 那次的教訓是守門悄悄消失、
+    數字對不上卻查不到為什麼。呼叫端必須把原因記進 validation。"""
+    boxes = (validation or {}).get("render_bboxes") or {}
+    focal = boxes.get("focal_anchor")
+    if not (isinstance(focal, (list, tuple)) and len(focal) == 4):
+        return True, ""          # 沒有 focal bbox 時維持既有行為（下游自己會回 None）
+    try:
+        fy0, fx0, fy1, fx1 = [float(v) for v in focal]
+    except (TypeError, ValueError):
+        return True, ""
+    w, h = fx1 - fx0, fy1 - fy0
+    if w > FOCAL_COMPACT_MAX_W or h > FOCAL_COMPACT_MAX_H:
+        return False, (f"focal_anchor 沿牆延伸（寬 {w:.0f}>{FOCAL_COMPACT_MAX_W} 或 "
+                       f"高 {h:.0f}>{FOCAL_COMPACT_MAX_H}），中心差不具分類力")
+    return True, ""
+
+
+# 判官自己會標的幾何硬傷。中心差要「單獨」把一張圖翻成硬傷之前，這些必須全部乾淨
+# ——否則就不是「只靠一個雜訊指標殺圖」，而是本來就有別的問題。
+_GEOMETRY_FAIL_FLAGS = (
+    "furniture_blocks_door", "furniture_blocks_walkway", "sofa_intrudes_walkway",
+    "sofa_faces_walkway", "sofa_facing_entrance_door", "sofa_outside_living_zone",
+    "sofa_on_wrong_side", "sofa_facing_window", "sofa_back_against_window",
+    "coffee_table_in_walkway", "spatial_fidelity_fail", "offframe_room_invaded",
+    "focal_anchor_misaligned_with_sofa",
+)
+
+
+def _geometry_otherwise_clean(validation: dict | None) -> tuple[bool, str]:
+    """除了中心差以外，判官有沒有標出任何幾何問題。回 (乾淨, 髒的話是哪一項)。
+
+    ⚠️ 這是豁免的第二道條件（GPT 2026-08-05 抓到的）：只看 bbox 尺寸就放行等於
+    「大 bbox 一律免罰」，而 bbox 大不必然是沿牆延伸，也可能只是離鏡頭近的正常
+    電視櫃。加上這層之後，豁免的語意才精確：**其他幾何全部過關、中心差是唯一
+    想新增的硬傷時，不准單憑一個不穩定的量測殺掉一張已經合格的圖。**
+    """
+    if not isinstance(validation, dict):
+        return False, "no_validation"
+    if validation.get("sofa_focal_face_each_other") is not True:
+        return False, "sofa_focal_face_each_other!=true"
+    for flag in _GEOMETRY_FAIL_FLAGS:
+        if validation.get(flag) is True:
+            return False, flag
+    return True, ""
+
 
 def _pair_center_delta(validation: dict | None,
                        tolerance: int = PAIR_CENTER_TOLERANCE) -> dict | None:
@@ -3037,6 +3104,11 @@ def _focal_door_axis_conflict(validation: dict | None) -> dict | None:
     except Exception:
         return None
     if not violation or violation[0] != "focal_anchor":
+        return None
+    # 與極端值翻判共用同一個前提：長牆延伸的櫃體，中心點不具分類力。
+    # 只修其中一個消費點的話，同一團雜訊會搬到這裡繼續誤殺（GLM 抓到的）。
+    _applicable, _ = _focal_pair_metric_applicable(validation)
+    if not _applicable:
         return None
     pair = _pair_center_delta(validation, tolerance=PAIR_CENTER_TOLERANCE)
     if not pair:
@@ -3902,7 +3974,23 @@ def _fail_closed_validation(v: dict | None, room_type: str) -> dict:
             if pair:
                 v = dict(v)
                 v["pair_center_delta_y"] = pair["delta_y"]
-                if pair["abs_delta_y"] > PAIR_CENTER_EXTREME:
+                # 757845E3：長牆延伸的電視櫃讓中心差變成雜訊（見 FOCAL_COMPACT_MAX_W）。
+                # 量測照記（診斷與校準圖還要用），但不拿它翻硬傷。
+                # 豁免要兩個條件同時成立，缺一不可：
+                #   ① focal bbox 超出校準庫的適用信封（量測不可靠）
+                #   ② 除了中心差以外，判官沒有標出任何幾何問題（＝中心差是唯一
+                #      想新增的硬傷）。少了②等於「大 bbox 一律免罰」，會放掉
+                #      「櫃體很大而且真的擺錯」的圖。
+                _size_ok, _why = _focal_pair_metric_applicable(v)
+                _clean, _dirty = _geometry_otherwise_clean(v)
+                _exempt = (not _size_ok) and _clean
+                if _exempt:
+                    v["pair_center_skipped_reason"] = _why
+                    print(f"[validation] 中心差不適用且其他幾何全過，跳過極端值翻判：{_why}")
+                elif not _size_ok:
+                    print(f"[validation] focal bbox 超出信封但幾何另有問題（{_dirty}），"
+                          f"中心差照常判定")
+                if (not _exempt) and pair["abs_delta_y"] > PAIR_CENTER_EXTREME:
                     v["ok"] = False
                     v["hard_fail"] = True
                     v["focal_anchor_misaligned_with_sofa"] = True
