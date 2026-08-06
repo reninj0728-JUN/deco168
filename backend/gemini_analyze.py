@@ -479,6 +479,15 @@ def analyze_space(
 # 硬傷 flag（2026-06-21）：交付/重生的單一判準。任一為 true → render 不可交付，需重生。
 # 軟傷（深度小偏差、茶几略偏、軟裝不齊等）不在此列 → 照常交付。
 # 分類依據見產品決策：結構破壞 / 動線阻塞 / 沙發錯邊 / 跑錯分區 / 背窗 / 完全沒對向 = 硬傷。
+# 產品可見性的【正式列舉值】。prompt、判定、以及 api.py 的 verdict 清洗白名單
+# 三邊共用這一份——2026-08-07：api.py 的白名單是照「線上抽樣看到的值」建的，
+# 剛好沒抽到 different，結果正式值被當成未知字串刪掉（交付判定不受影響，
+# 但事後查不到是哪一件商品畫錯）。照抽樣建清單就是會漏，要照契約建。
+PRODUCT_VISIBILITY_VALUES = ("visible", "different", "missing")
+# 這兩個代表「商品沒畫對」，是 product_visibility_fail 的觸發值
+PRODUCT_VISIBILITY_BAD = ("missing", "different")
+
+
 HARD_FAIL_FLAGS = (
     # 結構破壞
     "kitchen_added", "recessed_space_added", "windows_changed",
@@ -1026,7 +1035,8 @@ Q2d: product_sofa_seating_match — 本案無座位數規格，一律填 true。
         _pv_keys = ", ".join(f'"{p["cat"]}"' for p in _must_products)
         product_visibility_field = (
             '  "product_visibility": {' +
-            ", ".join(f'"{p["cat"]}": "visible|different|missing"' for p in _must_products) +
+            ", ".join(f'"{p["cat"]}": "{"|".join(PRODUCT_VISIBILITY_VALUES)}"'
+                      for p in _must_products) +
             '},\n'
         )
         product_visibility_block = f"""
@@ -1733,7 +1743,7 @@ reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」�
             _must_cats = {"sofa", "coffee_table", "rug", "media_console", "bed", "table", "chair",
                           "dining_table", "dining_chair", "storage"}
         _bad = {k: str(v).strip().lower() for k, v in result["product_visibility"].items()
-                if str(v).strip().lower() in ("missing", "different")}
+                if str(v).strip().lower() in PRODUCT_VISIBILITY_BAD}
         _pv_bad_must = [f"{k}:{v}" for k, v in _bad.items() if k in _must_cats]
         result["visibility_nice_bad"] = [k for k in _bad if k not in _must_cats]
         if _pv_bad_must:

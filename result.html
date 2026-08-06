@@ -390,6 +390,10 @@
   function planTotals(renders) {
     var styleOrder = [], byStyle = {};
     (renders || []).forEach(function(r) {
+      // 客廳佔位卡不是一個空間，也沒有商品——金額與「使用於 N 個空間」都不得算它。
+      // 呼叫端目前都傳 _hb.renders（佔位卡不在裡面），這層是防呆：哪天有人改成
+      // 傳 g.angles 進來，金額語意也不會破。
+      if (r && r._placeholder) return;
       var st = r.style || '';
       var room = normalizeRoomType(r.room_type) || 'unknown';
       if (!byStyle[st]) {
@@ -427,6 +431,8 @@
     var pending = (data && data.needs_regen) || [];
     var styleSet = {}, roomSet = {};
     renders.concat(pending).forEach(function(r) {
+      // 佔位卡不計入「N 個空間」——293BDE11 應該顯示 3 個已交付空間，不是 4 個
+      if (r && r._placeholder) return;
       if (r && r.style) styleSet[r.style] = true;
       var rt = normalizeRoomType(r && r.room_type);
       if (rt) roomSet[rt] = true;
@@ -454,11 +460,57 @@
     // 房間顯示順序：客廳永遠第一（跟後端 _RT_ORDER 一致）。後端 Phase3 已改成
     // 依房型 insert 到正確位置；前端再 sort 一次當雙保險（2A520C25）。
   var _RT_ORDER = { living: 0, dining: 1, bedroom: 2, study: 3 };
+
+  // 「建模不了」的正向訊號：只有**付費前**被前檢/S2 擋下才該叫客戶換照片。
+  // 生成後的任何 hard flag（擋門、錯邊、天花板…）都不是照片的錯，一律免費重出。
+  // ⚠️ 只列 production 真的會寫出來的訊號；跟後端 _incomplete_message 的
+  // _MODELLING_FAILURE_SIGNALS 同一套。落選紅卡與客廳佔位卡共用這一個函式。
+  var _MODELLING_FAILURE_SIGNALS = ['s2_preflight_blocked', 's2_blocked_legacy'];
+  function isModellingFailure(dropped) {
+    return (dropped || []).some(function(d) {
+      return d && (_MODELLING_FAILURE_SIGNALS.indexOf(d.failure_class) >= 0
+                || _MODELLING_FAILURE_SIGNALS.indexOf(d.layout_mode) >= 0);
+    });
+  }
+
+  // ── 客廳佔位卡（2026-08-07）────────────────────────────────────────
+  // 產品鐵則：有客廳就一定要有客廳、而且在第一頁。後端早就實作了一半
+  // （living_incomplete → status=incomplete，commit 3cc5ad6），但前端在客廳零圖時
+  // 直接拿餐廳當第一張——兩端語意不一致，293BDE11 就是這樣讓客戶看到餐廳當首頁。
+  //
+  // 🔴 佔位卡是**純 UI**，絕不進資料層：
+  //    · 不塞進 _hb.renders（planTotals / PDF / 複製清單三出口都吃 _hb.renders）
+  //    · 只放進 group.angles（buildUI 自己建的新陣列，不是 _hb.renders 的參照）
+  //    · planTotals 與 updateMetaSummary 另外再擋一層 _placeholder，
+  //      就算哪天有人改成傳 g.angles 進去，金額與空間數也不會被算進一間假房。
+  var LIVING_PLACEHOLDER_RT = 'living';
+
+  // 該不該進 buildUI。抽成具名函式是為了**可測**：這個決策原本是載入處的一個
+  // 行內條件，行為測試直接呼叫 buildUI 就繞過它，把它改回舊條件測試照樣全綠
+  // （2026-08-07 蓄意破壞抓到）。零交付但客廳落選時仍要建 UI——那正是鐵則
+  // 最該生效的情境（單房客廳全被擋）。
+  function shouldBuildUI(renders, dropped) {
+    if ((renders || []).length) return true;
+    return (dropped || []).some(function(d) {
+      return d && normalizeRoomType(d.room_type) === LIVING_PLACEHOLDER_RT;
+    });
+  }
+  function _livingPlaceholder(styleKey, dropped) {
+    return {
+      _placeholder: true,          // ← 資料層的唯一識別，所有計數/金額都靠它排除
+      style: styleKey,
+      room_type: LIVING_PLACEHOLDER_RT,
+      angle_label: '客廳（優化中）',
+      matched_furniture: [],       // 空陣列：即使被誤傳進 planTotals 也加不出金額
+      soft_furnishing: [],
+      _dropped_for_style: dropped || []
+    };
+  }
   function _roomRank(r) {
     var rt = (r && (r.room_type || 'living')) || 'living';
     return (_RT_ORDER[rt] !== undefined) ? _RT_ORDER[rt] : 9;
   }
-  function buildUI(renders) {
+  function buildUI(renders, dropped) {
     _groups = [];
     _angleIdx = {};
     var byStyle = {};
@@ -471,7 +523,37 @@
       }
       byStyle[key].angles.push(r);
     });
-    // 每個風格內的角度依房型排序（客廳→餐廳→主臥→書房），預設開第一個（=客廳，若有）
+
+    // 客廳佔位：該風格「有客廳落選、且沒有客廳成品」時，第一個位置放佔位卡。
+    // ⚠️ 只在客廳真的被擋下時出現。客戶根本沒要求客廳的單（例如只傳臥室），
+    //    dropped 裡不會有 living，這裡自然不會插——不對沒點客廳的人喊缺客廳。
+    //
+    // ⚠️ 2026-08-07 補：**該風格可能一張圖都沒交付**（單房客廳零圖）。
+    //    第一版只走 `_groups.forEach`，而 _groups 只從成功的 renders 建，
+    //    所以零交付時連 group 都沒有、佔位卡也就永遠插不進去——鐵則只做了
+    //    「客廳失敗但其他房間成功」那一半（GPT 2026-08-07）。
+    //    這裡改成先用落選的客廳把缺席的 style group 補出來。
+    var droppedLiving = (dropped || []).filter(function(d) {
+      return d && normalizeRoomType(d.room_type) === LIVING_PLACEHOLDER_RT;
+    });
+    droppedLiving.forEach(function(d) {
+      var key = d.style || 'unknown';
+      if (byStyle[key]) return;
+      byStyle[key] = { style: key, label: d.style_label || key, angles: [] };
+      _groups.push(byStyle[key]);
+      _angleIdx[key] = 0;
+    });
+    droppedLiving.length && _groups.forEach(function(g) {
+      var hasLiving = g.angles.some(function(a) {
+        return normalizeRoomType(a.room_type) === LIVING_PLACEHOLDER_RT;
+      });
+      if (hasLiving) return;                       // 客廳成功交付 → 佔位卡完全不出現
+      var mine = droppedLiving.filter(function(d) { return d.style === g.style; });
+      if (mine.length) g.angles.push(_livingPlaceholder(g.style, mine));
+    });
+
+    // 每個風格內的角度依房型排序（客廳→餐廳→主臥→書房），預設開第一個
+    // （=客廳；客廳落選時就是佔位卡，room_type 同為 living 所以一樣排第一）
     _groups.forEach(function(g) {
       g.angles.sort(function(a, b) { return _roomRank(a) - _roomRank(b); });
     });
@@ -541,18 +623,33 @@
       // 71DC312E 補洞：後端有兩種「建模不了」訊息，靠字串比對會漏（該單掉進舊文案，
       // 被錯誤告知「系統已自動嘗試修正／聯絡客服重出」——其實付費前就停了、也不會自動修）。
       // 改成比對結構化欄位，跟後端 _delivery_failure_message 同一套判斷，不再猜字串。
-      var _preflight = dropped.some(function(d) {
-        return d.failure_class === 's2_preflight_blocked' || d.layout_mode === 's2_blocked_legacy';
-      });
-      var _obliqueLegacy = dropped.some(function(d) { return d.layout_mode === 'legacy_fallback'; });
-      var _isReshoot = _preflight || _obliqueLegacy
-        || /重拍|拍攝角度|無法完整判讀|建模|斜角|正面照片|前檢未通過/.test(_msg);
+      // ⚠️ 293BDE11 教訓（2026-08-06）：原本只要 layout_mode === 'legacy_fallback'
+      // 就顯示重拍卡。但 legacy_fallback **不是失敗**，它是正常救援路徑——
+      // A62AC21A 走同一條路徑（crop_note=s2_waived_living_zone_zoom）成功交付。
+      // 293BDE11 的照片拍得很正、S2 前檢也過，死因是模型憑空重建天花板
+      // ＋補生鏈 MissingRenderPath，叫客戶重拍是白費工。
+      //
+      // ⚠️ 第一版改成「排除 8 個品質旗標」——那是**黑名單**，而後端的
+      // HARD_FAIL_FLAGS 有 20 個：沙發擋門、擋走道、沙發錯邊…全在漏網名單裡，
+      // 走 legacy 的圖照樣會被叫去重拍。改成正向認列（跟後端
+      // _incomplete_message 的 _MODELLING_FAILURE_SIGNALS 同一套）：
+      // **生成後的任何 hard flag 都不是照片的錯**，只有付費前的建模／前檢
+      // 擋下才要換照片。
+      // ⚠️ 只列 production 真的會寫出來的訊號。第一版還放了
+      // 'geometry_not_modelable'，但全庫沒有任何地方產出它；blocked_reason_class
+      // 也沒被帶進 dropped payload——死訊號會讓人以為涵蓋了那個情況。
+      // ⚠️ 只留這一套。原本這裡有 _preflight 與 _modellingFailed 兩個變數，判斷式
+      // 逐字相同（同兩個訊號、同兩個欄位），兩套並存遲早會只改到其中一套
+      // （GPT 2026-08-07）。客廳佔位卡也吃 isModellingFailure()，不另寫第三套。
+      var _isReshoot = isModellingFailure(dropped);
       if (_isReshoot) {
         box.innerHTML = firstClause
           + '<strong style="color:#ffb4b4;">這個拍攝角度，系統目前設計不出安全的「沙發正對電視」佈局</strong>'
           + '（不是你的品味或空間問題，是我們對這個角度的建模能力限制）。<br>'
-          + (_preflight ? '<span style="color:#e8cccc;">系統在<strong>生成前</strong>就停止了，'
-                        + '沒有產生錯誤的設計圖。</span><br>' : '')
+          // 兩個訊號都會走進後端的 _s2_preflight_blocked_result（api.py:3538），
+          // 都是付費前擋死，所以這句對白名單裡的每一個訊號都成立，不需要再分岔。
+          + '<span style="color:#e8cccc;">系統在<strong>生成前</strong>就停止了，'
+          + '沒有產生錯誤的設計圖。</span><br>'
           + (_msg ? '<span style="color:#e8cccc;">' + _msg + '</span><br>' : '')
           + '<div style="margin:10px auto 0;max-width:560px;text-align:left;font-size:12.5px;color:#e6cccc;line-height:1.9;">'
           + '<div style="color:#ffb4b4;margin-bottom:2px;">30 秒重拍小訣竅：</div>'
@@ -610,6 +707,37 @@
     if (e.key === 'Escape') closeLightbox();
   });
 
+  // 佔位卡的畫面。只講狀態＋下一步，不秀圖也不列商品。
+  // 文案分岔用共用的 isModellingFailure()：付費前建模失敗才講重拍，
+  // 生成後的品質硬傷一律「免費重出」——不能一律叫客戶重拍（293BDE11 的教訓）。
+  function livingPlaceholderHTML(group, navHtml, entry) {
+    var reshoot = isModellingFailure((entry || {})._dropped_for_style);
+    var hasOtherRooms = (group.angles || []).some(function(a) { return !a._placeholder; });
+    var action = reshoot
+      ? '我們的空間建模判讀不了這個拍攝角度（不是你的空間問題）。'
+        + '請站在客廳<strong>一端</strong>、鏡頭順著<strong>長邊</strong>正面拍一張，'
+        + '讓左右兩側牆與大門都入鏡，重新上傳即可。'
+      : '設計圖沒有通過我們的配置驗收，系統已擋下不合格的版本，正在為你重出。'
+        + '需要加快請聯絡客服<strong>免費重出</strong>。';
+    return navHtml +
+      '<div class="render-ph" style="border:1px dashed rgba(220,80,80,.45);'
+      + 'background:rgba(220,80,80,.05);padding:26px 18px;">'
+      + '<div style="font-size:26px;color:#ffb4b4;opacity:.55;">◈</div>'
+      + '<div style="font-size:13px;color:#ffb4b4;letter-spacing:1px;margin-top:6px;">'
+      + '客廳設計優化中</div>'
+      + '<div style="font-size:12px;color:#e8cccc;line-height:1.9;margin-top:8px;'
+      + 'max-width:460px;">'
+      // 跟後端 completed_msg 同一組（api.py:7600-7603），不另寫第二版。
+      // ⚠️ 「其他房間已先交付」只有在**真的有別的房間交付**時才成立。零交付的單
+      //    （單房客廳全被擋）講這句就是對客戶說假話——後端在那個情境用的也是
+      //    另一句（all_failed_repairing）。這裡跟著分。
+      + (hasOtherRooms
+           ? '主空間（客廳）設計仍在優化中；其他房間已先交付。<br>'
+           : '你的客廳設計仍在優化中，我們會盡快補上。<br>') + action
+      + '</div></div>'
+      + '<div class="render-label">' + group.label + ' · 客廳（優化中）</div>';
+  }
+
   function renderPanelContent(group) {
     var idx = _angleIdx[group.style] || 0;
     var r   = group.angles[idx] || {};
@@ -641,6 +769,10 @@
         (r.door_excluded ? '（取景自玄關向內，大門位於鏡頭後方、不在畫面中）' : '') +
         '，實際空間以您上傳照片為準</div>'
       : '';
+    // 佔位卡：不秀圖、不列商品、不做下載按鈕，但子分頁仍在（其他房間照樣可切）
+    if (r._placeholder) {
+      return livingPlaceholderHTML(group, navHtml, r);
+    }
     var imgSection = imgUrl
       ? navHtml +
         '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy" decoding="async" onclick="openLightbox(this.src)">' +
@@ -982,7 +1114,13 @@
         try { fillCustomerInputs(data.customer_inputs || {}); } catch (e) { console.warn('customer_inputs 顯示失敗', e); }
 
         var renders = data.renders || [];
-        if (renders.length) { buildUI(renders); }
+        var _dropped = ((data.validation_summary || {}).dropped_renders) || [];
+        // 🔴 零交付也要進 buildUI：單房客廳全被擋時，renders 是空的，但客廳仍在
+        // 訂單規劃範圍內——鐵則是「只要有客廳，第一頁就保留給客廳」，不是
+        // 「只要還有別的房間交付」。判斷本體在 shouldBuildUI（可被行為測試打到）。
+        if (shouldBuildUI(renders, _dropped)) {
+          buildUI(renders, _dropped);
+        }
         else if (data.repairing) {
           // 全部仍在優化中：顯示友善訊息，不是「失敗」也不是「尚無渲染圖」
           document.getElementById('tabsContainer').innerHTML =

@@ -44,7 +44,9 @@ def test_validation_attempt_preserves_exception_type_and_message(capsys):
     assert event["ok"] is None
     assert event["failure_class"] == "infrastructure"
     assert event["exception_type"] == "TimeoutError"
-    assert event["exception_message"] == "Gemini judge timed out"
+    # 2026-08-07：exception_message 不再存原文（可能夾網址／容器路徑／token），
+    # infrastructure 收斂成固定分類標籤——「是沒錢還是逾時」仍看得見。
+    assert event["exception_message"] == "生成或驗證逾時"
     assert '"exception_type": "TimeoutError"' in capsys.readouterr().out
 
 
@@ -92,7 +94,9 @@ def test_validation_diagnostics_exposes_history_and_final_exception():
         "validation_unavailable": True,
         "validation_outage": None,
         "exception_type": "ValueError",
-        "exception_message": "invalid Gemini response",
+        # 2026-08-07：validator_exception 的原文不進 payload（可能夾網址／路徑／
+        # token），只留 exception_type 供分類。
+        "exception_message": None,
     }
 
 
@@ -101,7 +105,10 @@ def test_pipeline_hooks_all_post_render_validation_stages_and_trimmed_payloads()
 
     for stage in ("post_render", "z3", "phase2", "phase3"):
         assert f'stage="{stage}"' in source
-    assert "**_validation_diagnostics(r)" in source
+    # 2026-08-07：改成先算 `_diag = _validation_diagnostics(r)` 再 `**_diag`，
+    # 因為落選 reason 也要用它的 failure_class 決定錯誤文字能不能外流。
+    assert "_diag = _validation_diagnostics(r)" in source
+    assert "**_diag," in source
     # 完整版帶全份證據；精簡版與極簡版帶摘要（見 _slim_validation_summary 的體積理由）
     assert source.count('"validation_summary": validation_summary') >= 1
     assert source.count('"validation_summary": _slim_validation_summary(validation_summary)') == 2
@@ -136,6 +143,7 @@ def test_render_quality_keeps_reason_flags_and_measurements(capsys):
     )
 
     assert event["failure_class"] == "render_quality"
+    # 判官自己的欄位一個都不能少（清洗不得誤傷幾何證據）
     assert event["raw_verdict"] == verdict
     capsys.readouterr()
 
@@ -149,7 +157,14 @@ def test_quota_is_classified_as_infrastructure_on_any_validation_stage(capsys):
     )
 
     assert event["failure_class"] == "infrastructure"
-    assert event["raw_verdict"]["error"] == "429 RESOURCE_EXHAUSTED"
+    # 🔴 這條原本斷言 raw_verdict 保留 "429 RESOURCE_EXHAUSTED" 原文——
+    # 等於用測試主動保護錯誤原文進客戶 payload（GPT 2026-08-07 指出）。
+    # raw_verdict 現在只放行判官對圖片的判定；`error` 是我們注入的系統欄位，
+    # 一律擋下並把**欄位名**記進 _redacted_text_fields。
+    # 「這是額度問題」這個訊號沒有消失，它在 failure_class / exception_message。
+    assert "error" not in event["raw_verdict"]
+    assert event["raw_verdict"]["_redacted_text_fields"] == ["error"]
+    assert event["exception_message"] == "額度／餘額不足"
     capsys.readouterr()
 
 
@@ -162,7 +177,8 @@ def test_generation_timeout_is_infrastructure_even_without_validation_history():
 
     assert diagnostic["failure_class"] == "infrastructure"
     assert diagnostic["validation_final"]["exception_type"] == "FalGenerationTimeout"
-    assert diagnostic["validation_final"]["exception_message"] == "fal request exceeded 180 seconds"
+    # infrastructure 收斂成固定分類標籤，不存原文——「逾時」這個訊號仍看得見
+    assert diagnostic["validation_final"]["exception_message"] == "生成或驗證逾時"
 
 
 def _worst_case_summary():
@@ -292,21 +308,33 @@ def test_incomplete_message_matches_the_real_cause():
 
 
 def test_incomplete_message_tells_the_customer_to_reshoot_when_angle_is_unmodellable():
-    """3135DE37｜斜角方正房 S2 建模不了 → 回退 legacy。這種單再重跑幾次都一樣，
-    唯一有效的動作是正面重拍。文案不講清楚，客服和客戶只會一直重跑。"""
+    """只有【明確的建模失敗訊號】才叫客戶重拍。
+
+    ⚠️ 2026-08-06 改寫（293BDE11）：這條原本鎖住「`layout_mode=legacy_fallback`
+    ＋ render_quality → 必須叫重拍」。但 `legacy_fallback` **不是失敗**，它是
+    S2 讓位後的正常救援路徑——A62AC21A 走同一條路徑成功交付。293BDE11 的照片
+    拍得很正、S2 前檢也過，死因是模型憑空重建天花板，重拍一百次都一樣。
+    這條測試等於把錯誤推論鎖住了，所以連同實作一起改成正向認列。
+    """
+    # 明確的建模失敗訊號 → 重拍建議必須在
+    blocked = {"dropped_renders": [
+        {"failure_class": "s2_preflight_blocked", "layout_mode": "s2_blocked_legacy"}]}
+    assert "正面" in api._incomplete_message(blocked)
+
+    # 只是走了 legacy 救援、生成後才失敗 → 不得叫重拍，走免費重出
     waived = {"dropped_renders": [
         {"failure_class": "render_quality", "layout_mode": "legacy_fallback"}]}
     msg = api._incomplete_message(waived)
-    assert "正面" in msg and "重拍" in msg
-    assert "配置驗收" not in msg
+    assert "重拍" not in msg, f"單憑 legacy_fallback 就叫重拍：{msg}"
+    assert "免費重出" in msg
 
-    # S2 正常路徑的品質失敗 → 仍講配置驗收，不可叫客戶重拍
+    # S2 正常路徑的品質失敗 → 同樣不可叫客戶重拍
     s2 = {"dropped_renders": [
         {"failure_class": "render_quality", "layout_mode": "s2_contract"}]}
     assert "配置驗收" in api._incomplete_message(s2)
     assert "重拍" not in api._incomplete_message(s2)
 
-    # 系統問題仍優先講系統（但 legacy_fallback 更具體，排在前面）
+    # 系統問題優先講系統
     infra = {"dropped_renders": [
         {"failure_class": "infrastructure", "layout_mode": "s2_contract"}]}
     assert "系統" in api._incomplete_message(infra)
@@ -338,8 +366,11 @@ def test_layout_mode_survives_the_trimmed_payload():
     }
     slim = api._slim_validation_summary(full)
     assert slim["dropped_renders"][0]["layout_mode"] == "legacy_fallback"
-    # 精簡版仍要能導出正確文案
-    assert "正面" in api._incomplete_message(slim)
+    # 精簡版仍要能導出正確文案。⚠️ 2026-08-06 起 legacy_fallback 本身不再是
+    # 重拍證據（見 test_incomplete_message_...），所以這裡驗的是「欄位有活下來
+    # 且導出的是免費重出」，不是「導出重拍」。
+    assert "免費重出" in api._incomplete_message(slim)
+    assert "重拍" not in api._incomplete_message(slim)
     # 而且仍然是精簡的（raw_verdict 不得混進來）
     assert "raw_verdict" not in json.dumps(slim, ensure_ascii=False)
 

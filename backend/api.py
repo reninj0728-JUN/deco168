@@ -4087,8 +4087,14 @@ def _record_validation_attempt_inner(
         "hard_fail": raw.get("hard_fail"),
         "failure_class": failure_class,
         "exception_type": exception_type,
-        "exception_message": failure_message[:500] or None,
-        "raw_verdict": json.loads(json.dumps(raw, ensure_ascii=False, default=str)),
+        "exception_message": _customer_safe_message(
+            failure_class, failure_message, exception_type),
+        # ⚠️ 不是 raw 的深拷貝。這個 event 同時進 validation_history（→ result_json
+        # → 客戶可見）與下面的 print（→ Railway log），而 raw 裡混著我們自己注入
+        # 的 `error`（fal / storage 原文，會夾簽名網址與容器路徑）。
+        # `_safe_verdict` 只放行判官對圖片的判定。
+        "raw_verdict": _safe_verdict(
+            json.loads(json.dumps(raw, ensure_ascii=False, default=str))),
     }
     render.setdefault("validation_history", []).append(event)
     log_event = {
@@ -4271,7 +4277,10 @@ def _validation_diagnostics(render: dict) -> dict:
             "validation_unavailable": validation.get("validation_unavailable"),
             "validation_outage": validation.get("validation_outage"),
             "exception_type": validation.get("exception_type") or error_type,
-            "exception_message": str(validation.get("error") or error_text)[:500] or None,
+            "exception_message": _customer_safe_message(
+                validation.get("failure_class") or failure_class,
+                validation.get("error") or error_text,
+                validation.get("exception_type") or error_type),
         },
     }
 
@@ -4636,6 +4645,245 @@ def _s2_blocked_fallback_enabled() -> bool:
     return os.environ.get("S2_BLOCKED_FALLBACK", "1").strip() != "0"
 
 
+# 裁切框上緣超過原圖高度的這個比例 → 判定「框不到天花板」。
+# 293BDE11（2026-08-06）客廳零圖的根因：
+#   `living_zone.bbox_on_best_photo = [580, 0, 1000, 750]`——y 從 58% 到 100%。
+#   ⚠️ 那個 bbox 沒有畫錯：它的語意是「**家具該擺在地板的哪一塊**」，本來就
+#   畫在地板上、落在畫面下半部完全正確。錯的是程式把這個**分區框**直接當成
+#   **攝影裁切框**去裁渲染底圖。裁出來 765x510、佔原圖 24%，幾乎整片地板，
+#   看不到天花板與牆面上半 → 模型只能自己重建天花 → 憑空畫出整片外露管線
+#   → 判官 `ceiling_changed: true` → hard_fail → 客戶零圖，
+#   而且還被文案叫去重拍（重拍不會改變 bbox 語意，同一個坑會再踩）。
+#
+# 天花板永遠在照片上方，所以「最終框上緣落在畫面中段以下」就是「框不到天花」
+# 的可靠代理。門檻 0.45 由真實資料定：全站 6 單走過這條路徑，
+#   已交付 5 單的**最終框** y0 = 21% / 32% / 33% / 33% / 38%
+#   唯一失敗（293BDE11）= 54%
+# 空窗區間 (38%, 54%)，0.45 落在正中間，五個成功單一個都不會被動到。
+# ⚠️ 量的是門排除＋比例收斂【之後】的最終框，不是原始 bbox。
+CROP_MUST_INCLUDE_CEILING_MAX_Y0 = 0.45
+
+
+def _missing_render_diag(*, render_path=None, base_path=None,
+                         error=None, error_type=None) -> dict:
+    """MissingRenderPath 的統一診斷欄位——**只記結構化事實，不存任何自由文字**。
+
+    293BDE11：四個出口只記「沒有路徑」，查不出到底是 fal 沒回圖、檔案沒落地、
+    還是底圖不見了——三種原因的修法完全不同。四個出口共用這一份，
+    避免只補其中兩個（我第一版就只補了 z3 與 phase2）。
+
+    ⚠️ **刻意不存 `error` 的原文**。fal / storage 的錯誤訊息常整段夾著簽名網址、
+    容器絕對路徑、token，而 `dropped_renders` 是**會進客戶可見 payload** 的欄位。
+    我第一版寫了一個遮蔽函式想把它們濾掉，實測 6 種格式全部漏
+    （`C:/正斜線`、UNC 雙反斜線、`/workspace/...`、`r2://`、
+    `supabase://`、`./相對路徑`）——那是在跟路徑格式打地鼠，打不完。
+    下面這幾個布林值已經足以區分主要故障類型。
+    ⚠️ 原文**哪裡都不留**，Railway log 也不印——log 一樣會外流
+    （這行原本寫「完整錯誤字串只留 Railway log」，2026-08-07 已推翻）。
+    要看「是沒錢還是逾時」請看 `_classify_infra_message` 的固定分類標籤。"""
+    rp = str(render_path or "")
+    bp = str(base_path or "")
+    return {
+        "render_path_set":      bool(rp),
+        "render_file_exists":   bool(rp) and Path(rp).exists(),
+        "base_path_set":        bool(bp),
+        "base_file_exists":     bool(bp) and Path(bp).exists(),
+        "render_error_present": bool(str(error or "")),
+        "error_type":           error_type,
+    }
+
+
+# 基礎設施故障的【固定分類標籤】。原始錯誤字串可能夾簽名網址／容器路徑／token，
+# 但「到底是沒錢還是逾時」是必須看得到的訊號——2026-07-19 那次 fal 餘額耗盡被
+# 報成「配置驗收失敗」，害人往格局方向查了一整天。所以不存原文、存分類。
+_INFRA_LABELS = (
+    (("quota", "balance", "insufficient fund", "exhausted", "餘額", "額度",
+      "payment required", "402"), "額度／餘額不足"),
+    (("timed out", "timeout", "deadline", "exceeded"), "生成或驗證逾時"),
+    (("service unavailable", "bad gateway", "http 502", "http 503",
+      "connection reset", "http 500"), "上游服務暫時不可用"),
+    (("locked", "rate limit", "too many requests", "429"), "上游限流或暫時鎖定"),
+)
+
+
+# 例外類型比字串更可靠：先看它，再退回關鍵字比對。
+_INFRA_TYPE_LABELS = {
+    "FalGenerationTimeout": "生成或驗證逾時",
+    "FalResultDownloadError": "上游服務暫時不可用",
+    "TimeoutError": "生成或驗證逾時",
+    "ConnectionError": "上游服務暫時不可用",
+}
+
+
+def _classify_infra_message(text, exception_type=None) -> str | None:
+    """把基礎設施錯誤原文收斂成固定標籤（不回傳原文的任何片段）。"""
+    if exception_type in _INFRA_TYPE_LABELS:
+        return _INFRA_TYPE_LABELS[exception_type]
+    low = str(text or "").lower()
+    if not low:
+        return None
+    for tokens, label in _INFRA_LABELS:
+        if any(t in low for t in tokens):
+            return label
+    return "上游服務錯誤"
+
+
+def _customer_safe_message(failure_class, text, exception_type=None) -> str | None:
+    """決定「這段文字能不能進客戶可見的 payload」——按【來源】判斷，不遮蔽。
+
+    ⚠️ 遮蔽是偽安全：我寫過一個過濾網址／路徑／token 的函式，實測 6 種路徑
+    格式全部漏（`C:/正斜線`、UNC、`/workspace`、`r2://`、`supabase://`、相對
+    路徑）。跟格式打地鼠打不完。而把原文改印進 Railway log 也不算修——
+    log 一樣會外流（GPT 2026-08-07 指出）。
+
+    🔴 2026-08-07 修正我自己上一輪的錯誤假設：原本有一支
+    「`render_quality` = 判官敘述 → 原文保留」。但查過三個呼叫端後確認，
+    **沒有任何一個會傳判官敘述進來**——傳的一律是 `raw["error"]` /
+    `str(exception)` 這種系統來源字串。判官的敘述走的是另外兩條路
+    （`dropped_renders[].reason` 與 `raw_verdict["reason"]`），不經過這裡。
+    所以那一支沒有上行價值，只是個洞：judge 回 ok=False 而 raw 又帶 error 時，
+    failure_class 被算成 render_quality，整串原文原封放行（GPT 2026-08-07
+    用 `Bearer …` 實測打穿）。我上一輪還寫了測試把它鎖起來。
+
+    現在的規則只有兩條：
+      · `infrastructure` → 收斂成**固定分類標籤**。不能整段丟掉：「fal 沒錢」
+        vs「逾時」是必須看得到的訊號（2026-07-19 那次就是因為看不到而查錯
+        方向一整天）。
+      · 其他一律 `None`，只留 `exception_type`（類別名，本身不夾機密）。
+    """
+    if failure_class == "infrastructure":
+        return _classify_infra_message(text, exception_type)
+    return None
+
+
+# 判官 verdict 裡「敘述型」的字串欄位：內容是 Gemini 在描述這張圖
+# （沙發在哪、電視櫃對不對向），來源是圖片本身，不可能夾容器路徑或 token。
+# 依 2026-08-07 線上 60 單、107 筆 raw_verdict 的實際欄位分佈整理。
+_VERDICT_TEXT_KEYS = frozenset({
+    # 敘述型
+    "reason", "sofa_zone_assessment", "focal_anchor_assessment",
+    "confirmed_living_zone_reference",
+    # 列舉型（值域會長，用 key 認列比較穩：新增一個方位不會讓整欄消失）
+    "sofa_side_detected", "sofa_depth_position", "focal_anchor_depth_position",
+    "room_type",
+    # 判官給的字串陣列：品項槽位名／軟傷描述。
+    # ⚠️ 漏掉這兩個會把 visibility_nice_bad 一起洗掉——那是分級交付的依據
+    #    （46F1B2B5：加分品項沒入圖不殺圖，靠它從清單端移除品項）。
+    "visibility_nice_bad", "soft_issues",
+})
+
+def _product_visibility_values() -> frozenset:
+    """`product_visibility` 的合法值——**跟判官 prompt 共用同一份契約**。
+
+    這裡的 key 是品項槽位（會隨品項增加），所以只能用【值】認列。
+    🔴 第一版我照「線上抽樣看到的值」手寫了一張表（visible / missing / partial…），
+    結果正式值 `different` 沒被抽到而被當成未知字串刪掉——那是商品畫錯的判定值，
+    會觸發 product_visibility_fail，事後卻查不到是哪一件（GPT 2026-08-07 實測）。
+    而我表裡的 `partial` 根本不在契約裡，是我自己想的。
+    照抽樣建清單就是會漏、還會多；改成從宣告端 import，兩邊不可能再走鐘。
+    （跟 `_triggered_hard_flags` 共用 HARD_FAIL_FLAGS 是同一個道理。）
+    """
+    try:
+        from gemini_analyze import PRODUCT_VISIBILITY_VALUES
+    except Exception:
+        # import 不到時**不放行**任何列舉值：寧可少存診斷，不可放行未知字串。
+        # （door_gap 那次「缺套件就靜默失效」的反例——這裡失效方向是收緊不是放寬。）
+        return frozenset()
+    return frozenset(PRODUCT_VISIBILITY_VALUES)
+
+
+_VERDICT_ENUM_VALUES = _product_visibility_values()
+
+
+class _Drop:
+    """`None` 是合法的 verdict 值（ok=None 代表驗證沒跑），不能拿來當「丟棄」哨兵。"""
+    __slots__ = ()
+    def __repr__(self) -> str:  # pragma: no cover - 只為 debug 好讀
+        return "<DROP>"
+
+
+_DROP = _Drop()
+
+
+def _safe_verdict(raw, _key: str = "", _redacted: list | None = None):
+    """判官 verdict 的可外流版本——**字串一律正向認列**，其餘型別原樣保留。
+
+    🔴 為什麼需要這一層：`raw_verdict` 是 `raw` 的完整深拷貝，同時進
+    `validation_history`（→ result_json → 客戶可見）與 `print`（→ Railway log）。
+    我上一輪只清了 `exception_message`，但 `raw` 裡我們自己注入的 `error`
+    （線上 107 筆中 37 筆有值，例：`missing render path after phase3`）原封不動
+    走這兩條路出去——GPT 2026-08-07 用 `Bearer TOPSECRET https://... /app/jobs/X`
+    實測重現。清一個欄位不等於堵住洩漏面。
+
+    ⚠️ 用白名單不用黑名單。黑名單（列舉 error/traceback/response…）遲早漏掉
+    下一個新欄位，這個專案已經在渲染模型、重拍文案兩輪各栽過一次。
+    這裡的規則是：
+      · 非字串（bool / 數字 / null）→ 保留。它們表達不了路徑或 token。
+      · list / dict → 遞迴。
+      · 字串 → 只有 key 在 `_VERDICT_TEXT_KEYS`、或值在 `_VERDICT_ENUM_VALUES`
+        才留；其餘丟棄，並把 **欄位名**（不是值）記進 `_redacted_text_fields`。
+    記欄位名是為了讓新欄位「被擋下」這件事看得見——door_gap 守門靜默消失那次
+    的教訓：靜默的防線等於沒有防線。
+    """
+    if isinstance(raw, dict):
+        out = {}
+        top = _redacted is None
+        red: list = [] if top else _redacted   # type: ignore[assignment]
+        for k, v in raw.items():
+            kept = _safe_verdict(v, str(k), red)
+            if kept is not _DROP:
+                out[k] = kept
+        if top and red:
+            out["_redacted_text_fields"] = sorted(set(red))
+        return out
+    if isinstance(raw, list):
+        return [x for x in (_safe_verdict(v, _key, _redacted) for v in raw)
+                if x is not _DROP]
+    if isinstance(raw, str):
+        if _key in _VERDICT_TEXT_KEYS or raw.strip().lower() in _VERDICT_ENUM_VALUES:
+            return raw
+        if _redacted is not None:
+            _redacted.append(_key or "?")
+        return _DROP
+    return raw
+
+
+def _triggered_hard_flags(validation: dict | None) -> list[str]:
+    """這份判定實際踩到哪些 hard flag。用判官端的同一份清單，不另抄。
+
+    判官的 `reason` 是自由文字，不保證等於真正的死因（293BDE11：reason 只寫
+    「藤編搖椅未出現」，真正的硬傷是 `ceiling_changed`）。落選紀錄要能被查，
+    就必須把結構化的觸發項列出來。
+    """
+    if not isinstance(validation, dict):
+        return []
+    try:
+        from gemini_analyze import HARD_FAIL_FLAGS
+    except Exception:
+        return []
+    # ⚠️ 用真值判斷不是 `is True`：判官端是 `any(result.get(f) for f in ...)`，
+    # 兩者對非布林值（例如非空字串）語意不同，會出現「判官說 hard_fail
+    # 但這裡列不出任何 flag」的鬼打牆。
+    return [f for f in HARD_FAIL_FLAGS if validation.get(f)]
+
+
+def _crop_keeps_room_structure(y0: int, height: int) -> tuple[bool, str]:
+    """最終裁切框有沒有保住空間結構（至少含到天花板）。回 (合格, 不合格原因)。
+
+    抽成獨立函式是為了讓 `_crop_region_base` 未來要套同一道守門時只是一行——
+    ⚠️ 但**現在刻意沒有套上去**：那條路歷史上裁切 34 次、34 次全部交付成功，
+    而且 2026-07-13 之後再也沒觸發過；它的 crop_box 沒有持久化，要重算最終框
+    得重跑 zoning（會花 Gemini 錢）。沒量過就加守門違反「先量波及面」的規矩。
+    """
+    if height <= 0:
+        return True, ""
+    ratio = y0 / height
+    if ratio > CROP_MUST_INCLUDE_CEILING_MAX_Y0:
+        return False, (f"裁切框上緣在畫面 {ratio:.0%} 處（>{CROP_MUST_INCLUDE_CEILING_MAX_Y0:.0%}），"
+                       f"框不到天花板")
+    return True, ""
+
+
 def _crop_to_living_zone(base_path: str, job_dir, idx: int,
                          living_bbox1000, pad: float = 0.04,
                          entrance_bbox1000=None):
@@ -4716,6 +4964,19 @@ def _crop_to_living_zone(base_path: str, job_dir, idx: int,
             else:
                 print(f"[pipeline] 客廳區特寫：比例收斂後過小（{_cx1-_cx0}x{_cy1-_cy0}），"
                       f"維持未收斂裁切（比例差仍在，但總比廢底圖好）")
+        # ── 天花板守門（放在門排除＋比例收斂【之後】，量的是最終框）──────
+        # 框不到天花板的底圖，等於叫模型自己重建屋頂——293BDE11 就是這樣被畫出
+        # 整片憑空的外露管線。這種情況**放棄特寫、回 None**，呼叫端 (`if _zoom:`)
+        # 會自動沿用裁切前的完整底圖（至少有真天花板與完整牆面）。
+        # ⚠️ 不可以退去 `_crop_region_base`：它會**再呼叫一次 zoning**、再拿一份
+        # 同語意的 living_zone bbox 去裁，同一張照片大概率裁出同樣的地板特寫
+        # （實算 y0≈46%，仍在門檻外），等於多燒一次 Gemini、多一次非決定性，
+        # 而且修了等於沒修。
+        _ok_struct, _why_struct = _crop_keeps_room_structure(y0, H)
+        if not _ok_struct:
+            print(f"[pipeline] 客廳區特寫：放棄裁切——{_why_struct}；"
+                  f"改用未裁切的完整底圖（避免模型憑空重建天花板）")
+            return None
         crop = img[y0:y1, x0:x1]
         if crop.size == 0:
             return None
@@ -4792,22 +5053,30 @@ def _incomplete_message(validation_summary: dict | None) -> str:
     dropped = [d for d in ((validation_summary or {}).get("dropped_renders") or [])
                if isinstance(d, dict)]
     classes = {d.get("failure_class") for d in dropped}
-    if any(
-        d.get("failure_class") == "s2_preflight_blocked"
-        or d.get("layout_mode") == "s2_blocked_legacy"
-        for d in dropped
-    ):
+    # ── 只有【明確的付費前建模／前檢失敗】才叫客戶重拍 ──────────────────
+    # ⚠️ 293BDE11 教訓（2026-08-06）：原本寫成 `layout_mode == "legacy_fallback"`
+    #    → 一律叫重拍。但 `legacy_fallback` **不是失敗**，它是 S2 讓位後的正常
+    #    救援路徑——A62AC21A 走同一條路徑成功交付。293BDE11 照片拍得很正、
+    #    S2 前檢也過，死因是模型憑空重建天花板，重拍一百次都一樣。
+    # ⚠️ 第一版改成「排除 8 個品質旗標才講重拍」——那是**黑名單**，而
+    #    HARD_FAIL_FLAGS 有 20 個，沙發擋門、擋走道、沙發錯邊全在漏網名單裡。
+    #    改成正向認列：**生成後的任何 hard flag 都不是照片的錯**，一律免費重出。
+    # ⚠️ 只列 production 真的會寫出來的訊號。曾放過 `geometry_not_modelable`，
+    #    但全庫沒有任何地方產出它，`blocked_reason_class` 也沒被帶進 dropped
+    #    payload——死訊號比沒有更糟，它讓人以為涵蓋了那個情況。
+    # ⚠️ 這段曾經寫成兩份（上面一個 if、下面再一個同條件的判斷），後半是
+    #    不可達死碼。**只留一條**。
+    _MODELLING_FAILURE_SIGNALS = {"s2_preflight_blocked", "s2_blocked_legacy"}
+    if any(d.get("failure_class") in _MODELLING_FAILURE_SIGNALS
+           or d.get("layout_mode") in _MODELLING_FAILURE_SIGNALS
+           for d in dropped):
         return ("這個客廳視角的安全配置前檢未通過；系統已在生成前停止，"
-                "未產生錯誤設計圖。建議改用能完整看見左右牆與大門的正面照片再試")
-    # 斜角／碎牆房：幾何模型描述不了這個視角，同一張照片再重跑幾次都一樣，
-    # 唯一有效的動作是改用正面拍攝。不講清楚的話客服和客戶只會一直重跑。
-    if any(d.get("layout_mode") == "legacy_fallback" for d in dropped):
-        return ("這個拍攝角度我們的空間建模無法完整判讀（斜角或牆面被多個門切斷），"
-                "建議站在客廳一端、鏡頭順著長邊正面重拍一張再試，成功率最高")
+                "未產生錯誤設計圖。建議站在客廳一端、鏡頭順著長邊，"
+                "讓左右兩側牆與大門都完整入鏡，正面重拍一張再試")
     system_only = bool(classes) and classes <= {"infrastructure", "validator_exception"}
     if system_only:
         return "系統暫時無法完成生成（非設計問題），我們已收到通知，請聯絡客服協助重跑"
-    return "主空間仍未通過配置驗收，請聯絡客服重新處理"
+    return "主空間仍未通過配置驗收，請聯絡客服免費重出"
 
 
 def _slim_validation_summary(summary: dict | None) -> dict | None:
@@ -6412,7 +6681,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                   f"{r.get('style')}/{r.get('room_type')}: {str(ve)[:100]}")
                 else:
                     v = {"ok": None, "error": "missing base or render path",
-                         "exception_type": "MissingRenderPath"}
+                         "exception_type": "MissingRenderPath",
+                         "diag": _missing_render_diag(
+                             render_path=rpath, base_path=bpath,
+                             error=r.get("error"), error_type=r.get("error_type"))}
+                    print(f"[pipeline] 初驗無圖可驗：{v['diag']}")
                     _record_validation_attempt(
                         r, job_id=job_id, stage="post_render", attempt=1, validation=v)
                 r["validation"] = _fail_closed_validation(v, r.get("room_type", "living"))
@@ -6689,8 +6962,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                     room_type=entry.get("_room_type", "living"),
                                                     design_mode=design_mode)
                         else:
+                            # 293BDE11：這裡只記「沒有路徑」，查不出到底是 fal 沒回圖、
+                            # 檔案沒落地、還是底圖不見了——三種原因的修法完全不同。
+                            # ⚠️ 只記事實（有沒有值／檔案在不在／fal 錯誤字串），
+                            # 不存完整容器路徑（那是部署細節，且會進客戶可見的 payload）。
                             new_v = {"ok": None, "error": "missing base or render path after retry",
-                                     "exception_type": "MissingRenderPath"}
+                                     "exception_type": "MissingRenderPath",
+                                     "diag": _missing_render_diag(
+                                         render_path=rpath, base_path=bpath,
+                                         error=new_r.get("error"),
+                                         error_type=new_r.get("error_type"))}
+                            print(f"[pipeline] z3 重驗無圖可驗：{new_v['diag']}")
                         _record_validation_attempt(
                             new_r, job_id=job_id, stage="z3", attempt=current_rc + 1,
                             validation=new_v)
@@ -6926,7 +7208,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                                 design_mode=design_mode)
                     else:
                         new_v = {"ok": None, "error": "missing path after hardfix",
-                                 "exception_type": "MissingRenderPath"}
+                                 "exception_type": "MissingRenderPath",
+                                 "diag": _missing_render_diag(
+                                     render_path=new_r.get("render_path"),
+                                     error=new_r.get("error"),
+                                     error_type=new_r.get("error_type"))}
+                        print(f"[pipeline] phase2 硬修後無圖可驗：{new_v['diag']}")
                     _record_validation_attempt(
                         new_r, job_id=job_id, stage="phase2", attempt=1,
                         validation=new_v)
@@ -7002,11 +7289,32 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             # 的過期字串蓋掉真正落選原因（幾何擋門），誤導排查方向整整一輪。
             # 驗收沒真的跑（ok=None / 沒圖可驗）時，才輪到 r.error 保住 fal 根因
             # （原教訓：別被 "missing base" 蓋住真實 render 錯誤）。
+            # ⚠️ 2026-08-07：else 分支原本直接吃 `r.error` / `v.error` 的原文，
+            # 而這個 reason 會存進 dropped_renders[].reason（客戶可見）。
+            # fal / storage 的錯誤字串會夾簽名網址與容器絕對路徑，所以系統類
+            # 錯誤一律先過 `_customer_safe_message` 收斂成固定標籤；
+            # 判官自己的敘述（render_quality）才照原文保留。
+            _diag = _validation_diagnostics(r)
             _v_reason = (v.get("reason") or "").strip()
             if v.get("ok") is not None and _v_reason:
                 reason = _v_reason
             else:
-                reason = r.get("error") or _v_reason or v.get("error") or "render 未產出"
+                _sys_text = r.get("error") or v.get("error") or ""
+                _safe_sys = _customer_safe_message(
+                    _diag.get("failure_class"), _sys_text,
+                    r.get("error_type")) if _sys_text else None
+                reason = _safe_sys or _v_reason or "render 未產出"
+            # 293BDE11 教訓（2026-08-06）：落選理由寫「購買清單中的藤編搖椅未出現
+            # 在圖上」，但搖椅是 `visibility_nice_bad`（非必備、本來就不殺圖），
+            # 真正觸發 hard_fail 的是 `ceiling_changed`（模型憑空畫出整片天花管線）。
+            # 判官的 reason 是自由文字，會挑它「覺得最值得講」的那件事講，
+            # 不保證等於真正的死因——客服和排查都被那行字帶去查商品方向。
+            # 這裡把**真正觸發的 hard flag** 逐項列出來，非必備品缺失不得冒充死因。
+            # ⚠️ 一律把【全部】觸發項列出來，不要「reason 提到其中一個就跳過」——
+            # 兩個硬傷只講到一個時，另一個仍然查不到。
+            _real_flags = _triggered_hard_flags(v)
+            if _real_flags:
+                reason = f"[硬傷] {'、'.join(_real_flags)}｜判官敘述：{reason}"
             # 生成後被擋的圖：fal 已收費、圖也在，過去直接丟掉連看都看不到。
             # 上傳並記 URL，讓營運方能眼球判「這張到底該不該擋」——用戶裁決是
             # 校準庫的唯一標準，看不到圖就無從裁決。付費前擋的單沒有 render_path，
@@ -7033,7 +7341,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "cropped":       bool(r.get("cropped")),
                 "crop_note":     r.get("crop_note"),
                 "door_excluded": bool(r.get("door_excluded")),
-                **_validation_diagnostics(r),
+                # 真正踩到的 hard flag（判官的 reason 是自由文字，不保證等於死因）。
+                # 前端用它決定要不要顯示「重拍」——成品品質類的硬傷叫人重拍是白費。
+                "triggered_hard_flags": _triggered_hard_flags(v),
+                **_diag,
             })
 
         # 全部硬傷時：不再打成 failed（客戶不該看到「處理失敗」）。
@@ -7112,11 +7423,20 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_model":      r.get("render_model"),          # debug：banana / gpt-image-2
                 "render_filename":   render_path.name if render_path else None,
                 "render_url":        render_url,
-                "render_error":      r.get("error"),
+                # ⚠️ 不存原文。成功重試後 r.error 可能還留著上一輪的 fal 錯誤字串
+                # （夾簽名網址／容器路徑），而 slim_renders 是客戶可見 payload。
+                # 收斂成固定分類標籤：有沒有出過錯、是哪一類，看得到就夠了。
+                # （沒出錯就是 None——不能只看 error_type，成功重試後它可能還留著）
+                "render_error":      (_classify_infra_message(
+                                          r.get("error"), r.get("error_type"))
+                                      if r.get("error") else None),
                 "matched_furniture": _rendered_core_only(r.get("matched_furniture"), r.get("room_type", "living")),
                 # 軟裝接入 (2026-06-18): 結果頁獨立區塊顯示, 不併入主總計
                 "soft_furnishing":   r.get("soft_furnishing", []),
-                "validation":        r.get("validation"),
+                # ⚠️ 第五條洩漏路（我自己掃出來的，不在回饋清單裡）：這份 validation
+                # 是整包序列化進客戶 payload，而 `validation.error` 在線上 233 筆
+                # render 裡有 15 筆帶值。同一個白名單清洗。
+                "validation":        _safe_verdict(r.get("validation") or {}) or None,
                 # ── T4 新增：Nano Banana 路徑會帶；Flux 路徑用預設值 ──
                 "pipeline_version":      r.get("pipeline_version", "flux-v1"),
                 "reference_map":         _slim_refmap(r.get("reference_map")),
@@ -7512,7 +7832,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         rpath = cand.get("render_path")
                         if not rpath:
                             _missing_v = {"ok": None, "error": "missing render path after phase3",
-                                          "exception_type": "MissingRenderPath"}
+                                          "exception_type": "MissingRenderPath",
+                                          "diag": _missing_render_diag(
+                                              render_path=rpath, base_path=base_p,
+                                              error=cand.get("error"),
+                                              error_type=cand.get("error_type"))}
+                            print(f"[pipeline] phase3 補生無圖可驗：{_missing_v['diag']}")
                             _record_validation_attempt(
                                 r, job_id=job_id, stage="phase3", attempt=_p3_attempt,
                                 validation=_missing_v)
