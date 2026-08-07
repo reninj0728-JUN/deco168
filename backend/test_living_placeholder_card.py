@@ -547,3 +547,69 @@ def test_no_placeholder_copy_has_stray_markup_or_double_punctuation():
         plain = _re.sub(r"<[^>]+>", "", txt)
         assert not _re.search(r"[。，；、]{2,}", plain), f"{name} 有連續標點"
         assert "  " not in plain, f"{name} 有連續空白"
+
+
+# ── ⑩ 佔位卡的版面：不得沿用 4:3 圖片佔位 ───────────────────────────
+
+def test_placeholder_does_not_reuse_the_4x3_image_box():
+    """🔴 佔位卡沿用 `.render-ph` 時，客戶看到的是一片空白。
+
+    `.render-ph` 是圖片佔位用的：`aspect-ratio: 4/3` ＋ 垂直置中。
+    在一般桌機寬度下會撐出約 1000px 高的框，文字被推到畫面外一大截——
+    2026-08-07 實機開 293BDE11 就是這樣，卡片「看起來是空的」。
+    佔位卡的高度必須由內容決定。
+    """
+    src = _slice("function livingPlaceholderHTML(")
+    assert 'class="living-ph"' in src, "佔位卡沒有自己的樣式"
+    assert "render-ph" not in src, "佔位卡又沿用了 4:3 的圖片佔位框"
+
+
+def test_living_ph_style_has_no_fixed_aspect_ratio():
+    """`.living-ph` 本身不得帶 aspect-ratio，否則等於換個名字踩同一個坑。"""
+    i = HTML.index(".living-ph {")
+    rule = HTML[i:HTML.index("}", i)]
+    assert "aspect-ratio" not in rule, ".living-ph 又被加上固定比例了"
+    assert "padding" in rule and "flex" in rule
+
+
+def test_rendered_placeholder_uses_the_new_class():
+    """行為層：實際跑出來的 HTML 就是新 class。"""
+    panel = _run(R293, D293, ROOMS293)["panels"][0]
+    assert 'class="living-ph"' in panel
+    assert 'class="render-ph"' not in panel
+
+
+# ── ⑪ 查詢頁：部分交付要給結果頁入口 ────────────────────────────────
+
+DOWNLOAD_HTML = (ROOT / "download.html").read_text(encoding="utf-8")
+
+
+def test_lookup_page_routes_partial_delivery_to_the_result_page():
+    """🔴 incomplete / repairing 原本掉進「還在生成中」，客戶拿不到已交付的圖。
+
+    線上實查（2026-08-07）：60 單 incomplete、其中 14 單有圖共 28 張。
+    這些單早就跑完了，查詢頁卻顯示「正在生成設計方案中，請稍後再查詢」，
+    而且沒有任何進入結果頁的入口。
+    """
+    i = DOWNLOAD_HTML.index("var _partial =")
+    seg = DOWNLOAD_HTML[i:i + 400]
+    code = chr(10).join(l for l in seg.splitlines() if not l.strip().startswith("//"))
+    assert "'incomplete'" in code and "'repairing'" in code, "兩種部分交付狀態沒有都認"
+    assert "status.status === 'completed' || _partial" in code, (
+        "部分交付沒有跟 completed 一樣進入給連結的分支")
+
+
+def test_lookup_page_does_not_call_partial_delivery_still_generating():
+    """部分交付的狀態文字不得說「生成中」——那是說謊。"""
+    i = DOWNLOAD_HTML.index("_partial ? '")
+    seg = DOWNLOAD_HTML[i:i + 120]
+    assert "部分交付" in seg
+    for lie in ("生成中", "請稍後", "5-15"):
+        assert lie not in seg, f"部分交付的狀態文字仍寫著「{lie}」"
+
+
+def test_lookup_page_still_hides_the_processing_note_for_partial():
+    """給了結果頁入口就不能同時掛「正在生成中」的提示，兩者矛盾。"""
+    i = DOWNLOAD_HTML.index("var _partial =")
+    seg = DOWNLOAD_HTML[i:i + 700]
+    assert "getElementById('processingNote').style.display = 'none'" in seg

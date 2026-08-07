@@ -69,6 +69,13 @@
     .render-box img { width: 100%; display: block; }
     .render-ph { width: 100%; aspect-ratio: 4/3; background: var(--dark); border: 1px solid var(--line);
       display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; }
+    /* 客廳佔位卡：不能沿用 .render-ph——那是給 4:3 圖片佔位的，aspect-ratio 4/3
+       ＋垂直置中會在寬螢幕撐出約 1000px 高的框，文字被推到畫面外一大截，
+       客戶看到的是一片空白（2026-08-07 實機發現）。這裡用內容決定高度。 */
+    .living-ph { width: 100%; box-sizing: border-box; padding: 28px 20px;
+      border: 1px dashed rgba(220,80,80,.45); background: rgba(220,80,80,.05);
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      gap: 8px; text-align: center; }
     .render-label { margin-top: 10px; font-size: 11px; color: var(--muted); text-align: center; letter-spacing: 1px; }
     .service-disclaimer { text-align: center; font-size: 11px; color: var(--muted);
       margin: 32px auto 8px; line-height: 1.85; max-width: 720px; padding: 0 24px;
@@ -720,13 +727,11 @@
       : '設計圖沒有通過我們的配置驗收，系統已擋下不合格的版本，正在為你重出。'
         + '需要加快請聯絡客服<strong>免費重出</strong>。';
     return navHtml +
-      '<div class="render-ph" style="border:1px dashed rgba(220,80,80,.45);'
-      + 'background:rgba(220,80,80,.05);padding:26px 18px;">'
+      '<div class="living-ph">'
       + '<div style="font-size:26px;color:#ffb4b4;opacity:.55;">◈</div>'
-      + '<div style="font-size:13px;color:#ffb4b4;letter-spacing:1px;margin-top:6px;">'
+      + '<div style="font-size:13px;color:#ffb4b4;letter-spacing:1px;">'
       + '客廳設計優化中</div>'
-      + '<div style="font-size:12px;color:#e8cccc;line-height:1.9;margin-top:8px;'
-      + 'max-width:460px;">'
+      + '<div style="font-size:12px;color:#e8cccc;line-height:1.9;max-width:460px;">'
       // 跟後端 completed_msg 同一組（api.py:7600-7603），不另寫第二版。
       // ⚠️ 「其他房間已先交付」只有在**真的有別的房間交付**時才成立。零交付的單
       //    （單房客廳全被擋）講這句就是對客戶說假話——後端在那個情境用的也是

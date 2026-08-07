@@ -123,8 +123,16 @@
 
       document.getElementById('resultSection').style.display = 'block';
 
-      if (status.status === 'completed') {
-        document.getElementById('statusText').textContent = '✓ 設計完成';
+      // 🔴 2026-08-07：原本只有 completed 會給結果頁入口，incomplete / repairing
+      // 全部掉進最後的 else，顯示「正在生成設計方案中，請稍後再查詢」——
+      // 但那些單早就跑完了、而且可能已經交付了圖。線上實查：60 單 incomplete、
+      // 其中 14 單有圖共 28 張，客戶從查詢頁進來永遠等一個不會來的結果，
+      // 也沒有任何入口看到已經做好的東西。
+      // incomplete/repairing = 「部分交付、主空間仍在優化」，不是「還在生成」。
+      var _partial = (status.status === 'incomplete' || status.status === 'repairing');
+      if (status.status === 'completed' || _partial) {
+        document.getElementById('statusText').textContent =
+          _partial ? '部分交付．主空間仍在優化中' : '✓ 設計完成';
         document.getElementById('statusText').className = 'status-value done';
         document.getElementById('processingNote').style.display = 'none';
         // 完整成品頁入口：家具清單/軟裝建議/設計手冊 PDF/購物清單都在成品頁，
