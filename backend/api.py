@@ -1189,6 +1189,41 @@ def _list_room_photo_candidates(
     return out
 
 
+def _living_alt_base_paths(image_paths: list, photo_meta_by_key: dict | None,
+                           primary_living: str | None,
+                           zoning: dict | None = None) -> list[str]:
+    """客廳保真失敗時可以換過去的備援底圖。
+
+    🔴 客廳底圖已因 zoning binding 改跟幾何那張時，備援只能收「同樣綁得上那份
+    幾何」的照片。`_switch_entry_to_next_living_base` 的保護只擋 `auto_*` **且有
+    guide** 的情況——S2 waive／無 guide 時照樣會換底圖，換回客戶標的那張就等於
+    復發 MISSING_PHOTO_BINDING（幾何算 A、出圖畫 B），而重試階段不會重算 zoning。
+    Z3／Phase2／Phase3 三條重試路都吃這份清單。
+
+    抽成函式是為了**可測**：這段原本 inline 在 run_pipeline 裡，行為測試打不到，
+    刪掉過濾也不會有測試變紅（shouldBuildUI 那次同款教訓）。
+    """
+    out: list[str] = []
+    if not image_paths or not photo_meta_by_key:
+        return out
+    locked = _zoning_binding_photo_index(image_paths, zoning) is not None
+    for c in _list_room_photo_candidates(image_paths, photo_meta_by_key, "living"):
+        pth = c["path"]
+        try:
+            if primary_living and Path(pth).resolve() == Path(primary_living).resolve():
+                continue
+            if not Path(pth).exists():
+                continue
+        except Exception:
+            continue
+        if locked and not _zoning_bbox_matches_source(pth, image_paths, zoning):
+            print(f"[pipeline] living 備援排除 {Path(pth).name}："
+                  f"綁不上本單幾何（同一張算、同一張畫）")
+            continue
+        out.append(pth)
+    return out
+
+
 def _should_try_alt_living_base(v: dict | None) -> bool:
     """客廳保真／結構失敗 → 值得換另一張 living 底圖（比同底圖乾抽更穩）。"""
     if not isinstance(v, dict):
@@ -2241,7 +2276,24 @@ def _clear_s2_retry_edit_artifacts(entry: dict) -> None:
     entry.pop("_s2_retry_artifacts_active", None)
 
 
-def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None) -> list[dict]:
+def _zoning_binding_photo_index(image_paths: list, zoning: dict | None) -> int | None:
+    """zoning 幾何綁在本次上傳的哪一張照片上。找不到就回 None（不猜）。
+
+    比的是 **sha256 位元組**，不是陣列 index——index 會因為照片篩選／重排而漂移，
+    而 `_zoning_bbox_matches_source` 這個現成函式已經在做同一件事（581 行）。
+    """
+    if not image_paths or not isinstance(zoning, dict):
+        return None
+    if not isinstance(zoning.get("_source_binding"), dict):
+        return None
+    for idx, p in enumerate(image_paths):
+        if isinstance(p, str) and _zoning_bbox_matches_source(p, image_paths, zoning):
+            return idx
+    return None
+
+
+def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None,
+                              zoning: dict | None = None) -> list[dict]:
     """全室：以使用者『這張照片主要是』(target_zone) 建 regions，一張照片＝一個房間。
     同房型多張候選時用 _score_photo_for_room 選最佳底圖（不再 first-wins）。
     回傳 [] → 沒有可用標註，交回 Gemini regions。
@@ -2257,6 +2309,9 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
         if rt and rt not in rts_seen:
             rts_seen.append(rt)
 
+    # 幾何綁在本次上傳的哪一張（比 sha256，不比 index）。找不到就 None＝維持現行邏輯。
+    _binding_idx = _zoning_binding_photo_index(image_paths, zoning)
+
     out: list[dict] = []
     for rt in rts_seen:
         lst = _list_room_photo_candidates(image_paths, photo_meta_by_key, rt)
@@ -2267,12 +2322,40 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None)
             print(f"[pipeline] 全室 {rt} 底圖候選 {len(lst)} 張 → 選 idx={best['idx']} "
                   f"score={best['score']} note={best['note']!r} "
                   f"(candidates={[(c['idx'], c['score']) for c in lst]})")
+        _idxs = [c["idx"] for c in lst]
+        # 🔴 客廳：幾何算在哪張，就畫在哪張（293BDE11／2026-08-07）。
+        #
+        # 這組照片客戶標 photo_01=客廳、photo_02=餐廳，但 zoning 的幾何綁在
+        # photo_02——因為 zoning prompt 挑的是「最能同時看見大門落地處、入口地面、
+        # 走道、地板與左右牆腳線」的照片，而 photo_01 根本拍不到大門（大門在鏡頭
+        # 後面）。開放式客餐廳的房子，「客戶心中的客廳」和「幾何算得出的照片」
+        # 本來就可以不是同一張。
+        #
+        # 幾何綁 A、出圖用 B 的結果是 MISSING_PHOTO_BINDING → S2 綁不上 → waive
+        # → zoom 拿 A 的 bbox 去裁 B → 天花板守門放棄 → 前檢擋死 → 客廳零圖。
+        # 同一組照片重跑三次，3/3 零客廳。
+        #
+        # ⚠️ 修的方向是「底圖去就幾何」，不是「幾何去就底圖」：座標焊死在 Gemini
+        #    選的那張上（zoning_v2.py:59-60、84-85 明文「不可跨照片拼接座標」），
+        #    事後改 binding 標籤等於拿另一張照片的門去擺這張的家具，比擋死更危險。
+        #
+        # ⚠️ 這一刀只保證「幾何與出圖同一張」、消除 MISSING_PHOTO_BINDING。
+        #    **不保證 S2 一定產得出 guide，也不保證客廳一定交付**——photo_02 上
+        #    仍可能 GEOM_NOT_ELIGIBLE，那是誠實的擋，不是綁定錯亂。
+        # ⚠️ binding 那張**不一定在客廳候選清單裡**——這一單它就被客戶標成
+        #    「餐廳」，所以 `_list_room_photo_candidates` 根本不會收它。
+        #    條件只能是「binding 指到本次上傳的有效照片」，不能要求它已被標成客廳。
+        if rt == "living" and _binding_idx is not None and best["idx"] != _binding_idx:
+            print(f"[pipeline] 客廳底圖改跟 zoning 幾何綁定那張："
+                  f"idx {best['idx']} → {_binding_idx}（幾何與出圖必須同一張照片）")
+            _idxs = [_binding_idx] + [i for i in _idxs if i != _binding_idx]
         out.append({
             "room_type": rt,
             "name": _RT_ZH_DISPLAY.get(rt, rt),
-            "best_photo_index": best["idx"],
-            # 備援底圖 idx（已排序，不含主選）— pipeline 轉成 path 掛上 entry
-            "alt_photo_indices": [c["idx"] for c in lst[1:]],
+            "best_photo_index": _idxs[0],
+            # 備援底圖 idx（已排序，不含主選）— pipeline 轉成 path 掛上 entry。
+            # 客戶標的那張沒有被丟掉，只是退成備援（保真失敗時仍可換回去）。
+            "alt_photo_indices": _idxs[1:],
         })
     # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→主臥→書房
     _RT_ORDER = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
@@ -5852,7 +5935,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             # 一張照片＝一個房間，不讓 Gemini 重猜（修餐廳/書房消失、重複客廳；job 302D6ED2）。
             # 沒有可用標註（老 client）→ 退回 Gemini regions（原行為）。
             if space_type == "whole":
-                user_regions = _build_user_regions_whole(image_paths, photo_meta_by_key_early)
+                user_regions = _build_user_regions_whole(
+                    image_paths, photo_meta_by_key_early, user_zoning_v2)
                 if user_regions:
                     regions = user_regions
                     print(f"[pipeline] 全室 regions 採用使用者照片標註: "
@@ -6046,24 +6130,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 客廳備援底圖（分數次高的 living 照片 path 列表）— 保真失敗時換底圖再抽
         _living_alt_paths: list[str] = []
         if photo_meta_by_key_early and image_paths:
-            _lcands = _list_room_photo_candidates(
-                image_paths, photo_meta_by_key_early, "living")
-            # 主選之後的 path；path 須存在
-            if _lcands:
-                _primary_living = None
-                for vi, rt0 in enumerate(angle_room_types):
-                    if rt0 == "living" and vi < len(flux_bases):
-                        _primary_living = flux_bases[vi]
-                        break
-                for c in _lcands:
-                    pth = c["path"]
-                    if _primary_living and Path(pth).resolve() == Path(_primary_living).resolve():
-                        continue
-                    if Path(pth).exists():
-                        _living_alt_paths.append(pth)
-                if _living_alt_paths:
-                    print(f"[pipeline] living 備援底圖 {len(_living_alt_paths)} 張: "
-                          f"{[Path(p).name for p in _living_alt_paths]}")
+            _primary_living = None
+            for vi, rt0 in enumerate(angle_room_types):
+                if rt0 == "living" and vi < len(flux_bases):
+                    _primary_living = flux_bases[vi]
+                    break
+            _living_alt_paths = _living_alt_base_paths(
+                image_paths, photo_meta_by_key_early, _primary_living, user_zoning_v2)
+            if _living_alt_paths:
+                print(f"[pipeline] living 備援底圖 {len(_living_alt_paths)} 張: "
+                      f"{[Path(p).name for p in _living_alt_paths]}")
 
         # 版面引導圖：free 保持 free，門 bbox／門側用同一份 zoning 真相。
         _sofa_side_for_guide = _guide_sofa_side(zoning_result)
