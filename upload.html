@@ -188,6 +188,10 @@
       white-space: nowrap;
     }
     .primary-bar-count strong { color: var(--gold); font-weight: 400; }
+    /* 空間數計數；超過上限時轉紅，不能只是灰字被滑過去 */
+    .primary-bar-count.room-count { margin-left: 14px; white-space: normal; }
+    .primary-bar-count.room-count.over { color: #e06a6a; }
+    .primary-bar-count.room-count.over strong { color: #e06a6a; }
 
     /* ── 已上傳照片 grid ──────────────────────────────────────────── */
     .photos-grid {
@@ -558,6 +562,8 @@
        自己的 target_zone + secondary 決定.) -->
   <div class="primary-bar" id="primary-bar" style="display:none;">
     <span class="primary-bar-count" id="primaryCount">已上傳 <strong>0</strong> / 30 張</span>
+    <!-- 標了幾個實際空間。超過上限要在這裡當下就講，不能等結果頁 -->
+    <span class="primary-bar-count room-count" id="roomCount"></span>
   </div>
 
   <div class="photos-grid" id="photos-grid"></div>
@@ -661,19 +667,58 @@
 
   // PhotoMeta v1 Step 2 (補完 v2 UI): 前台只露常用設計區域，避免客戶被走道/玄關/廚房/陽台干擾。
   // UI 收斂為 2 個下拉 (主要是 / 也包含), backend payload 仍是 photo_contains[] + target_zone.
+  // 🔴 臥室展開成「臥室 1／2／3」（A559DD2B 2026-08-08）：
+  //    以前只有一個「臥室」選項，客戶標了兩間臥室，後端按房型合併只出一張圖。
+  //    現在同一間房的多張照片選同一個號碼＝合併成一間；不同臥室選不同號碼＝
+  //    各自出圖。後端 _ZONE_TO_RT 把 bedroom_N 一律映射成 room_type=bedroom
+  //    （家具規則／判官不變），房間身分另外用 room_key 表示。
+  // ⚠️ 這裡的 value 必須跟後端 _ZONE_TO_RT 的 key 完全一致，否則標記會被丟掉。
+  var MAX_ROOM_INSTANCES = 5;      // 與後端 api.py MAX_ROOM_INSTANCES 一致
+  var MAX_BEDROOM_INSTANCES = 4;   // 與後端 api.py MAX_BEDROOM_INSTANCES 一致
+  var BEDROOM_ZONE_OPTIONS = (function () {
+    var out = [];
+    for (var i = 1; i <= MAX_BEDROOM_INSTANCES; i++) {
+      out.push({ value: 'bedroom_' + i, display: '臥室 ' + i });
+    }
+    return out;
+  })();
   var ZONE_OPTIONS = [
     { value: 'living',   display: '客廳' },
-    { value: 'dining',   display: '餐廳' },
-    { value: 'bedroom',  display: '臥室' },
+    { value: 'dining',   display: '餐廳' }
+  ].concat(BEDROOM_ZONE_OPTIONS).concat([
     { value: 'study',    display: '書房' },
     { value: 'other',    display: '其他' }
-  ];
+  ]);
+  // ⚠️「也包含」描述的是**空間類型**（這張照片還拍到什麼），不是哪一間臥室，
+  //    所以這裡不帶號碼——photo_contains 送的是 ZONE_ENUM 的值。
   var SECONDARY_ZONE_OPTIONS = [
     { value: 'dining',   display: '餐廳' },
     { value: 'bedroom',  display: '臥室' },
     { value: 'study',    display: '書房' },
     { value: 'other',    display: '其他' }
   ];
+  // 🔴 UI 值 vs 送出的 payload 是兩件事：
+  //    下拉選單的 value 是 'bedroom_1'（顯示「臥室 1」），但後端 PhotoMeta 的
+  //    `target_zone` / `photo_contains` 有 ZONE_ENUM 契約，只認 'bedroom'。
+  //    第一版直接把 'bedroom_1' 送進 target_zone，實測整單被 400 擋掉：
+  //      photo_meta[0].photo_contains 含非法 Zone: 'bedroom_1'
+  //    所以送出時要拆：target_zone 送 base、房間身分另外用 room_key 送。
+  function zoneBase(z) {
+    var v = (z || '').trim().toLowerCase();
+    var m = /^([a-z]+)_\d+$/.exec(v);
+    return m ? m[1] : v;
+  }
+  function zoneInstanceKey(z) {
+    var v = (z || '').trim().toLowerCase();
+    return /^[a-z]+_\d+$/.test(v) ? v : '';
+  }
+
+  // 一張照片標的房間 → 它算「哪一間」。空間數上限用這個計數。
+  function zoneRoomKey(z) {
+    var v = (z || '').trim().toLowerCase();
+    if (!v || v === 'other') return null;      // 「其他」不成案，不佔額度
+    return v === 'kitchen' ? 'dining' : v;
+  }
   // PhotoMeta v1 Step 2 (v2 UI v3): target_location_hint 不再開放 UI 控制,
   // 固定送 'unspecified'. backend 仍接收 / 驗證 / 注入 prompt 邏輯不動.
   var SECONDARY_NONE = 'none';
@@ -693,8 +738,9 @@
   // photo_contains = [target_zone] + (secondary if 非 none 且 !== target_zone), 去重.
   // 即使老 client 沒帶 secondary 也能正確產出 photo_contains.
   function computePhotoContains(target_zone, secondary_zone) {
-    var tz = target_zone || DEFAULT_TARGET_ZONE;
-    var sec = secondary_zone || SECONDARY_NONE;
+    // ⚠️ 一律轉成 base zone：photo_contains 送的是 ZONE_ENUM 的值，不是房間身分。
+    var tz = zoneBase(target_zone || DEFAULT_TARGET_ZONE);
+    var sec = zoneBase(secondary_zone || SECONDARY_NONE);
     var arr = [tz];
     if (sec && sec !== SECONDARY_NONE && sec !== tz) arr.push(sec);
     return arr;
@@ -1235,6 +1281,16 @@
     });
     area.appendChild(selZ);
 
+    // 🔴 編號規則要講給客戶看，不能只寫在程式註解裡。
+    //    標錯會直接改變空間數與生成成本：同一間房選了兩個號碼＝被拆成兩間、
+    //    多花一次生成；兩間房選同一個號碼＝合成一間、少拿一張設計圖。
+    var hintN = document.createElement('div');
+    hintN.className = 'photo-label-hint';
+    hintN.style.cssText = 'margin-top:4px;font-size:10.5px;opacity:.8;line-height:1.6;';
+    hintN.innerHTML = '同一間房的多張照片請選<b>同一個號碼</b>；'
+                    + '不同房間才選<b>不同號碼</b>。';
+    area.appendChild(hintN);
+
     // PhotoMeta v1 Step 2 (v2 UI v4): 也包含其他設計區域 toggle (預設收合)
     var secToggleBtn = document.createElement('button');
     secToggleBtn.type = 'button';
@@ -1325,6 +1381,33 @@
     }
     bar.style.display = 'flex';
     count.innerHTML = '已上傳 <strong>' + photos.length + '</strong> / ' + TOTAL_PHOTO_LIMIT + ' 張';
+    renderRoomCount();
+  }
+
+  // 目前標了幾個「實際空間」。同一間房的多張照片算一間（key 相同）。
+  function countRoomInstances() {
+    var seen = {}, order = [];
+    (photos || []).forEach(function (p) {
+      var k = zoneRoomKey(p && p.target_zone);
+      if (k && !seen[k]) { seen[k] = 1; order.push(k); }
+    });
+    return order;
+  }
+
+  // 🔴 超過上限要在【上傳當下】就講，不能等結果頁才發現少了一間房
+  //    （A559DD2B：客戶標了兩間臥室，結果頁只有一間，事後才知道）。
+  function renderRoomCount() {
+    var el = document.getElementById('roomCount');
+    if (!el) return;
+    var keys = countRoomInstances();
+    if (!keys.length) { el.textContent = ''; el.classList.remove('over'); return; }
+    var over = keys.length > MAX_ROOM_INSTANCES;
+    el.classList.toggle('over', over);
+    el.innerHTML = over
+      ? '已標記 <strong>' + keys.length + '</strong> 個空間，本次最多設計 '
+        + MAX_ROOM_INSTANCES + ' 個——<strong>超過上限無法送出</strong>，'
+        + '請刪掉或改標多餘的照片。'
+      : '已標記 <strong>' + keys.length + '</strong> / ' + MAX_ROOM_INSTANCES + ' 個空間';
   }
 
   // ── notes counter ────────────────────────────────────────────────────────
@@ -1378,13 +1461,17 @@
         var note = (pp && typeof pp.target_note === 'string')
           ? pp.target_note.slice(0, TARGET_NOTE_MAX)
           : '';
-        return {
+        var out = {
           photo_key:            k,
           photo_contains:       contains,
-          target_zone:          tzone,
+          target_zone:          zoneBase(tzone),   // ZONE_ENUM 值，不含號碼
           target_location_hint: (pp && pp.target_location_hint) || DEFAULT_TARGET_LOCATION_HINT,
           target_note:          note
         };
+        // 房間身分（哪一間）。只有選了帶號碼的選項才送；沒送＝一種房型一間。
+        var rk = zoneInstanceKey(tzone);
+        if (rk) out.room_key = rk;
+        return out;
       });
     }
 
@@ -1447,6 +1534,16 @@
   async function nextStep() {
     var noPhotos = totalPhotoCount() === 0;
     if (!noPhotos) {
+      // 🔴 超過空間上限要**擋住送出**，不能只轉紅然後讓客戶按下一步——
+      //    後端若自行保留前 N 間，客戶付了錢才發現有房間沒設計（A559DD2B 同款
+      //    客訴形狀）。這裡明講超了幾間、要他自己決定刪哪張。
+      var _rooms = countRoomInstances();
+      if (_rooms.length > MAX_ROOM_INSTANCES) {
+        showWarning('本次最多設計 ' + MAX_ROOM_INSTANCES + ' 個空間，目前標了 '
+          + _rooms.length + ' 個。請刪除或改標多餘的照片再繼續——'
+          + '我們不會替你決定哪個空間不做。');
+        return;
+      }
       if (hasUploadingPhotos()) {
         showWarning('照片仍在上傳中，請稍候完成。');
         return;

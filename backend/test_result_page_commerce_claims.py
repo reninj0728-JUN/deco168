@@ -181,7 +181,9 @@ def test_three_outlets_share_one_total_calculation():
     m = re.search(r"function planTotals\(renders\) \{(.*?)\n  \}", HTML, re.S)
     assert m, "找不到共用計算 planTotals"
     body = m.group(1)
-    assert "normalizeRoomType(r.room_type)" in body, "沒有用實際房間去重（多視角會被誤算）"
+    # 2026-08-09：房間身分改吃 room_key（哪一間），不是 room_type（哪一類）——
+    # 臥室 1 與臥室 2 的 room_type 都是 bedroom，用 room_type 分組會少算一間。
+    assert "roomKeyOf(r)" in body, "沒有用實際房間去重（多視角會被誤算）"
     assert "rooms[room] = 1" in body, "同房多視角沒有收斂成一份"
     assert "Object.keys(e.rooms).length" in body, "數量不是用『幾個房間』算的"
 

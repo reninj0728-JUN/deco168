@@ -78,6 +78,7 @@ const alertFn = () => {};
 const runner = new Function('_hb', 'document', 'navigator', 'alert', `
   ${roomMap}
   ${normalize}
+  ${grab(/function roomKeyOf\(r\) \{[\s\S]*?\n  \}/, 'roomKeyOf')}
   ${totals}
   ${money}
   ${copyFn}
@@ -121,6 +122,7 @@ function grab(re, what) {
 const runner = new Function('renders', `
   ${grab(/var ROOM_TYPE_TO_ZONE = \{[\s\S]*?\};/, 'ROOM_TYPE_TO_ZONE')}
   ${grab(/function normalizeRoomType\(rt\) \{[\s\S]*?\n  \}/, 'normalizeRoomType')}
+  ${grab(/function roomKeyOf\(r\) \{[\s\S]*?\n  \}/, 'roomKeyOf')}
   ${grab(/function planTotals\(renders\) \{[\s\S]*?\n  \}/, 'planTotals')}
   var pt = planTotals(renders);
   var out = { multiStyle: pt.multiStyle, styles: {} };
@@ -337,6 +339,7 @@ const win = { open: () => popup };
 const runner = new Function('_hb', 'window', 'alert', `
   ${grab(/var ROOM_TYPE_TO_ZONE = \{[\s\S]*?\};/, 'ROOM_TYPE_TO_ZONE')}
   ${grab(/function normalizeRoomType\(rt\) \{[\s\S]*?\n  \}/, 'normalizeRoomType')}
+  ${grab(/function roomKeyOf\(r\) \{[\s\S]*?\n  \}/, 'roomKeyOf')}
   ${grab(/function planTotals\(renders\) \{[\s\S]*?\n  \}/, 'planTotals')}
   ${grab(/function _money\(n\) \{[^\n]*\}/, '_money')}
   ${grab(/function _furnRows\([\s\S]*?\n  \}/, '_furnRows')}

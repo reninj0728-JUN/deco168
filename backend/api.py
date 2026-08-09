@@ -813,6 +813,7 @@ def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
             "photo_key":            pk,
             "photo_contains":       [default_zone],
             "target_zone":          default_zone,
+            "room_key":             default_zone,   # 老 client：一種房型一間
             "target_location_hint": "unspecified",
             "avoid_zones":          [],
             "target_note":          "",
@@ -897,10 +898,35 @@ def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
                 return [], (f"photo_meta[{i}].target_note 超過 "
                             f"{TARGET_NOTE_MAX_LEN} 字 (目前 {len(note)} 字)")
 
+        # room_key（哪一間房）：獨立欄位，不動 target_zone 的 ZONE_ENUM 契約。
+        # 格式 `<zone>_<n>`，且 zone 必須等於這張照片的 target_zone——避免前端
+        # 傳錯把客廳認成臥室。缺值／不合法 → 退回 target_zone，等同一間。
+        rk_raw = m.get("room_key")
+        if rk_raw is None or rk_raw == "":
+            room_key = target
+        else:
+            if not isinstance(rk_raw, str):
+                return [], f"photo_meta[{i}].room_key 必須是字串"
+            rk = rk_raw.strip().lower()
+            mk = _ROOM_KEY_RE.match(rk)
+            if not mk or mk.group(1) != target:
+                return [], (f"photo_meta[{i}].room_key={rk_raw!r} 格式不合或與 "
+                            f"target_zone={target!r} 不符（應為 {target}_<編號>）")
+            # 只有臥室支援多間；`living_1` / `study_1` 目前沒有產品意義，
+            # 放行只會產生一個沒人處理的空間。
+            if target != "bedroom":
+                return [], (f"photo_meta[{i}].room_key：目前只有臥室支援多間，"
+                            f"{target!r} 不得帶編號")
+            if not (1 <= int(mk.group(2)) <= MAX_BEDROOM_INSTANCES):
+                return [], (f"photo_meta[{i}].room_key 編號超出範圍 "
+                            f"（1~{MAX_BEDROOM_INSTANCES}）: {rk_raw!r}")
+            room_key = rk
+
         out.append({
             "photo_key":            pk,
             "photo_contains":       contains,
             "target_zone":          target,
+            "room_key":             room_key,
             "target_location_hint": hint,
             "avoid_zones":          avoid,
             "target_note":          note,
@@ -1096,6 +1122,21 @@ def _select_render_photo_meta(photo_meta_by_key: dict | None,
 
 # target_zone 是 PhotoMeta 英文 enum；直接映成 step-2 房型，
 # 千萬不要丟進 normalize_room_type（它只認中文，"dining" 會被判成 living）。
+# 全室一次最多設計幾個「實際空間」（客廳＋餐廳＋書房＋各間臥室一起算）。
+# 每多一個空間就是多一次付費生成，所以這同時是成本上限。
+# 三房兩廳＝客廳＋餐廳＋三臥＝5，剛好涵蓋市場主流格局。
+MAX_ROOM_INSTANCES = 5
+
+# 上傳頁的臥室下拉展開成「臥室 1～4」。同一間房的多張照片選同一個號碼就會
+# 合併成一間；不同臥室選不同號碼＝不同房間，不再被 room_type 合併吃掉
+# （A559DD2B：客戶標 2 間臥室，只交付 1 間）。
+# 4 是為了讓「四房＋客廳＝5」表達得出來——三房、四房、透天都是目標客群。
+MAX_BEDROOM_INSTANCES = 4
+
+# ⚠️ 這張表是 target_zone → room_type，**不含**臥室號碼。
+#    第一版把 bedroom_1/2/3 塞進 target_zone，實測被 PhotoMeta 契約擋掉：
+#      photo_meta[0].photo_contains 含非法 Zone: 'bedroom_1'  → HTTP 400 整單退回
+#    ZONE_ENUM 是既有契約，房間身分要用**獨立欄位 room_key**表示，不能借用 zone。
 _ZONE_TO_RT: dict[str, str] = {
     "living": "living", "dining": "dining", "bedroom": "bedroom",
     "study": "study", "kitchen": "dining",
@@ -1103,6 +1144,78 @@ _ZONE_TO_RT: dict[str, str] = {
 _RT_ZH_DISPLAY: dict[str, str] = {
     "living": "客廳", "dining": "餐廳", "bedroom": "主臥室", "study": "書房",
 }
+
+
+_ROOM_KEY_RE = re.compile(r"^([a-z]+)_(\d+)$")
+
+
+def _photo_room_key(meta: dict | None) -> str | None:
+    """這張照片屬於**哪一間**房。認不得就回 None，不猜。
+
+    `room_type` 是「哪一類」（家具配對規則、判官驗收、裁切適用房型全吃它），
+    `room_key` 是「哪一間」（分頁／金額／去重／空間數上限吃它）。
+
+    🔴 room_key 是 PhotoMeta 的**獨立欄位**，不是 target_zone 的變體。
+       第一版把 `bedroom_1` 寫進 target_zone，被既有的 ZONE_ENUM 契約 400 擋死
+       （單元測試全綠、真實請求整單退回）。target_zone 維持 `bedroom`，
+       房間身分另外送。
+
+    沒帶 room_key（舊訂單／單房）→ 退回 room_type，等同「一種房型一間」，
+    行為完全不變。
+    """
+    if not isinstance(meta, dict):
+        return None
+    tz = (meta.get("target_zone") or "").strip().lower()
+    rt = _ZONE_TO_RT.get(tz)
+    if not rt:
+        return None
+    rk = (meta.get("room_key") or "").strip().lower()
+    m = _ROOM_KEY_RE.match(rk)
+    # 號碼只掛在臥室：產品目前只有臥室支援多間（客廳／餐廳／書房各一）。
+    # `living_1` 這種契約上要擋掉，否則將來有人送進來會多出一個沒人處理的空間。
+    if (m and m.group(1) == rt == "bedroom"
+            and 1 <= int(m.group(2)) <= MAX_BEDROOM_INSTANCES):
+        return rk
+    return rt
+
+
+_RT_ORDER_FOR_DELIVERY = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
+
+
+def _render_room_order_key(render: dict | None) -> int:
+    """交付順序：客廳→餐廳→臥室→書房，同房型內依實例號碼。
+
+    跟前端 result.html 的 `_roomRank` 同一套算法（房型 × 100 + 號碼）。
+    兩邊都要有：前端負責顯示排序，這裡負責 renders **陣列本身**的順序——
+    PDF 直接沿用陣列順序，只靠前端排會讓客戶下載的手冊房間顛倒。
+    """
+    if not isinstance(render, dict):
+        return 999
+    rt = render.get("room_type") or "living"
+    base = _RT_ORDER_FOR_DELIVERY.get(rt, 9)
+    m = _ROOM_KEY_RE.match(str(render.get("room_key") or "").strip().lower())
+    return base * 100 + (int(m.group(2)) if m else 0)
+
+
+def _room_key_to_rt(room_key: str) -> str:
+    """`bedroom_2` → `bedroom`。房間身分帶號碼，房型不帶。
+
+    ⚠️ 不能用 `_ZONE_TO_RT.get(room_key)`——那張表是 target_zone → room_type，
+    刻意不含號碼（號碼進 zone 會被 ZONE_ENUM 400 擋死）。
+    """
+    rk = (room_key or "").strip().lower()
+    m = _ROOM_KEY_RE.match(rk)
+    base = m.group(1) if m else rk
+    return _ZONE_TO_RT.get(base, base)
+
+
+def _room_key_display(room_key: str) -> str:
+    """客戶看到的名字。臥室帶號碼，其餘照原本的中文。"""
+    rk = (room_key or "").strip().lower()
+    m = re.fullmatch(r"bedroom_(\d+)", rk)
+    if m:
+        return f"臥室 {m.group(1)}"
+    return _RT_ZH_DISPLAY.get(rk, rk)
 
 
 def _photo_meta_for_path(path: str, photo_meta_by_key: dict | None) -> dict:
@@ -1170,17 +1283,24 @@ def _score_photo_for_room(meta: dict | None, rt: str) -> int:
 def _list_room_photo_candidates(
     image_paths: list,
     photo_meta_by_key: dict | None,
-    rt: str,
+    room_key: str,
 ) -> list[dict]:
-    """同房型底圖候選，已按分數由高到低排序。
-    每項: {idx, path, score, note}。供選主底圖 + 保真失敗換底圖。"""
+    """**同一間房**的底圖候選，已按分數由高到低排序。
+    每項: {idx, path, score, note}。供選主底圖 + 保真失敗換底圖。
+
+    ⚠️ 比對的是 `room_key`（哪一間）不是 `room_type`（哪一類）：
+    客戶選「臥室 1」「臥室 2」是兩間不同的房，不能因為都是 bedroom 就合併
+    （A559DD2B：標了 2 間臥室、只交付 1 間）。同一間房的多張照片才在這裡合併。
+    舊訂單的 target_zone 是 `bedroom`，room_key 也是 `bedroom` → 照舊當一間。
+    評分仍吃 `room_type`（臥室族共用同一套評分規則）。
+    """
     if not image_paths or not photo_meta_by_key:
         return []
+    rt = _room_key_to_rt(room_key)
     out: list[dict] = []
     for idx, p in enumerate(image_paths):
         meta = _photo_meta_for_path(p, photo_meta_by_key)
-        tz = (meta.get("target_zone") or "").strip().lower() if isinstance(meta, dict) else ""
-        if _ZONE_TO_RT.get(tz) != rt:
+        if _photo_room_key(meta) != room_key:
             continue
         sc = _score_photo_for_room(meta if isinstance(meta, dict) else {}, rt)
         note_pv = ((meta.get("target_note") or "") if isinstance(meta, dict) else "")[:40]
@@ -2294,32 +2414,38 @@ def _zoning_binding_photo_index(image_paths: list, zoning: dict | None) -> int |
 
 def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None,
                               zoning: dict | None = None) -> list[dict]:
-    """全室：以使用者『這張照片主要是』(target_zone) 建 regions，一張照片＝一個房間。
-    同房型多張候選時用 _score_photo_for_room 選最佳底圖（不再 first-wins）。
+    """全室：以使用者標的『這張照片主要是』(target_zone) 建 regions。
+
+    🔴 一個 **room_key ＝一間房**，不是一個 room_type 一間。
+       客戶選「臥室 1」「臥室 2」是兩間不同的房，各自出圖；同一間房的多張照片
+       （都選同一個號碼）才合併，用 _score_photo_for_room 選最佳底圖。
+       A559DD2B：客戶標了 2 間臥室，舊版按 room_type 合併只交付 1 間。
+       舊訂單 target_zone=`bedroom` → room_key 也是 `bedroom` → 照舊當一間。
+
     回傳 [] → 沒有可用標註，交回 Gemini regions。
     修：302D6ED2 重複客廳；C79C7ECC 客廳用錯走廊角 base。"""
     if not image_paths or not photo_meta_by_key:
         return []
-    # 收集所有有標註的房型
-    rts_seen: list[str] = []
+    # 收集所有有標註的房間（實例），依照片順序
+    keys_seen: list[str] = []
     for idx, p in enumerate(image_paths):
         meta = _photo_meta_for_path(p, photo_meta_by_key)
-        tz = (meta.get("target_zone") or "").strip().lower() if isinstance(meta, dict) else ""
-        rt = _ZONE_TO_RT.get(tz)
-        if rt and rt not in rts_seen:
-            rts_seen.append(rt)
+        rk = _photo_room_key(meta)
+        if rk and rk not in keys_seen:
+            keys_seen.append(rk)
 
     # 幾何綁在本次上傳的哪一張（比 sha256，不比 index）。找不到就 None＝維持現行邏輯。
     _binding_idx = _zoning_binding_photo_index(image_paths, zoning)
 
     out: list[dict] = []
-    for rt in rts_seen:
-        lst = _list_room_photo_candidates(image_paths, photo_meta_by_key, rt)
+    for room_key in keys_seen:
+        rt = _room_key_to_rt(room_key)
+        lst = _list_room_photo_candidates(image_paths, photo_meta_by_key, room_key)
         if not lst:
             continue
         best = lst[0]
         if len(lst) > 1:
-            print(f"[pipeline] 全室 {rt} 底圖候選 {len(lst)} 張 → 選 idx={best['idx']} "
+            print(f"[pipeline] 全室 {room_key} 底圖候選 {len(lst)} 張 → 選 idx={best['idx']} "
                   f"score={best['score']} note={best['note']!r} "
                   f"(candidates={[(c['idx'], c['score']) for c in lst]})")
         _idxs = [c["idx"] for c in lst]
@@ -2350,16 +2476,35 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None,
                   f"idx {best['idx']} → {_binding_idx}（幾何與出圖必須同一張照片）")
             _idxs = [_binding_idx] + [i for i in _idxs if i != _binding_idx]
         out.append({
+            # room_type = 哪一類（家具規則／判官／裁切適用房型都吃它）
+            # room_key  = 哪一間（分頁／金額／去重吃它）
             "room_type": rt,
-            "name": _RT_ZH_DISPLAY.get(rt, rt),
+            "room_key": room_key,
+            "name": _room_key_display(room_key),
             "best_photo_index": _idxs[0],
             # 備援底圖 idx（已排序，不含主選）— pipeline 轉成 path 掛上 entry。
             # 客戶標的那張沒有被丟掉，只是退成備援（保真失敗時仍可換回去）。
             "alt_photo_indices": _idxs[1:],
         })
-    # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→主臥→書房
+    # 客廳永遠排第一（結果頁第一個視角＝客廳），其餘餐廳→臥室→書房；
+    # 同房型內依實例號碼（臥室 1 → 臥室 2 → 臥室 3）。
     _RT_ORDER = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
-    out.sort(key=lambda r: _RT_ORDER.get(r["room_type"], 9))
+
+    def _order(r: dict) -> tuple:
+        m = re.fullmatch(r"[a-z]+_(\d+)", str(r.get("room_key") or ""))
+        return (_RT_ORDER.get(r["room_type"], 9), int(m.group(1)) if m else 0)
+
+    out.sort(key=_order)
+
+    # 🔴 總上限：每多一個空間就是多一次付費生成。
+    #    真正的把關在兩處：上傳頁擋住送出、`/api/job` 收單時 400（fail-closed）。
+    #    所以正常流程走不到這裡。真的走到了就保留全部並大聲記錄——不要在這一層
+    #    悄悄截斷，那只會把「客戶的房間不見了」推遲到結果頁才被發現。
+    if len(out) > MAX_ROOM_INSTANCES:
+        over = [r["name"] for r in out[MAX_ROOM_INSTANCES:]]
+        print(f"[pipeline] ⚠️ 空間數 {len(out)} 超過上限 {MAX_ROOM_INSTANCES}"
+              f"（前端應已擋下）。超出的：{'、'.join(over)}"
+              f"——不在此處丟棄，交由下游依上限取用並保留完整標記")
     return out
 
 
@@ -4283,6 +4428,33 @@ def find_dropped_render_match(dropped: dict, finals) -> dict | None:
     """
     if not isinstance(dropped, dict):
         return None
+
+    # 🔴 room_key 是最精確的身分，先用它。兩間臥室的 room_type 都是 bedroom、
+    #    顯示名將來也可能撞（文案一改就撞），只比 room_type + angle_label 會把
+    #    臥室 2 的 validation_history / guide_trace 寫成臥室 1 的——診斷指錯房，
+    #    後面就會修錯對象。這正是本函式「不明確就不寫」要防的事。
+    #    舊資料沒有 room_key → 退回既有的 room_type + 視角規則，行為不變。
+    _dk = str(dropped.get("room_key") or "").strip().lower()
+    if _dk:
+        exact_key = [
+            r for r in (finals or [])
+            if isinstance(r, dict)
+            and dropped.get("style") == r.get("style")
+            and str(r.get("room_key") or r.get("_room_key") or "").strip().lower() == _dk
+        ]
+        if len(exact_key) == 1:
+            return exact_key[0]
+        if len(exact_key) > 1:
+            # 同一間房多個視角：仍要視角對得上才寫
+            _a = _render_angle_label(dropped)
+            hit = [r for r in exact_key if _render_angle_label(r) == _a] if _a else []
+            return hit[0] if len(hit) == 1 else None
+        # 對面完全沒有同 room_key 的候選 → 不明確，不寫
+        # （不得退回 room_type 比對，那會寫到另一間臥室身上）
+        if any(str(r.get("room_key") or r.get("_room_key") or "").strip()
+               for r in (finals or []) if isinstance(r, dict)):
+            return None
+
     candidates = [
         r for r in (finals or [])
         if isinstance(r, dict)
@@ -5186,7 +5358,10 @@ def _slim_validation_summary(summary: dict | None) -> dict | None:
                # layout_mode 必須留：incomplete 文案靠它判斷要不要叫客戶正面重拍。
                # 掉了就會退回通用的「配置驗收」，客戶又去重跑同一張斜角照片。
                # blocked_render_url 也要留：那是付費生成的落選圖，掉了就白花錢又沒得看。
-               ("style", "style_label", "angle_label", "room_type", "timeout", "reason",
+               # room_key 必須留：大 payload 寫不進 Supabase 退到精簡版時，
+               # 落選的臥室 1／2 靠它才分得開（兩者 room_type 都是 bedroom）。
+               ("style", "style_label", "angle_label", "room_type", "room_key",
+                "timeout", "reason",
                 "failure_class", "validation_stage", "validation_attempt_count",
                 "layout_mode", "blocked_render_url")},
             "validation_final": {
@@ -5902,7 +6077,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         base_video = video_paths[0] if video_paths else None
         flux_bases: list[str] = []
         angle_labels: list[str] = []
-        angle_room_types: list[str] = []   # step-2：每個視角對應的標準房型（逐房配家具/prompt用）
+        # 哪一類房（逐房配家具／prompt／判官都吃它）
+        angle_room_types: list[str] = []
+        # 哪一間房（分頁／金額／去重吃它）。臥室 1 與臥室 2 的 room_type 都是
+        # bedroom，但 room_key 不同 → 各自出圖，不再被合併。
+        angle_room_keys: list[str] = []
 
         def _resolve_region_base(region: dict, idx: int) -> tuple[str | None, str]:
             """從 region 元素挑出一張 Flux 基底，回傳 (path, label)"""
@@ -5941,9 +6120,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     regions = user_regions
                     print(f"[pipeline] 全室 regions 採用使用者照片標註: "
                           f"{[r['room_type'] for r in regions]}")
-            # 全室：找到幾房生幾房（房型最多 4 種=客廳/餐廳/主臥/書房，去重後自然封頂）；
+            # 全室：找到幾間生幾間。上限是「實際空間數」（客廳＋餐廳＋書房＋各間
+            # 臥室一起算），不是房型種類——客戶標了兩間臥室就該有兩間。
+            # regions 那層已經按 MAX_ROOM_INSTANCES 截過並印出被略過的房間。
             # 單房 multi 維持 3 角度。
-            n_cap = 4 if space_type == "whole" else 3
+            n_cap = MAX_ROOM_INSTANCES if space_type == "whole" else 3
             n_views = min(n_cap, max(1, len(regions))) if space_type == "whole" else 3
             for i in range(n_views):
                 region = regions[i] if i < len(regions) else {}
@@ -5961,12 +6142,19 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             rt = normalize_room_type(
                                 (rt_raw + " " + str(region.get("name") or "")).strip()
                                 or space_type)
-                        # 顯示名統一成乾淨房名（客廳/餐廳/主臥/書房）
-                        label = ROOM_DISPLAY_ZH.get(rt, label)
+                        # 顯示名：臥室帶號碼（臥室 1／臥室 2），其餘用乾淨房名。
+                        # region 有 room_key 就以它為準（那是客戶選的那一間）。
+                        _rk = str(region.get("room_key") or "").strip().lower()
+                        label = (_room_key_display(_rk) if _rk
+                                 else ROOM_DISPLAY_ZH.get(rt, label))
                     else:
                         rt = normalize_room_type(space_type)
+                        _rk = ""
                     angle_labels.append(label)
                     angle_room_types.append(rt)
+                    # 房間身分：哪一間。缺 room_key（Gemini regions／單房）時退回
+                    # room_type，等同舊行為「一種房型一間」。
+                    angle_room_keys.append(_rk or rt)
         else:
             # single：Gemini 挑最美 1 張
             if image_paths:
@@ -5978,13 +6166,17 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 # 單視角也以該照片的 PhotoMeta target_zone 為房型真相；
                 # space_type / rooms.room_type 只在 PhotoMeta 缺席時 fallback。
                 _single_rt_source = _best_pm_target_zone or space_type
-                angle_room_types.append(normalize_room_type(_single_rt_source))
+                _srt = normalize_room_type(_single_rt_source)
+                angle_room_types.append(_srt)
+                angle_room_keys.append(_srt)   # 單房：一間，key＝房型
             elif base_video:
                 frame_path = str(job_dir / "frame_main.jpg")
                 extract_frame(base_video, frame_path, position=0.5)
                 flux_bases.append(frame_path)
                 angle_labels.append("主視角")
-                angle_room_types.append(normalize_room_type(space_type))
+                _vrt = normalize_room_type(space_type)
+                angle_room_types.append(_vrt)
+                angle_room_keys.append(_vrt)   # 影片幀：一間，key＝房型
 
         if not flux_bases:
             raise RuntimeError("沒有可用的照片或影片幀作為渲染基底")
@@ -6417,11 +6609,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # ── 風格 × 視角(房間) = 多張渲染；每張用「該房間房型」配出的家具 ──
         expanded: list[dict] = []
         for si in range(n_styles):
-            for vi, (base, label, rt, cropped, zone_cropped, cnote) in enumerate(zip(
-                    flux_bases, angle_labels, angle_room_types,
+            for vi, (base, label, rt, rk, cropped, zone_cropped, cnote) in enumerate(zip(
+                    flux_bases, angle_labels, angle_room_types, angle_room_keys,
                     crop_flags, zone_crop_flags, crop_notes)):
                 copy = dict(enriched_by_rt[rt][si])
                 copy["_angle_label"] = label
+                # 哪一間房。臥室 1／臥室 2 的 _room_type 同為 bedroom，靠這個分開。
+                copy["_room_key"] = rk or rt
                 copy["_base_path"] = base
                 copy["_room_type"] = rt
                 copy["_cropped"] = cropped
@@ -6528,6 +6722,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             if preflight_blocked is not None:
                 preflight_blocked["angle_label"] = entry.get("_angle_label", "主視角")
                 preflight_blocked["room_type"] = entry.get("_room_type", "living")
+                preflight_blocked["room_key"] = (
+                    entry.get("_room_key") or preflight_blocked["room_type"])
                 preflight_blocked["cropped"] = bool(entry.get("_cropped"))
                 preflight_blocked["door_excluded"] = bool(entry.get("_door_excluded"))
                 _record_validation_attempt(
@@ -6656,6 +6852,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 r = single_result[0]
                 r["angle_label"] = entry["_angle_label"]
                 r["room_type"] = entry.get("_room_type", "living")
+                # 哪一間房——交付端的分頁／金額／去重全部吃它
+                r["room_key"] = entry.get("_room_key") or r["room_type"]
                 r["cropped"] = bool(entry.get("_cropped"))   # (i) 標記：此圖底圖已裁成單房視角
                 r["door_excluded"] = bool(entry.get("_door_excluded"))  # 大門在鏡頭外（前端誠實揭露）
                 r["_s2_unmodelable"] = bool(entry.get("_layout_contract_s2_waived"))  # #2: S2建不了模型的房
@@ -7063,6 +7261,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     # 重試換掉 r 時務必補回房型，否則 new_r 帶的是 Gemini 廣角圖的 living，
                     # 害結果頁用 living 顯示類別濾掉餐桌/床等 → 「圖上有、清單沒有」(job 23EF5810)。
                     new_r["room_type"]    = entry.get("_room_type", "living")
+                    new_r["room_key"]     = entry.get("_room_key") or new_r["room_type"]
                     new_r["_room_type"]   = entry.get("_room_type", "living")
                     new_r["_base_path"]   = entry.get("_base_path")
                     new_r["cropped"]      = bool(entry.get("_cropped"))
@@ -7304,6 +7503,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 # 同 Z3 retry：補回房型，避免結果頁用 living 濾掉該房家具。
                 new_r["room_type"]    = entry.get("_room_type", "living")
                 new_r["_room_type"]   = entry.get("_room_type", "living")
+                # 哪一間房。掉了的話兩間臥室會在交付端被重新合併成一間。
+                new_r["room_key"]     = entry.get("_room_key") or new_r["room_type"]
+                new_r["_room_key"]    = new_r["room_key"]
                 new_r["_base_path"]   = entry.get("_base_path")
                 new_r["cropped"]      = bool(entry.get("_cropped"))
                 new_r["door_excluded"] = bool(entry.get("_door_excluded"))
@@ -7407,6 +7609,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "style_label": r.get("style_label"),
                 "angle_label": r.get("angle_label"),     # 哪個房間/視角失敗
                 "room_type":   r.get("room_type"),
+                # 哪一間。Phase3 清落選紀錄要靠它比對，否則修好臥室 1 會把
+                # 臥室 2 的待修紀錄一起刪掉（兩者 room_type 都是 bedroom）。
+                "room_key":    r.get("room_key") or r.get("room_type"),
                 "timeout":     bool(_is_timeout),         # 前端可顯示友善「生成逾時」文案
                 "reason":      str(reason)[:240],
                 "layout_mode": r.get("_layout_mode") or "legacy",
@@ -7492,7 +7697,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "style":             r.get("style"),
                 "style_label":       r.get("style_label"),
                 "angle_label":       r.get("angle_label", "主視角"),
-                "room_type":         r.get("room_type", "living"),   # step-2：結果頁按房間分頁/驗收用
+                "room_type":         r.get("room_type", "living"),   # 哪一類（驗收／家具規則）
+                # 哪一間。臥室 1／臥室 2 的 room_type 同為 bedroom，靠 room_key 分開；
+                # 舊訂單沒有這個欄位 → 退回 room_type，等同「一種房型一間」。
+                "room_key":          r.get("room_key") or r.get("room_type", "living"),
                 "cropped":           bool(r.get("cropped")),         # (i) 此圖底圖已裁成單房視角
                 "door_excluded":     bool(r.get("door_excluded")),    # 大門在鏡頭外
                 "crop_note":         r.get("crop_note"),             # 沒裁的原因（診斷）
@@ -7637,6 +7845,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             result_json_payload["needs_regen"] = [
                 {"style": r.get("style"), "style_label": r.get("style_label"),
                  "room_type": r.get("room_type") or r.get("_room_type"),
+                 # 哪一間。Phase3 補生完要靠它精準銷掉對應那一筆。
+                 "room_key": (r.get("room_key") or r.get("_room_key")
+                              or r.get("room_type") or r.get("_room_type")),
                  "angle_label": r.get("angle_label") or r.get("_angle_label")}
                 for r in dropped_failed_renders if r.get("style")
             ]
@@ -7708,7 +7919,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "build_tag": "fullmode-rewrite-v2",
             "renders": [
                 {**{k: rr.get(k) for k in
-                    ("style", "style_label", "angle_label", "room_type", "cropped", "render_url",
+                    ("style", "style_label", "angle_label", "room_type", "room_key",
+                     "cropped", "render_url",
                      "render_filename", "matched_furniture", "soft_furnishing", "reference_map",
                      "render_model")},
                  "validation": _tiny_val(rr.get("validation"))}
@@ -7743,6 +7955,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "renders": [
                 {"style": rr.get("style"), "style_label": rr.get("style_label"),
                  "angle_label": rr.get("angle_label"), "room_type": rr.get("room_type", "living"),
+                 # 哪一間房：最小 payload 也要留，否則存檔降級時兩間臥室會併回一間
+                 "room_key": rr.get("room_key") or rr.get("room_type", "living"),
                  "cropped": bool(rr.get("cropped")), "render_model": rr.get("render_model"),
                  "render_url": rr.get("render_url"), "render_filename": rr.get("render_filename"),
                  "matched_furniture": _tiny_furn(rr.get("matched_furniture")),
@@ -7962,6 +8176,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         cand["validation"] = v3
                         cand["angle_label"] = entry["_angle_label"]
                         cand["room_type"] = entry.get("_room_type", "living")
+                        cand["room_key"] = entry.get("_room_key") or cand["room_type"]
                         cand["cropped"] = base_p == entry.get("_base_path") and bool(entry.get("_cropped"))
                         cand["crop_note"] = None if cand["cropped"] else "Phase3 補生（未裁切原圖）"
                         cand["retry_count"] = int(r.get("retry_count") or 0) + 2
@@ -7983,6 +8198,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             "style_label":       fixed.get("style_label"),
                             "angle_label":       fixed.get("angle_label", "主視角"),
                             "room_type":         fixed.get("room_type", "living"),
+                            # 哪一間房：補生寫回 DB 時掉了的話，交付端會把
+                            # 補好的臥室 2 併回臥室 1。
+                            "room_key":          (fixed.get("room_key")
+                                                  or fixed.get("room_type", "living")),
                             "cropped":           bool(fixed.get("cropped")),
                             "crop_note":         fixed.get("crop_note"),
                             "render_model":      fixed.get("render_model"),
@@ -8003,34 +8222,53 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         }
                         # 插回正確位置：同風格內依房型序（客廳→餐廳→主臥→書房），
                         # 不 append 到最後（否則補上的客廳排在主臥/書房後，2A520C25）。
-                        _rt_ord = {"living": 0, "dining": 1, "bedroom": 2, "study": 3}
+                        # ⚠️ 排序鍵要含實例號碼：兩間臥室的 room_type 都是 bedroom，
+                        #    只比房型會讓「臥室 2」插在「臥室 1」前面。結果頁自己會
+                        #    再排一次，但 **PDF 直接沿用 renders 的原始順序**——
+                        #    客戶下載的手冊裡房間順序就顛倒了。
                         _st = _new_render.get("style")
-                        _rk = _rt_ord.get(_new_render.get("room_type") or "living", 9)
+                        _rk = _render_room_order_key(_new_render)
                         _pos = len(rj_renders)
                         for _j, _rr in enumerate(rj_renders):
                             if _rr.get("style") == _st and \
-                               _rt_ord.get(_rr.get("room_type") or "living", 9) > _rk:
+                               _render_room_order_key(_rr) > _rk:
                                 _pos = _j
                                 break
                         rj_renders.insert(_pos, _new_render)
                         rj["renders"] = rj_renders
                         vs = rj.get("validation_summary") or {}
                         vs["delivered"] = int(vs.get("delivered") or 0) + 1
-                        vs["dropped"] = max(0, int(vs.get("dropped") or 0) - 1)
+                        # 🔴 比 room_key 不是 room_type（跟下面 needs_regen 同一個理由）：
+                        #    兩間臥室的 room_type 都是 bedroom，只比房型會在修好
+                        #    臥室 1 時把臥室 2 的落選紀錄一起刪掉。
+                        #    而且 dropped 只減 1、清單卻刪 2 筆，統計會自相矛盾。
+                        #    舊紀錄沒有 room_key → 退回 room_type，行為不變。
+                        _fixed_rk = (fixed.get("room_key")
+                                     or fixed.get("room_type") or "")
                         vs["dropped_renders"] = [
                             d for d in (vs.get("dropped_renders") or [])
                             if not (d.get("style") == fixed.get("style")
-                                    and d.get("room_type") == fixed.get("room_type"))
+                                    and (d.get("room_key") or d.get("room_type") or "")
+                                        == _fixed_rk)
                         ]
+                        # 清單與計數必須一致：直接用清單長度回填，不做加減法。
+                        vs["dropped"] = len(vs["dropped_renders"])
                         rj["validation_summary"] = vs
                         if fixed.get("room_type") == "living":
                             rj.pop("living_incomplete", None)
                         if int(vs.get("dropped") or 0) == 0:
                             rj.pop("partial_delivery", None)
+                        # 🔴 比 room_key 不是 room_type：兩間臥室的 room_type 都是
+                        #    bedroom，只比房型會在修好臥室 1 時把臥室 2 的待修紀錄
+                        #    一起刪掉，那間房就永遠不會被補生了。
+                        #    舊紀錄沒有 room_key → 退回 room_type，行為不變。
+                        _fixed_key = (fixed.get("room_key")
+                                      or fixed.get("room_type") or "")
                         rj["needs_regen"] = [
                             n for n in (rj.get("needs_regen") or [])
                             if not (n.get("style") == fixed.get("style")
-                                    and (n.get("room_type") or "") in ("", fixed.get("room_type")))
+                                    and ((n.get("room_key") or n.get("room_type") or "")
+                                         in ("", _fixed_key)))
                         ]
                         if not rj["needs_regen"]:
                             rj.pop("repairing", None)
@@ -8337,6 +8575,24 @@ async def create_job(
                                 break
                             for m in normalized:
                                 photo_meta_by_key[m["photo_key"]] = m
+
+                        # 🔴 空間數上限 fail-closed：上傳頁會擋住送出，但前端壞掉
+                        #    或請求被直接送來時，不能「印個 log 然後照樣生前 5 間」
+                        #    ——那只是把丟棄位置往後移，客戶付了錢才發現有房間沒做。
+                        #    這裡直接 400，讓客戶自己決定不做哪一間。
+                        if not fail_reason:
+                            _rk_seen = []
+                            for _m in photo_meta_by_key.values():
+                                _k = _photo_room_key(_m)
+                                if _k and _k not in _rk_seen:
+                                    _rk_seen.append(_k)
+                            if len(_rk_seen) > MAX_ROOM_INSTANCES:
+                                _names = "、".join(_room_key_display(k) for k in _rk_seen)
+                                fail_reason = (
+                                    f"本次最多設計 {MAX_ROOM_INSTANCES} 個空間，"
+                                    f"這張訂單標了 {len(_rk_seen)} 個（{_names}）。"
+                                    f"請刪除或改標多餘的照片再送出——"
+                                    f"我們不會替你決定哪個空間不做。")
 
                         if not fail_reason:
                             rooms_data = cleaned

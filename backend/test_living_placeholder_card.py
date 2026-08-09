@@ -83,6 +83,8 @@ def _harness() -> str:
         _slice("function shouldBuildUI("),
         _slice("function _livingPlaceholder("),
         _slice("function normalizeRoomType("),
+        _slice("function roomKeyOf("),
+        _slice("function roomKeyDisplay("),
         _slice("function planTotals("),
         _slice("function updateMetaSummary("),
         _slice("function buildUI("),

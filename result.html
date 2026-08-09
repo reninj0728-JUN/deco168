@@ -377,6 +377,23 @@
     study: 'study', study_workspace: 'study',
     other_room: 'other'
   };
+  // 🔴 房間身分（哪一間）。`room_type` 是哪一類，`room_key` 是哪一間。
+  //    臥室 1 與臥室 2 的 room_type 都是 bedroom，只有 room_key 分得開。
+  //    分頁、金額、空間數全部吃這個；舊訂單沒有 room_key → 退回 room_type，
+  //    行為等同以前的「一種房型一間」。
+  function roomKeyOf(r) {
+    if (!r) return 'unknown';
+    var k = (r.room_key || '').trim().toLowerCase();
+    if (k) return k;
+    return normalizeRoomType(r.room_type) || 'unknown';
+  }
+  // 臥室 1／臥室 2 這種帶號碼的顯示名
+  function roomKeyDisplay(key, fallback) {
+    var m = /^([a-z]+)_(\d+)$/.exec(String(key || ''));
+    if (m && m[1] === 'bedroom') return '臥室 ' + m[2];
+    return fallback || key || '';
+  }
+
   function normalizeRoomType(rt) {
     if (!rt) return '';
     // 防禦：函式宣告會被提升，但 `var ROOM_TYPE_TO_ZONE` 的賦值不會——
@@ -392,8 +409,9 @@
   // 三個消費端（複製清單／頁面預算判定／設計手冊 PDF）過去各算各的，
   // 修一個不會修到另外兩個——所以集中在這裡算一次。
   //
-  // ⚠️ 房間身分目前用 room_type。全室方案每種房型只保留一間，符合現行產品；
-  // 未來要支援「主臥＋次臥」才需要正式的 room_id。
+  // 房間身分用 room_key（哪一間），不是 room_type（哪一類）——臥室 1 與臥室 2
+  // 的 room_type 都是 bedroom，用 room_type 分組會把兩間床算成一間，
+  // 金額與「使用於 N 個空間」全部少算（A559DD2B 2026-08-08）。
   function planTotals(renders) {
     var styleOrder = [], byStyle = {};
     (renders || []).forEach(function(r) {
@@ -402,7 +420,7 @@
       // 傳 g.angles 進來，金額語意也不會破。
       if (r && r._placeholder) return;
       var st = r.style || '';
-      var room = normalizeRoomType(r.room_type) || 'unknown';
+      var room = roomKeyOf(r);
       if (!byStyle[st]) {
         byStyle[st] = { style: st, label: r.style_label || st, order: [], items: {},
                         softOrder: [], soft: {}, rooms: {} };
@@ -436,17 +454,20 @@
   function updateMetaSummary(data) {
     var renders = (data && data.renders) || [];
     var pending = (data && data.needs_regen) || [];
-    var styleSet = {}, roomSet = {};
+    var styleSet = {}, roomSet = {}, typeSeen = {};
     renders.concat(pending).forEach(function(r) {
       // 佔位卡不計入「N 個空間」——293BDE11 應該顯示 3 個已交付空間，不是 4 個
       if (r && r._placeholder) return;
       if (r && r.style) styleSet[r.style] = true;
-      var rt = normalizeRoomType(r && r.room_type);
-      if (rt) roomSet[rt] = true;
+      var rk = roomKeyOf(r);
+      if (rk && rk !== 'unknown') { roomSet[rk] = true; typeSeen[normalizeRoomType(r.room_type)] = true; }
     });
+    // rooms[] 是下單時的房間清單，只有 room_type、沒有 room_key。
+    // ⚠️ 只補「renders 完全沒出現過的房型」——否則 rooms 的 'bedroom' 會跟
+    //    renders 的 bedroom_1／bedroom_2 疊加，兩間臥室被算成三個空間。
     ((data && data.rooms) || []).forEach(function(r) {
       var rt = normalizeRoomType(r && r.room_type);
-      if (rt) roomSet[rt] = true;
+      if (rt && !typeSeen[rt] && !roomSet[rt]) roomSet[rt] = true;
     });
     var styleCount = Object.keys(styleSet).length;
     var roomCount = Object.keys(roomSet).length;
@@ -507,15 +528,20 @@
       _placeholder: true,          // ← 資料層的唯一識別，所有計數/金額都靠它排除
       style: styleKey,
       room_type: LIVING_PLACEHOLDER_RT,
+      room_key: LIVING_PLACEHOLDER_RT,   // 客廳只有一間，key＝房型
       angle_label: '客廳（優化中）',
       matched_furniture: [],       // 空陣列：即使被誤傳進 planTotals 也加不出金額
       soft_furnishing: [],
       _dropped_for_style: dropped || []
     };
   }
+  // 排序：先按房型（客廳→餐廳→臥室→書房），同房型內按實例號碼（臥室1→臥室2）。
+  // 回傳可比較的數字：房型 × 100 + 號碼，維持「客廳永遠第一」不變。
   function _roomRank(r) {
     var rt = (r && (r.room_type || 'living')) || 'living';
-    return (_RT_ORDER[rt] !== undefined) ? _RT_ORDER[rt] : 9;
+    var base = (_RT_ORDER[rt] !== undefined) ? _RT_ORDER[rt] : 9;
+    var m = /^[a-z]+_(\d+)$/.exec(String((r && r.room_key) || ''));
+    return base * 100 + (m ? parseInt(m[1], 10) : 0);
   }
   function buildUI(renders, dropped) {
     _groups = [];
