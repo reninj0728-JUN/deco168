@@ -908,6 +908,21 @@ def _normalize_photo_meta_for_room(room: dict) -> tuple[list[dict], str]:
             if not isinstance(rk_raw, str):
                 return [], f"photo_meta[{i}].room_key 必須是字串"
             rk = rk_raw.strip().lower()
+            # 🔴 round-trip：正規化本身會寫出 `room_key = target_zone`（例如 "living"）。
+            #    驗證若只認 `<zone>_<編號>`，把正規化後的資料再送回來就 400——
+            #    重放工具、任何回傳正規化 payload 的客戶端全部死（2026-08-10 實測）。
+            #    無編號形式＝「這個房型只有一間」，是合法值。
+            if rk == target:
+                out.append({
+                    "photo_key":            pk,
+                    "photo_contains":       contains,
+                    "target_zone":          target,
+                    "room_key":             target,
+                    "target_location_hint": hint,
+                    "avoid_zones":          avoid,
+                    "target_note":          note,
+                })
+                continue
             mk = _ROOM_KEY_RE.match(rk)
             if not mk or mk.group(1) != target:
                 return [], (f"photo_meta[{i}].room_key={rk_raw!r} 格式不合或與 "

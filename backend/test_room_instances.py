@@ -1252,3 +1252,41 @@ def test_model_disobedience_is_recorded_not_silently_relabelled():
     assert "requested" in seg and "model_chose" in seg, "沒有記下雙方的選擇"
     assert 'zoning["best_photo_index"] = prefer_idx' not in seg, (
         "事後把 best_photo_index 改成屋主那張——座標會對不上")
+
+
+# ── ㉑ round-trip：正規化的輸出必須能再送回來 ────────────────────────
+
+def test_normalised_output_can_be_resubmitted():
+    """🔴 正規化會寫出 `room_key = target_zone`（例如 "living"），但第一版的
+    驗證只認 `<zone>_<編號>`——把正規化後的資料再送回來直接 400。
+
+    重放工具、任何回傳正規化 payload 的客戶端全部死（2026-08-10 實測：
+    `replay_job.py D4001755` → HTTP 400 room_key='living' 格式不合）。
+    無編號形式＝「這個房型只有一間」，是合法值。
+    """
+    room = _frontend_payload([
+        ("uploads/X/p1.jpg", "living"), ("uploads/X/p2.jpg", "dining"),
+        ("uploads/X/p3.jpg", "bedroom_1"), ("uploads/X/p4.jpg", "bedroom_2")])
+    first, err = api._normalize_photo_meta_for_room(room)
+    assert not err, err
+    # 把正規化的輸出原封送回去——這是重放工具做的事
+    again, err2 = api._normalize_photo_meta_for_room(
+        {**room, "photo_meta": [dict(m, avoid_zones=[]) for m in first]})
+    assert not err2, f"正規化後的資料再送回來被拒絕：{err2}"
+    assert [m["room_key"] for m in again] == [m["room_key"] for m in first], (
+        "round-trip 之後房間身分變了")
+
+
+def test_round_trip_is_idempotent_for_every_supported_shape():
+    """所有合法形狀跑兩次結果要一樣（含無編號、有編號、老 client 缺欄位）。"""
+    for zones in (["living"], ["living", "bedroom"],
+                  ["living", "bedroom_1", "bedroom_2", "study"],
+                  ["living", "bedroom_1", "bedroom_2", "bedroom_3", "bedroom_4"]):
+        room = _frontend_payload([(f"uploads/X/p{i}.jpg", z)
+                                  for i, z in enumerate(zones)])
+        a, e1 = api._normalize_photo_meta_for_room(room)
+        assert not e1, f"{zones} 首次就被拒：{e1}"
+        b, e2 = api._normalize_photo_meta_for_room(
+            {**room, "photo_meta": [dict(m, avoid_zones=[]) for m in a]})
+        assert not e2, f"{zones} round-trip 被拒：{e2}"
+        assert a == b, f"{zones} 兩次結果不同"
