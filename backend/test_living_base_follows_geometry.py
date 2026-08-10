@@ -71,9 +71,11 @@ def shots(tmp_path):
 # ── ① 不一致時，客廳底圖改跟 binding ────────────────────────────────
 
 def test_living_base_follows_the_geometry_binding(shots):
+    """幾何那張**沒有被客戶指派給別間房**時，客廳底圖才跟著它走。"""
     p1, p2, p3 = shots
     paths = [p1, p2, p3]
-    meta = _meta([(p1, "living"), (p2, "dining"), (p3, "bedroom")])
+    # p2 沒被標任何房型 → 是「自由」的，可以拿來給客廳用
+    meta = _meta([(p1, "living"), (p3, "bedroom")])
     regions = api._build_user_regions_whole(paths, meta, _zoning(p2))
     living = next(r for r in regions if r["room_type"] == "living")
     assert paths[living["best_photo_index"]] == p2, (
@@ -82,17 +84,40 @@ def test_living_base_follows_the_geometry_binding(shots):
     assert _sha(paths[living["best_photo_index"]]) == _zoning(p2)["_source_binding"]["sha256"]
 
 
-def test_customer_tagged_photo_is_kept_as_an_alternate(shots):
-    """客戶標的那張不能被丟掉——保真失敗時要能換回去（2274 行的 alt 機制）。"""
+def test_customer_tag_wins_when_the_binding_photo_belongs_to_another_room(shots):
+    """🔴 D4001755（2026-08-10）：客戶標 photo_01=客廳、photo_02=餐廳，
+    幾何綁在 photo_02——第一版**無條件**改綁，結果客廳餐廳共用同一張照片，
+    客戶標成客廳的那張整個沒被設計。
+
+    錯的是優先級：客戶的明確標記被內部幾何規則蓋掉。
+    fallback 可以存在，不能變成 default。
+    """
     p1, p2, p3 = shots
     paths = [p1, p2, p3]
-    regions = api._build_user_regions_whole(
-        paths, _meta([(p1, "living"), (p2, "dining"), (p3, "bedroom")]), _zoning(p2))
+    meta = _meta([(p1, "living"), (p2, "dining"), (p3, "bedroom")])
+    regions = api._build_user_regions_whole(paths, meta, _zoning(p2))
     living = next(r for r in regions if r["room_type"] == "living")
+    dining = next(r for r in regions if r["room_type"] == "dining")
+    assert paths[living["best_photo_index"]] == p1, (
+        "客廳被改去用客戶標成餐廳的那張——客戶標的客廳沒被設計")
+    assert paths[dining["best_photo_index"]] == p2
+    assert living["best_photo_index"] != dining["best_photo_index"], (
+        "客廳與餐廳共用同一張底圖")
+
+
+def test_customer_tagged_photo_is_kept_as_an_alternate(shots):
+    """改綁時客戶標的那張不能被丟掉——保真失敗時要能換回去。"""
+    p1, p2, p3 = shots
+    paths = [p1, p2, p3]
+    # 兩張都標客廳，幾何綁在 p2 → 改綁成立，p1 要退成備援
+    regions = api._build_user_regions_whole(
+        paths, _meta([(p1, "living"), (p2, "living"), (p3, "bedroom")]), _zoning(p2))
+    living = next(r for r in regions if r["room_type"] == "living")
+    assert paths[living["best_photo_index"]] == p2
     assert paths.index(p1) in living["alt_photo_indices"], "客戶標的客廳照片被丟掉了"
 
 
-def test_binding_photo_need_not_be_tagged_living(shots):
+def test_binding_photo_need_not_be_tagged_living_but_must_be_unclaimed(shots):
     """🔴 binding 那張**不一定在客廳候選清單裡**——293 它就被標成「餐廳」。
 
     我第一版寫成「binding 必須已在客廳候選中」才接線，那條件在真實案例
@@ -100,7 +125,8 @@ def test_binding_photo_need_not_be_tagged_living(shots):
     """
     p1, p2, p3 = shots
     paths = [p1, p2, p3]
-    meta = _meta([(p1, "living"), (p2, "dining"), (p3, "bedroom")])
+    # p2 未被指派給任何房間 → 不在客廳候選裡，但仍可被改綁過去
+    meta = _meta([(p1, "living"), (p3, "bedroom")])
     cands = api._list_room_photo_candidates(paths, meta, "living")
     assert paths.index(p2) not in [c["idx"] for c in cands], "前提變了：p2 已被當客廳候選"
     regions = api._build_user_regions_whole(paths, meta, _zoning(p2))
@@ -200,12 +226,20 @@ def test_contract_photo_and_living_base_end_up_identical(shots):
     p1, p2, p3 = shots
     paths = [p1, p2, p3]
     z = _zoning(p2)
+    # 幾何那張未被客戶指派給別間房 → 改綁成立，兩者必須是同一個檔案
     regions = api._build_user_regions_whole(
-        paths, _meta([(p1, "living"), (p2, "dining"), (p3, "bedroom")]), z)
+        paths, _meta([(p1, "living"), (p3, "bedroom")]), z)
     living_base = paths[next(r for r in regions if r["room_type"] == "living")["best_photo_index"]]
     # 這正是 _zoning_bbox_matches_source 在 pipeline 裡會做的判斷
     assert api._zoning_bbox_matches_source(living_base, paths, z) is True, (
         "客廳底圖仍然綁不上幾何——MISSING_PHOTO_BINDING 會再發生")
+
+    # ⚠️ 幾何那張已被指派給餐廳時，客戶優先——這時綁不上是**預期**的，
+    #    S2 會走 waive 退 legacy，不是回頭去搶客戶的照片（D4001755）。
+    regions2 = api._build_user_regions_whole(
+        paths, _meta([(p1, "living"), (p2, "dining"), (p3, "bedroom")]), z)
+    base2 = paths[next(r for r in regions2 if r["room_type"] == "living")["best_photo_index"]]
+    assert base2 == p1, "客戶標的客廳被搶走了"
 
 
 def test_before_the_fix_the_binding_would_have_failed(shots):

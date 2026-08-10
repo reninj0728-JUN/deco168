@@ -1091,3 +1091,164 @@ def test_no_test_ever_pollutes_the_real_uploads_dir():
     real = Path(api.__file__).parent / "uploads" / "PYTEST_CAP"
     assert not real.exists(), (
         f"測試在正式工作目錄留下 {real}——有呼叫端沒走隔離")
+
+
+# ── ⑲ 兩間臥室不得拿到一模一樣的購物清單 ────────────────────────────
+
+def test_two_bedrooms_get_different_furniture():
+    """🔴 D4001755（2026-08-10）：兩間臥室四件商品一字不差，客戶一眼看破。
+
+    根因是家具按 room_type 配一次再複用——第二間根本沒有自己的配對。
+    改成逐 room_key 各配一次，並把同單已選過的商品排掉：排序是決定性的，
+    不排除的話「各配一次」還是會挑到同一批。
+    """
+    from furniture_match import enrich_renders
+    renders = [{"style": "modern", "style_label": "現代簡約", "flux_prompt": "bedroom"}]
+    a = enrich_renders(renders, room_type="bedroom")
+    used = {f["id"] for f in a[0]["matched_furniture"] if f.get("id")}
+    assert used, "第一間就沒配到東西，前提不成立"
+    b = enrich_renders(renders, room_type="bedroom",
+                       exclude_ids_by_style={"modern": used})
+    b_ids = {f["id"] for f in b[0]["matched_furniture"] if f.get("id")}
+    assert b_ids, "第二間完全配不到東西——排除排過頭了"
+    assert b_ids != used, "兩間臥室拿到一模一樣的清單"
+    # 主件（床）一定要不同——軟裝可以共用，床不行
+    def _bed(lst):
+        return next((f["id"] for f in lst if "bed" in str(f.get("category_en") or "")), None)
+    if _bed(a[0]["matched_furniture"]) and _bed(b[0]["matched_furniture"]):
+        assert _bed(a[0]["matched_furniture"]) != _bed(b[0]["matched_furniture"]), (
+            "兩間臥室推同一張床")
+
+
+def test_exclusion_also_removes_duplicate_listings_of_the_same_product():
+    """🔴 只比 id 不夠：目錄有同商品重複上架（id 不同、name_zh 一樣）。
+
+    D4001755 修完第一版後實測，兩間臥室的「重複商品」是 0 件，但床的名字
+    一模一樣——第二間挑到了另一個 id 的同一張床。客戶看到的還是同一件。
+    """
+    from furniture_match import _catalog_without
+    cat = [
+        {"id": "a1", "category": "床架", "name_zh": "輕奢牛皮床台 雙人5尺"},
+        {"id": "a2", "category": "床架", "name_zh": "輕奢牛皮床台 雙人5尺"},  # 重複上架
+        {"id": "b1", "category": "床架", "name_zh": "亞麻標準雙人5尺床架組"},
+    ]
+    kept = _catalog_without(cat, {"a1"})
+    ids = {i["id"] for i in kept}
+    assert "a2" not in ids, "同商品的另一個 id 沒被排掉——客戶看到的還是同一張床"
+    assert "b1" in ids, "把不同商品也排掉了"
+
+
+def test_exclusion_never_empties_a_category():
+    """🔴 排除不得讓某個品類一件不剩——寧可共用一張地毯，不能沒有地毯可推。"""
+    from furniture_match import _catalog_without
+    cat = [{"id": "a", "category": "地毯"}, {"id": "b", "category": "床架"}]
+    kept = _catalog_without(cat, {"a"})
+    cats = {i["category"] for i in kept}
+    assert "地毯" in cats, "唯一的地毯被排掉了，那個品類會開天窗"
+    assert _catalog_without(cat, set()) is cat, "沒有排除清單時不該複製目錄"
+
+
+def test_matching_is_per_room_key_not_per_room_type():
+    """原始碼層：配對迴圈吃 room_key，不是 room_type。"""
+    code = _code_only(API_SRC)
+    assert "enriched_by_rk" in code and "distinct_rks" in code, "配對還是按房型做一次"
+    assert "enriched_by_rt" not in code, "舊的按房型配對還在"
+    assert "exclude_ids_by_style=_used_ids_by_style" in code, "沒有把已選商品排掉"
+
+
+# ── ⑳ 幾何要算在屋主指定的那張照片上（真根因）────────────────────────
+
+ZONING_SRC = (Path(api.__file__).parent / "zoning_v2.py").read_text(encoding="utf-8")
+
+
+def test_zoning_accepts_a_preferred_photo_index():
+    """🔴 真根因：幾何算在哪張，後面整條鏈都跟著。
+
+    底圖不是幾何那張時 guide 建不出來（api.py「底圖不是 zoning 主視角，
+    禁止跨照片套 bbox」）→ 格局前檢以「auto 客廳無 guide」擋死 → 客廳零圖。
+    293BDE11 與 D4001755 都死在這條鏈。
+
+    所以要在**呼叫模型之前**就把屋主指定的那張告訴它——不是事後改
+    best_photo_index（座標焊死在模型看的那張上，事後改＝拿另一張照片的門
+    去擺這張的家具，比擋死更危險）。
+    """
+    import inspect as _i
+    sig = _i.signature(__import__("zoning_v2").compute_zoning_v2)
+    assert "prefer_index" in sig.parameters
+    assert sig.parameters["prefer_index"].default is None, "必須可省略（單房不受影響）"
+
+
+def _build_prefer_note(prefer_index, n_photos=4):
+    """執行 zoning_v2 真正建 prefer_note 的那段碼。"""
+    import textwrap
+    seg = ZONING_SRC[ZONING_SRC.index('    prefer_note = ""'):
+                     ZONING_SRC.index("    prompt_text = PROMPT.format")]
+    ns = {"prefer_index": prefer_index, "valid_photos": list(range(n_photos)),
+          "isinstance": isinstance, "int": int, "len": len, "bool": bool}
+    exec(textwrap.dedent(seg), ns)      # noqa: S102 — 執行的是專案自己的程式碼
+    return ns["prefer_note"]
+
+
+def test_the_owner_choice_actually_reaches_the_prompt():
+    """🔴 建出來≠送到模型。
+
+    `str.format()` 對**多傳的 kwarg 是靜默忽略**——模板沒有 `{prefer_note}`
+    佔位時，整段指定會被吞掉，Gemini 收到的 prompt 跟沒修一字不差。
+    我第一版就是這樣：note 建了、也傳進 format 了，但模板缺佔位，
+    整刀完全空轉，而 940 條測試全綠（2026-08-10 抓到）。
+
+    所以要斷言 **format 的輸出**，不是斷言 note 變數。
+    """
+    import zoning_v2 as Z
+    assert "{prefer_note}" in Z.PROMPT, "模板沒有 prefer_note 佔位——指定會被靜默吞掉"
+    out = Z.PROMPT.format(photo_count=4, video_note="",
+                          prefer_note=_build_prefer_note(2))
+    assert "【主視角已由屋主指定】" in out, "屋主指定沒有出現在送給模型的 prompt 裡"
+    assert "best_photo_index 必須等於 2" in out
+    # 沒有指定時，模板不得多出空白區塊以外的東西
+    plain = Z.PROMPT.format(photo_count=4, video_note="", prefer_note="")
+    assert "屋主指定" not in plain
+
+
+def test_prompt_hard_requires_the_owner_choice():
+    """prompt 要講死：不得改選、看不見的元素照實標 missing，不准換照片補。"""
+    note = _build_prefer_note(2)
+    assert "best_photo_index 必須等於 2" in note, "沒有硬性指定索引"
+    assert "不得改選" in note, "沒有禁止模型自己換照片"
+    assert "not_visible" in note and "不要**改用別張照片補" in note, (
+        "沒有交代看不見的結構要照實標 missing——否則模型會偷偷換照片")
+    assert "第 3 張" in note, "給人看的序號要從 1 開始"
+
+
+def test_no_prefer_note_when_owner_did_not_tag_living():
+    """沒有客廳標記時（單房／老 client）prompt 不得多出這段。"""
+    for bad in (None, -1, 99, True):
+        assert _build_prefer_note(bad, n_photos=2) == "", (
+            f"prefer_index={bad!r} 不該注入指定段")
+
+
+def test_zoning_endpoint_computes_prefer_before_calling_the_model():
+    """🔴 prefer_idx 必須在 compute_zoning_v2 **之前**算好並傳進去。
+
+    算在後面就只能改標籤，那正是被否決的做法。
+    """
+    i = API_SRC.index("zoning = compute_zoning_v2(")
+    before = _code_only(API_SRC[max(0, i - 2200):i])
+    assert "prefer_idx = None" in before, "prefer_idx 沒有在呼叫前算"
+    # ⚠️ 不能只驗「有那幾行」——`if False:` 會讓整段變成死碼而測試照樣綠
+    #    （2026-08-10 蓄意破壞抓到）。要驗那段真的會執行。
+    assert 'if photo_meta_json:' in before, "屋主標記的解析被關掉了"
+    assert 'if _z == "living"' in before, "沒有從屋主標記找出客廳那張"
+    assert "if False" not in before, "解析被 if False 關掉了"
+    call = API_SRC[i:i + 220]
+    assert "prefer_index=prefer_idx" in call, "沒有把屋主指定傳進模型"
+
+
+def test_model_disobedience_is_recorded_not_silently_relabelled():
+    """模型仍改選別張時：沿用它的座標並記錄不一致，不得事後改標籤。"""
+    i = API_SRC.index("_prefer_index_ignored")
+    seg = _code_only(API_SRC[i - 700:i + 300])
+    assert "沿用它並記錄不一致" in API_SRC[i - 700:i + 300], "沒有說明為什麼不改標籤"
+    assert "requested" in seg and "model_chose" in seg, "沒有記下雙方的選擇"
+    assert 'zoning["best_photo_index"] = prefer_idx' not in seg, (
+        "事後把 best_photo_index 改成屋主那張——座標會對不上")

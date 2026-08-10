@@ -2471,10 +2471,26 @@ def _build_user_regions_whole(image_paths: list, photo_meta_by_key: dict | None,
         # ⚠️ binding 那張**不一定在客廳候選清單裡**——這一單它就被客戶標成
         #    「餐廳」，所以 `_list_room_photo_candidates` 根本不會收它。
         #    條件只能是「binding 指到本次上傳的有效照片」，不能要求它已被標成客廳。
-        if rt == "living" and _binding_idx is not None and best["idx"] != _binding_idx:
+        # 🔴 2026-08-10 D4001755：上面那條規則第一版是**無條件**改綁，結果客戶明明
+        #    標了 photo_01=客廳、photo_02=餐廳，客廳仍被改去用 photo_02——客廳餐廳
+        #    共用同一張照片，客戶標的那張整個沒被設計。
+        #    錯的是優先級：客戶的明確標記被內部幾何規則蓋掉。
+        #    fallback 可以存在，不能變成 default。
+        #    規則改成：**只能改綁到客戶沒有指派給別間房的照片**。
+        #    幾何那張已經是別人的（這兩單都被標成餐廳）→ 尊重客戶，不搶。
+        _binding_claimed_by_other = False
+        if _binding_idx is not None and 0 <= _binding_idx < len(image_paths):
+            _bmeta = _photo_meta_for_path(image_paths[_binding_idx], photo_meta_by_key)
+            _bkey = _photo_room_key(_bmeta)
+            _binding_claimed_by_other = bool(_bkey) and _bkey != room_key
+        if (rt == "living" and _binding_idx is not None
+                and best["idx"] != _binding_idx and not _binding_claimed_by_other):
             print(f"[pipeline] 客廳底圖改跟 zoning 幾何綁定那張："
-                  f"idx {best['idx']} → {_binding_idx}（幾何與出圖必須同一張照片）")
+                  f"idx {best['idx']} → {_binding_idx}（該照片客戶未指派給其他空間）")
             _idxs = [_binding_idx] + [i for i in _idxs if i != _binding_idx]
+        elif rt == "living" and _binding_claimed_by_other:
+            print(f"[pipeline] 客廳底圖維持客戶標記那張（idx {best['idx']}）："
+                  f"幾何綁在 idx {_binding_idx}，但那張客戶已指派給其他空間，不搶")
         out.append({
             # room_type = 哪一類（家具規則／判官／裁切適用房型都吃它）
             # room_key  = 哪一間（分頁／金額／去重吃它）
@@ -6304,20 +6320,35 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         failed_stage = "matching"
         last_progress = 45
         write_status(job_id, job_dir, "matching", 45, "搭配風格家具中…")
-        # step-2：逐房型各配一次家具（不同房間用不同必備品；客廳/單空間行為不變）。
-        # angle_room_types 已標好每個視角的標準房型；同房型只配一次再複用。
+        # 🔴 逐「房間」各配一次家具，不是逐房型（D4001755 2026-08-10）：
+        #    兩間臥室拿到一字不差的四件商品，客戶一眼看破。
+        #    以前是 `enriched_by_rt`（按 room_type 配一次再複用），第二間根本沒有
+        #    自己的配對。改成按 room_key 各配一次，並把同單已選過的商品排掉——
+        #    排序是決定性的，不排除的話各配一次也還是同一批。
+        #    ⚠️ 必備品規則仍吃 room_type（臥室族共用同一套 must/nice），只有
+        #       「挑到哪幾件」變成逐間決定。
         renders_in = analysis.get("renders", [])
-        distinct_rts = list(dict.fromkeys(angle_room_types)) or ["living"]
-        enriched_by_rt = {
-            rt: enrich_renders(renders_in, analysis=analysis,
-                               budget_tier=budget_tier,
-                               preferred_store=preferred_store,
-                               room_type=rt,
-                               palettes=palettes)
-            for rt in distinct_rts
-        }
-        n_styles = len(enriched_by_rt[distinct_rts[0]]) if distinct_rts else 0
-        print(f"[pipeline] 逐房型配對 room_types={distinct_rts} styles={n_styles}")
+        distinct_rks = list(dict.fromkeys(angle_room_keys)) or ["living"]
+        enriched_by_rk: dict[str, list] = {}
+        _used_ids_by_style: dict[str, set] = {}
+        for _rk in distinct_rks:
+            _rt = _room_key_to_rt(_rk)
+            _lst = enrich_renders(renders_in, analysis=analysis,
+                                  budget_tier=budget_tier,
+                                  preferred_store=preferred_store,
+                                  room_type=_rt,
+                                  palettes=palettes,
+                                  exclude_ids_by_style=_used_ids_by_style)
+            enriched_by_rk[_rk] = _lst
+            # 記下這間選了什麼，下一間就不會再挑同一件（依 regions 順序＝客廳優先）
+            for _one in _lst:
+                _st = _one.get("style")
+                _bag = _used_ids_by_style.setdefault(_st, set())
+                for _f in (_one.get("matched_furniture") or []):
+                    if _f.get("id"):
+                        _bag.add(str(_f["id"]))
+        n_styles = len(enriched_by_rk[distinct_rks[0]]) if distinct_rks else 0
+        print(f"[pipeline] 逐房間配對 rooms={distinct_rks} styles={n_styles}")
 
         # 客廳備援底圖（分數次高的 living 照片 path 列表）— 保真失敗時換底圖再抽
         _living_alt_paths: list[str] = []
@@ -6612,7 +6643,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             for vi, (base, label, rt, rk, cropped, zone_cropped, cnote) in enumerate(zip(
                     flux_bases, angle_labels, angle_room_types, angle_room_keys,
                     crop_flags, zone_crop_flags, crop_notes)):
-                copy = dict(enriched_by_rt[rt][si])
+                copy = dict(enriched_by_rk[rk][si])
                 copy["_angle_label"] = label
                 # 哪一間房。臥室 1／臥室 2 的 _room_type 同為 bedroom，靠這個分開。
                 copy["_room_key"] = rk or rt
@@ -8883,12 +8914,11 @@ async def api_zoning(upload_id: str = Form(...),
     # 人先燒影片 token。影片理解全部留到付款後 run_pipeline。
     zoning_kf: list = []
 
-    zoning = compute_zoning_v2(local_photos, video_keyframes=zoning_kf or None)
-    if zoning.get("error"):
-        return JSONResponse(status_code=500, content={"error": f"gemini zoning failed: {zoning['error']}"})
-
-    # 4. 畫 overlay。S2 座標只屬於 Gemini 選定的 best_photo_index；
-    # 使用者 living metadata 只在模型 index 無效時 fallback，不能覆蓋座標來源。
+    # 🔴 客戶在上傳頁標的「客廳」那張，必須在**呼叫模型之前**指定。
+    #    幾何算在哪張，後面整條鏈都跟著：底圖不是幾何那張時 guide 建不出來
+    #    （「底圖不是 zoning 主視角，禁止跨照片套 bbox」）→ 格局前檢擋死
+    #    → 客廳零圖。293BDE11／D4001755 都死在這條鏈。
+    #    事後改 best_photo_index 不行——座標焊死在模型看的那張上。
     prefer_idx = None
     if photo_meta_json:
         try:
@@ -8901,9 +8931,29 @@ async def api_zoning(upload_id: str = Form(...),
                         break
         except Exception as _e:
             print(f"[/api/zoning] photo_meta_json 解析失敗，忽略: {_e}")
+    if prefer_idx is not None:
+        print(f"[/api/zoning] 屋主指定客廳主視角 idx={prefer_idx} → 幾何算在這張")
+
+    zoning = compute_zoning_v2(local_photos, video_keyframes=zoning_kf or None,
+                               prefer_index=prefer_idx)
+    if zoning.get("error"):
+        return JSONResponse(status_code=500, content={"error": f"gemini zoning failed: {zoning['error']}"})
+
+    # 4. 畫 overlay。S2 座標只屬於模型算出來的 best_photo_index——事後改索引等於
+    #    拿另一張照片的門去擺這張的家具，比擋死更危險。屋主的指定已經在**呼叫前**
+    #    寫進 prompt（prefer_index），所以正常情況兩者本來就一致。
     _model_best_idx = zoning.get("best_photo_index")
-    if isinstance(_model_best_idx, int) and not isinstance(_model_best_idx, bool) \
-            and 0 <= _model_best_idx < len(local_photos):
+    _model_ok = (isinstance(_model_best_idx, int)
+                 and not isinstance(_model_best_idx, bool)
+                 and 0 <= _model_best_idx < len(local_photos))
+    if prefer_idx is not None and _model_ok and _model_best_idx != prefer_idx:
+        # 已在 prompt 硬性要求，模型仍改選別張 → 座標算在別張上，不能事後改標籤
+        #（那等於拿另一張照片的門去擺這張的家具）。誠實記錄並沿用模型那張。
+        print(f"[/api/zoning] ⚠️ 屋主指定 idx={prefer_idx}，模型仍回 "
+              f"idx={_model_best_idx}——座標屬於模型那張，沿用它並記錄不一致")
+        zoning["_prefer_index_ignored"] = {"requested": prefer_idx,
+                                           "model_chose": _model_best_idx}
+    if _model_ok:
         best_idx = _model_best_idx
         print(f"[/api/zoning] 分區圖採用 Gemini S2 best photo idx={best_idx}")
     else:

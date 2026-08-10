@@ -1558,11 +1558,40 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
     return result
 
 
+def _catalog_without(catalog: list[dict], exclude_ids: set) -> list[dict]:
+    """排除同一張訂單其他房間already選過的商品，但**不讓任何品類變空**。
+
+    D4001755（2026-08-10）：兩間臥室拿到一字不差的四件商品，客戶一眼看破。
+    根因是家具按 room_type 配一次再複用；每間各配一次還不夠——排序是決定性的，
+    不排除的話第二間會挑到同一批。
+
+    ⚠️ 排除到某個品類一件不剩時，把該品類原本的商品放回去：
+       寧可兩間共用一張地毯，也不能有一間根本沒有地毯可推薦。
+    """
+    if not exclude_ids:
+        return catalog
+    # ⚠️ 只比 id 不夠：目錄有同商品重複上架（id 不同、name_zh 一樣），
+    #    第二間會挑到「另一個 id 的同一張床」，客戶看到的還是同一件。
+    #    所以連名字一起排。
+    _names = {str(i.get("name_zh") or "").strip()
+              for i in catalog if str(i.get("id") or "") in exclude_ids}
+    _names.discard("")
+    kept = [i for i in catalog
+            if str(i.get("id") or "") not in exclude_ids
+            and str(i.get("name_zh") or "").strip() not in _names]
+    cats_all = {str(i.get("category") or "") for i in catalog}
+    cats_kept = {str(i.get("category") or "") for i in kept}
+    for c in cats_all - cats_kept:
+        kept.extend(i for i in catalog if str(i.get("category") or "") == c)
+    return kept
+
+
 def enrich_renders(renders: list[dict], analysis: dict | None = None,
                    budget_tier: str = "tier3",
                    preferred_store: str = "none",
                    room_type: str = "living",
-                   palettes: dict | None = None) -> list[dict]:
+                   palettes: dict | None = None,
+                   exclude_ids_by_style: dict | None = None) -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -1624,6 +1653,14 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
             print(f"[furniture_match] {style} 色系關鍵字加權: {pal_kws[:4]}…")
         # 先過濾尺寸再配對，避免唯一的電視櫃在選中後才被刪除。
         room_catalog = filter_by_dimensions(catalog, max_w)
+        # 同一張訂單、同一個風格裡，別間房已經選過的商品先排掉——
+        # 兩間臥室拿到一模一樣的清單，客戶會覺得系統根本沒看第二間。
+        _ex = set((exclude_ids_by_style or {}).get(style) or ())
+        if _ex:
+            _before = len(room_catalog)
+            room_catalog = _catalog_without(room_catalog, _ex)
+            print(f"[furniture_match] {style}/{room_type} 排除同單已選 {len(_ex)} 件 "
+                  f"→ 候選 {_before}→{len(room_catalog)}")
         matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode=room_type,
                                   is_long_room=is_long_room,
                                   is_small_room=is_small_room,

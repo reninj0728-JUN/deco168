@@ -174,6 +174,7 @@ status、confidence、visibility、t_start、t_end。t 是沿同側 wall_floor �
   "needs_user_input": ["如果需要屋主回答的問題，列在這裡。例：『請問您希望靠窗那端做客廳還是餐廳？』"]
 }}
 
+{prefer_note}
 只回 JSON，不要多話。
 """
 
@@ -415,10 +416,23 @@ def _build_provenance(*, model_id: str, prompt_text: str, sent_media: list[dict]
     }
 
 
-def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) -> dict:
+def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None,
+                      prefer_index: int | None = None) -> dict:
     """
     跨多張同房間照片（+ 可選影片擷幀）合成 zoning v2 JSON。
     失敗回 {"error": "...", "overall_confidence": "none"}。
+
+    prefer_index：客戶在上傳頁明確標成「客廳」的那張照片索引。
+
+    🔴 為什麼要在**呼叫模型之前**指定，而不是事後改 best_photo_index：
+       所有 bbox 與 struct_geometry_v1 的座標都焊死在模型選的那張照片上
+       （見下方 prompt 的「不可跨照片拼接座標」）。事後改索引＝拿另一張照片的
+       門與牆腳去擺這張的家具，比擋死更危險。
+
+       而幾何算在哪張，後面整條鏈都跟著：底圖不是幾何那張時 guide 建不出來
+       （api.py「底圖不是 zoning 主視角，禁止跨照片套 bbox」）→ 格局前檢擋死
+       → 客廳零圖。D4001755 / 293BDE11 都是這個死鏈。
+       讓幾何一開始就算在客戶標的那張，整條鏈自然通。
     """
     if not GEMINI_KEY:
         return {"error": "missing GEMINI_API_KEY / GOOGLE_AI_KEY", "overall_confidence": "none"}
@@ -473,7 +487,24 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None) ->
         f"，外加 {len(valid_videos)} 張影片擷取畫面（給你看更全面動線）"
         if valid_videos else ""
     )
-    prompt_text = PROMPT.format(photo_count=len(valid_photos), video_note=video_note)
+    # 客戶已明確指定客廳主視角時，寫進 prompt 硬性要求——不是事後改索引。
+    prefer_note = ""
+    # ⚠️ bool 是 int 的子類：True 會被當成索引 1，把幾何算到錯的照片上。
+    if (isinstance(prefer_index, int) and not isinstance(prefer_index, bool)
+            and 0 <= prefer_index < len(valid_photos)):
+        prefer_note = (
+            f"\n\n【主視角已由屋主指定】\n"
+            f"屋主已明確指出**第 {prefer_index + 1} 張**（索引 {prefer_index}）是客廳。\n"
+            f"best_photo_index 必須等於 {prefer_index}，所有 bbox 與 "
+            f"struct_geometry_v1 座標都只能屬於這張照片。\n"
+            f"即使你認為別張照片的結構線索更完整，也不得改選——屋主指定的是"
+            f"「要設計哪個空間」，那是需求不是建議。\n"
+            f"若這張照片看不見某些結構元素（例如大門落地處不在畫面內），"
+            f"照實把該元素標成 status=\"missing\"／visibility=\"not_visible\"，"
+            f"**不要**改用別張照片補。"
+        )
+    prompt_text = PROMPT.format(photo_count=len(valid_photos), video_note=video_note,
+                                prefer_note=prefer_note)
     parts.append(prompt_text)
     model_id = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 

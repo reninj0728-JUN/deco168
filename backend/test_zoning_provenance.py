@@ -25,7 +25,7 @@ import zoning_v2 as z2
 
 
 def _provenance(**over):
-    prompt = z2.PROMPT.format(photo_count=1, video_note="")
+    prompt = z2.PROMPT.format(photo_count=1, video_note="", prefer_note="")
     media = [{"kind": "photo", "index": 0,
               "sha256": hashlib.sha256(b"sent-bytes").hexdigest(),
               "bytes": 9, "mime": "image/jpeg"}]
@@ -44,7 +44,7 @@ def _provenance(**over):
 # ── 1. 記的是實際送出的值 ─────────────────────────────────────────
 def test_prompt_hash_is_of_the_formatted_prompt_not_the_template():
     """模板含 {photo_count} 佔位符；雜湊未格式化的模板等於記錯東西。"""
-    formatted = z2.PROMPT.format(photo_count=1, video_note="")
+    formatted = z2.PROMPT.format(photo_count=1, video_note="", prefer_note="")
     p = _provenance(prompt_text=formatted)
     assert p["prompt_sha256"] == hashlib.sha256(formatted.encode()).hexdigest()
     assert p["prompt_sha256"] != hashlib.sha256(z2.PROMPT.encode()).hexdigest()
