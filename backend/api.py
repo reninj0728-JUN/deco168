@@ -3085,6 +3085,94 @@ def _layout_guide_plan(W: int, H: int, sofa_side: str,
     }
 
 
+def _resolve_sofa_side_with_fallback(
+        W: int, H: int, preferred: str, *,
+        entrance_side: str = "", entrance_bbox: tuple | None = None,
+        focal_side: str = "", blocked_rects: list | None = None,
+        living_bbox: tuple | None = None, window_bbox: tuple | None = None,
+        can_float: bool = False) -> tuple[str | None, dict | None, str]:
+    """綁邊配置無解時的安全降級：偏好側 → 反側 → 浮動。
+
+    🔴 為什麼需要這支（ED43F9F9，2026-08-10）：
+       客戶綁「沙發靠右」，但客廳框只到畫面 55%、右側又是大門通道。
+       `_layout_guide_plan` 正確地算出無解——**然後系統什麼都沒做**：
+       仍以 bound_constraints 進生成、卻沒有引導圖，安全約束被靜默丟掉。
+       前檢 `_auto_layout_safety_check` 只管 auto，綁邊單直接穿過去。
+       量測（原圖 1477x1108＋原 zoning，保留恰好一個硬限制）：
+         只有客廳框 → 無解　只有大門通道 → 無解　只有 walkway → 有解
+       所以「客廳框」與「大門通道」各自就足以否決右牆，walkway 無罪。
+
+    ⚠️ 側別是**偏好**不是保證，但降級必須被記錄下來——呼叫端要把選中的
+       側別寫回 zoning，讓 guide／prompt／判官讀到同一個值。planner 內部
+       偷偷翻邊會讓 prompt 與 guide 用兩套配置（見 `_layout_guide_plan`
+       中 side_candidates 的註解），所以這裡只回答「哪一側可行」，不畫圖。
+
+    ⚠️ 窗戶是硬限制，但 `is_auto` 分支會丟掉 blocked_rects（見 forbidden 的
+       計算），所以浮動候選的窗戶禁區改用**事後檢查**補上，不能只塞進
+       blocked_rects 就當數。沒有窗戶幾何時浮動一律不採用——不得拿
+       「不知道窗在哪」當作「沒有窗」。
+
+    回 (side, plan, note)；三個候選都不可行時 side=None。
+    """
+    if preferred not in ("left", "right"):
+        return preferred, None, ""
+    base = dict(entrance_side=entrance_side, entrance_bbox=entrance_bbox,
+                focal_side=focal_side, living_bbox=living_bbox)
+    hard = list(blocked_rects or [])
+    if window_bbox:
+        hard = hard + [window_bbox]
+
+    def _clear_of_window(plan: dict) -> bool:
+        if not window_bbox:
+            return True
+        for key in ("sofa", "tv"):
+            r = plan.get(key)
+            if r and _rects_intersect(tuple(r), tuple(window_bbox)):
+                return False
+        return True
+
+    opposite = "right" if preferred == "left" else "left"
+    for side in (preferred, opposite):
+        plan = _layout_guide_plan(W, H, side, auto_float=False,
+                                  blocked_rects=hard, **base)
+        if plan.get("valid") and _clear_of_window(plan):
+            note = "" if side == preferred else (
+                f"客戶偏好 {preferred} 側在安全約束下無解，改用 {side} 側")
+            return side, plan, note
+    if can_float and window_bbox:
+        plan = _layout_guide_plan(W, H, "free", auto_float=True,
+                                  blocked_rects=hard, **base)
+        if plan.get("valid") and _clear_of_window(plan):
+            return "free", plan, f"{preferred}／{opposite} 兩側皆無解，改用浮動配置"
+    return None, None, (
+        f"{preferred}／{opposite} 兩側與浮動皆找不到安全配置"
+        if can_float and window_bbox else
+        f"{preferred}／{opposite} 兩側皆無解"
+        + ("；無窗戶幾何，浮動候選不予採用" if can_float else ""))
+
+
+def _apply_sofa_side_downgrade(zoning: dict, frm: str, to: str, note: str) -> None:
+    """把降級後的側別寫回 zoning，讓 guide 與 prompt 讀到同一個值。
+
+    🔴 為什麼一定要寫回同一個欄位：引導圖走 `_guide_sofa_side(zoning)`，
+       生成 prompt 走 `furniture_placement_rules.sofa_side`（prompt_builder）。
+       只改其中一邊，模型會同時收到兩套互斥的配置指示——那正是
+       `_layout_guide_plan` 裡「不可在 planner 內偷偷翻邊」註解在防的事。
+
+    🔴 降級必須留痕：`_sofa_side_downgraded` 讓後續交付／驗收知道
+       「這張沒有照客戶指定的側別」，不得對外宣稱已遵守。
+    """
+    rules = zoning.setdefault("furniture_placement_rules", {})
+    rules["sofa_side"] = "" if to == "free" else to
+    rules["tv_side"] = "" if to == "free" else ("right" if to == "left" else "left")
+    # 來源標記也要跟著換：留著 "user_explicit" 等於把客戶沒選的那一側
+    # 掛上「客戶自己選的」標籤——那就是「假裝遵守」。
+    rules["sofa_side_source"] = "safety_downgrade"
+    if to == "free":
+        zoning["_sofa_layout"] = "free"
+    zoning["_sofa_side_downgraded"] = {"from": frm, "to": to, "reason": note}
+
+
 def _build_layout_guide_image(crop_path: str, job_dir, idx: int, sofa_side: str,
                               entrance_side: str = "",
                               entrance_bbox: tuple | None = None,
@@ -6457,6 +6545,43 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     layout_guide_paths[_vi] = None
                     layout_guide_skip_reasons[_vi] = "zoning_bbox_map_exception"
                     continue
+                # ── 綁邊無解 → 安全降級（ED43F9F9）────────────────────────
+                # 以前：算出無解就什麼都不做，仍以 bound_constraints 進生成、
+                # 卻沒有引導圖 ⇒ 安全約束靜默消失，沙發愛落哪落哪。
+                # 現在：側別當**偏好**，在同一組硬限制下找可行的替代側，
+                # 找到就把它寫回 zoning——guide 與 prompt 都讀 rules.sofa_side，
+                # 寫回同一個來源才不會出現兩套配置。
+                _side_note = ""
+                _no_safe_side = False
+                if _sofa_side_for_guide in ("left", "right"):
+                    try:
+                        from PIL import Image as _PILImage
+                        with _PILImage.open(_bp) as _gim:
+                            _gw, _gh = _gim.size
+                        _alt, _alt_plan, _side_note = _resolve_sofa_side_with_fallback(
+                            _gw, _gh, _sofa_side_for_guide,
+                            entrance_side=_entrance_side_for_guide,
+                            entrance_bbox=_door_bbox_crop,
+                            focal_side=_focal_side_for_guide,
+                            blocked_rects=_blocked_crop,
+                            living_bbox=_living_bbox_crop,
+                            window_bbox=None,   # 目前全站沒有窗戶幾何可用
+                            can_float=_room_can_float_sofa(analysis, zoning_result),
+                        )
+                    except Exception as _alt_err:
+                        print(f"[pipeline] guide[{_vi}] 側別降級搜尋失敗，維持原側別: "
+                              f"{type(_alt_err).__name__}: {_alt_err}")
+                        _alt, _side_note = _sofa_side_for_guide, ""
+                    if _alt and _alt != _sofa_side_for_guide:
+                        print(f"[pipeline] guide[{_vi}] 側別降級：{_side_note}")
+                        _apply_sofa_side_downgrade(
+                            zoning_result, _sofa_side_for_guide, _alt, _side_note)
+                        _sofa_side_for_guide = _alt
+                        _auto_float_for_guide = (_alt == "free")
+                    elif _alt is None:
+                        print(f"[pipeline] guide[{_vi}] 無安全配置：{_side_note}")
+                        zoning_result["_sofa_side_infeasible"] = _side_note
+                        _no_safe_side = True
                 layout_guide_paths[_vi] = _build_layout_guide_image(
                     _bp, job_dir, _vi, _sofa_side_for_guide,
                     entrance_side=_entrance_side_for_guide,
@@ -6466,9 +6591,13 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     blocked_rects=_blocked_crop,
                     living_bbox=_living_bbox_crop,
                 )
-                # 走完全部前置檢查卻仍畫不出來，是另一種失敗，要跟「被前面擋掉」分開
+                # 走完全部前置檢查卻仍畫不出來，是另一種失敗，要跟「被前面擋掉」分開。
+                # 「左右浮動都找不到安全配置」再細分出來——那不是畫圖失敗，
+                # 是這張照片＋這組分區底下本來就沒有合法配置（ED43 就是這類）。
                 layout_guide_skip_reasons[_vi] = (
-                    None if layout_guide_paths[_vi] else "guide_render_returned_empty")
+                    None if layout_guide_paths[_vi]
+                    else "no_safe_sofa_placement" if _no_safe_side
+                    else "guide_render_returned_empty")
 
         # ── S2 authoritative geometry Contract；flag off 時保留 S1 shadow ──
         layout_contract_shadows: list[dict] = []
