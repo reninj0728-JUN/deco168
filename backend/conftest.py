@@ -6,6 +6,8 @@
 collect_ignore_glob = [
     "test_momo*.py",
     "test_ikea*.py",
+    "__pytest_*",
+    "__pycache__",
 ]
 collect_ignore = [
     "test_api.py",                  # smoke test，真呼叫 Gemini/FAL
@@ -15,3 +17,4 @@ collect_ignore = [
     "test_photo_meta_v1.py",        # 腳本式，結尾 sys.exit
     "test_photo_meta_v1_replay.py", # 腳本式
 ]
+

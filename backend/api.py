@@ -6,6 +6,7 @@ import os, re, sys, json, uuid, shutil, traceback, hashlib, math
 for _k in ("FAL_KEY", "GEMINI_API_KEY", "GOOGLE_AI_KEY", "SUPABASE_KEY", "FLUX_API_KEY"):
     if os.environ.get(_k):
         os.environ[_k] = os.environ[_k].strip()
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
@@ -92,42 +93,7 @@ def r2_delete_object(key: str) -> bool:
         print(f"[r2_delete] {key} 失敗: {e}")
         return False
 
-app = FastAPI(title="DECO168 API", version="1.0.2")
-
-# 啟動時只 print True/False，不洩漏值
-print(f"[startup] R2 access_key set: {bool(os.environ.get('CF_R2_ACCESS_KEY_ID') or os.environ.get('R2_ACCESS_KEY_ID'))}")
-print(f"[startup] R2 secret set: {bool(os.environ.get('CF_R2_SECRET_ACCESS_KEY') or os.environ.get('R2_SECRET_ACCESS_KEY'))}")
-print(f"[startup] R2 endpoint set: {bool(os.environ.get('CF_R2_ENDPOINT') or os.environ.get('R2_ENDPOINT'))}")
-print(f"[startup] R2 bucket set: {bool(os.environ.get('CF_R2_BUCKET') or os.environ.get('R2_BUCKET'))}")
-
-# CORS：預設只允許正式前端；未來接自訂網域時在 Railway 設
-# ALLOWED_ORIGINS=https://deco168.vercel.app,https://deco168.com（逗號分隔）即可，不用改 code
-_allowed_origins = [
-    o.strip() for o in
-    (os.environ.get("ALLOWED_ORIGINS") or "https://deco168.vercel.app").split(",")
-    if o.strip()
-]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# /jobs 只准拿渲染圖（render_*.png/jpg）。不能整個目錄掛 StaticFiles：
-# job 目錄裡還有客戶原始照片、meta.json、result.json、error.log（含 traceback），
-# 拿到 job_id 的任何人（例如客戶分享結果頁連結）都能整包抓走。
-_RENDER_FILE_RE = re.compile(r"^render_[A-Za-z0-9_\-]+\.(png|jpe?g|webp)$")
-
-@app.get("/jobs/{job_id}/{filename}")
-def serve_render_file(job_id: str, filename: str):
-    from fastapi.responses import FileResponse
-    if not _RENDER_FILE_RE.match(filename) or "/" in job_id or "\\" in job_id or ".." in job_id:
-        return JSONResponse(status_code=404, content={"error": "not found"})
-    fpath = JOBS_DIR / job_id / filename
-    if not fpath.is_file():
-        return JSONResponse(status_code=404, content={"error": "not found"})
-    return FileResponse(str(fpath))
+# ─── App Setup (lifespan defined below) ────────────────────────────────────────
 
 
 # ── Watchdog：Railway redeploy 會殺掉 in-process BackgroundTasks，
@@ -251,12 +217,69 @@ def _purge_expired_orders():
         print(f"[orders-cleanup] 清理失敗（不影響服務）: {type(e).__name__}: {str(e)[:150]}")
 
 
-@app.on_event("startup")
 def _startup_watchdog():
     _sweep_stale_jobs()
     import threading
     threading.Thread(target=_purge_expired_storage, daemon=True).start()
     threading.Thread(target=_purge_expired_orders, daemon=True).start()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """啟動掃描絕不可以擋住服務起來。
+
+    🔴 `_sweep_stale_jobs()` 是同步跑在啟動流程裡的（另外兩個清理丟到背景執行緒）。
+       lifespan 的例外會讓 uvicorn 直接啟動失敗 ⇒ Railway 的 /health 永遠不回應
+       ⇒ 整個服務掛掉。三個子函式各自有 try/except，但那不代表這裡不用包：
+       `threading.Thread(...).start()` 本身、或日後任何新增的啟動步驟，
+       都可能在子函式的防護之外爆掉。清理失敗只是垃圾沒清到，
+       服務起不來是全站中斷——兩者嚴重性差好幾個量級。
+    """
+    try:
+        _startup_watchdog()
+    except Exception as e:
+        print(f"[startup] watchdog 失敗（不影響服務啟動）: "
+              f"{type(e).__name__}: {str(e)[:200]}")
+    yield
+
+
+app = FastAPI(title="DECO168 API", version="1.0.2", lifespan=lifespan)
+
+# 啟動時只 print True/False，不洩漏值
+print(f"[startup] R2 access_key set: {bool(os.environ.get('CF_R2_ACCESS_KEY_ID') or os.environ.get('R2_ACCESS_KEY_ID'))}")
+print(f"[startup] R2 secret set: {bool(os.environ.get('CF_R2_SECRET_ACCESS_KEY') or os.environ.get('R2_SECRET_ACCESS_KEY'))}")
+print(f"[startup] R2 endpoint set: {bool(os.environ.get('CF_R2_ENDPOINT') or os.environ.get('R2_ENDPOINT'))}")
+print(f"[startup] R2 bucket set: {bool(os.environ.get('CF_R2_BUCKET') or os.environ.get('R2_BUCKET'))}")
+
+# CORS：預設只允許正式前端；未來接自訂網域時在 Railway 設
+# ALLOWED_ORIGINS=https://deco168.vercel.app,https://deco168.com（逗號分隔）即可，不用改 code
+_allowed_origins = [
+    o.strip() for o in
+    (os.environ.get("ALLOWED_ORIGINS") or "https://deco168.vercel.app").split(",")
+    if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# /jobs 只准拿渲染圖（render_*.png/jpg）。不能整個目錄掛 StaticFiles：
+# job 目錄裡還有客戶原始照片、meta.json、result.json、error.log（含 traceback），
+# 拿到 job_id 的任何人（例如客戶分享結果頁連結）都能整包抓走。
+_RENDER_FILE_RE = re.compile(r"^render_[A-Za-z0-9_\-]+\.(png|jpe?g|webp)$")
+
+
+@app.get("/jobs/{job_id}/{filename}")
+def serve_render_file(job_id: str, filename: str):
+    from fastapi.responses import FileResponse
+    if not _RENDER_FILE_RE.match(filename) or "/" in job_id or "\\" in job_id or ".." in job_id:
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    fpath = JOBS_DIR / job_id / filename
+    if not fpath.is_file():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return FileResponse(str(fpath))
 
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
