@@ -4678,6 +4678,14 @@ def _validation_diagnostics(render: dict) -> dict:
                 validation.get("failure_class") or failure_class,
                 validation.get("error") or error_text,
                 validation.get("exception_type") or error_type),
+            # MissingRenderPath 的判別欄位。四個出口都寫了 v["diag"]，但這裡
+            # 是固定 key 白名單，漏掉它 ⇒ 整套診斷從來沒進過存檔紀錄
+            # （D8FCE0EF／60F540A4／18D682A1 實查：exception_type 有、diag 沒有）
+            # ⇒ 線上只看得到「infrastructure」，分不出是 fal 沒回圖、圖沒落地、
+            # 還是底圖不見——這三種修法完全不同。
+            # 內容是 5 個布林＋error_type（類別名），依 `_missing_render_diag`
+            # 的設計本來就不含任何自由文字，可安全外流。
+            "diag": validation.get("diag") or None,
         },
     }
 
@@ -5507,9 +5515,12 @@ def _slim_validation_summary(summary: dict | None) -> dict | None:
                 "failure_class", "validation_stage", "validation_attempt_count",
                 "layout_mode", "blocked_render_url")},
             "validation_final": {
+                # diag 必須留：精簡版正是「重試最多、最需要診斷」的單在用的，
+                # 那種單掉了診斷等於白留一個 infrastructure 標籤查不下去。
+                # 6 個小欄位、無自由文字，體積可忽略。
                 **{k: final.get(k) for k in
                    ("ok", "hard_fail", "validation_unavailable", "validation_outage",
-                    "exception_type")},
+                    "exception_type", "diag")},
                 "exception_message": str(final.get("exception_message") or "")[:200] or None,
             },
             # 逐次嘗試只留「哪一階段、第幾次、什麼死因」，不帶 raw_verdict

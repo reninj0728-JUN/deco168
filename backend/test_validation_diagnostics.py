@@ -97,6 +97,10 @@ def test_validation_diagnostics_exposes_history_and_final_exception():
         # 2026-08-07：validator_exception 的原文不進 payload（可能夾網址／路徑／
         # token），只留 exception_type 供分類。
         "exception_message": None,
+        # 2026-08-12：MissingRenderPath 的判別欄位（布林，無自由文字）。
+        # 這個案例不是 MissingRenderPath，所以是 None；但 key 必須在——
+        # 先前這裡是固定白名單、漏了它，害整套診斷從沒進過存檔紀錄。
+        "diag": None,
     }
 
 
