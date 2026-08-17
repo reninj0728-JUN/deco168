@@ -1966,8 +1966,10 @@ def _s2_repair_target_box(
     old_x0, old_y0 = sx0 * width / 1000.0, sy0 * height / 1000.0
     old_x1, old_y1 = sx1 * width / 1000.0, sy1 * height / 1000.0
     old_w, old_h = max(1.0, old_x1 - old_x0), max(1.0, old_y1 - old_y0)
-    gain = 4 if compact_entry_mode else 1
-    shift_x = _s2_door_clearance_shift_px(validation, width, sofa_side) * gain
+    # 門距只補「不足差額 + 10/1000 安全墊」。compact_entry 以前把這段乘 4，
+    # 82503F2B 把左牆沙發（x0=259）推到畫面中線（中心 508）：門距過了，
+    # 人離牆、視線對門、商品保真也掉。差額 1x 已夠過 0.25 門寬。
+    shift_x = _s2_door_clearance_shift_px(validation, width, sofa_side)
     target_w = old_w * 0.83
     target_h = old_h * 0.68
     if sofa_side == "left":
@@ -1976,9 +1978,23 @@ def _s2_repair_target_box(
     else:
         x1 = old_x1 + min(0, shift_x)
         x0 = x1 - target_w
-    # Moving deeper along a perspective wall is both horizontal and upward in image space.
-    y1 = old_y1 - height * 0.102
+    # 沿牆往深處 = 畫面裡往上。compact 入口同牆只加深，不再橫向加碼。
+    depth = 0.16 if compact_entry_mode else 0.102
+    y1 = old_y1 - height * depth
     y0 = y1 - target_h
+    # 禁止從目前那一側橫跳過中線（82503F2B 的路中間）。
+    # 不能依 sofa_side 把已經在對面的沙發拖過來——那是 wrong_side 跨房搬的工作。
+    old_cx = (old_x0 + old_x1) / 2.0
+    new_cx = (x0 + x1) / 2.0
+    mid = width / 2.0
+    if old_cx <= mid < new_cx:
+        pull = new_cx - mid
+        x0 -= pull
+        x1 -= pull
+    elif new_cx < mid <= old_cx:
+        pull = mid - new_cx
+        x0 += pull
+        x1 += pull
     return (
         max(0, round(x0)), max(0, round(y0)),
         min(width - 1, round(x1)), min(height - 1, round(y1)),

@@ -956,6 +956,10 @@ class DoorAwareLayoutTests(unittest.TestCase):
             self.assertIsNotNone(box_ws)
             self.assertLess(box_ws[2], 500, "wrong_side 目標應落在左半（對牆 footprint）")
             self.assertGreaterEqual(box_ws[0], 250)
+            # 沙發原本在右半（x=620–900）。中線夾若誤套到這條提前 return，
+            # 會把對牆 footprint 拖回 x=500，跨房搬運靜默失敗。
+            self.assertLess((box_ws[0] + box_ws[2]) / 2.0, 500.0,
+                            "wrong_side 必須能過中線，不得被門距夾拖回走道")
             # 對照：同一張圖沒有 wrong_side → 舊行為＝黏在當前沙發（右半）
             tgt_same = dict(tgt); tgt_same.pop("sofa_on_wrong_side")
             box_same = api._s2_repair_target_box(tgt_same, 1000, 1000, "left", footprint)
@@ -1318,7 +1322,8 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
         target = api._s2_repair_target_box(
             validation, 1536, 1024, "left", [(500.0, 600.0)],
             compact_entry_mode=True)
-        self.assertEqual(target[0], round(260 * 1536 / 1000) + 4 * 61)
+        # compact 只加深，橫向只補差額；乘 4 會把沙發推離牆（82503F2B）。
+        self.assertEqual(target[0], round(260 * 1536 / 1000) + 61)
         self.assertLess(target[1], round(540 * 1024 / 1000))
         self.assertLess(target[2] - target[0], round((408 - 260) * 1536 / 1000))
         self.assertLess(target[3] - target[1], round((738 - 540) * 1024 / 1000))
@@ -1327,6 +1332,31 @@ class WideEntranceZonePlannerRegression(unittest.TestCase):
             validation, 1536, 1024, "left", [(500.0, 600.0)],
             compact_entry_mode=False)
         self.assertEqual(normal_target[0], round(260 * 1536 / 1000) + 61)
+        self.assertEqual(target[0], normal_target[0])
+        self.assertLess(target[1], normal_target[1])
+
+    def test_82503f2b_same_wall_retry_slides_deeper_not_into_aisle(self):
+        """82503F2B #1：沙發 x=259–429 貼左門 x=122–260（gap 0）。
+        舊 compact×4 目標中心會到 ~508（路中間）；新目標必須補滿 0.25 門寬
+        且中心留在左半。"""
+        validation = {
+            "render_bboxes": {
+                "sofa": [504, 259, 717, 429],
+                "entrance_door": [211, 122, 846, 260],
+            }
+        }
+        box = api._s2_repair_target_box(
+            validation, 1000, 1000, "left", [(300.0, 600.0)],
+            compact_entry_mode=True)
+        self.assertIsNotNone(box)
+        x0, y0, x1, y1 = box
+        door_x1, door_w = 260.0, 138.0
+        self.assertGreaterEqual(x0 - door_x1, 0.25 * door_w)
+        self.assertLess((x0 + x1) / 2.0, 500.0)
+        self.assertLess(x0, 400.0)
+        self.assertLess(y1, 717.0)
+        # 舊 4x 會把 x0 推到 ~437；差額 1x 必須明顯更靠牆。
+        self.assertLess(x0, 430.0)
 
     def test_retry_artifacts_are_cleared_before_each_new_base_decision(self):
         entry = {
