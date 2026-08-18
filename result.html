@@ -1223,9 +1223,22 @@
           + (furn.length ? '<table><thead><tr><th>家具</th><th>品牌</th><th>價格</th><th>購買連結</th></tr></thead><tbody>' + _furnRows(furn) + '</tbody></table>' : '')
           + (total ? '<div class="total">本視角家具小計：NT$' + total.toLocaleString()
                    + '（同一空間的其他視角為同一份家具，不重複計價）</div>' : '')
-          + ((r.soft_furnishing || []).length ? '<h4>更多搭配建議（不併入主總計）</h4><table><tbody>' + _furnRows(r.soft_furnishing) + '</tbody></table><div class="softnote">以上軟裝<b>不保證與渲染圖為同一款</b>，僅供風格搭配參考，可依預算彈性選購。</div>' : '')
           + '</section>';
       });
+      // 軟裝是「依本風格挑選」的建議，同一風格的每個房間拿到的是同一份
+      // （match_soft_furnishing 只吃 style，不吃房間）——每間再印一次，
+      // 手冊裡就會出現四遍一模一樣的清單（D7F52CB1 實測）。
+      // 複製購物清單早就是每風格一次，PDF 跟它同口徑。
+      var _soft = [], _softSeen = {};
+      g.items.forEach(function(r) {
+        (r.soft_furnishing || []).forEach(function(f) {
+          var key = (f.name_zh || '') + '|' + (f.purchase_url || '');
+          if (f.name_zh && !_softSeen[key]) { _softSeen[key] = 1; _soft.push(f); }
+        });
+      });
+      if (_soft.length) sections += '<section class="room"><h4>更多搭配建議（不併入主總計）</h4>'
+        + '<table><tbody>' + _furnRows(_soft) + '</tbody></table>'
+        + '<div class="softnote">以上軟裝<b>不保證與渲染圖為同一款</b>，僅供風格搭配參考，可依預算彈性選購。</div></section>';
       // 多風格＝替代方案，封面不得出現跨方案總和（那是客戶不會付的數字）。
       if (!_pt.multiStyle) grandTotal += styleTotal;
       if (styleTotal) sections += '<section class="style-total">「' + g.label

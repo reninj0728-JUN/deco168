@@ -4266,6 +4266,30 @@ def _run_layout_contract_s2(
         }, artifacts)
 
 
+def _display_cats_for_room(room_type: str | None) -> set:
+    """客戶清單「這個房型會顯示哪些品類」——**判官與客戶清單共用這一份**。
+
+    🔴 D7F52CB1 抓到的不一致：客戶清單在存檔前被 `_rendered_core_only` 依品類
+       過濾（燈具歸軟裝、單椅/邊几不渲染），但 `must_products` 吃的是**驗證當下
+       的完整清單** ⇒ 判官永遠在追客戶看不到的品項：
+         客廳「購物清單中的單人躺椅未出現在圖上」——躺椅根本不在客戶清單裡
+         臥室/書房「清單落地燈未出現」——燈具歸軟裝，主清單從來沒有它
+       四個房間因此永遠 ok=False（雖然沒 hard_fail），診斷訊號被這些幽靈品項淹沒，
+       我跟兩個審查者先後各追過一次。
+       兩邊各留一份品類表就是這個病的病根，所以刻意共用同一個函式。
+
+    ⚠️ 不含 lighting：燈具歸軟裝獨立區，主清單不列，判官自然也不該要求它入圖。
+    """
+    from furniture_match import LIVING_MUST_HAVE
+    living = set(LIVING_MUST_HAVE)          # sofa/coffee_table/rug/media_console
+    return {
+        "living":  living,
+        "bedroom": {"bed", "storage", "side_table", "rug"},
+        "dining":  {"dining_table", "dining_chair", "rug"},
+        "study":   {"table", "chair", "storage", "rug"},
+    }.get((room_type or "living"), living)
+
+
 def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: dict | None) -> dict | None:
     """把清單主沙發座位數寫進 layout_ctx，供 validate_render 產品一致驗收（護城河）。"""
     if not isinstance(entry_or_render, dict):
@@ -4293,8 +4317,15 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
     # 軟裝建議區（curtain/pillow…獨立區塊）本來就不在 matched_furniture，不受此檢。
     must_products = []
     _seen_cats = set()
+    # 只驗客戶真的看得到、真的付錢買的品項。被 `_rendered_core_only` 濾掉的
+    # （燈具/單椅/邊几）不進 must——要求圖上畫出客戶沒買的東西，擋不到任何風險，
+    # 只會製造永遠為 False 的 ok 與追不完的幽靈品項。
+    _display_cats = _display_cats_for_room(
+        entry_or_render.get("room_type") or entry_or_render.get("_room_type"))
     for it in (entry_or_render.get("matched_furniture") or []):
         _cat = (it.get("category_en") or "") if isinstance(it, dict) else ""
+        if _cat and _cat not in _display_cats:
+            continue
         if _cat and _cat not in _seen_cats:  # product_visibility 以 cat 為 key，同類取第一件
             _seen_cats.add(_cat)
             must_products.append({
@@ -7904,20 +7935,11 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # render 只畫 sofa/coffee_table/rug（參考圖）+ media_console（強制 focal anchor）。
         # 單椅/邊几等 nice-to-have 從不渲染 → 不可出現在「為你搭配的家具」清單，
         # 否則客戶會看到圖上沒有的家具（且還掛價格）。
-        from furniture_match import LIVING_MUST_HAVE
-        _RENDERED_CORE_CATS = set(LIVING_MUST_HAVE)
-        # 各房型「圖中真的會畫出的主家具」品類 → 清單只顯示這些（與 prompt 參考對齊，原則跟客廳統一）。
-        # 不含 lighting（燈具歸軟裝獨立區，避免主清單與軟裝重複）。
-        _DISPLAY_CATS_BY_ROOM = {
-            "living":  set(LIVING_MUST_HAVE),                       # sofa/coffee_table/rug/media_console
-            "bedroom": {"bed", "storage", "side_table", "rug"},     # 床/衣櫃/床頭櫃/地毯
-            "dining":  {"dining_table", "dining_chair", "rug"},  # 餐桌/餐椅/地毯（不含邊桌，渲染常沒畫）
-            "study":   {"table", "chair", "storage", "rug"},        # 書桌/椅/書櫃/地毯
-        }
-
+        # 品類表已提到模組層 `_display_cats_for_room`——判官的 must_products 讀同一份。
+        # 兩邊各留一份就是 D7F52CB1「判官追客戶看不到的品項」那個病的病根。
         def _rendered_core_only(mf: list, room_type: str = "living") -> list:
             mf = mf or []
-            cats = _DISPLAY_CATS_BY_ROOM.get(room_type, _RENDERED_CORE_CATS)
+            cats = _display_cats_for_room(room_type)
             items = [it for it in mf if (it.get("category_en") or "") in cats]
             # category_en 缺失 / 全空 → 退回原清單前幾件，避免整列消失（defensive）
             return (items or list(mf))[:5]
