@@ -5698,6 +5698,17 @@ _Z3_REGRESSION_FLAGS = (
     "product_visibility_fail", "product_sofa_seating_mismatch", "guide_overlay_present",
 )
 
+# 貼門／走道／錯邊。BECF1DA5：門距修好後只新增商品保真，不得當回歸丢掉。
+_Z3_GEOMETRY_HARD_FAILURES = (
+    "furniture_blocks_door", "furniture_blocks_walkway", "sofa_intrudes_walkway",
+    "sofa_faces_walkway", "sofa_on_wrong_side", "sofa_outside_living_zone",
+    "sofa_back_against_window", "sofa_facing_window", "sofa_facing_entrance_door",
+    "coffee_table_in_walkway",
+)
+_Z3_PRODUCT_FIDELITY_FLAGS = (
+    "product_visibility_fail", "product_sofa_seating_mismatch",
+)
+
 
 def _z3_candidate_regression_reason(
     previous_validation: dict | None,
@@ -5713,7 +5724,15 @@ def _z3_candidate_regression_reason(
     newly_failed = [flag for flag in _Z3_REGRESSION_FLAGS
                     if cand.get(flag) is True and prev.get(flag) is not True]
     if newly_failed:
-        return "new hard failure=" + ",".join(newly_failed)
+        only_product = all(flag in _Z3_PRODUCT_FIDELITY_FLAGS for flag in newly_failed)
+        prev_geom = [flag for flag in _Z3_GEOMETRY_HARD_FAILURES
+                     if prev.get(flag) is True]
+        geom_cleared = bool(prev_geom) and all(
+            cand.get(flag) is not True for flag in prev_geom)
+        # 門距剛修好、只剩商品 → 交給 product_only，不當回歸。
+        # 幾何硬傷還在又弄壞商品 → 純變差，照舊拒。
+        if not (only_product and geom_cleared):
+            return "new hard failure=" + ",".join(newly_failed)
     for field in ("camera_axis_preserved", "passage_openings_preserved",
                   "main_window_region_match", "sofa_focal_face_each_other",
                   "product_sofa_seating_match"):
@@ -7384,13 +7403,23 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                 entry["_edit_mask_mode"] = "sofa"
                             if repair_guide or edit_mask:
                                 entry["_s2_retry_artifacts_active"] = True
-                    elif (not pair_alignment_base and not console_base
-                          and (entry.get("_room_type") or "living") == "living"
-                          and _should_try_alt_living_base(v)):
-                        _nb = _switch_entry_to_next_living_base(entry)
-                        if _nb:
-                            base_for_gen = _nb
-                            retry_reason = f"{retry_reason} | switch living base"
+                    elif not pair_alignment_base and not console_base:
+                        # BECF1DA5：幾何已過只剩商品時必須接既有商品修。
+                        # 不接就會退回 entry["_base_path"] 原圖重生，把門距蓋掉。
+                        product_edit_base = _product_only_edit_base(
+                            v, r, entry.get("_room_type", "living"))
+                        if product_edit_base:
+                            repair_mode = "product_fidelity"
+                            retry_ctx = dict(retry_ctx or {})
+                            retry_ctx["product_fidelity_edit"] = True
+                            base_for_gen = product_edit_base
+                            retry_reason = f"{retry_reason} | product-only edit (keep geometry)"
+                        elif ((entry.get("_room_type") or "living") == "living"
+                              and _should_try_alt_living_base(v)):
+                            _nb = _switch_entry_to_next_living_base(entry)
+                            if _nb:
+                                base_for_gen = _nb
+                                retry_reason = f"{retry_reason} | switch living base"
                     # C2.6 Patch B: Z3 retry 過程中, fal 明確失敗保留原 root cause
                     failed_stage = "z3_retry_generate_renders"
                     try:
