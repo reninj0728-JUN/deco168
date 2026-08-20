@@ -1,4 +1,4 @@
-# DECO168 — Claude Code 專案守則
+# DECO168 — Codex 專案守則
 
 AI 室內設計平台。用戶上傳空間照片 → Gemini 分析 → Flux 生成渲染圖 → 推薦真實家具。
 
@@ -39,12 +39,7 @@ AI 室內設計平台。用戶上傳空間照片 → Gemini 分析 → Flux 生�
 - `backend/test_full_pipeline.py` — pipeline 核心，api.py 會 import 它
 - `backend/gemini_analyze.py` — Gemini system prompt + analyze_space()
 - `backend/furniture_match.py` — 家具評分配對邏輯
-- `backend/furniture_catalog_real.json` — **實際在用**的家具目錄，momo/pchome/IKEA/HOLA
-  真商品（真圖片＋真購買連結），2026-07-03 時 2,754 件
-  （`load_catalog()` 優先整包用這份；`furniture_catalog.json` 是 2026-05 之前
-  AI 生成的假資料備用目錄，已於 2026-07-03 確認完全沒被用過並刪除——
-  以後任何新增都只進 `furniture_catalog_real.json`，且必須是真的爬蟲資料，
-  不要再寫假的 image_url / purchase_url 首頁連結）
+- `backend/furniture_catalog.json` — 5018 件家具，9種風格
 
 ---
 
@@ -58,13 +53,9 @@ AI 室內設計平台。用戶上傳空間照片 → Gemini 分析 → Flux 生�
     `test_catalog_and_match.py::test_only_current_styles` **只看 `style_tags[0]`**，擋不到第二標籤的停售風格。
   · 舊分類腳本（`reclassify_real.py` 等）的 `VALID_STYLES` 也是過期清單，照它做會補到停售風格。
   · 2026-08-20 教訓：照這份清單的舊版補了 33 件 industrial 商品，全部作廢重刪。
-- 新增商品走既有爬蟲工具鏈（`scraper_momo.py` / `scraper_pchome.py` /
-  `scraper_ikea*.py` / `scraper_hola.py` / `scraper_nitori.py`），
-  跑完用 `merge_catalogs.py` / `reclassify_real.py` 合併進
-  `furniture_catalog_real.json`，跑完確認 total 數字才算完成
-- 用 `id`/`name_zh` 去重，不要手動改 JSON（補標籤這種小範圍 metadata
-  修正例外，但要寫腳本改、不要直接編輯 JSON 檔案本體）
-- 這些爬蟲/合併腳本不需要 commit，只要 `furniture_catalog_real.json` 進 git
+- 新增批次用 `catalog_batchN.py`，跑完確認 total 數字才算完成
+- 用 `name_zh` 去重，不要手動改 JSON
+- catalog_batch*.py 不需要 commit，只要 `furniture_catalog.json` 進 git
 
 ---
 
@@ -86,13 +77,11 @@ AI 室內設計平台。用戶上傳空間照片 → Gemini 分析 → Flux 生�
 1. 改後端 → push 到 master → Railway 自動重啟（約 2 分鐘）
 2. 改前端 → push 到 master → Vercel 自動部署（約 1 分鐘）
 3. 確認 `/health` 回傳 `{"status":"ok"}` 才算 Railway 重啟完成
-4. `furniture_catalog_real.json` 是大檔，push 前確認 item 數正確
-5. 跑測試：`pip install -r backend/requirements-dev.txt && pytest backend/ -q`
-   （`requirements-dev.txt` 只在本機/CI 用，Railway production 只吃 `requirements.txt`）
+4. `furniture_catalog.json` 是大檔，push 前確認 item 數正確
 
 ## 不要做的事
 
 - 不要新增 `.env` 以外的方式儲存 key
 - 不要分支，直接 master
-- 不要改 `furniture_catalog_real.json` 的 schema（id / name_zh / brand / category / style_tags / keywords / colors / price_twd / image_url / purchase_url / dimensions / flux_descriptor / source）
-- 不要在爬蟲/合併腳本以外的地方批次新增家具，也不要寫假的 image_url / purchase_url
+- 不要改 `furniture_catalog.json` 的 schema（id / name_zh / brand / category / style_tags / keywords / colors / price_twd / image_url / purchase_url / dimensions / flux_descriptor）
+- 不要在 catalog_batch*.py 以外的地方批次新增家具
