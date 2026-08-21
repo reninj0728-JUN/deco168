@@ -172,10 +172,59 @@ def test_guard_runs_after_door_exclusion_and_aspect_lock():
     assert i_guard > i_ratio, "守門排在比例收斂之前"
 
 
-def test_region_base_deliberately_not_guarded():
-    """`_crop_region_base` 刻意還沒套這道守門——它歷史上裁 34 次、34 次全交付，
-    而且 crop_box 沒持久化，要重算最終框得重跑 zoning（花錢）。
-    沒量過就加守門違反「先量波及面」的規矩。要套的時候是一行，但要先量。"""
+def test_region_base_is_guarded_after_the_ratio_lock():
+    """🔴 `_crop_region_base` 現在也要守門，而且必須在 3:2 收斂**之後**。
+
+    D21DC9E4（2026-08-21）：living_zone `[630,0,1000,1000]` 的語意是「家具該擺在
+    地板的哪一塊」，本來就畫在地板上；程式把它當攝影裁切框 → 外擴 12% 後上緣 51%
+    → 3:2 置中裁寬到 x 22%-78% → **天花板整片被切掉**，模型只好自己蓋一個。
+    第一次生成的重試理由正是「天花板新增原本沒有的明管與軌道燈結構」。
+
+    ⚠️ 位置必須在 3:2 之後：太高的框會 `y0 += trim*0.25` 再往下推，
+       接在函式開頭會漏掉那種單。
+
+    這條測試取代舊的 `test_region_base_deliberately_not_guarded`——當時不加是因為
+    「34 次裁切全交付、沒量過不加」，程序正確；現在有反例，而且全站重量後
+    走這條路的可量測訂單只有 1 筆（就是出事那張），另有 36 筆舊資料無 cropped 欄位。
+    """
     import inspect
-    assert "_crop_keeps_room_structure" not in inspect.getsource(api._crop_region_base), (
-        "把守門套上 _crop_region_base 了，但它的 34 筆歷史裁切從未被量過")
+    src = inspect.getsource(api._crop_region_base)
+    assert "_crop_keeps_room_structure" in src, "守門沒接上 _crop_region_base"
+    # 3:2 收斂（_TARGET_AR）必須排在守門之前
+    assert src.index("_TARGET_AR") < src.index("_crop_keeps_room_structure"), (
+        "守門接在 3:2 收斂之前——太高的框會被 y0 再往下推，這樣會漏判")
+
+
+def test_region_base_gives_up_cropping_when_ceiling_would_be_cut():
+    """守門觸發時要**放棄裁切、回傳原圖**，不是硬裁一個沒天花板的框。"""
+    import inspect
+    src = inspect.getsource(api._crop_region_base)
+    i = src.index("_crop_keeps_room_structure")
+    tail = src[i:i + 400]
+    # ⚠️ 不能只找 "return base_path, False"——函式後面「裁切檔寫入失敗」那條
+    #    也長這樣，窗口一開大就會誤綠（我第一版就這樣沒紅）。釘那個具體的回傳。
+    assert "return base_path, False, _why_struct, False" in tail, (
+        "守門擋下後沒有退回原圖（必須回 base_path 且 cropped=False）")
+
+
+def test_s2_waived_zoom_rejected_restores_uncropped_source():
+    """🔴 S2 擋死退 legacy 時，zoom 被拒不得沿用前一刀裁壞的底圖。
+
+    S2 合格那條路會把底圖還原成未裁原圖（`flux_bases[_vi] = _contract_photo`，
+    註解寫「禁止 crop 把門或走道藏掉」）；擋死退 legacy 這條卻只有 `if _zoom:`
+    沒有 else，zoom 被天花板守門拒絕後就繼續用 `_crop_region_base` 留下的裁切圖。
+    最壞情況只是用整張原圖——本來就是裁切失敗的退路。
+    """
+    import inspect
+    src = inspect.getsource(api)
+    i = src.index("_zoom = _crop_to_living_zone")
+    seg = src[i:i + 3000]
+    assert "s2_waived_zoom_rejected_uncropped" in seg, "zoom 被拒沒有還原原圖"
+    j = seg.index("s2_waived_zoom_rejected_uncropped")
+    # ⚠️ 用**整行比對**，不要用子字串：`zone_crop_flags[_vi] = False` 這一行
+    #    包含 `crop_flags[_vi] = False`，用 `in` 檢查會讓「刪掉真的那行」照樣綠
+    #    （我第一版就是這樣沒紅）。
+    lines = [l.strip() for l in seg[max(0, j - 800):j + 300].splitlines()]
+    assert "crop_flags[_vi] = False" in lines, "還原時沒有清掉裁切旗標"
+    assert "zone_crop_flags[_vi] = False" in lines, "還原時沒有清掉 zone 裁切旗標"
+    assert "flux_bases[_vi] = _contract_photo" in lines, "沒有把底圖換回未裁原圖"

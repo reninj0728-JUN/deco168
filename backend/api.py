@@ -2803,6 +2803,19 @@ def _crop_region_base(base_path: str, room_type: str, job_dir, idx: int) -> tupl
         if (x1 - x0) < W * 0.28 or (y1 - y0) < H * 0.28:
             print(f"[pipeline] (i) {room_type} 3:2 收斂後過小，用整張")
             return base_path, False, "3:2 收斂後過小", False
+        # 🔴 天花板守門（D21DC9E4，2026-08-21）：living_zone 的語意是「家具該擺在
+        #    地板的哪一塊」，本來就畫在地板上——把它當攝影裁切框，天花板必然被切掉。
+        #    這單 bbox [630,0,1000,1000] → 外擴 12% → 上緣 51% → 3:2 置中裁寬到
+        #    x 22%-78%，天花板整片不見，模型只好自己蓋一個（第一次生成的重試理由
+        #    正是「天花板新增原本沒有的明管與軌道燈結構」）。
+        # ⚠️ 必須放在 3:2 收斂**之後**：太高的框會 `y0 += trim*0.25` 再往下推，
+        #    接在函式開頭會漏掉那種單。
+        # ⚠️ 這道守門與 `_crop_to_living_zone`（api.py 5427）共用同一個函式與門檻，
+        #    兩條裁切路徑不得各留一套口徑。
+        _ok_struct, _why_struct = _crop_keeps_room_structure(y0, H)
+        if not _ok_struct:
+            print(f"[pipeline] (i) {room_type} {_why_struct} → 放棄裁切用整張")
+            return base_path, False, _why_struct, False
         crop = img[y0:y1, x0:x1]
         out_path = str(Path(job_dir) / f"crop_{room_type}_{idx:02d}.jpg")
         if not cv2.imwrite(out_path, crop):
@@ -5322,10 +5335,11 @@ def _triggered_hard_flags(validation: dict | None) -> list[str]:
 def _crop_keeps_room_structure(y0: int, height: int) -> tuple[bool, str]:
     """最終裁切框有沒有保住空間結構（至少含到天花板）。回 (合格, 不合格原因)。
 
-    抽成獨立函式是為了讓 `_crop_region_base` 未來要套同一道守門時只是一行——
-    ⚠️ 但**現在刻意沒有套上去**：那條路歷史上裁切 34 次、34 次全部交付成功，
-    而且 2026-07-13 之後再也沒觸發過；它的 crop_box 沒有持久化，要重算最終框
-    得重跑 zoning（會花 Gemini 錢）。沒量過就加守門違反「先量波及面」的規矩。
+    `_crop_to_living_zone` 與 `_crop_region_base` 共用這道守門與同一門檻，
+    都接在比例收斂**之後**（太高的框會再往下推上緣，先量會漏）。
+    D21DC9E4（2026-08-21）是 `_crop_region_base` 的反例：living_zone 地板框
+    被當成鏡頭框，上緣 51% 切掉天花板，模型自己蓋屋頂。以前不加是因為
+    沒量過波及面；量過後接到兩條路上。
     """
     if height <= 0:
         return True, ""
@@ -6840,6 +6854,22 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                 layout_guide_skip_reasons[_vi] = None
                             else:
                                 layout_guide_skip_reasons[_vi] = "zoom_guide_rebuild_failed"
+                        else:
+                            # 🔴 zoom 被拒（多半是天花板守門擋下）卻沿用前一刀
+                            #    `_crop_region_base` 留下的裁切底圖 → 等於拿一張
+                            #    已經裁壞的圖去生成。S2 合格那條路會還原原圖
+                            #    （上面 flux_bases[_vi] = _contract_photo），
+                            #    擋死退 legacy 這條卻沒有，是缺一個 else。
+                            #    最壞情況只是用整張原圖——本來就是裁切失敗的退路。
+                            if crop_flags[_vi]:
+                                print(f"[pipeline] (i) S2 waive 後 zoom 被拒 → "
+                                      f"還原未裁原圖，不沿用裁壞的底圖")
+                                flux_bases[_vi] = _contract_photo
+                                crop_flags[_vi] = False
+                                zone_crop_flags[_vi] = False
+                                crop_boxes[_vi] = None
+                                crop_notes[_vi] = "s2_waived_zoom_rejected_uncropped"
+                                door_excluded_flags[_vi] = False
                     else:
                         # 只有 S2_BLOCKED_FALLBACK=0（急救關閉退回機制）才會走到這裡：
                         # 判官驗過且判不安全 → 不回退 S2，付費前檢會擋死（客戶零圖）。
