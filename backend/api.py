@@ -682,6 +682,10 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
         }
         dining = {
             "where": (pz.get("dining_zone") or {}).get("where", ""),
+            # 🔴 71B8E762：客廳有帶 bbox、餐廳只帶文字，Gemini 算出來的
+            #    dining bbox [580,250,850,750] 就在這一行掉了。客戶在同一張照片
+            #    標了「客廳＋餐廳」，下游卻完全不知道那塊是餐廳 → 沙發直接坐進去。
+            "bbox_on_best_photo": (pz.get("dining_zone") or {}).get("bbox_on_best_photo"),
         }
         sofa_wall_hint = pz_living.get("rationale", "") or living["where"] or "the longest solid wall"
 
@@ -690,6 +694,43 @@ def flatten_zoning_v2_to_v1(zoning_v2: dict, layout_choice: str) -> dict:
         where = (pz["no_large_furniture_zone"] or {}).get("where", "")
         if where:
             no_go.append(where)
+    # ── 餐廳區 → 大型家具禁區（71B8E762）──────────────────────────────
+    # ⚠️ `zones.dining_zone` 下游**沒有任何讀取點**（prompt_builder 只讀
+    #    living_zone / walkway / entrance_zone），所以光把 bbox 帶下去是死欄位。
+    #    真正有牙齒的是 `no_large_furniture_zones` 這個文字清單，兩端都吃：
+    #      · 生成端：prompt_builder 的 NO-LARGE-FURNITURE 段落
+    #      · 驗收端：gemini_analyze 的 has_dining_middle_constraint 會把沙發深度
+    #        門檻從 hard 58 / soft 64 拉到 65 / 72
+    # ⚠️ 用詞不可自由發揮：觸發條件是「**餐廳**」+「**中段/中間/中央**」兩個
+    #    關鍵字同時出現（gemini_analyze.py:1577-1581）。寫成「y58-85% 區域為
+    #    餐廳區」咬不住，必須帶「中段」二字。
+    # ⚠️ 「中段」是寫死的形容詞，理論上餐廳若在**最深處（靠窗端）**會誤拉門檻
+    #    （把沙發往更深處推＝推進餐廳區）。量過才決定不做動態選詞：
+    #      全站 57 筆有 dining bbox 的單，縱深中心最小 48%、中位 52%、最大 82%；
+    #      落在中段(33-66%) 44 筆、前段(>66%) 13 筆、**靠窗端(<33%) 0 筆**。
+    #    前段那 13 筆拉高深度門檻方向仍是對的（沙發本就該退離近鏡頭餐廳區）。
+    #    真正有害的靠窗端案例從未出現，而動態選詞需要發明一個判官那邊沒有的
+    #    y 區間閾值——用沒根據的數字換沒發生過的風險，不划算。
+    #    🔴 若哪天出現 dining 縱深中心 <33% 的單，這裡要改成依 bbox 動態選詞。
+    # ⚠️ 兩條軸方向相反，審查時吵過一輪，寫清楚免得再吵：
+    #      bbox 的 y：0 = 畫面上方 = **遠離鏡頭/窗邊**、1000 = 畫面下方 = 近鏡頭
+    #      判官深度 %：0% = 近相機、100% = 最深/窗邊（gemini_analyze.py:1290）
+    #    兩者相反 ⇒ bbox y 小 = 判官 % 大 = 靠窗。
+    #    門檻拉高是「要求沙發更靠窗」，所以只有**餐廳在窗邊（bbox y 小）**時有害。
+    _dining_bbox = (pz.get("dining_zone") or {}).get("bbox_on_best_photo")
+    if isinstance(_dining_bbox, (list, tuple)) and len(_dining_bbox) == 4:
+        # bbox_on_best_photo 是 [ymin, xmin, ymax, xmax] 千分位（y 在前）
+        try:
+            _dy0, _dx0, _dy1, _dx1 = [float(v) / 10.0 for v in _dining_bbox]
+            _dining_clause = (
+                f"空間中段餐廳區（畫面橫向 {_dx0:.0f}%–{_dx1:.0f}%、"
+                f"縱深 {_dy0:.0f}%–{_dy1:.0f}%）需保留給餐桌與通行；"
+                f"沙發、客廳地毯、茶几、電視櫃等大型客廳家具不得佔用此中段餐廳區。"
+            )
+            if _dining_clause not in no_go:
+                no_go.append(_dining_clause)
+        except (TypeError, ValueError):
+            pass
 
     return {
         "confidence":        zoning_v2.get("overall_confidence", "medium"),
