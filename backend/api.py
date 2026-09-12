@@ -2742,6 +2742,31 @@ def _model_output_ar_for(cw: int, ch: int) -> float | None:
         return None
 
 
+def _crop_upscale_factor(cw: int, ch: int) -> float | None:
+    """裁切框 → 模型要放大幾倍才填得滿輸出。無法證明輸出尺寸時回 None（＝不套守門）。
+
+    刻意跟 `_model_output_ar_for` 讀同一個 `gpt_output_size_for_ratio`，
+    不自己寫一組尺寸常數——兩套口徑正是這系列問題的病根。
+    > 1 代表模型拿到的像素比它要輸出的少，重構壓力隨之升高
+    （壓力高不等於一定會新增結構，但這兩張客訴單都落在高壓力那一端）。
+
+    ⚠️ 取寬、高兩個方向的**較大者**，不是只看寬（GPT 審核抓到的洞）：
+    比例收斂成功時框比例＝輸出比例，兩個方向必然相等、max 取出同一個數，
+    所有已驗證案例不受影響；但收斂後過小而**退回未收斂框**時（例如直式框），
+    可能高度要放大 1.5× 而寬度只要 0.9×——只看寬就會漏掉。"""
+    model = _legacy_render_model()
+    if model != _ASPECT_LOCKED_MODEL:
+        return None
+    try:
+        from test_full_pipeline import gpt_output_size_for_ratio
+        size = gpt_output_size_for_ratio(cw / max(1, ch))
+        return max(float(size["width"]) / max(1.0, float(cw)),
+                   float(size["height"]) / max(1.0, float(ch)))
+    except Exception as e:
+        print(f"[pipeline] 上採樣倍率取不到（model={model}）：{type(e).__name__} → 跳過")
+        return None
+
+
 def _converge_box_to_ar(x0: int, y0: int, x1: int, y1: int,
                         target_ar: float, *, tol: float = 0.02):
     """在現有框內收斂到 target_ar——**只裁不補**，回傳的框必定含於輸入框。
@@ -5169,6 +5194,22 @@ def _s2_blocked_fallback_enabled() -> bool:
 # ⚠️ 量的是門排除＋比例收斂【之後】的最終框，不是原始 bbox。
 CROP_MUST_INCLUDE_CEILING_MAX_Y0 = 0.45
 
+# ── 第二道：深裁 ＋ 上採樣（F464DB35 / 13106F4F，2026-09-11）──────────────
+# 45% 是拿六單的最終框校的，(38%, 54%) 之間**沒有任何樣本**。這兩張就掉在那個洞：
+#   F464DB35 最終框 42.9%、13106F4F 39.0%——天花板已經不在畫面，但還沒碰到 45%。
+#   成品一個編出整條走廊＋明管天花、一個編出明管天花，判官全部放行
+#   （判官拿【裁切後】的圖當對照，天花不在參考圖裡，ceiling_changed 不可能亮）。
+# 兩張的第二個共同點是裁切框比模型輸出還小，模型必須憑空補像素：
+#   F464 2.94×、131 1.51×；而同樣深裁的 3A370448 是 0.97×，結構幾乎忠實。
+# 🔴 兩個條件必須【同時】成立才放棄——單看任一個都會誤傷（都實測過）：
+#   · 只把門檻降到 40% → 擋掉 3A370448（41%、0.97×、牆窗門全忠實）
+#   · 只看倍率 > 1     → 擋掉 0A3D74C7（22%、1.69×、完全忠實，官網正在用）
+# 🔴 這是【加在 45% 之外】的第二道，OR 不是取代。45% 是唯一擋得住 293BDE11 的
+#    條件：測試用的 4032x3024 合成圖算出來倍率只有 0.74×，寫成「且」會放它過，
+#    等於把當初修掉的客廳零圖放回來。
+CROP_DEEP_ZOOM_MIN_Y0 = 0.38      # 已交付組最深的最終框
+CROP_DEEP_ZOOM_MAX_UPSCALE = 1.2  # 輸出寬 / 裁切寬，超過就是在叫模型無中生有
+
 
 def _missing_render_diag(*, render_path=None, base_path=None,
                          error=None, error_type=None) -> dict:
@@ -5483,6 +5524,15 @@ def _crop_to_living_zone(base_path: str, job_dir, idx: int,
         if not _ok_struct:
             print(f"[pipeline] 客廳區特寫：放棄裁切——{_why_struct}；"
                   f"改用未裁切的完整底圖（避免模型憑空重建天花板）")
+            return None
+        # 第二道（OR，不取代上面那道）：深裁到看不見天花 **且** 還要放大才夠輸出。
+        _deep = (y0 / H) > CROP_DEEP_ZOOM_MIN_Y0
+        _up = _crop_upscale_factor(x1 - x0, y1 - y0)
+        if _deep and _up is not None and _up > CROP_DEEP_ZOOM_MAX_UPSCALE:
+            print(f"[pipeline] 客廳區特寫：放棄裁切——上緣 {y0/H:.0%}"
+                  f"（>{CROP_DEEP_ZOOM_MIN_Y0:.0%}）且需放大 {_up:.2f}×"
+                  f"（>{CROP_DEEP_ZOOM_MAX_UPSCALE}×），模型會憑空補天花板與牆面；"
+                  f"改用未裁切的完整底圖")
             return None
         crop = img[y0:y1, x0:x1]
         if crop.size == 0:
