@@ -923,7 +923,13 @@ def _resolve_generation_mode(enriched_renders: list[dict],
     )
 
 
-RENDER_MODEL = "openai/gpt-image-2/edit"
+# 2026-09-14 升級 gpt-image-2 → 2.5 flare：同一組輸出尺寸桶、同樣的 fal
+# edit payload 格式；官方定位是「只改被要求的部分，保留主體、構圖與背景」。
+# 要退回改回這一行即可（需重新部署，不是即時切換）。
+RENDER_MODEL = "openai/gpt-image-2.5/flare/edit"
+# payload 格式相同的模型：換到清單外的模型時，下面那個 if 才擋得住。
+_SAME_PAYLOAD_MODELS = ("openai/gpt-image-2/edit",
+                        "openai/gpt-image-2.5/flare/edit")
 
 
 def _resolve_render_model(render: dict | None = None, override: str | None = None) -> str:
@@ -1247,10 +1253,11 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 "attempt":          attempt,
                 "stage":            stage,
             }
-            # 渲染模型只有 gpt-image-2 一個（見 `_resolve_render_model`）。
-            # 這個 if 保留成守門：模型若被換掉，fal_args 不會被靜默沿用。
+            # 🔴 舊版寫 `if render_model == RENDER_MODEL` —— 兩邊跟著同一個常數變，
+            #    條件永遠成立，下面那個 raise 永遠到不了，註解宣稱的保護是假的。
+            #    改成比對「payload 格式相同的模型清單」，換到清單外才真的擋得住。
             render_model = _resolve_render_model(render, render_model_override)
-            if render_model == RENDER_MODEL:
+            if render_model in _SAME_PAYLOAD_MODELS:
                 # gpt-image-2 傾向 auto zoom-in / 重構成 staged 室內攝影棚.
                 # 補硬性 camera constraints 鎖原圖視角 + 廣角縱深 + 前景地板.
                 # image_size=auto 明確設定 (即便目前已是預設, 防未來預設變動).
@@ -1313,8 +1320,8 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 # 丟一個看不懂的 NameError。
                 raise RuntimeError(
                     f"未知的渲染模型 {render_model!r}——payload 格式未定義。"
-                    f"目前只支援 {RENDER_MODEL}；要新增模型必須同時確認它的輸出"
-                    f"比例桶（見 api._model_output_ar_for 的白名單）。")
+                    f"目前支援 {_SAME_PAYLOAD_MODELS}；要新增模型必須同時確認它的"
+                    f"輸出比例桶（見 api._ASPECT_LOCKED_MODELS）。")
             # fal 偶爾抓不到某張參考商品圖（例：PChome 圖）→ file_download_error，整張 render 失敗。
             # 對策：移除 fal 抓不到的參考圖（保留房間底圖）後重試一次，避免一張外部圖掛掉整個風格。
             attempt_args = fal_args

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from prompt_builder import SYSTEM_PROMPT, build_anchored_inputs, build_nano_banana_inputs
-from test_full_pipeline import _gpt_image2_mask_repair_prompt
+from test_full_pipeline import RENDER_MODEL, _gpt_image2_mask_repair_prompt
 
 
 def test_anchored_inputs_insert_s2_guide_before_product_refs():
@@ -272,7 +272,7 @@ def test_console_door_and_sofa_relocation_masks_reach_fal_without_spending():
         ) == str(prev)
         assert console_entry.get("_edit_mask_mode") == "console_door"
         assert console_entry.get("_force_mask_local_edit") is True
-        assert _resolve_render_model(console_entry) == "openai/gpt-image-2/edit"
+        assert _resolve_render_model(console_entry) == RENDER_MODEL
         console_mask_url = _gpt_image2_mask_data_url(console_entry)
         assert console_mask_url and console_mask_url.startswith("data:image/png;base64,")
 
@@ -308,6 +308,6 @@ def test_console_door_and_sofa_relocation_masks_reach_fal_without_spending():
             "_edit_mask_path": sofa_mask,
             "_edit_mask_mode": "sofa",
         }
-        assert _resolve_render_model(sofa_entry) == "openai/gpt-image-2/edit"
+        assert _resolve_render_model(sofa_entry) == RENDER_MODEL
         sofa_mask_url = _gpt_image2_mask_data_url(sofa_entry)
         assert sofa_mask_url and sofa_mask_url.startswith("data:image/png;base64,")

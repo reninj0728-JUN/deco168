@@ -240,10 +240,16 @@ def test_only_proven_model_gets_the_aspect_lock(monkeypatch):
 
 
 def test_whitelist_matches_the_only_render_model():
-    """白名單常數必須等於生成端唯一的模型，不得各寫各的。"""
+    """生成端實際跑的模型，必須在裁切端的比例鎖白名單裡。
+
+    2026-09-14 升級 2.5 時放寬成「白名單包含」而非「等於」——白名單可以留著
+    舊模型好退回，但【生成端正在用的那個】不在裡面的話，比例收斂與上採樣守門
+    會整個靜默跳過，這才是這條要擋的事。
+    """
     from test_full_pipeline import RENDER_MODEL
-    assert api._ASPECT_LOCKED_MODEL == RENDER_MODEL, (
-        f"裁切端鎖 {api._ASPECT_LOCKED_MODEL}、生成端跑 {RENDER_MODEL}")
+    assert RENDER_MODEL in api._ASPECT_LOCKED_MODELS, (
+        f"生成端跑 {RENDER_MODEL}，但裁切端白名單只有 {api._ASPECT_LOCKED_MODELS}"
+        "——比例鎖會靜默失效")
 
 
 def test_threshold_lookup_failure_also_skips(monkeypatch):
@@ -277,7 +283,8 @@ def test_no_other_render_endpoint_remains():
     for gone in ("nano-banana", "aspect_ratio", "build_anchored_inputs", "use_anchored"):
         assert gone not in src, f"generate_renders 又出現 {gone!r}——白名單前提要重驗"
     assert "RENDER_MODEL" in src, "生成端沒有引用唯一的 RENDER_MODEL 常數"
-    assert tfp.RENDER_MODEL == "openai/gpt-image-2/edit"
+    # 釘住目前的生成端端點：換模型時這條會紅，強迫重新確認輸出比例桶。
+    assert tfp.RENDER_MODEL == "openai/gpt-image-2.5/flare/edit"
 
 
 def test_render_model_resolution_shares_the_generator(monkeypatch):
@@ -292,7 +299,10 @@ def test_render_model_resolution_shares_the_generator(monkeypatch):
             monkeypatch.delenv("RENDER_MODEL", raising=False)
         else:
             monkeypatch.setenv("RENDER_MODEL", env)
-        assert api._legacy_render_model() == _resolve_render_model(None) == GPT2, (
+        # 釘的是「生成端常數」本身，不是某個寫死的字串——升級模型時這條
+        # 仍該綠（用意是 env 不生效），只有「兩邊不同步」才該紅。
+        from test_full_pipeline import RENDER_MODEL as _GEN
+        assert api._legacy_render_model() == _resolve_render_model(None) == _GEN, (
             f"RENDER_MODEL={env!r} 竟然改變了模型解析")
     src = inspect.getsource(api._legacy_render_model)
     assert "_resolve_render_model" in src, "沒有共用生成端的解析函式"

@@ -7,6 +7,7 @@ import inspect
 
 import pytest
 import test_full_pipeline as pipeline
+from test_full_pipeline import RENDER_MODEL
 from test_layout_preflight_s2 import _artifacts
 
 
@@ -46,7 +47,7 @@ def test_s2_required_forces_multi_image_gpt_image2_mode(monkeypatch):
     assert pipeline._resolve_render_model(
         {"_layout_contract_s2_required": True},
         override="fal-ai/nano-banana-pro/edit",
-    ) == "openai/gpt-image-2/edit"
+    ) == RENDER_MODEL
     assert pipeline._resolve_render_model(None) == pipeline.RENDER_MODEL
 
 

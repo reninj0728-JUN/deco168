@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 import api
+from test_full_pipeline import RENDER_MODEL
 import gemini_analyze as ga
 
 
@@ -135,7 +136,7 @@ def test_first_render_layout_mask_reaches_fal_with_full_prompt_kept():
             "_edit_mask_path": str(mask),
             "_edit_mask_mode": "first_render_layout",
         }
-        assert tp._resolve_render_model(entry) == "openai/gpt-image-2/edit"
+        assert tp._resolve_render_model(entry) == RENDER_MODEL
         url = tp._gpt_image2_mask_data_url(entry)
         assert url and url.startswith("data:image/png;base64,")
     # must-fix②：first_render_layout 分支不得換成局部修短令（保留完整 prompt）

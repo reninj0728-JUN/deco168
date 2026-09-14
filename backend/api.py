@@ -2707,9 +2707,16 @@ def _legacy_render_model() -> str:
         return (os.environ.get("RENDER_MODEL") or "fal-ai/nano-banana-pro/edit").strip()
 
 
-# 唯一「輸出比例可證」的模型。白名單而非黑名單：不認得的模型一律跳過收斂，
+# 「輸出比例可證」的模型白名單。白名單而非黑名單：不認得的模型一律跳過收斂，
 # 而不是猜一個比例去裁——猜錯就是白砍畫面，而且不會有任何錯誤訊息。
-_ASPECT_LOCKED_MODEL = "openai/gpt-image-2/edit"
+# 2026-09-14 納入 gpt-image-2.5/flare：fal 的 edit endpoint 接受自訂 width/height，
+# 沿用同一組尺寸桶（見 test_full_pipeline.gpt_output_size_for_ratio），
+# 所以比例收斂與上採樣守門對它同樣成立。
+# ⚠️ 受這個白名單影響的只有 `_crop_upscale_factor` 與依賴它的 38%+1.2× 那道守門；
+#    45% 天花板守門只看 y0/height，與模型無關，不會因為換模型失效。
+_ASPECT_LOCKED_MODELS = ("openai/gpt-image-2/edit",
+                         "openai/gpt-image-2.5/flare/edit")
+_ASPECT_LOCKED_MODEL = _ASPECT_LOCKED_MODELS[0]   # 舊名保留，避免其他引用處壞掉
 
 
 def _model_output_ar_for(cw: int, ch: int) -> float | None:
@@ -2730,7 +2737,7 @@ def _model_output_ar_for(cw: int, ch: int) -> float | None:
 
     跳過收斂＝維持這條路徑一直以來的行為，不會比現在更糟。"""
     model = _legacy_render_model()
-    if model != _ASPECT_LOCKED_MODEL:
+    if model not in _ASPECT_LOCKED_MODELS:
         print(f"[pipeline] 客廳區特寫：model={model} 的輸出比例無法證明，跳過收斂")
         return None
     try:
@@ -2755,7 +2762,7 @@ def _crop_upscale_factor(cw: int, ch: int) -> float | None:
     所有已驗證案例不受影響；但收斂後過小而**退回未收斂框**時（例如直式框），
     可能高度要放大 1.5× 而寬度只要 0.9×——只看寬就會漏掉。"""
     model = _legacy_render_model()
-    if model != _ASPECT_LOCKED_MODEL:
+    if model not in _ASPECT_LOCKED_MODELS:
         return None
     try:
         from test_full_pipeline import gpt_output_size_for_ratio
