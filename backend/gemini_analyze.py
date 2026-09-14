@@ -12,6 +12,33 @@ from google import genai
 from google.genai import types
 
 
+FURNISH_SCOPE_RULE = (
+    "【設計範圍｜純家具軟裝 furnish】屋主不進行任何硬裝施工。"
+    "design_analysis 與 recommend_reason 只能建議可移動家具、軟裝、地毯、"
+    "窗簾與活動燈具的配置；"
+    "嚴禁建議木作天花、間接照明、包樑、拆牆隔間、換地板、油漆、造型牆、"
+    "泥作或水電改道。"
+    "描述空間現況（例如「有大樑」「空間狹長」）可以，"
+    "但不得接「應該做…」「建議施作…」這類工程建議。"
+)
+FULL_SCOPE_RULE = (
+    "【設計範圍｜含裝潢 full】可以建議天花、牆面等可實作的裝修處理。"
+)
+
+
+def design_scope_rule(design_mode: str | None) -> str:
+    """analyze_space 與 analyze_image 共用同一段設計範圍規則。
+
+    1227725E 事故：客戶買的是 furnish（只配家具、不動工），但空間摘要寫
+    「利用間接天花修飾梁柱」——那是硬裝工程建議，客戶在結果頁直接看得到，
+    等於賣他一個沒買、也不會交付的東西。分析階段從來沒收到 design_mode。
+
+    🔴 兩支函式各抄一份會漂移（改了一邊忘另一邊），所以規則只有這一份。
+    未知值一律當 furnish：保守的那邊是「少講一句」，不是「多賣一個工程」。
+    """
+    return FULL_SCOPE_RULE if (design_mode or "furnish") == "full" else FURNISH_SCOPE_RULE
+
+
 def compute_spatial_fidelity(result: dict) -> tuple[bool, list]:
     """從 validate_render 結果算「空間保真」是否失守（純邏輯、可單測、不打 API）。
     三個「保留」欄位缺省 True、一個「入侵」欄位缺省 False；任一失守回 (True, [中文原因…])。
@@ -294,6 +321,7 @@ def analyze_space(
     extra_photos: list[str] | None = None,
     space_type: str = "living",
     user_notes: str = "",
+    design_mode: str = "furnish",
 ) -> dict:
     """
     分析空間影片並生成 Flux prompts。
@@ -382,10 +410,14 @@ def analyze_space(
             "regions 陣列**必須恰好 3 個**：同一個房間的 3 個不同角度（例如：全景、沙發角、電視牆角）。"
         )
 
+    _scope_rule = design_scope_rule(design_mode)
+
     prompt = f"""
 分析這個空間（影片 + 照片）。本次用戶目標空間：【{space_label}】
 
 {scope_instruction}
+
+{_scope_rule}
 
 {photos_note}
 
@@ -430,9 +462,9 @@ def analyze_space(
   "lighting": "採光條件",
   "current_style": "目前裝潢風格",
   "owner_requests": "屋主需求：若影片有聲音，務必『聽』屋主口述（例如『這裡想做日式』『沙發不要靠這邊』『這面牆留白』『這間當書房』），逐條結構化寫下，並盡量標註對應房間或影片時間點；都沒提就填 '未提及'",
-  "design_analysis": "空間分析摘要，繁體中文，80字以內",
+  "design_analysis": "空間分析摘要，繁體中文，80字以內，嚴格遵守上面的【設計範圍】",
   "recommended_styles": ["style_id_1", "style_id_2", "style_id_3"],
-  "recommend_reason": "推薦原因，繁體中文，50字以內",
+  "recommend_reason": "推薦原因，繁體中文，50字以內，同樣受【設計範圍】約束",
   "best_photo_index": {("0~" + str(len(photo_parts)-1) + " 整數，指最美/最完整的主角度") if photo_parts else "null"},
   "regions": [
     {{

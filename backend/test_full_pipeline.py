@@ -328,7 +328,8 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
                   photo_sources: list[str] | None = None,
                   video_path: str | None = None,
                   photo_meta_list: list | None = None,
-                  user_notes: str = "") -> dict:
+                  user_notes: str = "",
+                  design_mode: str = "furnish") -> dict:
     """
     image_path   : 主要照片（給渲染基底用）
     extra_photos : 補充角度照片清單（一起送 Gemini 分析）
@@ -382,6 +383,12 @@ def analyze_image(image_path: str, user_styles: list[str] | None = None,
 
     space_label = _SPACE_LABEL.get(space_type, space_type)
     render_angle_label = {"single": "單角度", "multi": "多角度"}.get(render_angle, render_angle)
+
+    # 🔴 這段必須在 `if space_type == "whole"` 之【外】——放進分支裡的話，
+    #    非全室的單（living/dining/bedroom/study）會 NameError，整個分析崩掉。
+    # 規則本體在 gemini_analyze.design_scope_rule()，與 analyze_space 共用一份。
+    from gemini_analyze import design_scope_rule
+    _scope_rule = design_scope_rule(design_mode)
 
     # 依 (space_type, render_angle) 動態組規則
     if space_type == "whole":
@@ -632,6 +639,9 @@ room_type 可選值：living / dining / bedroom / kitchen / entrance / corridor 
 {insufficient_rule}
 如果照片數量足夠：insufficient_photos 設為 null。
 
+【設計範圍規則—design_analysis 與 recommend_reason 都適用】
+{_scope_rule}
+
 {style_instruction}
 
 回傳以下 JSON（嚴格照格式）：
@@ -646,9 +656,9 @@ room_type 可選值：living / dining / bedroom / kitchen / entrance / corridor 
   "lighting": "採光條件",
   "current_style": "目前裝潢風格",
   "owner_requests": "未提及",
-  "design_analysis": "空間分析摘要，繁體中文，80字以內",
+  "design_analysis": "空間分析摘要，繁體中文，80字以內。嚴格遵守上面的【設計範圍規則】。",
   "recommended_styles": ["style1","style2","style3"],
-  "recommend_reason": "推薦原因，50字以內",
+  "recommend_reason": "推薦原因，50字以內，同樣受【設計範圍規則】約束",
   "best_photo_index": "依上述規則，整數或 -1",
   "photo_classifications": [
     {{"photo_index": 0, "source": "photo|video_keyframe", "room_type": "...", "confidence": "...",
