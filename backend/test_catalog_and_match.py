@@ -80,8 +80,14 @@ def test_match_all_style_room_combos(catalog):
 def test_no_consumable_junk_in_catalog(catalog):
     """耗材（貼膜/保護膜/貼紙/免洗墊）不是家具也不是軟裝，不准進目錄。
     20A8220A：簡體字「家具贴膜」被當法式茶几畫進渲染圖。"""
+    # 🔴 「免洗」不能單獨當判準：中文商品名裡它有兩個意思——「拋棄式」（耗材，
+    #    要擋）和「免清洗／可擦」（真地毯的賣點，不能擋）。單獨列會誤殺
+    #    「免洗可擦臥室地毯」「梳粧檯地毯免洗」這種真貨。本來要擋的是 docstring
+    #    寫的「免洗墊」，就照那個字面擋。
+    #    （桌布／餐墊該放哪個類目由 test_no_cloth_junk_in_furniture_categories 管，
+    #      不歸這條。）
     consumable = ["貼膜", "贴膜", "保護膜", "保护膜", "貼紙", "贴纸",
-                  "軟玻璃", "软玻璃", "免洗"]
+                  "軟玻璃", "软玻璃", "免洗墊", "免洗垫"]
     bad = [it["id"] for it in catalog
            if any(k in it["name_zh"] for k in consumable)]
     assert not bad, f"目錄混入耗材商品: {bad[:5]}"
