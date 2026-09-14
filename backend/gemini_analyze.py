@@ -39,6 +39,84 @@ def design_scope_rule(design_mode: str | None) -> str:
     return FULL_SCOPE_RULE if (design_mode or "furnish") == "full" else FURNISH_SCOPE_RULE
 
 
+# ── furnish 的 system prompt：把「梁柱怎麼做裝潢」換成「梁柱怎麼用家具化解」──
+#
+# 1227725E 的空間摘要寫「利用間接天花修飾梁柱」。88cc4af 已經把 design_mode 送進
+# 分析端、在 user prompt 加了「嚴禁建議木作天花／間接照明」，但這裡的
+# system_instruction 有一整段在教相反的事（modern → indirect cove lighting）。
+# 同一個 request 裡兩邊打架時模型通常聽 system——那句幾乎就是下面第一行的中譯。
+#
+# 🔴 渲染端不受影響：_build_preserve_clause 對 furnish 本來就下死命令
+#    「ONLY change movable furniture…」，所以圖沒畫錯，錯的一直是客戶看的【字】。
+#    這裡把 system 的用詞一起改掉，是讓兩端講同一套話，不是新增限制。
+_BEAM_FULL = """━━ 梁柱因應（台灣老公寓常見，若影片可見明顯梁柱）━━
+modern         → floating ceiling soffit, concealed beam, indirect cove lighting"""
+
+_BEAM_FURNISH = """━━ 梁柱因應（純家具軟裝 furnish：屋主不動工，梁維持原狀，只能用擺設化解）━━
+🔴 這個模式下一律不得提議包樑、木作天花、間接照明、降板或任何天花處理。梁就是梁。
+modern         → low-back sofa to drop visual weight, floor lamp away from the beam line, no tall cabinet under the beam"""
+
+# (原文, furnish 版) —— 每一條都必須在 SYSTEM_PROMPT 裡剛好出現一次
+_FURNISH_SWAPS = [
+    (_BEAM_FULL, _BEAM_FURNISH),
+    ("japanese       → exposed beam aesthetic, natural wood beam wrap, zen architectural detail",
+     "japanese       → leave the beam untouched, low floor seating, tatami-style mat to pull the eye down"),
+    ("luxury         → coffered ceiling, architectural beam feature, dramatic pendant to draw eye down",
+     "luxury         → dark velvet armchair and a large rug to anchor the floor, sculptural floor lamp, keep the bay under the beam open"),
+    ("nordic         → painted beam white, integrated beam shelf, casual hygge aesthetic",
+     "nordic         → light wool textiles and a low sideboard, single armchair under the beam instead of tall storage"),
+    ("muji           → concealed beam panel, flush ceiling, minimal distraction",
+     "muji           → low storage only, keep the space under the beam open, no visual competition"),
+    ("art-deco       → geometric beam casing, gold trim accent, architectural feature",
+     "art-deco       → geometric rug and brass floor lamp to draw the eye down, no casing on the beam"),
+    ("cream          → soft plaster beam wrap, warm ivory tone, indirect warm cove light above",
+     "cream          → rounded low-back seating, warm boucle textiles, floor lamp for soft upward light"),
+    ("wood           → celebrate natural beam, stain to match floor, wooden beam as design feature",
+     "wood           → low wooden sideboard echoing the beam tone, nothing tall beneath it"),
+    ("french         → decorative plaster moulding wrap, champagne tone, ornate corbel accent",
+     "french         → symmetrical furniture pairing and a defining rug, tall floor lamp to lift wall brightness"),
+    ("chinese-modern → dark walnut beam casing, lattice screen integration, architectural statement",
+     "chinese-modern → low dark walnut console and a free-standing screen, keep the beam bay clear"),
+    # 兩句藏在風格詞庫裡的「台灣特性」，同樣在教做天花
+    ("台灣特性：善用間接照明掩蓋低矮天花板，淺色擴大小空間視覺感",
+     "台灣特性：天花低時用淺色家具與布織放大視覺，不動天花（間接照明屬裝修，這個模式不建議）"),
+    ("台灣特性：梁柱多，用深色或造型天花板化解，強調局部奢華而非全面堆砌",
+     "台灣特性：梁柱多，用深色家具與大地毯壓住視覺重心化解，不動天花，強調局部奢華而非全面堆砌"),
+]
+
+_SYSTEM_PROMPT_CACHE: dict[str, str] = {}
+
+
+def _build_furnish_system_prompt() -> tuple[str, list[str]]:
+    """回 (furnish 版 system prompt, 沒對上的原文)。沒對上的要讓測試紅，不是靜靜跳過。"""
+    text, missing = SYSTEM_PROMPT, []
+    for old, new in _FURNISH_SWAPS:
+        if text.count(old) != 1:
+            missing.append(old.splitlines()[0][:40])
+            continue
+        text = text.replace(old, new, 1)
+    return text, missing
+
+
+def system_prompt_for(design_mode: str | None) -> str:
+    """analyze_space 與 analyze_image 共用。furnish 拿不到「做天花」的教學。
+
+    ⚠️ 上游若改了 SYSTEM_PROMPT 的字，替換會對不上——那會靜默退回舊行為，
+    所以印出來、並由 test_system_prompt_matches_design_mode 擋住。
+    """
+    key = "full" if (design_mode or "furnish") == "full" else "furnish"
+    if key not in _SYSTEM_PROMPT_CACHE:
+        if key == "full":
+            _SYSTEM_PROMPT_CACHE[key] = SYSTEM_PROMPT
+        else:
+            text, missing = _build_furnish_system_prompt()
+            if missing:
+                print(f"[system_prompt] furnish 版有 {len(missing)} 段對不上原文，"
+                      f"那幾段仍是裝潢用語：{missing}")
+            _SYSTEM_PROMPT_CACHE[key] = text
+    return _SYSTEM_PROMPT_CACHE[key]
+
+
 def compute_spatial_fidelity(result: dict) -> tuple[bool, list]:
     """從 validate_render 結果算「空間保真」是否失守（純邏輯、可單測、不打 API）。
     三個「保留」欄位缺省 True、一個「入侵」欄位缺省 False；任一失守回 (True, [中文原因…])。
@@ -493,7 +571,7 @@ def analyze_space(
         model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
         contents=[video_file] + photo_parts + [prompt],
         config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=system_prompt_for(design_mode),
             response_mime_type="application/json",
         ),
     )

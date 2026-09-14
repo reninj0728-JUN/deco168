@@ -17,7 +17,6 @@ if "pytest" not in sys.modules and hasattr(sys.stdout, "buffer"):
 VALID_STYLES = ["modern","japanese","luxury","nordic","muji","cream","wood","french","chinese-modern"]
 
 _client = None
-_SYSTEM_PROMPT = None
 
 def _get_client():
     global _client
@@ -29,13 +28,15 @@ def _get_client():
         _client = genai.Client(api_key=key)
     return _client
 
-def _get_system_prompt():
-    global _SYSTEM_PROMPT
-    if _SYSTEM_PROMPT is None:
-        base = Path(__file__).parent
-        txt = (base / "gemini_analyze.py").read_text(encoding="utf-8")
-        _SYSTEM_PROMPT = txt.split('SYSTEM_PROMPT = """')[1].split('"""')[0]
-    return _SYSTEM_PROMPT
+def _get_system_prompt(design_mode: str = "furnish"):
+    """跟 analyze_space 拿同一份 system prompt，不再自己去切 gemini_analyze.py 的原始碼。
+
+    舊做法有兩個問題：切字串只拿得到 SYSTEM_PROMPT 常數本身（拿不到依 design_mode
+    調整後的版本），而且 _SYSTEM_PROMPT 是單一格快取——就算切得到，第二種模式也會
+    拿到第一次快取的那份。furnish 與 full 的差異會整個消失。
+    """
+    from gemini_analyze import system_prompt_for
+    return system_prompt_for(design_mode)
 
 from google.genai import types
 from furniture_match import enrich_renders
@@ -724,7 +725,7 @@ photo_classifications 必須有 {photo_count} 個元素，每張照片各一個�
             types_module=types,
             model="gemini-3.5-flash",
             contents=contents,
-            system_instruction=_get_system_prompt(),
+            system_instruction=_get_system_prompt(design_mode),
         )
     finally:
         # 用完即刪 Gemini Files 上的影片（隱私 + 清理）
