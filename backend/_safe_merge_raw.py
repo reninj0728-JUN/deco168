@@ -11,7 +11,10 @@ import json, re, sys, io
 from pathlib import Path
 from collections import Counter
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# 🔴 只在直接執行時改寫 stdout。import 時改會撞爛 pytest 的輸出捕捉
+#    （ValueError: I/O operation on closed file），整個測試套件會 no tests ran。
+if __name__ == "__main__":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 CATALOG_PATH = Path(__file__).parent / "furniture_catalog_real.json"
 
@@ -73,6 +76,31 @@ CATEGORY_RULES = [
     (['沙發套','沙發巾','沙發墊','保護墊','披肩毯','毛毯'], '寢具'),
     (['被','寢具','床單','床包','枕套'], '寢具'),
 ]
+
+# 上線中的九種風格（以 style-form.html 為準）。停售的四種不得進 style_tags。
+LIVE_STYLES = ("modern", "cream", "nordic", "japanese", "wood",
+               "luxury", "french", "muji", "chinese-modern")
+
+
+def _clean_also_fits(also, primary: str) -> list:
+    """副風格白名單：只收上線九種、排除主標籤、去重、最多 2 個。
+
+    上游（_classify_raw_with_gemini）已經篩過一次，這裡再篩是刻意的——
+    合併端是進目錄前最後一關，不能假設上游永遠正確。
+    """
+    # 🔴 入口先驗型別：收到 123 / True 會在 iterate 時炸，收到 dict 會把「鍵」
+    #    當成標籤混進 style_tags。上游是 JSON，型別不保證。
+    if not isinstance(also, (list, tuple)):
+        return []
+    out = []
+    for t in also:
+        if not isinstance(t, str):
+            continue
+        t = str(t or "").strip()
+        if t and t != primary and t in LIVE_STYLES and t not in out:
+            out.append(t)
+    return out[:2]
+
 
 def detect_category(name: str) -> str:
     for keywords, cat in CATEGORY_RULES:
@@ -143,7 +171,12 @@ def main():
             "purchase_url":    url,
             "source":          it.get("source", ""),
             "category":        cat,
-            "style_tags":      [style],
+            # 主風格 + Gemini 判定「也搭得上」的副風格。配對器讀任一格命中，
+            # 所以副標籤能讓同一件貨同時填到兩個風格的缺口。
+            # 🔴 不可只信上游清洗：白名單只收上線九種、排除主標籤、去重、最多 2 個。
+            #    停售風格（industrial/art-deco/boho/mediterranean）掛上去客戶配不到，
+            #    等於這件貨白收。
+            "style_tags":      [style] + _clean_also_fits(it.get("also_fits"), style),
             "colors":          it.get("colors", []),
             "dimensions":      it.get("dimensions", ""),
             "flux_descriptor": it.get("flux_descriptor", ""),
@@ -161,7 +194,9 @@ def main():
         print("新增的類目分佈:", dict(cat_dist))
 
     combined = existing + added
-    CATALOG_PATH.write_text(json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 🔴 目錄是單行 JSON，絕不可用 indent：一次 indent=2 會把檔案從 1 行變成
+    #    9.5 萬行、整檔 diff，git 上完全看不出這次到底加了什麼。
+    CATALOG_PATH.write_text(json.dumps(combined, ensure_ascii=False), encoding="utf-8")
     print(f"\n完成。總筆數: {len(existing)} -> {len(combined)}")
 
 
