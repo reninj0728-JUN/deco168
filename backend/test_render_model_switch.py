@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import api
 import test_full_pipeline as tfp
 
-NEW = "openai/gpt-image-2.5/flare/edit"
+NEW = "openai/gpt-image-2.5/sunburst/edit"
+FLARE = "openai/gpt-image-2.5/flare/edit"
 OLD = "openai/gpt-image-2/edit"
 
 
@@ -73,7 +74,8 @@ def test_payload_guard_is_not_self_referential():
     assert "if render_model == RENDER_MODEL:" not in src, \
         "守門又寫回自我比對，換模型時不會擋"
     assert "if render_model in _SAME_PAYLOAD_MODELS:" in src
-    assert set(tfp._SAME_PAYLOAD_MODELS) == {OLD, NEW}
+    # 三個都是同一種 fal edit payload 格式：舊模型與 flare 留著是為了能快速退回。
+    assert set(tfp._SAME_PAYLOAD_MODELS) == {OLD, FLARE, NEW}
 
 
 def test_quality_default_is_unchanged():

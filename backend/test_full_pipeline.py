@@ -923,13 +923,17 @@ def _resolve_generation_mode(enriched_renders: list[dict],
     )
 
 
-# 2026-09-14 升級 gpt-image-2 → 2.5 flare：同一組輸出尺寸桶、同樣的 fal
-# edit payload 格式；官方定位是「只改被要求的部分，保留主體、構圖與背景」。
-# 要退回改回這一行即可（需重新部署，不是即時切換）。
-RENDER_MODEL = "openai/gpt-image-2.5/flare/edit"
+# 2026-09-14 升級 gpt-image-2 → 2.5 sunburst：同一組輸出尺寸桶、同樣的 fal
+# edit payload 格式，fal 上 flare 與 sunburst 同定價。
+# 選 sunburst 不選 flare：官方把 flare 定位成「快速、高量的日常出圖」、
+# sunburst 定位成「最重視生成與編輯精準度」。這個專案要的是「房子結構不要被改、
+# 指定家具要畫得像」，不是出圖快——速度換精準度，值得。
+# ⚠️ 那是定位不是保證，仍要看實際成品。要退回改回這一行即可（需重新部署）。
+RENDER_MODEL = "openai/gpt-image-2.5/sunburst/edit"
 # payload 格式相同的模型：換到清單外的模型時，下面那個 if 才擋得住。
 _SAME_PAYLOAD_MODELS = ("openai/gpt-image-2/edit",
-                        "openai/gpt-image-2.5/flare/edit")
+                        "openai/gpt-image-2.5/flare/edit",
+                        "openai/gpt-image-2.5/sunburst/edit")
 
 
 def _resolve_render_model(render: dict | None = None, override: str | None = None) -> str:

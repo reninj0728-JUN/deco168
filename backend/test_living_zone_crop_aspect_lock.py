@@ -284,7 +284,7 @@ def test_no_other_render_endpoint_remains():
         assert gone not in src, f"generate_renders 又出現 {gone!r}——白名單前提要重驗"
     assert "RENDER_MODEL" in src, "生成端沒有引用唯一的 RENDER_MODEL 常數"
     # 釘住目前的生成端端點：換模型時這條會紅，強迫重新確認輸出比例桶。
-    assert tfp.RENDER_MODEL == "openai/gpt-image-2.5/flare/edit"
+    assert tfp.RENDER_MODEL == "openai/gpt-image-2.5/sunburst/edit"
 
 
 def test_render_model_resolution_shares_the_generator(monkeypatch):

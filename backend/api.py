@@ -2715,7 +2715,8 @@ def _legacy_render_model() -> str:
 # ⚠️ 受這個白名單影響的只有 `_crop_upscale_factor` 與依賴它的 38%+1.2× 那道守門；
 #    45% 天花板守門只看 y0/height，與模型無關，不會因為換模型失效。
 _ASPECT_LOCKED_MODELS = ("openai/gpt-image-2/edit",
-                         "openai/gpt-image-2.5/flare/edit")
+                         "openai/gpt-image-2.5/flare/edit",
+                         "openai/gpt-image-2.5/sunburst/edit")
 _ASPECT_LOCKED_MODEL = _ASPECT_LOCKED_MODELS[0]   # 舊名保留，避免其他引用處壞掉
 
 
