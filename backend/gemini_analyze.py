@@ -82,6 +82,77 @@ _FURNISH_SWAPS = [
      "台灣特性：天花低時用淺色家具與布織放大視覺，不動天花（間接照明屬裝修，這個模式不建議）"),
     ("台灣特性：梁柱多，用深色或造型天花板化解，強調局部奢華而非全面堆砌",
      "台灣特性：梁柱多，用深色家具與大地毯壓住視覺重心化解，不動天花，強調局部奢華而非全面堆砌"),
+    # ── 以下是第二輪（eb78d16 漏掉的）：同一份教材的其他頁還在示範做天花 ──
+    # 只換掉「指示新增／改造表面」的用語。描述原況不動，色調與家具用語不動。
+    # 吸頂燈具（pendant／chandelier／wall sconce）也算——換燈是電路工程，而且
+    # 渲染端的 preserve clause 本來就寫「Preserve existing ceiling pipes, lights」。
+    # ✅ 正確格式示範
+    ("warm white oak panels, matte finish, linen sofa in cream, recessed LED ceiling, "
+     "warm 3000K accent, contemporary minimalist living room",
+     "warm white oak sideboard, matte finish, linen sofa in cream, arc floor lamp warm 3000K, "
+     "wool rug light greige, contemporary minimalist living room"),
+    # 空間規模規則（逗號版與斜線版各一份）
+    ("小空間（<15坪）→ 加：light reflective surface, open concept, visual expansion, mirror accent panel",
+     "小空間（<15坪）→ 加：light reflective furniture finish, open layout, visual expansion, freestanding floor mirror"),
+    ("小空間（<15坪）→ 加：light reflective surface / open concept / visual expansion / mirror panel",
+     "小空間（<15坪）→ 加：light reflective furniture finish / open layout / visual expansion / freestanding floor mirror"),
+    ("大空間（>35坪）→ 加：double-height ceiling, statement furniture, architectural feature wall",
+     "大空間（>35坪）→ 加：statement furniture, oversized area rug, tall potted plants to fill the volume"),
+    ("大空間（>35坪）→ 加：double-height ceiling / statement furniture / architectural feature wall",
+     "大空間（>35坪）→ 加：statement furniture / oversized area rug / tall potted plants to fill the volume"),
+    # 材質：只拿掉牆／地／天花的施作項，家具材質全部保留
+    ("材質：white oak / ash wood panels / matte concrete / brushed aluminum / frosted glass",
+     "材質：white oak / ash wood / matte lacquer / brushed aluminum / frosted glass"),
+    ("材質：natural cedar / washi texture wall / stone tile / aged linen / unfinished oak / shoji screen",
+     "材質：natural cedar / washi texture screen / stone-toned ceramic / aged linen / unfinished oak / freestanding shoji screen"),
+    ("材質：light oak / natural linen / boucle fabric / matte ceramic / rattan / warm plaster",
+     "材質：light oak / natural linen / boucle fabric / matte ceramic / rattan / warm plaster-toned ceramic"),
+    ("材質：carved wood moulding / aged linen / velvet / polished brass / marble / cane rattan",
+     "材質：carved wood detailing / aged linen / velvet / polished brass / marble / cane rattan"),
+    ("材質：dark walnut / rosewood veneer / jade green tile / brushed bronze / rice paper screen / black stone",
+     "材質：dark walnut / rosewood veneer / jade green ceramic / brushed bronze / freestanding rice paper screen / black stone"),
+    # 燈光：十種風格一律改成可搬動的燈具
+    ("燈光：recessed LED ceiling / linear pendant / warm 3000K cove / indirect wall wash",
+     "燈光：arc floor lamp / slim table lamp / warm 3000K floor uplight / plug-in reading light"),
+    ("燈光：diffused natural light / low warm pendant / indirect wall wash / paper lantern glow",
+     "燈光：diffused natural light / low warm floor lamp / paper lantern glow / shoji-diffused daylight"),
+    ("燈光：dramatic pendant / wall sconces / LED strip accent / chandelier / spotlighting",
+     "燈光：sculptural floor lamp / brass table lamp / warm directional floor uplight / candle-warm accent"),
+    ("燈光：oversized pendant / warm Edison bulb / floor lamp beside sofa / natural daylight maximize",
+     "燈光：oversized floor lamp / warm Edison bulb / floor lamp beside sofa / natural daylight maximize"),
+    ("燈光：diffused ceiling panel / simple pendant / task lamp / maximize window natural light",
+     "燈光：paper shade table lamp / simple floor lamp / task lamp / maximize window natural light"),
+    ("燈光：warm 2700K pendant / fabric shade floor lamp / indirect warm wash / sheer curtain diffused natural light",
+     "燈光：warm 2700K table lamp / fabric shade floor lamp / sheer curtain diffused natural light"),
+    ("燈光：warm Edison bulb / rattan pendant / maximize skylight / candle warmth",
+     "燈光：warm Edison bulb / rattan floor lamp / maximize existing daylight / candle warmth"),
+    ("燈光：crystal chandelier / brass wall sconce / draped fabric shade / warm romantic diffused light",
+     "燈光：crystal table lamp / brass floor lamp / draped fabric shade / warm romantic diffused light"),
+    ("燈光：low hanging lantern-inspired pendant / indirect cove / architectural spotlighting / paper screen ambient",
+     "燈光：lantern-inspired floor lamp / warm table lamp / freestanding paper screen ambient light"),
+    # few-shot 示範：這四行是模型抄寫的樣板，留著等於直接教它寫進 flux_prompt
+    ("warm white oak panels matte finish, minimalist linen sofa cream fabric, floating TV console "
+     "lacquered white, recessed LED strip ceiling, warm 3000K cove light, floor-to-ceiling windows "
+     "southern light, light greige palette",
+     "warm white oak sideboard matte finish, minimalist linen sofa cream fabric, low TV console "
+     "lacquered white, arc floor lamp warm 3000K, wool rug light greige, existing windows southern "
+     "light, light greige palette"),
+    ("oiled natural cedar wall panels, washi texture accent wall matte, honed stone tile floor, "
+     "low platform seating natural linen, hand-thrown ceramic vessels, diffused south window light, "
+     "indirect warm wall wash, moss green accent",
+     "oiled natural cedar low cabinet, freestanding washi screen matte, jute floor mat, "
+     "low platform seating natural linen, hand-thrown ceramic vessels, diffused south window light, "
+     "warm paper-shade floor lamp, moss green accent"),
+    ("white birch veneer panels, wool felt armchair oatmeal, solid pine dining table natural, "
+     "oversized linen pendant warm 2700K, sheer cotton curtain floor length",
+     "white birch sideboard, wool felt armchair oatmeal, solid pine dining table natural, "
+     "oversized linen floor lamp warm 2700K, sheer cotton curtain floor length"),
+    ("warm ivory boucle sofa rounded silhouette, light oak side table matte finish, linen curtain "
+     "sheer floor length, rattan woven storage basket, soft cream terrazzo tile floor, "
+     "warm 2700K pendant fabric shade",
+     "warm ivory boucle sofa rounded silhouette, light oak side table matte finish, linen curtain "
+     "sheer floor length, rattan woven storage basket, soft cream wool rug, "
+     "warm 2700K floor lamp fabric shade"),
 ]
 
 _SYSTEM_PROMPT_CACHE: dict[str, str] = {}

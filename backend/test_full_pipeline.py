@@ -800,6 +800,15 @@ def _source_dims(path: str) -> tuple[int, int] | None:
         return None
 
 
+def _legacy_render_model_uses_guidance() -> bool:
+    """guidance_scale 是 flux-pro/kontext 的參數，gpt-image 系列的 payload 沒有它。
+
+    寫成函式是為了讓 log 不再對 gpt-image 的單謊報 guidance 生效——
+    2026-09-15 我就是被那行 log 誤導，拿 guidance=3.0 當成渲染端的保護證據。
+    """
+    return _resolve_render_model(None) not in _SAME_PAYLOAD_MODELS
+
+
 def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") -> str:
     """
     把 Gemini 抓到的 architectural_features 變成具體 PRESERVE 指令。
@@ -1130,9 +1139,14 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
     if _owner_req and _owner_req not in ("未提及", "無"):
         customer_notes = (customer_notes + " 屋主口述需求：" + _owner_req).strip()
     preserve_clause = _build_preserve_clause(analysis, design_mode=design_mode)
-    # furnish 模式 guidance_scale 更低（更聽原圖），full 模式稍高
+    # ⚠️ guidance_scale 只有 flux-pro/kontext 那條分支會送（見 fal_subscribe 的
+    #    "fal-ai/flux-pro/kontext"）。現行 RENDER_MODEL 是 gpt-image 系列，payload
+    #    裡【沒有】這個參數——所以 furnish 的結構保留靠的是 preserve_clause 的文字
+    #    約束，不是這個數字。舊版 log 每一單都印 guidance=3.0，會讓人以為它有生效。
     guidance = 3.0 if design_mode == "furnish" else 4.0
-    print(f"  渲染基底：{len(img_urls)} 張角度，design_mode={design_mode}, guidance={guidance}")
+    _guidance_note = (f", guidance={guidance}"
+                      if _legacy_render_model_uses_guidance() else "（本模型不吃 guidance_scale）")
+    print(f"  渲染基底：{len(img_urls)} 張角度，design_mode={design_mode}{_guidance_note}")
     print(f"  PRESERVE 指令: {preserve_clause[:160]}...")
 
     results = []
