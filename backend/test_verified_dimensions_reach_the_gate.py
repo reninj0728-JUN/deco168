@@ -30,7 +30,9 @@ CATALOG = Path(__file__).resolve().parent / "furniture_catalog_real.json"
 
 # id → (商家標示的佔地寬 cm, 說明)
 VERIFIED_WIDTH = {
+    "hola_014412973":          (206, "同款沙發 淺米，一樣是三人 206cm"),
     "hola_014412974":          (206, "三人沙發，長206是靠牆跨距（寬103是深度）"),
+    "hola_014412975":          (206, "同款沙發 淺綠，一樣是三人 206cm"),
     "pchome_DQCBDJ-A900IFYDM": (100, "茶几，長100"),
     "pchome_DQCD28-A900HN9Y9": (200, "伸縮電視櫃，取下限200（可收到這個寬度）"),
     "momo_12731234":           (205, "床架外徑，不是6尺床墊的182"),
@@ -75,6 +77,17 @@ def test_the_sofa_name_says_three_seater(by_id):
     n = str(by_id["hola_014412974"]["name_zh"])
     assert "三人" in n, f"沙發名稱沒有標三人座：{n}"
     assert "雙人" not in n, f"沙發名稱還寫著雙人：{n}"
+
+
+def test_the_whole_sofa_family_says_three_seater(by_id):
+    """🔴 同一款沙發有三個顏色（973 淺米／974 白灰／975 淺綠），三件都是 206cm 三人座。
+
+    只修客戶碰到的那一件沒有用——離線跑配對時被選中的是 975。
+    """
+    for sku in ("hola_014412973", "hola_014412974", "hola_014412975"):
+        n = str(by_id[sku]["name_zh"])
+        assert "三人" in n and "雙人" not in n, f"{sku} 還寫著雙人：{n}"
+        assert fm.extract_item_width_cm(by_id[sku]) == 206, f"{sku} 寬度不是 206"
 
 
 def test_bed_widths_are_not_derived_from_the_six_foot_label(by_id):
