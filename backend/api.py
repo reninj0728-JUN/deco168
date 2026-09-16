@@ -1049,8 +1049,10 @@ def _note_implies_rear_near_window(note: str | None) -> bool:
     s = note.strip().lower()
     if not s:
         return False
-    negative_markers = ("不要靠窗", "不靠窗", "不要窗邊", "不在窗邊", "not near window")
-    if any(k in s for k in negative_markers):
+    # 否定判準只有一份：gemini_analyze.note_forbids_window_side。
+    # 兩邊各自維護一份清單時，判官與契約會對同一句話得到相反結論。
+    from gemini_analyze import note_forbids_window_side
+    if note_forbids_window_side(s):
         return False
     positive_markers = (
         "客廳靠窗", "靠窗做客廳", "客廳窗邊", "窗邊客廳",
@@ -1102,6 +1104,33 @@ def _apply_target_note_layout_constraints(zoning: dict | None,
             note_clause = "使用者補充指定：客廳靠窗端／窗邊後段。"
             if note_clause not in where:
                 living_zone["where"] = (where + " " + note_clause).strip()
+
+    # 🔴「客廳不靠窗」：要改的是【契約本身】，不是往 where 後面接一句話。
+    #    往後接會變成「落地窗前…使用者補充指定：客廳不靠窗」——同一欄自相矛盾，
+    #    模型照樣可以依 Gemini 原文擺回窗邊。所以覆寫掉窗端描述，並加一條
+    #    有牙齒的 no-go（跟「餐廳中段」同一套做法：改 where ＋ 加 no_go）。
+    #    ⚠️ 只禁窗端，不指定去哪——「不靠窗」沒說要去近端，硬推近端會撞
+    #       2879173D（沙發吃掉進門落腳區）。
+    from gemini_analyze import note_forbids_window_side
+    if target_zone == "living" and note_forbids_window_side(note):
+        living_zone = zones.setdefault("living_zone", {})
+        if isinstance(living_zone, dict):
+            living_zone["where"] = (
+                "使用者明確指定：客廳【不靠窗】。客廳起居區不得設在落地窗／採光窗前的"
+                "窗端地帶；請改用同一空間中遠離窗端的區段，實際位置依走道、門洞與"
+                "固定設備的既有限制決定。"
+            )
+            living_zone["_user_forbids_window_side"] = True
+        no_go = rules.get("no_large_furniture_zones")
+        if not isinstance(no_go, list):
+            no_go = []
+        no_go_clause = (
+            "使用者指定客廳不靠窗：落地窗／採光窗前的窗端地帶不得放置沙發、"
+            "客廳地毯、茶几或電視櫃等客廳主家具。"
+        )
+        if no_go_clause not in no_go:
+            no_go.append(no_go_clause)
+        rules["no_large_furniture_zones"] = no_go
 
     if _note_implies_dining_middle(note):
         dining_zone = zones.setdefault("dining_zone", {})
@@ -1337,8 +1366,13 @@ def _score_photo_for_room(meta: dict | None, rt: str) -> int:
 
     if rt == "living":
         # 靠窗／窗邊 note = 最強信號（使用者明確指定客廳主圖意圖）
-        if _note_implies_rear_near_window(note) or any(
-            k in note for k in ("靠窗", "窗邊", "窗戶", "後段", "深處", "底端", "靠窗端")
+        # ⚠️ 否定優先：「客廳不靠窗」含有「靠窗」子字串，不先擋掉會把它當成
+        #    最強的靠窗信號，選出一張客戶明說不要的角度當主圖。
+        from gemini_analyze import note_forbids_window_side
+        if not note_forbids_window_side(note) and (
+            _note_implies_rear_near_window(note) or any(
+                k in note for k in ("靠窗", "窗邊", "窗戶", "後段", "深處", "底端", "靠窗端")
+            )
         ):
             score += 100
         if hint == "rear_near_window":

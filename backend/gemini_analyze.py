@@ -696,6 +696,36 @@ HARD_FAIL_FLAGS = (
 )
 
 
+# 🔴 否定優先：所有「這句話是不是在講靠窗」的判斷，一律先過這裡。
+#
+# 7F0874C7 的客戶在照片備註寫了「客廳不靠窗」。系統不只是忽略它——是【反過來執行】：
+# 因為所有判斷都寫成 `k in s`，而「客廳不靠窗」裡面含有「靠窗」子字串，於是
+#   · 判官的 ws_kws 命中「靠窗」→ is_window_side=True → 反過來要求沙發往窗端擺
+#   · _score_photo_for_room 的 +100 命中「靠窗」→ 把這張當成「靠窗客廳主圖」
+#   · _note_implies_rear_near_window 認得出否定、但只用來「不升級」，沒有反向效果
+# 結果是付費客戶講的話被系統倒過來強制執行。
+#
+# ⚠️ 只禁窗端，不指定去哪。「不靠窗」沒有說要去近端——這房 7.5m、左牆是房門，
+#    硬推近端會撞上 2879173D（沙發吃掉進門落腳區）。近端／中段留給既有規則決定。
+_NOT_WINDOW_MARKERS = (
+    "不要靠窗", "不靠窗", "別靠窗", "非靠窗", "不想靠窗", "不需靠窗",
+    "不要窗邊", "不在窗邊", "不靠窗邊", "遠離窗", "離窗遠",
+    "not near window", "not by the window", "away from the window", "no window side",
+)
+
+
+def note_forbids_window_side(note: str | None) -> bool:
+    """備註是否明確說「客廳不要靠窗」。這是唯一的否定判準，四個消費端共用。
+
+    ⚠️ 一定要在任何 `"靠窗" in note` 之前先問這個——否則否定句會因為含有
+    「靠窗」子字串被當成肯定句。
+    """
+    if not isinstance(note, str):
+        return False
+    s = note.strip().lower()
+    return bool(s) and any(k in s for k in _NOT_WINDOW_MARKERS)
+
+
 # 位置語意關鍵字：補充說明含這些才算「位置指令」，才啟動 strict_depth。
 # 「喜歡淺木色」「不要紅色」這類非位置補充不該啟動嚴格深度驗收。
 _POSITION_INTENT_KW = (
@@ -1760,7 +1790,10 @@ reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」�
             and ("餐廳" in dining_middle_signal or "dining" in dining_middle_signal.lower())
             and any(k in dining_middle_signal for k in dining_middle_kws)
         )
-        is_window_side = (
+        # 客戶明講不要靠窗時，整段靠窗深度門檻不啟動（下面 if is_window_side 的
+        # 沙發 58/65% 硬門檻會反過來逼客廳回到窗邊）。連 hint 一起壓過去：
+        # 備註是後寫的、也更具體，兩者衝突時以「不要」為準。
+        is_window_side = (not note_forbids_window_side(target_note)) and (
             target_hint == "rear_near_window"
             or (not broad_living_bbox and isinstance(window_signal, str)
                 and any(k in window_signal for k in ws_kws))
