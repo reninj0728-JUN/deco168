@@ -653,6 +653,14 @@ room_type 可選值：living / dining / bedroom / kitchen / entrance / corridor 
     "length_m": 數字, "width_m": 數字, "height_m": 數字,
     "confidence": "high/medium/low", "reference_used": "用了哪些基準物"
   }},
+  "architectural_features": {{
+    "doors": "門的位置與數量，例如：主入口在鏡頭後方，房門在左牆中段",
+    "kitchen": "【固定廚具】流理台／上下櫃／水槽／爐具在哪一面牆、長度多少；沒有就填 '無'",
+    "windows": "窗戶／落地門的位置與數量",
+    "ceiling": "天花板特徵，例如：外露消防明管、橫樑位置",
+    "floor": "地板材質與顏色",
+    "walls": "牆面現況"
+  }},
   "layout_notes": "格局描述",
   "lighting": "採光條件",
   "current_style": "目前裝潢風格",
@@ -834,8 +842,14 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
             parts.append(f"room measures {L}m long x {W}m wide x {H}m tall — keep this exact aspect;")
     if feats.get("doors"):   parts.append(f"doors: {feats['doors']} — same count, same positions;")
     if feats.get("windows"): parts.append(f"windows: {feats['windows']} — same count, same positions;")
-    if feats.get("kitchen") and feats["kitchen"] != "無":
-        parts.append(f"kitchen: {feats['kitchen']};")
+    if feats.get("kitchen") and str(feats["kitchen"]).strip() not in ("無", "None", "none", ""):
+        # 7F0874C7：右牆的一字型廚具在圖裡被換成電視櫃。舊版只把位置寫出來，
+        # 沒有講「不准拆」——固定廚具是設備不是家具，連 full 模式也不能換掉。
+        parts.append(
+            f"kitchen: {feats['kitchen']} — this is FIXED built-in kitchen cabinetry. "
+            "Keep the counter, upper and lower cabinets, sink and hob exactly where they are, "
+            "same length and same wall; NEVER delete it or replace it with a TV console, "
+            "sideboard, shelving, sofa or any other furniture;")
     if feats.get("ceiling"):
         # 「keep pipes」曾被模型過度發揮成「多畫一堆管子」（3ACB0DF4 北歐客廳天花憑空
         # 多出成排管線）——明確講清楚：同樣數量、同樣位置，不准新增。
@@ -846,6 +860,14 @@ def _build_preserve_clause(analysis: dict | None, design_mode: str = "furnish") 
         parts.append(f"floor: {feats['floor']};")
     if feats.get("walls"):
         parts.append(f"walls: {feats['walls']};")
+
+    if len(parts) == 1:
+        # 🔴 一條 feature 都沒有時，舊版仍送出「PRESERVE EXACTLY:」這個空標題。
+        #    照片單長期都是這個狀態（analyze_image 以前不產 architectural_features），
+        #    等於門窗／廚具／天花管線全都沒鎖——7F0874C7 廚具消失的根因。
+        #    檢查必須在 MODE 那行【之前】做，否則 parts 永遠不會只剩 1 個。
+        print("[preserve] ⚠️ architectural_features 是空的 → 這張圖沒有任何具體保留指令")
+        parts = []
 
     if design_mode == "furnish":
         # 天花板「照原樣」雙向講清楚：原照有 cove/嵌燈 → 原封保留（不是拆掉）；

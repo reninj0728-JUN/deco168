@@ -338,15 +338,23 @@
     }
 
     /* ── 全案備註 ──────────────────────────────────────────────── */
+    /* 客戶常常沒看到這一區就送出。加重視覺權重：金色左側標記、
+       較深的底色與邊框、標籤放大到 15px，讓它跟上面的上傳區一樣明顯。 */
     .notes-block {
       margin-top: 40px;
-      padding: 26px 28px;
-      background: rgba(201,169,110,0.03);
-      border: 1px solid rgba(201,169,110,0.2);
+      padding: 26px 28px 26px 26px;
+      background: rgba(201,169,110,0.07);
+      border: 1px solid rgba(201,169,110,0.45);
+      border-left: 3px solid var(--gold);
     }
     .notes-label {
-      font-size: 12px; letter-spacing: 1.5px; color: var(--white);
-      margin-bottom: 12px;
+      font-size: 15px; letter-spacing: 0.8px; color: var(--gold);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .notes-hint {
+      font-size: 12.5px; color: var(--muted); line-height: 1.7;
+      margin-bottom: 14px; letter-spacing: 0.3px;
     }
     .notes-textarea {
       width: 100%;
@@ -572,7 +580,8 @@
 
   <!-- ── 全案備註 ─────────────────────────────────────────────── -->
   <div class="notes-block">
-    <div class="notes-label">有想特別說明的地方嗎？（選填，直接打字就好）</div>
+    <div class="notes-label">✍️ 有想特別說明的地方嗎？（選填）</div>
+    <div class="notes-hint">這段會直接送進設計分析，寫得越具體越準——例如哪一間要當書房、哪面牆不要擋、有沒有一定要留的家具。</div>
     <textarea class="notes-textarea" id="notes-textarea" maxlength="300"
               placeholder="例如：客廳想明亮一點、小房間想做書房、餐廳希望保留走道通暢。"></textarea>
     <div class="notes-meta">
