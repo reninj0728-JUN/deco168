@@ -1279,6 +1279,12 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
                 if os.environ.get("LAYOUT_GUIDE", "1").strip() != "0"
                 else None
             )
+            # 讓 prompt_builder 知道這間房有固定廚具要保留（7F0874C7）。
+            # 沿用既有的 entry["_xxx"] 慣例，不另外改 build_nano_banana_inputs 的簽名。
+            _kit = str(((analysis or {}).get("architectural_features") or {}).get("kitchen") or "").strip()
+            if _kit and _kit not in ("無", "None", "none"):
+                render["_fixed_kitchen"] = _kit
+
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,

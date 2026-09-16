@@ -696,6 +696,7 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
         parts.append("Ceiling features (must preserve): "
                      + _scrub_offframe_rooms(str(syn['exposed_ceiling'])) + ".")
 
+
     # 牆：白名單只保留「名稱 + 實牆/有開口」；丟棄自由文字 description（最大洩漏面）。
     walls = syn.get("wall_inventory") or []
     if walls:
@@ -2210,6 +2211,23 @@ def build_nano_banana_inputs(
         sections.append(customer_sec)
     if retry_sec:
         sections.append(retry_sec)
+    # 🔴 7F0874C7：畫面右牆的一字型廚具在成品圖裡被換成電視櫃。
+    #    SYSTEM_PROMPT 規則 2 只保 walls/window/ceiling/floor，沒有「固定櫥櫃」；
+    #    規則 3 又無條件寫「DO NOT add kitchen」；而 _scrub_offframe_rooms 會把
+    #    「廚房／廚具／流理台」整批從 layout 文字刪掉（那是為【畫面外】的廚房設計的）。
+    #    三者相加＝模型完全收不到「這裡有廚具、要留著」，卻收到「放電視櫃」的指令。
+    #
+    #    ⚠️ 這條刻意寫成【看得到才保留、看不到就別畫】的自我保護句：上游若把畫面外的
+    #       廚房塞進來，它只會是 no-op，不會誘發「長出廚房」，跟規則 3 也不衝突。
+    #    ⚠️ 位置必須在這裡（build_nano_banana_inputs 本體）。放進 _build_layout_section
+    #       會有兩個問題：那支只有帶 zoning 的單會跑，而且它沒有 entry 參數。
+    if entry.get("_fixed_kitchen"):
+        sections.append(
+            "FIXED KITCHEN: if a kitchen counter, sink, hob or upper/lower cabinets are VISIBLE "
+            "in image_1, they are FIXED built-in equipment — keep them exactly on the same wall, "
+            "same length, same finish; NEVER delete them or replace them with a TV console, "
+            "sideboard, shelving or a sofa. If no kitchen is visible in image_1, do not add one.")
+
     sections.extend([SOFA_TV_FACE_TO_FACE_CONTRACT, CRITICAL_RULES, QUALITY_TAIL])
 
     prompt = "\n\n".join(sections)
