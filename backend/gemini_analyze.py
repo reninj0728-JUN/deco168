@@ -1793,7 +1793,15 @@ reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」�
         # 客戶明講不要靠窗時，整段靠窗深度門檻不啟動（下面 if is_window_side 的
         # 沙發 58/65% 硬門檻會反過來逼客廳回到窗邊）。連 hint 一起壓過去：
         # 備註是後寫的、也更具體，兩者衝突時以「不要」為準。
-        is_window_side = (not note_forbids_window_side(target_note)) and (
+        # 🔴 禁令可能來自【全案備註】——那時 target_note 是空的，而契約覆寫後的
+        #    living_where 含有「不靠窗」→ ws_kws 命中「靠窗」→ 又判成靠窗。
+        #    所以除了 target_note，也要看契約寫下的旗標（來源無關）。
+        _forbids_window = (
+            note_forbids_window_side(target_note)
+            or bool(layout_context.get("user_forbids_window_side")
+                    if isinstance(layout_context, dict) else False)
+        )
+        is_window_side = (not _forbids_window) and (
             target_hint == "rear_near_window"
             or (not broad_living_bbox and isinstance(window_signal, str)
                 and any(k in window_signal for k in ws_kws))

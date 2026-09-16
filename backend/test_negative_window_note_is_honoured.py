@@ -173,3 +173,78 @@ def test_photo_scoring_does_not_boost_a_negative_note():
     neg = api._score_photo_for_room({"target_note": NEG, "photo_contains": ["living"]}, "living")
     pos = api._score_photo_for_room({"target_note": POS, "photo_contains": ["living"]}, "living")
     assert pos - neg >= 100, f"否定句仍拿到靠窗加分（neg={neg} pos={pos}）"
+
+
+# ── 全案備註（上傳頁最顯眼那個框）也要有配置效力 ──────────────────
+#
+# 🔴 全案備註 customer_notes 長期【沒有配置效力】：它進得了生成 prompt，但被
+#    _NOTES_WRAPPER_PREFIX 明文關掉——「只當風格偏好、不准搬客廳」（防 prompt
+#    injection）。真正有效力的是逐張 target_note，卻收在「＋ 補充說明」按鈕後面。
+#    客戶把在意的事寫在看得見的框裡，系統不但不聽，還告訴模型不准聽。
+#
+# ⚠️ 開放的只有【已驗證的句型】。白名單之外的自由文字完全不變，仍走 wrapper
+#    只當風格偏好——防注入沒有被放寬。
+
+def test_global_note_is_used_when_the_photo_note_has_no_pattern():
+    note, src = api._effective_layout_note("喜歡淺木色", "客廳不要靠窗")
+    assert (note, src) == ("客廳不要靠窗", "global")
+
+
+def test_photo_note_wins_on_conflict():
+    """逐張寫「不靠窗」、大框寫「靠窗」→ 用逐張。"""
+    note, src = api._effective_layout_note(NEG, POS)
+    assert (note, src) == (NEG, "photo")
+
+
+def test_the_two_notes_are_never_concatenated():
+    """🔴 接成一個字串會互相污染：「不靠窗」+「靠窗」的子字串判斷會打架。"""
+    note, _ = api._effective_layout_note(NEG, POS)
+    assert POS not in note or note == NEG
+
+
+def test_global_note_about_another_room_does_not_touch_the_living_contract():
+    """「主臥不靠窗」不得改到客廳。"""
+    note, src = api._effective_layout_note("", "主臥不靠窗")
+    assert src == "photo" and note == ""
+
+
+def test_free_text_still_has_no_layout_power():
+    """沒命中句型的自由文字維持原行為，繼續只當風格偏好。"""
+    for g in ("喜歡淺木色", "不要紅色", "預算抓緊一點", ""):
+        note, src = api._effective_layout_note("", g)
+        assert src == "photo" and note == "", f"自由文字「{g}」不該取得配置效力"
+
+
+def test_judge_sees_the_flag_when_the_ban_came_from_the_global_note():
+    """🔴 禁令來自全案備註時 target_note 是空的——判官只看 target_note 會被
+    契約覆寫文字裡的「靠窗」子字串反咬，契約禁窗端、判官逼靠窗。"""
+    z = {"zones": {"living_zone": {"where": WINDOW_WHERE}},
+         "furniture_placement_rules": {}, "_origin": "user_confirmed_v2"}
+    z = api._apply_target_note_layout_constraints(z, "客廳不要靠窗", "living", None)
+    lz = z["zones"]["living_zone"]
+    assert lz.get("_user_forbids_window_side") is True
+    src = (Path(__file__).resolve().parent / "api.py").read_text(encoding="utf-8")
+    assert '"user_forbids_window_side"' in src, "layout_ctx 沒把旗標帶給判官"
+    g = (Path(__file__).resolve().parent / "gemini_analyze.py").read_text(encoding="utf-8")
+    i = g.index("is_window_side = (not _forbids_window)")
+    assert "user_forbids_window_side" in g[i - 500:i], "判官沒有讀旗標"
+
+
+def test_global_note_does_not_touch_photo_scoring():
+    """⚠️ 選圖的 +100 是「這張照片在講靠窗」。全案備註不是某一張的屬性，
+    拿去加分會選錯底圖——所以 _score_photo_for_room 只准看逐張 target_note。"""
+    src = (Path(__file__).resolve().parent / "api.py").read_text(encoding="utf-8")
+    i = src.index("def _score_photo_for_room")
+    seg = src[i:i + 2000]
+    assert "customer_notes" not in seg and "_effective_layout_note" not in seg, \
+        "選圖吃到了全案備註"
+
+
+def test_upload_copy_only_promises_what_the_backend_honours():
+    """上傳頁文案不得承諾後端做不到的事（舊文案寫「哪面牆不要擋」都會生效）。"""
+    html = (Path(__file__).resolve().parent.parent / "upload.html").read_text(encoding="utf-8")
+    i = html.index('class="notes-hint"')
+    seg = html[i:i + 400]
+    for phrase in ("客廳不靠窗", "餐廳中段"):
+        assert phrase in seg, f"文案沒有示範會生效的講法：{phrase}"
+    assert "哪面牆不要擋" not in seg, "文案仍在承諾沒有實作的能力"

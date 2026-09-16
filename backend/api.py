@@ -1074,6 +1074,57 @@ def _note_implies_dining_middle(note: str | None) -> bool:
     return any(k in s for k in dining_markers) and any(k in s for k in middle_markers)
 
 
+# 全案備註（上傳頁最顯眼那個大框）長期【沒有配置效力】：它進得了生成 prompt，
+# 但被 _NOTES_WRAPPER_PREFIX 明文關掉——「只當風格偏好、不准搬客廳」。那是為了防
+# prompt injection。真正有效力的是逐張照片的 target_note，卻收在「＋ 補充說明」
+# 按鈕後面、預設收合。客戶把在意的事寫在看得見的框裡，系統不但不聽，還告訴模型不准聽。
+#
+# 這裡讓全案備註【在已驗證的句型上】也有配置效力。白名單之外的自由文字完全不變，
+# 仍舊只當風格偏好走 wrapper——防注入的設計沒有被放寬。
+#
+# ⚠️ 三條不能漏（漏了會重演 c7b5bf6 那個洞）：
+#   1. 逐張優先、全案補洞，且【絕不把兩段接成一個字串】——「不靠窗」接上「靠窗」
+#      會互相污染子字串判斷。
+#   2. 不接到選圖：_score_photo_for_room 的 +100 是「這張照片在講靠窗」，
+#      全案備註不是某一張的屬性，拿去加分會選錯底圖。
+#   3. 只認已驗證的句型，不為了「讓備註更有用」新增判準（「廚具那邊是餐廳」那類
+#      是指名一面牆、不是進深中段，塞進 dining_middle 會把沙發往窗端推）。
+_OTHER_ROOM_KW = ("臥室", "主臥", "次臥", "小孩房", "兒童房", "書房", "更衣室",
+                  "bedroom", "study", "closet")
+
+
+def _note_has_layout_pattern(note: str | None) -> bool:
+    """這句話含不含【已驗證過】的配置句型。"""
+    from gemini_analyze import note_forbids_window_side
+    n = (note or "").strip()
+    if not n:
+        return False
+    return bool(note_forbids_window_side(n)
+                or _note_implies_rear_near_window(n)
+                or _note_implies_dining_middle(n))
+
+
+def _global_note_scoped_to_other_room(note: str | None) -> bool:
+    """全案備註若明講的是臥室／書房而沒提客廳，不得拿來改客廳契約。"""
+    n = (note or "").strip()
+    if not n:
+        return False
+    return (any(k in n for k in _OTHER_ROOM_KW)
+            and not any(k in n for k in ("客廳", "living")))
+
+
+def _effective_layout_note(photo_note: str | None,
+                           global_notes: str | None) -> tuple[str, str]:
+    """回 (要拿去寫契約的備註, 來源)。逐張優先；逐張沒句型時才用全案。"""
+    p = (photo_note or "").strip()
+    if _note_has_layout_pattern(p):
+        return p, "photo"
+    g = (global_notes or "").strip()
+    if _note_has_layout_pattern(g) and not _global_note_scoped_to_other_room(g):
+        return g, "global"
+    return p, "photo"      # 沒有可辨識句型 → 維持原行為，自由文字繼續走 wrapper
+
+
 def _apply_target_note_layout_constraints(zoning: dict | None,
                                           target_note: str | None,
                                           target_zone: str | None,
@@ -6662,10 +6713,14 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                     zoning_result = {"error": str(ze)[:300], "confidence": "none"}
         print(f"[pipeline] zoning confidence={zoning_result.get('confidence')} "
               f"error={zoning_result.get('error', '(none)')[:80]}")
+        _eff_note, _eff_src = _effective_layout_note(_best_pm_target_note, customer_notes)
+        if _eff_src == "global":
+            print(f"[pipeline] 逐張備註沒有配置句型，改用全案備註：「{_eff_note[:40]}」")
         zoning_result = _apply_target_note_layout_constraints(
             zoning_result,
-            _best_pm_target_note,
-            _best_pm_target_zone,
+            _eff_note,
+            # 全案備註沒有綁定某一張照片，客廳句型一律當成針對客廳
+            _best_pm_target_zone or ("living" if _eff_src == "global" else None),
             _best_pm_location_hint,
         )
         if zoning_result.get("_sofa_layout") == "free":
@@ -7359,6 +7414,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "target_zone":              _best_pm_target_zone or "",
                 "target_location_hint":     _best_pm_location_hint or "",
                 "target_note":              _best_pm_target_note or "",
+                # 🔴 判官原本只問 note_forbids_window_side(target_note)。若禁令是來自
+                #    【全案備註】，target_note 會是空的，而契約覆寫後的 living_where
+                #    含有「不靠窗」→ ws_kws 命中「靠窗」→ is_window_side 又變 True，
+                #    契約禁窗端、判官逼靠窗。旗標跟來源無關，比傳字串乾淨。
+                "user_forbids_window_side": bool(
+                    (zones.get("living_zone") or {}).get("_user_forbids_window_side")),
             }
 
         layout_ctx = _build_layout_ctx(zoning_result)
