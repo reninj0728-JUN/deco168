@@ -132,6 +132,42 @@ def test_no_note_orders_are_untouched():
         assert not out["furniture_placement_rules"].get("no_large_furniture_zones"),             f"note={note!r} 憑空加了 no-go"
 
 
+# ── 生成端：prompt 的深度鐵則不得跟契約打架 ────────────────────────
+#
+# 🔴 這一段是 c7b5bf6 自己挖出來的洞。那一刀把契約覆寫成
+#    「客廳【不靠窗】…不得設在落地窗／採光窗前…」，而 prompt_builder 用的是
+#    `k in living_where` 子字串比對——「不靠窗」裡面含有「靠窗」，於是契約說
+#    不准靠窗、prompt 反而注入「sofa MUST be placed close to the window」。
+#    判官那時已經改成否定優先、不會再擋 → 圖會過、位置照樣錯。
+WINDOW_WHERE = "靠陽台採光落地窗前方的中深處地面與左側長牆區域"
+DEPTH_RULE = "sofa MUST be placed close to the window"
+
+
+def _layout_section(note):
+    from prompt_builder import _build_layout_section
+    z = {"zones": {"living_zone": {"where": WINDOW_WHERE}},
+         "furniture_placement_rules": {}, "_origin": "user_confirmed_v2",
+         "spatial_synthesis": {}}
+    return _build_layout_section(api._apply_target_note_layout_constraints(
+        z, note, "living", "unspecified"))
+
+
+def test_prompt_does_not_force_window_side_for_a_negative_note():
+    assert DEPTH_RULE not in _layout_section(NEG),         "契約說不准靠窗，prompt 仍注入「沙發必須靠窗」——兩邊打架"
+
+
+@pytest.mark.parametrize("note", [POS, "", "喜歡淺木色"])
+def test_prompt_keeps_window_rule_for_everyone_else(note):
+    """肯定句與沒備註的單，原有的靠窗深度鐵則一個字都不能少。"""
+    assert DEPTH_RULE in _layout_section(note), f"note={note!r} 的靠窗鐵則被誤刪"
+
+
+def test_prompt_side_uses_the_shared_helper():
+    src = (Path(__file__).resolve().parent / "prompt_builder.py").read_text(encoding="utf-8")
+    i = src.index("is_window_side = ")
+    assert "note_forbids_window_side" in src[i - 700:i + 200],         "prompt_builder 的 is_window_side 沒接上否定判準"
+
+
 # ── 選圖：否定句不得被當成「靠窗主圖」最強信號 ──────────────────────
 def test_photo_scoring_does_not_boost_a_negative_note():
     neg = api._score_photo_for_room({"target_note": NEG, "photo_contains": ["living"]}, "living")

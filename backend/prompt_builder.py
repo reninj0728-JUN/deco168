@@ -269,7 +269,20 @@ def _build_layout_section(zoning: dict, target_note: str | None = None,
             "window", "back of the room", "back end", "deep end",
             "far end", "rear",
         ]
-        is_window_side = any(k in living_where for k in window_side_keywords)
+        # 🔴 否定優先，而且這一段是 c7b5bf6 自己挖出來的洞：
+        #    那一刀把契約的 living_zone.where 覆寫成
+        #    「客廳【不靠窗】…不得設在落地窗／採光窗前…」，而這裡用的是
+        #    `k in living_where` 子字串比對——「不靠窗」裡面含有「靠窗」，於是
+        #    契約說不准靠窗、prompt 反而注入「sofa MUST be placed close to the
+        #    window」。判官那邊已經改成否定優先、不會再擋，圖會過、位置照樣錯。
+        #    契約／判官／選圖都接上了，生成端這條深度鐵則不能漏。
+        from gemini_analyze import note_forbids_window_side
+        _forbids_window = bool(
+            (zones.get("living_zone") or {}).get("_user_forbids_window_side")
+            or note_forbids_window_side(living_where_raw)
+        )
+        is_window_side = (not _forbids_window) and any(
+            k in living_where for k in window_side_keywords)
         if is_window_side:
             depth_hint = (
                 " The confirmed living zone is described as on the WINDOW-SIDE / BACK / DEEP "
