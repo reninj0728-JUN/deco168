@@ -602,16 +602,30 @@ def test_lookup_page_routes_partial_delivery_to_the_result_page():
 
 
 def test_lookup_page_does_not_call_partial_delivery_still_generating():
-    """部分交付的狀態文字不得說「生成中」——那是說謊。"""
-    i = DOWNLOAD_HTML.index("_partial ? '")
-    seg = DOWNLOAD_HTML[i:i + 120]
-    assert "部分交付" in seg
+    """部分交付的狀態文字不得說「生成中」——那是說謊。
+
+    ⚠️ 錨點換過：原本是 `_partial ? '…'` 一個三元運算子，現在 incomplete 與
+    repairing 分開講（incomplete 已經跑完，不能再說「優化中」），所以改成掃
+    整個 _txt 判斷區塊。守的東西沒變。
+    """
+    i = DOWNLOAD_HTML.index("var _txt;")
+    seg = DOWNLOAD_HTML[i:DOWNLOAD_HTML.index("textContent = _txt;", i)]
+    code = chr(10).join(l for l in seg.splitlines() if not l.strip().startswith("//"))
+    assert "部分交付" in code
     for lie in ("生成中", "請稍後", "5-15"):
-        assert lie not in seg, f"部分交付的狀態文字仍寫著「{lie}」"
+        assert lie not in code, f"部分交付的狀態文字仍寫著「{lie}」"
+    # incomplete（修復已跑完、沒補上）不得再叫客戶等
+    _inc = code[code.index("} else {"):]
+    assert "優化中" not in _inc, "incomplete 仍說「仍在優化中」，客戶會一直等"
+    assert "status.message" in _inc, "incomplete 沒有採用後端寫好的說法"
 
 
 def test_lookup_page_still_hides_the_processing_note_for_partial():
-    """給了結果頁入口就不能同時掛「正在生成中」的提示，兩者矛盾。"""
+    """給了結果頁入口就不能同時掛「正在生成中」的提示，兩者矛盾。
+
+    ⚠️ 原本用固定 700 字的視窗，_txt 那段加了說明註解就超出範圍而誤紅。
+    改成量到「顯示結果區塊」為止，跟程式長度無關。
+    """
     i = DOWNLOAD_HTML.index("var _partial =")
-    seg = DOWNLOAD_HTML[i:i + 700]
+    seg = DOWNLOAD_HTML[i:DOWNLOAD_HTML.index("var openBox", i)]
     assert "getElementById('processingNote').style.display = 'none'" in seg

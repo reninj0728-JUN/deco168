@@ -131,8 +131,23 @@
       // incomplete/repairing = 「部分交付、主空間仍在優化」，不是「還在生成」。
       var _partial = (status.status === 'incomplete' || status.status === 'repairing');
       if (status.status === 'completed' || _partial) {
-        document.getElementById('statusText').textContent =
-          _partial ? '部分交付．主空間仍在優化中' : '✓ 設計完成';
+        // 🔴 incomplete 與 repairing 是兩件事，不能綁成同一句：
+        //      repairing  = 修復【正在跑】→「仍在優化中」是對的
+        //      incomplete = 修復【跑完了、沒補上】，progress 已經 100
+        //   舊版兩者都寫「主空間仍在優化中」，客戶會一直等一個不會來的結果。
+        //   而後端 message 早就寫對了（EA8C677D：「主空間仍未通過配置驗收，
+        //   請聯絡客服免費重出」），只是原本只在還在生成的 else 分支才顯示，
+        //   一進 incomplete 就被這句硬寫的字蓋掉。
+        //   成品頁那邊講的是「請聯絡客服免費重出」——同一張單不能兩套說法。
+        var _txt;
+        if (status.status === 'completed') {
+          _txt = '✓ 設計完成';
+        } else if (status.status === 'repairing') {
+          _txt = '部分交付．主空間仍在優化中';
+        } else {
+          _txt = status.message || '部分交付．主空間未通過品質檢查，請聯絡客服免費重出';
+        }
+        document.getElementById('statusText').textContent = _txt;
         document.getElementById('statusText').className = 'status-value done';
         document.getElementById('processingNote').style.display = 'none';
         // 完整成品頁入口：家具清單/軟裝建議/設計手冊 PDF/購物清單都在成品頁，
@@ -181,7 +196,11 @@
       list.innerHTML = '';
       renders.forEach(function(render, i) {
         var imgUrl = render.render_url || null;
-        var name = render.style_label || render.style || ('設計方案 ' + (i+1));
+        // 三張臥室原本全部只標「現代輕奢」，客戶分不出哪張是哪間，下載下來檔名
+        // 也一模一樣。加上角度／房間名才認得出來。
+        var _style = render.style_label || render.style || ('設計方案 ' + (i + 1));
+        var _room = render.angle_label || render.room_key || render.room_type || '';
+        var name = _room ? (_style + ' · ' + _room) : _style;
         var item = document.createElement('div');
         item.className = 'render-item';
         item.innerHTML =
@@ -197,7 +216,9 @@
   function dlImg(url, name) {
     var a = document.createElement('a');
     a.href = url;
-    a.download = name + '.jpg';
+    // 檔名帶房間名（「現代輕奢 · 臥室 1」），但要清掉 Windows/macOS 不收的字元，
+    // 否則瀏覽器會整個忽略 download 屬性、退回用網址結尾當檔名。
+    a.download = String(name).replace(/[\\/:*?"<>|]/g, '-').replace(/\s*·\s*/g, '_') + '.jpg';
     a.target = '_blank';
     a.click();
   }
