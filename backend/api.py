@@ -1093,6 +1093,18 @@ _OTHER_ROOM_KW = ("臥室", "主臥", "次臥", "小孩房", "兒童房", "書�
                   "bedroom", "study", "closet")
 
 
+def _note_names_living(note: str | None) -> bool:
+    """這句話有沒有【點名客廳】。
+
+    用來補上 target_zone 的縫：客戶寫「客廳不靠窗」，卻因為最佳照片被標成
+    餐廳／臥室（或根本沒標）就失效——那是把「這張照片拍到哪」跟「客戶在講哪一間」
+    混為一談。句子自己點名客廳時，就套到客廳，跟照片標籤無關。
+    ⚠️ 沒點名房間的「不靠窗」維持原行為：照 target_zone 走（臥室照片＝在講臥室）。
+    """
+    n = (note or "").strip().lower()
+    return bool(n) and ("客廳" in n or "living" in n)
+
+
 def _note_has_layout_pattern(note: str | None) -> bool:
     """這句話含不含【已驗證過】的配置句型。"""
     from gemini_analyze import note_forbids_window_side
@@ -1146,7 +1158,8 @@ def _apply_target_note_layout_constraints(zoning: dict | None,
     if not isinstance(rules, dict):
         return zoning
 
-    if target_zone == "living" and (
+    _living_scope = (target_zone == "living") or _note_names_living(note)
+    if _living_scope and (
         location_hint == "rear_near_window" or _note_implies_rear_near_window(note)
     ):
         living_zone = zones.setdefault("living_zone", {})
@@ -1163,7 +1176,7 @@ def _apply_target_note_layout_constraints(zoning: dict | None,
     #    ⚠️ 只禁窗端，不指定去哪——「不靠窗」沒說要去近端，硬推近端會撞
     #       2879173D（沙發吃掉進門落腳區）。
     from gemini_analyze import note_forbids_window_side
-    if target_zone == "living" and note_forbids_window_side(note):
+    if _living_scope and note_forbids_window_side(note):
         living_zone = zones.setdefault("living_zone", {})
         if isinstance(living_zone, dict):
             living_zone["where"] = (

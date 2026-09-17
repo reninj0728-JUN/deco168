@@ -248,3 +248,45 @@ def test_upload_copy_only_promises_what_the_backend_honours():
     for phrase in ("客廳不靠窗", "餐廳中段"):
         assert phrase in seg, f"文案沒有示範會生效的講法：{phrase}"
     assert "哪面牆不要擋" not in seg, "文案仍在承諾沒有實作的能力"
+
+
+# ── target_zone 的縫：句子點名客廳時，不該被照片標籤擋掉 ──────────
+#
+# 38dc200 之後還剩一個縫：禁令要過 `target_zone == "living"`。客戶寫「客廳不靠窗」，
+# 卻因為最佳照片被標成餐廳／臥室（或根本沒標）就失效——那是把「這張照片拍到哪」
+# 跟「客戶在講哪一間」混為一談。
+#
+# ⚠️ v4.1 曾宣稱「逐張路徑完全失效、第 0 步只做一半」——那是假警報。
+#    實測 target_zone='living'（7F0874C7 的真實值）禁令本來就是 True。
+#    真正的縫只在 dining / bedroom / 未標 這三種。
+
+def _ban_applied(photo_note, global_notes, photo_zone):
+    note, src = api._effective_layout_note(photo_note, global_notes)
+    tz = photo_zone or ("living" if src == "global" else None)   # 複製呼叫點那一行
+    z = {"zones": {"living_zone": {"where": WINDOW_WHERE}}, "furniture_placement_rules": {}}
+    z = api._apply_target_note_layout_constraints(z, note, tz, None)
+    return bool(z["zones"]["living_zone"].get("_user_forbids_window_side"))
+
+
+@pytest.mark.parametrize("photo_zone", ["living", "dining", "bedroom", None])
+def test_note_naming_living_applies_regardless_of_photo_tag(photo_zone):
+    """點名客廳的句子，照片標成什麼都要生效——逐張與全案兩條路都是。"""
+    assert _ban_applied(NEG, "", photo_zone) is True, f"逐張 + {photo_zone} 失效"
+    assert _ban_applied("", NEG, photo_zone) is True, f"全案 + {photo_zone} 失效"
+
+
+def test_the_real_order_path_works():
+    """7F0874C7 的真實值就是 target_zone='living' + target_note='客廳不靠窗'。"""
+    assert _ban_applied("客廳不靠窗", "", "living") is True
+
+
+def test_note_without_a_room_name_still_follows_the_photo_tag():
+    """⚠️ 沒點名房間的「不靠窗」維持原行為：臥室照片＝在講臥室，不得改客廳。"""
+    assert _ban_applied("不靠窗", "", "living") is True
+    assert _ban_applied("不靠窗", "", "bedroom") is False
+
+
+def test_bedroom_scoped_note_never_touches_living():
+    """「主臥不靠窗」點名的是臥室，兩條路都不得改到客廳契約。"""
+    assert _ban_applied("主臥不靠窗", "", "bedroom") is False
+    assert _ban_applied("", "主臥不靠窗", "bedroom") is False
