@@ -133,6 +133,52 @@ def test_dropped_rooms_survive_but_not_the_reject_image():
     assert dr == {"room_type": "living", "angle_label": "客廳"}
 
 
+def test_reshoot_card_still_gets_its_failure_signals():
+    """🔴 白名單第一版把 failure_class / layout_mode 濾掉了——那是迴歸。
+
+    結果頁的 isModellingFailure() 就是看這兩個欄位是不是
+    s2_preflight_blocked / s2_blocked_legacy，才決定要說
+    「這個角度建模不了，請換角度重拍」還是「系統已自動修正／聯絡客服免費重出」。
+    欄位一掉，判斷永遠 false，付費前被擋下的客廳會拿到完全相反的文案——
+    正是 71DC312E / 293BDE11 花力氣拆開的那兩句。
+    """
+    src = dict(FULL)
+    src["validation_summary"] = {
+        "delivered": 0, "dropped": 1, "total": 1,
+        "dropped_renders": [{
+            "room_type": "living", "angle_label": "客廳",
+            "failure_class": "s2_preflight_blocked", "layout_mode": "s2_blocked_legacy",
+            "style": "nordic", "style_label": "北歐",
+            "blocked_render_url": "https://x/blocked.jpg", "contract_hash": "c" * 64}]}
+    d = api._client_result_payload(src)["validation_summary"]["dropped_renders"][0]
+    assert d.get("failure_class") == "s2_preflight_blocked", "重拍卡判斷失去依據"
+    assert d.get("layout_mode") == "s2_blocked_legacy"
+    assert "blocked_render_url" not in d, "落選圖網址不該回"
+    assert "contract_hash" not in d
+
+
+def test_whitelist_covers_every_dropped_field_the_page_reads():
+    """跟 result.html 對帳：它從 dropped 元素讀的欄位，白名單要全部放行。
+
+    ⚠️ 例外只有 blocked_render_url——那是刻意不回的（落選圖不給客戶看）。
+    第一版我只掃了 showDroppedNotice 附近 21 行，漏掉 isModellingFailure()，
+    所以才把失敗分類濾掉。這條改成掃全檔。
+    """
+    html = (ROOT / "result.html").read_text(encoding="utf-8")
+    read = set()
+    for m in re.finditer(r"(dropped|dropped_renders)[^;{]{0,80}?function\s*\((\w+)\)\s*\{", html):
+        var = m.group(2)
+        seg = html[m.end():m.end() + 500]
+        read |= set(re.findall(r"\b" + var + r"\.([A-Za-z_][A-Za-z0-9_]*)", seg))
+    assert read, "掃不到 dropped 的欄位存取，測試目標錯了"
+    src = dict(FULL)
+    src["validation_summary"] = {"delivered": 0, "dropped": 1, "total": 1,
+                                 "dropped_renders": [{k: "x" for k in read}]}
+    got = set(api._client_result_payload(src)["validation_summary"]["dropped_renders"][0])
+    missing = read - got - {"blocked_render_url"}
+    assert not missing, f"result.html 會讀但白名單濾掉了：{sorted(missing)}"
+
+
 # ── 方案由後端決定 ──────────────────────────────────────────────
 def test_plan_comes_from_the_backend(out):
     """前端原本讀 localStorage，別人開分享連結會看到「單一空間」。"""

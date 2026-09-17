@@ -9341,8 +9341,17 @@ def _client_result_payload(result: dict) -> dict:
         out["validation_summary"] = {k: vs[k] for k in ("delivered", "dropped", "total")
                                      if k in vs}
         if isinstance(vs.get("dropped_renders"), list):
+            # 🔴 failure_class / layout_mode 必須留：結果頁的 isModellingFailure()
+            #    就是看它們是不是 s2_preflight_blocked / s2_blocked_legacy，才決定
+            #    要說「這個角度建模不了，請換角度重拍」還是「系統已自動修正／
+            #    聯絡客服免費重出」。第一版白名單只留房型與角度，那兩個欄位一掉，
+            #    判斷永遠 false，付費前被擋下的客廳會拿到完全相反的文案——
+            #    正是 71DC312E / 293BDE11 花力氣拆開的那兩句。
+            #    ⚠️ blocked_render_url 仍然不回：圖不給客戶看，分類要留。
             out["validation_summary"]["dropped_renders"] = [
-                {k: x[k] for k in ("room_type", "angle_label") if k in x}
+                {k: x[k] for k in ("room_type", "angle_label", "failure_class",
+                                   "layout_mode", "style", "style_label",
+                                   "angles", "timeout") if k in x}
                 for x in vs["dropped_renders"] if isinstance(x, dict)]
 
     # 方案（單一空間／全室）改由後端決定：前端原本讀 localStorage，別人開分享
