@@ -9275,6 +9275,88 @@ def get_status(job_id: str):
         return json.load(f)
 
 
+# ── 客戶版 payload 白名單 ────────────────────────────────────────────
+#
+# 🔴 /api/job/{id}/result 沒有認證：知道 8 碼 job id 就拿得到整包。實測
+#    C1168B61 回 47,287 字元，裡面有伺服器絕對路徑 /app/jobs/…、14 個
+#    sha256／fingerprint、flux_prompt（我們餵模型的完整指令）、zoning 的
+#    _provenance、廚房 bbox。結果頁一個都沒用到——分享連結＝整包工作底稿外流。
+#
+# ⚠️ 先前那次「優化」是 payload_trimmed，目的是【DB 塞不下 8.6MB】的容量裁切，
+#    不是權限控制。同一個詞、不同問題，所以這裡一直是全裸的。
+#
+# 白名單的來源是實際掃 result.html 的欄位存取，不是憑感覺列的。
+# 新增前端欄位時要同步加進來，否則畫面會少東西——test_result_payload_whitelist
+# 會比對 result.html 實際讀的欄位，漏了就紅。
+_CLIENT_TOP = (
+    "renders", "analysis", "customer_inputs", "validation_summary", "rooms",
+    "created_at", "message", "repairing", "repair_incomplete",
+    "needs_regen", "living_incomplete",
+)
+_CLIENT_RENDER = (
+    "style", "style_label", "room_type", "room_key", "angle_label",
+    "render_url", "render_filename", "cropped", "door_excluded", "status", "ok",
+    "matched_furniture", "soft_furnishing", "notes",
+)
+# analysis 只留客戶讀得到的四段文字。architectural_features（含廚具描述與位置）、
+# room_dimensions、flux prompt、photo_classifications 等一律留在伺服器。
+_CLIENT_ANALYSIS = ("design_analysis", "layout_notes", "lighting", "space_type")
+# customer_inputs 留他自己填的與方案資訊；photo_meta_by_key 會帶上傳路徑，不回。
+_CLIENT_INPUTS = (
+    "design_mode", "budget_tier", "budget_label_zh",
+    "preferred_store_label_zh", "customer_notes",
+)
+_CLIENT_ROOM = ("room_id", "room_type", "is_primary", "label", "room_key")
+
+
+def _client_result_payload(result: dict) -> dict:
+    """把存檔的完整 result_json 濾成客戶頁真的用得到的那些欄位。"""
+    if not isinstance(result, dict):
+        return result
+    out = {k: result[k] for k in _CLIENT_TOP if k in result}
+
+    rs = []
+    for r in (result.get("renders") or []):
+        if not isinstance(r, dict):
+            continue
+        rs.append({k: r[k] for k in _CLIENT_RENDER if k in r})
+    if "renders" in out:
+        out["renders"] = rs
+
+    if isinstance(result.get("analysis"), dict):
+        out["analysis"] = {k: result["analysis"][k]
+                           for k in _CLIENT_ANALYSIS if k in result["analysis"]}
+    if isinstance(result.get("customer_inputs"), dict):
+        out["customer_inputs"] = {k: result["customer_inputs"][k]
+                                  for k in _CLIENT_INPUTS if k in result["customer_inputs"]}
+    if isinstance(result.get("rooms"), list):
+        out["rooms"] = [{k: x[k] for k in _CLIENT_ROOM if k in x}
+                        for x in result["rooms"] if isinstance(x, dict)]
+    vs = result.get("validation_summary")
+    if isinstance(vs, dict):
+        # 只留結果頁會顯示的：三個數字 ＋ 哪幾間房沒交付（房型與角度名稱）。
+        # ng_reasons／contract hash／內部路徑不回；blocked_render_url 也不回——
+        # 落選圖已不給客戶看（見 result.html 的 blockedPreviewHTML），
+        # 圖本身留在 Supabase，內部用 _rejected_renders.py 看。
+        out["validation_summary"] = {k: vs[k] for k in ("delivered", "dropped", "total")
+                                     if k in vs}
+        if isinstance(vs.get("dropped_renders"), list):
+            out["validation_summary"]["dropped_renders"] = [
+                {k: x[k] for k in ("room_type", "angle_label") if k in x}
+                for x in vs["dropped_renders"] if isinstance(x, dict)]
+
+    # 方案（單一空間／全室）改由後端決定：前端原本讀 localStorage，別人開分享
+    # 連結會看到「單一空間」——這單其實是全室 4 個空間。
+    _rooms = {str(r.get("room_key") or r.get("room_type") or "")
+              for r in rs if r.get("room_key") or r.get("room_type")}
+    _rooms.discard("")
+    out["plan"] = "B" if (len(_rooms) > 1
+                          or str((result.get("analysis") or {}).get("space_type") or "") == "全室"
+                          ) else "A"
+    out["room_count"] = len(_rooms)
+    return out
+
+
 @app.get("/api/job/{job_id}/result")
 def get_result(job_id: str):
     # 優先讀 Supabase result_json
@@ -9287,8 +9369,8 @@ def get_result(job_id: str):
         # 目前全空，金流未接通前結果頁不得宣稱付款。）
         if isinstance(result, dict) and row.get("created_at") and not result.get("created_at"):
             result = {**result, "created_at": row["created_at"]}
-        # render_filename 已在寫入時存好，直接回傳
-        return result
+        # render_filename 已在寫入時存好；濾成客戶版再回（見上方白名單註解）
+        return _client_result_payload(result)
 
     # fallback: 本機 result.json
     result_file = JOBS_DIR / job_id / "result.json"
@@ -9305,7 +9387,7 @@ def get_result(job_id: str):
     for render in result.get("renders", []):
         path = render.get("render_path", "")
         render["render_filename"] = Path(path).name if path else None
-    return result
+    return _client_result_payload(result)
 
 
 @app.get("/api/job/{job_id}/error")

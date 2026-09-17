@@ -335,7 +335,9 @@
   function fillMeta() {
     // #4：顯示純 job id（與 generate 頁、查詢下載頁一致；查詢頁就是用這個純 id 查），不要加 ORD- 前綴造成「編號不一樣」的誤會
     var orderId   = JOB_ID || (localStorage.getItem('deco_order_id') || '').replace(/^ORD-/, '') || '—';
-    var plan      = localStorage.getItem('deco_plan') || 'A';
+    // 後端算的方案優先：localStorage 是「這台瀏覽器」的，別人開分享連結會變成
+    // 預設的「單一空間」——這單其實是全室 4 個空間。
+    var plan      = ((typeof window !== 'undefined' && window._hb && window._hb.plan) || localStorage.getItem('deco_plan') || 'A');  // 後端優先，localStorage 只當退路
     var planLabel = plan === 'B' ? '全室空間' : '單一空間';
     // ⚠️ 這個欄位原本叫「付款日期」，但它讀的是 localStorage 的 deco_order_time
     // ——結帳流程在**客戶瀏覽器本地**寫的時間戳，不是後端資料。同一張單換設備
@@ -471,7 +473,7 @@
     });
     var styleCount = Object.keys(styleSet).length;
     var roomCount = Object.keys(roomSet).length;
-    var plan = localStorage.getItem('deco_plan') || 'A';
+    var plan = ((typeof window !== 'undefined' && window._hb && window._hb.plan) || localStorage.getItem('deco_plan') || 'A');  // 後端優先（分享連結不會變成「單一空間」）
     var scope = (roomCount > 1 || plan === 'B')
       ? (roomCount ? roomCount + ' 個空間' : '全室空間')
       : '單一空間';
@@ -620,9 +622,13 @@
         + '<img src="' + u + '" alt="未通過品檢的版本" '
         + 'style="max-width:130px;max-height:96px;border-radius:6px;border:1px solid rgba(220,80,80,.4);opacity:.7;"></a>';
     }).join('');
-    return '<details style="margin-top:12px;padding-top:10px;border-top:1px dashed rgba(220,80,80,.3);">'
-      + '<summary style="cursor:pointer;font-size:12px;color:#a88;">查看未通過的版本（非成品，僅供內部參考）</summary>'
-      + '<div style="margin-top:8px;">' + thumbs + '</div></details>';
+    // 🔴 落選圖不再給客戶看。原本這裡會秀 3 張紅框半透明的「未通過品檢」版本，
+    //    摺疊標題還寫「僅供內部參考」——那句是寫給客戶看的，語氣像後台漏出來，
+    //    而且看到品檢沒過的圖只會讓人懷疑成品。
+    //    ⚠️ 圖本身沒有刪：render_url 仍存在 Supabase，內部用
+    //       backend/_rejected_renders.py 列出來看（不經過客戶頁）。
+    void thumbs;
+    return '';
   }
 
   function showDroppedNotice(vs, data) {
@@ -1179,7 +1185,22 @@
           document.getElementById('tabsContainer').innerHTML =
             '<div class="loading-msg">仍在處理中（' + msg.split(':')[1] + '）<br>請稍後再重新整理頁面。</div>';
         } else {
-          buildUI(_demoRenders);
+          // 🔴 這裡原本是 buildUI(_demoRenders)：載入失敗（後端重啟、網路斷一下）
+          //    就把寫死的示範設計當成客戶自己的單畫出來，畫面上還不會說那是假的。
+          //    付費客戶重整一次就可能看到別人的示範沙發。寧可說「再試一次」。
+          //    ⚠️ 這跟「生成失敗要重拍」是兩回事——那條走 needs_regen，不在這裡。
+          document.getElementById('tabsContainer').innerHTML =
+            '<div class="loading-msg">設計圖載入中，請稍候…<br>'
+            + '<span style="font-size:12px;opacity:.7;">網路不穩時可能需要多等幾秒</span></div>';
+          if (!window._retryCount) window._retryCount = 0;
+          if (window._retryCount < 3) {
+            window._retryCount++;
+            setTimeout(loadResult, 2500 * window._retryCount);
+          } else {
+            document.getElementById('tabsContainer').innerHTML =
+              '<div class="loading-msg">暫時讀不到你的設計圖。<br>'
+              + '請重新整理頁面，或稍後再開啟這個連結。</div>';
+          }
         }
       });
   }
