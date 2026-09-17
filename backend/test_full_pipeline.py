@@ -1285,6 +1285,13 @@ def generate_renders(image_paths, enriched_renders: list[dict], output_dir: str 
             if _kit and _kit not in ("無", "None", "none"):
                 render["_fixed_kitchen"] = _kit
 
+            # 步驟 2：沒有可用電視牆時，prompt 不再要求「沙發正對電視櫃」——
+            # 那條硬約束會逼模型生一個電視櫃出來，而唯一放得下的位置就是廚具牆
+            # （7F0874C7 的廚具就是這樣被蓋掉的）。旗標由 api.py 算好掛在 entry 上。
+            if render.get("_no_focal_wall") is None:
+                render["_no_focal_wall"] = bool(
+                    (zoning or {}).get("_no_focal_wall"))
+
             inputs = build_nano_banana_inputs(render, zoning, base_image_url,
                                               customer_notes=customer_notes,
                                               budget_tier=budget_tier,

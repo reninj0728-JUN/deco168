@@ -483,12 +483,54 @@ def _window_side_from_zoning(zoning: dict | None) -> str:
     return ""
 
 
+# 固定廚具＝建築設備，不是可以換掉的家具。有這些字的牆不能當電視牆／沙發背牆。
+# 7F0874C7：右牆「中段至深端內嵌整合有一字型廚具料理台與吊櫃」，系統卻選它當
+# 焦點牆，模型為了放電視櫃把整組廚具蓋掉。
+# ⚠️ 讀的是 wall_inventory 的文字描述，不是 kitchen_zone——zoning 攤平成 v1 時
+#    kitchen_zone 會被丟掉（實測：v2 有、攤平後的 zones 只剩 walkway/no_go/
+#    dining/living/entrance），決策當下拿不到。
+_FIXED_FIXTURE_KW = (
+    "廚具", "流理", "料理台", "料理檯", "water槽", "水槽", "洗手槽", "瓦斯爐", "爐台", "爐檯",
+    "抽油煙", "吊櫃", "上下櫃", "櫥櫃", "中島", "電器櫃", "kitchen", "cooktop",
+    "range hood", "sink",
+)
+
+
+def _wall_has_fixed_fixture(wall: dict | None) -> bool:
+    """這面牆上有沒有拆不掉的固定設備（廚具為主）。"""
+    if not isinstance(wall, dict):
+        return False
+    txt = f"{wall.get('name', '')} {wall.get('description', '')}".lower()
+    return any(k.lower() in txt for k in _FIXED_FIXTURE_KW)
+
+
+def _fixture_sides_from_zoning(zoning: dict | None) -> set:
+    """哪幾側的牆被固定設備佔著。回 {'left'} / {'right'} / 空集合。"""
+    out = set()
+    syn = (zoning or {}).get("spatial_synthesis") or {}
+    for wall in syn.get("wall_inventory") or []:
+        if not _wall_has_fixed_fixture(wall):
+            continue
+        txt = f"{wall.get('name', '')} {wall.get('description', '')}"
+        low = txt.lower()
+        if "左" in txt or "left" in low:
+            out.add("left")
+        elif "右" in txt or "right" in low:
+            out.add("right")
+    return out
+
+
 def _preferred_focal_side(zoning: dict | None) -> str:
     """AI 自動配置的 TV／焦點牆｜完整實牆優先，避開主窗與入口側。"""
     z = zoning or {}
     syn = z.get("spatial_synthesis") or {}
     entrance = _entrance_side_from_zoning(z)
     window = _window_side_from_zoning(z)
+    # 步驟 1：固定廚具那面牆不能當焦點牆。zoning 自己都寫了「廚房位置為固定建築
+    # 設備，不可變動」，選邊邏輯卻從來沒讀過——kitchen_zone 只被拿去畫分區圖。
+    # ⚠️ 排除後若兩側都不可用，回空字串（＝沒有安全焦點牆），交給步驟 2；
+    #    絕不「右邊是廚具就改選左邊」——左邊常是門牆，那只是換一個東西撞。
+    _fixture = _fixture_sides_from_zoning(z)
     # 左右兩側一邊是入口、一邊是主窗時，沒有安全的左右焦點牆；
     # 交回 AI 改找前／後實牆或斜向配置，不硬猜其中一邊。
     if entrance in ("left", "right") and window in ("left", "right") and entrance != window:
@@ -506,7 +548,7 @@ def _preferred_focal_side(zoning: dict | None) -> str:
             side = "left" if ("左" in txt or "left" in txt.lower()) else (
                 "right" if ("右" in txt or "right" in txt.lower()) else "")
             if side == opposite and wall.get("has_opening") is False:
-                return entrance
+                return "" if entrance in _fixture else entrance
     scores = {"left": 0, "right": 0}
     found = False
     for wall in syn.get("wall_inventory") or []:
@@ -526,16 +568,26 @@ def _preferred_focal_side(zoning: dict | None) -> str:
         if side == entrance:
             scores[side] -= 2
     if found or any(scores.values()):
-        return "right" if scores["right"] >= scores["left"] else "left"
+        _pick = "right" if scores["right"] >= scores["left"] else "left"
+        if _pick in _fixture:
+            _other = "left" if _pick == "right" else "right"
+            # 另一側也不乾淨（廚具／有開口）就誠實回空，不硬選
+            if _other in _fixture or scores[_other] < 0:
+                return ""
+            return _other
+        return _pick
+    _fb = ""
     if entrance == "left":
-        return "right"
-    if entrance == "right":
-        return "left"
-    if window == "left":
-        return "right"
-    if window == "right":
-        return "left"
-    return "right"
+        _fb = "right"
+    elif entrance == "right":
+        _fb = "left"
+    elif window == "left":
+        _fb = "right"
+    elif window == "right":
+        _fb = "left"
+    else:
+        _fb = "right"
+    return "" if _fb in _fixture else _fb
 
 
 def _room_can_float_sofa(analysis: dict | None, zoning: dict | None) -> bool:
@@ -4451,7 +4503,8 @@ def _run_layout_contract_s2(
         }, artifacts)
 
 
-def _display_cats_for_room(room_type: str | None) -> set:
+def _display_cats_for_room(room_type: str | None,
+                           no_focal_wall: bool = False) -> set:
     """客戶清單「這個房型會顯示哪些品類」——**判官與客戶清單共用這一份**。
 
     🔴 D7F52CB1 抓到的不一致：客戶清單在存檔前被 `_rendered_core_only` 依品類
@@ -4467,6 +4520,11 @@ def _display_cats_for_room(room_type: str | None) -> set:
     """
     from furniture_match import LIVING_MUST_HAVE
     living = set(LIVING_MUST_HAVE)          # sofa/coffee_table/rug/media_console
+    # 步驟 2：這間房沒有可用電視牆時，清單本來就不會有電視櫃——判官再要求它入圖
+    # 就變成「追一個客戶看不到的品項」，每張圖都 ok=False（正是這支函式的 docstring
+    # 記載的那個病）。清單／配對／prompt／判官四邊必須一起鬆。
+    if no_focal_wall:
+        living.discard("media_console")
     return {
         "living":  living,
         "bedroom": {"bed", "storage", "side_table", "rug"},
@@ -4506,7 +4564,8 @@ def _product_fidelity_into_layout_ctx(layout_ctx: dict | None, entry_or_render: 
     # （燈具/單椅/邊几）不進 must——要求圖上畫出客戶沒買的東西，擋不到任何風險，
     # 只會製造永遠為 False 的 ok 與追不完的幽靈品項。
     _display_cats = _display_cats_for_room(
-        entry_or_render.get("room_type") or entry_or_render.get("_room_type"))
+        entry_or_render.get("room_type") or entry_or_render.get("_room_type"),
+        no_focal_wall=bool(entry_or_render.get("_no_focal_wall")))
     for it in (entry_or_render.get("matched_furniture") or []):
         _cat = (it.get("category_en") or "") if isinstance(it, dict) else ""
         if _cat and _cat not in _display_cats:
@@ -6754,6 +6813,16 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         distinct_rks = list(dict.fromkeys(angle_room_keys)) or ["living"]
         enriched_by_rk: dict[str, list] = {}
         _used_ids_by_style: dict[str, set] = {}
+        # 步驟 2 的觸發條件：客廳一面乾淨的電視牆都沒有（三面都是門／窗／固定廚具）。
+        # _preferred_focal_side 排除廚具牆之後回空字串，就是這個意思。
+        # ⚠️ 只對客廳生效——臥室／書房沒有「電視牆」這個概念。
+        _no_focal = not _preferred_focal_side(zoning_result)
+        # 寫回 zoning，generate_renders 才把旗標掛到 render entry 上給 prompt_builder 讀
+        if isinstance(zoning_result, dict):
+            zoning_result["_no_focal_wall"] = bool(_no_focal)
+        if _no_focal:
+            print("[pipeline] 客廳沒有可用的電視牆（門／窗／固定廚具佔滿）"
+                  "→ 不強制配電視櫃，prompt 也不再要求沙發正對電視")
         for _rk in distinct_rks:
             _rt = _room_key_to_rt(_rk)
             _lst = enrich_renders(renders_in, analysis=analysis,
@@ -6761,7 +6830,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                   preferred_store=preferred_store,
                                   room_type=_rt,
                                   palettes=palettes,
-                                  exclude_ids_by_style=_used_ids_by_style)
+                                  exclude_ids_by_style=_used_ids_by_style,
+                                  no_focal_wall=(_no_focal and _rt == "living"))
             enriched_by_rk[_rk] = _lst
             # 記下這間選了什麼，下一間就不會再挑同一件（依 regions 順序＝客廳優先）
             for _one in _lst:
@@ -8179,9 +8249,12 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
         # 否則客戶會看到圖上沒有的家具（且還掛價格）。
         # 品類表已提到模組層 `_display_cats_for_room`——判官的 must_products 讀同一份。
         # 兩邊各留一份就是 D7F52CB1「判官追客戶看不到的品項」那個病的病根。
-        def _rendered_core_only(mf: list, room_type: str = "living") -> list:
+        def _rendered_core_only(mf: list, room_type: str = "living",
+                                no_focal_wall: bool = False) -> list:
             mf = mf or []
-            cats = _display_cats_for_room(room_type)
+            # 沒有電視牆時清單本來就不會有電視櫃，這裡的品類表要跟著鬆，
+            # 否則判官與客戶清單又會各留一份（D7F52CB1 那個病）。
+            cats = _display_cats_for_room(room_type, no_focal_wall=no_focal_wall)
             items = [it for it in mf if (it.get("category_en") or "") in cats]
             # category_en 缺失 / 全空 → 退回原清單前幾件，避免整列消失（defensive）
             return (items or list(mf))[:5]
@@ -8232,7 +8305,9 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                 "render_error":      (_classify_infra_message(
                                           r.get("error"), r.get("error_type"))
                                       if r.get("error") else None),
-                "matched_furniture": _rendered_core_only(r.get("matched_furniture"), r.get("room_type", "living")),
+                "matched_furniture": _rendered_core_only(
+                    r.get("matched_furniture"), r.get("room_type", "living"),
+                    no_focal_wall=bool(r.get("_no_focal_wall"))),
                 # 軟裝接入 (2026-06-18): 結果頁獨立區塊顯示, 不併入主總計
                 "soft_furnishing":   r.get("soft_furnishing", []),
                 # ⚠️ 第五條洩漏路（我自己掃出來的，不在回饋清單裡）：這份 validation
@@ -8726,8 +8801,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                             "render_filename":   fixed.get("render_filename"),
                             "render_url":        fixed.get("render_url"),
                             "render_error":      None,
-                            "matched_furniture": _rendered_core_only(fixed.get("matched_furniture"),
-                                                                     fixed.get("room_type", "living")),
+                            "matched_furniture": _rendered_core_only(
+                                fixed.get("matched_furniture"),
+                                fixed.get("room_type", "living"),
+                                no_focal_wall=bool(fixed.get("_no_focal_wall"))),
                             "soft_furnishing":   fixed.get("soft_furnishing", []),
                             "validation":        fixed.get("validation"),
                             "validation_history": fixed.get("validation_history", []),

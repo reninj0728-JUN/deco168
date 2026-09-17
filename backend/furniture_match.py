@@ -1154,6 +1154,7 @@ def match_furniture(
     budget_tier: str = "tier3",
     preferred_store: str = "none",
     extra_keywords: list[str] | None = None,
+    no_focal_wall: bool = False,
 ) -> list[dict]:
     """
     兩階段配對（mode='living' 預設）：
@@ -1176,7 +1177,20 @@ def match_furniture(
     rule = ROOM_RULES.get(mode, ROOM_RULES['living'])
     must = rule['must']
     nice = rule['nice']
+
     excluded = set(rule['excluded'])
+
+    # 步驟 2：這間房沒有可用的電視牆（三面都是門／窗／固定廚具）時，不硬配電視櫃。
+    # 7F0874C7：客廳必配 media_console 是寫死的，房型卻一面乾淨牆都沒有，模型只好
+    # 把電視櫃塞到廚具牆上、蓋掉整組廚具。沒有電視櫃要放，就沒有那個動機。
+    if no_focal_wall and 'media_console' in must:
+        # ⚠️ 是【排除】不是降成 nice。降成 nice 時清單照樣可能配出電視櫃，但 prompt
+        #    那端已經叫模型「不准畫電視」——客戶就會在清單上看到圖上沒有的家具，
+        #    正是 _display_cats_for_room 的 docstring 記載的 D7F52CB1 那個病。
+        #    四邊要講同一件事：不畫、不配、不列、不驗。
+        must = [c for c in must if c != 'media_console']
+        excluded = set(excluded) | {'media_console'}
+        print("[furniture_match] 這間房沒有可用的電視牆 → 不配電視櫃")
 
     # 先剔除 EXCLUDED 品類
     pool = [it for it in catalog if resolve_category(it) not in excluded]
@@ -1591,7 +1605,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
                    preferred_store: str = "none",
                    room_type: str = "living",
                    palettes: dict | None = None,
-                   exclude_ids_by_style: dict | None = None) -> list[dict]:
+                   exclude_ids_by_style: dict | None = None,
+                   no_focal_wall: bool = False) -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -1666,7 +1681,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
                                   is_small_room=is_small_room,
                                   budget_tier=budget_tier,
                                   preferred_store=preferred_store,
-                                  extra_keywords=pal_kws)
+                                  extra_keywords=pal_kws,
+                                  no_focal_wall=no_focal_wall)
         matched = matched[:5]
 
         render_copy = dict(render)

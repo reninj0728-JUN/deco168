@@ -2241,7 +2241,20 @@ def build_nano_banana_inputs(
             "same length, same finish; NEVER delete them or replace them with a TV console, "
             "sideboard, shelving or a sofa. If no kitchen is visible in image_1, do not add one.")
 
-    sections.extend([SOFA_TV_FACE_TO_FACE_CONTRACT, CRITICAL_RULES, QUALITY_TAIL])
+    # 步驟 2：這間房一面乾淨的電視牆都沒有（三面都是門／窗／固定廚具）時，
+    # 「沙發必須正對電視櫃」這條硬約束會逼模型生一個電視櫃出來——而唯一放得下的
+    # 位置就是廚具牆。7F0874C7 的廚具就是這樣被蓋掉的。
+    # 沒有電視牆就不要求電視牆：改成沙發＋茶几＋地毯的圍坐組。
+    if entry.get("_no_focal_wall"):
+        sections.append(
+            "NO TV WALL IN THIS ROOM: every wall here is taken by a doorway, a window/balcony "
+            "opening, or fixed built-in kitchen cabinetry — there is NO clean wall for a TV. "
+            "Do NOT invent a TV, television screen or media console anywhere, and do NOT place "
+            "any cabinet against the kitchen counter. Arrange the sofa, coffee table and rug as a "
+            "conversation group facing each other or facing the open space instead.")
+        sections.extend([CRITICAL_RULES, QUALITY_TAIL])
+    else:
+        sections.extend([SOFA_TV_FACE_TO_FACE_CONTRACT, CRITICAL_RULES, QUALITY_TAIL])
 
     prompt = "\n\n".join(sections)
 
