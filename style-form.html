@@ -582,6 +582,13 @@
         background: rgba(17,17,17,0.97);
       }
     }
+      /* iOS 對焦自動放大：字級 < 16px 的輸入元素一被點就把整頁放大，
+       使用者要自己捏回去。見 upload.html 同段註解（不可用 user-scalable=no）。
+       這頁的 select／input／textarea 統一是 14px，全部會觸發。
+       手機上的 .select-row 本來就已經改成單欄，放大到 16px 不會擠。 */
+    @media (max-width: 768px) {
+      select, input[type=text], input[type=number], textarea { font-size: 16px; }
+    }
   </style>
 </head>
 <body>

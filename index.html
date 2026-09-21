@@ -554,18 +554,26 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      /* 原生 CSS scroll-snap 翻頁：輕滑一下自動滑到下一區、一次一區。
+      /* 原生 CSS scroll-snap：停下來時自動對齊區塊起點，但不搶捲動。
          瀏覽器/GPU 直接處理（舊版用 JS 攔 touch 事件會鎖 1 秒、卡手）。
          scroll-padding-top 同時讓 snap 定位與 nav link 跳轉都避開固定 nav。 */
       html {
         scroll-padding-top: 60px;
-        scroll-snap-type: y mandatory;
+        /* 🔴 mandatory → proximity（2026-09-21）：mandatory 會強制停在區塊邊界，
+           但手機上有兩區【比一個螢幕還高】——案例區是 2 欄 6 張圖、價格區是
+           1 欄 2 張卡——想停在中間看第二張價格卡就會被拉回區塊開頭，
+           等於買方最需要看的那一段看不完。proximity 只在你本來就停在邊界
+           附近時才對齊，中間任意位置都停得住。 */
+        scroll-snap-type: y proximity;
       }
-      .hero, #story, .how-bg, #examples, #pricing, footer {
+      /* ⚠️ 新增區塊一定要同步加進這份名單：漏掉的區塊沒有 snap-align，
+         在 snap 容器裡會被整個跳過（#why／#start 就是這樣補上的）。 */
+      .hero, #why, #story, .how-bg, #examples, #pricing, #start, footer {
         min-height: 100vh;
         min-height: 100svh;
         scroll-snap-align: start;
-        scroll-snap-stop: always;   /* 甩再快也一次只翻一區，不會飛過頭 */
+        /* scroll-snap-stop: always 已移除：它讓「甩再快也一次只翻一區」，
+           整頁八個區就要甩八次，正是手機端「滑不動」的體感來源。 */
       }
 
       nav { padding: 0 16px; height: 60px; }

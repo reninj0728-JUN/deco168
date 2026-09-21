@@ -509,6 +509,22 @@
         background: rgba(17,17,17,0.97);
       }
     }
+      /* ── iOS 對焦自動放大 ──────────────────────────────────────────
+       Safari 在 input／textarea／select 的字級 < 16px 時，一點下去就把
+       整頁放大，而且不會自己縮回來——手機上「版面突然跑掉、要自己捏回去」
+       最常見的來源。這頁全中：兩個下拉 13px、自訂輸入 12px、
+       每張照片的備註框 12px、整單備註 14px。**備註正是我們希望客戶多寫的
+       地方，卻是最會觸發放大的那一個。**
+       ⚠️ 不可以用 viewport 的 user-scalable=no 解：那會把正常的雙指縮放
+          一起關掉，是無障礙退步。唯一正解就是字級 >= 16px。
+       桌面維持原設計；手機提上來順便解決「12px 在手機上根本看不清楚」。 */
+    @media (max-width: 768px) {
+      .primary-bar-select,
+      .photo-label-select,
+      .photo-other-input,
+      .photo-note-textarea,
+      .notes-textarea { font-size: 16px; }
+    }
   </style>
 </head>
 <body>
