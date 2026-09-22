@@ -1144,6 +1144,54 @@ def test_attached_component_is_not_a_second_piece():
         assert fm.is_multi_piece_bundle(name), f"真的兩件被放過了：{name}"
 
 
+def test_retailer_department_only_speaks_when_the_name_is_silent():
+    """2026-09-23：零售商部門（藏在 purchase_url 裡）只在品名說不出話時才補。
+
+    category 欄跟品名一樣是 AI 猜的，分類器只能靠品名關鍵字補。IKEA 網址本身
+    帶部門路徑，是權威資料而且不必連網。
+
+    🔴 但量測過：部門【不是】一律比品名可靠，別再試著讓它說了算——
+       · BESTÅ「電視櫃」被 IKEA 歸在櫃體部門 → 會被降成收納
+       · LYCKSELE「床墊」在沙發床部門 → 床墊會變成沙發
+    """
+    def item(cat, name, url):
+        return {"category": cat, "name_zh": name, "purchase_url": url}
+
+    IK = "https://www.ikea.com.tw/zh/products/"
+
+    # 品名說不出話（只寫「桌子」「折疊桌」）→ 部門補上餐桌
+    assert fm.resolve_category(item(
+        "桌子", "ÅLHULT - 桌子，米色/棕色，120x80 公分",
+        IK + "dining-tables/tables/alhult-spr-1234")) == "dining_table"
+    assert fm.resolve_category(item(
+        "桌子", "NORDEN - 折疊桌，樺木，26/89/152x80 公分",
+        IK + "dining-tables/tables/norden-spr-1234")) == "dining_table"
+
+    # 🔴 品名有話說 → 部門不准蓋過它
+    assert fm.resolve_category(item(
+        "收納", "BESTÅ - 電視櫃, 染白橡木紋, 120x40x48 公分",
+        IK + "sideboard-cabinets/system-cabinets/besta-spr-1")) == "media_console"
+    assert fm.resolve_category(item(
+        "寢具", "LYCKSELE LÖVÅS - 床墊，80x188 公分",
+        IK + "sofas/sofa-beds/lycksele-spr-1")) == "bedding"
+
+    # 門墊／浴室踏墊不是地毯：RUG_JUNK_KW 只降權 -4，壓不住「該風格只剩它」
+    for name, dep in (("FRIKTION - 門墊，灰色，38x58 公分",
+                       "home-furnishing-rugs/doormats"),
+                      ("FINTSEN - 浴室腳踏墊, 灰色, 40x60 公分",
+                       "bath-textiles/bathmats")):
+        assert fm.resolve_category(item("地毯", name, IK + dep + "/x-spr-1")) != "rug"
+    # 真地毯不受影響
+    assert fm.resolve_category(item(
+        "地毯", "STOENSE - 短毛地毯，米白色，133x195 公分",
+        IK + "home-furnishing-rugs/rugs/stoense-spr-1")) == "rug"
+
+    # 沒有部門可讀（非 IKEA）→ 行為完全不變
+    assert fm.resolve_category(item(
+        "桌子", "原木簡約長桌",
+        "https://24h.pchome.com.tw/prod/XXX")) == "table"
+
+
 def test_video_token_gating_rules_are_present():
     """影片省 token 兩鐵則：①付款前分區純照片(不抽幀)②單空間有照片就不送影片分析。
     影片價值只在全室理解，單一房間拿不到又燒 token。"""

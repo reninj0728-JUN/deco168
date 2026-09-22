@@ -331,11 +331,47 @@ def refine_subcategory(en_cat: str, name_zh: str) -> str:
     return en_cat
 
 
+# ── 零售商自己的部門（權威，而且資料早就在 purchase_url 裡，不必連網）──────
+# 2026-09-23：category 欄跟品名一樣是 AI 猜的，分類器只能靠品名關鍵字補。
+# IKEA 的網址本身帶部門路徑，例如 /products/dining-tables/tables/。
+#
+# 🔴 但部門【不是】一律比品名可靠，量測過才知道（別再試第二次）：
+#    · BESTÅ「電視櫃」8 件被 IKEA 歸在櫃體部門 → 讓部門說了算會把它降成收納
+#    · LYCKSELE「床墊」5 件在沙發床部門 → 讓部門說了算會把床墊變成沙發
+#    所以只在【品名說不出話】時才用它——也就是細分後還停在粗桶的時候。
+_RETAILER_DEPT_RE = re.compile(r"ikea\.com\.tw/[^/]+/products/([^/]+)/([^/]+)/")
+# 細分不出來才會落到這幾個桶；落在這裡才輪得到部門補。
+_GENERIC_BUCKETS = ("table", "chair", "other")
+_DEPT_WHEN_NAME_SILENT = {
+    # IKEA 餐桌的官方名常常只寫「桌子」「折疊桌」，判斷不出是餐桌；
+    # 假名時代是靠 AI 寫的「四腳餐桌」才分對的。
+    "dining-tables/tables": "dining_table",
+    "dining-tables/high-tables": "dining_table",
+    "armchairs-footstool-and-sofa-tables/armchairs": "accent_chair",
+    "chests-and-other-furniture/bedside-tables": "side_table",
+}
+# 門墊／浴室踏墊不是地毯。RUG_JUNK_KW 只降權 -4，壓不住「該風格只剩它」的情況
+# （memory：luxury 地毯池 4 件全是門墊）。部門講得明確，直接請出地毯池。
+_DEPT_NOT_A_RUG = ("home-furnishing-rugs/doormats", "bath-textiles/bathmats")
+
+
+def retailer_department(item: dict) -> str | None:
+    m = _RETAILER_DEPT_RE.search(str(item.get("purchase_url") or ""))
+    return f"{m.group(1)}/{m.group(2)}" if m else None
+
+
 def resolve_category(item: dict) -> str:
     """取得家具最終解析後的英文類別（含細分）"""
     raw = item.get('category', '')
     en_cat = CATEGORY_ZH_TO_EN.get(raw, raw.lower() if isinstance(raw, str) else 'other')
-    return refine_subcategory(en_cat, item.get('name_zh', ''))
+    sub = refine_subcategory(en_cat, item.get('name_zh', ''))
+    dept = retailer_department(item)
+    if dept:
+        if sub == 'rug' and dept in _DEPT_NOT_A_RUG:
+            return 'decor'
+        if sub in _GENERIC_BUCKETS and dept in _DEPT_WHEN_NAME_SILENT:
+            return _DEPT_WHEN_NAME_SILENT[dept]
+    return sub
 
 # 家具類別關鍵字 → category
 CATEGORY_KEYWORDS = {
