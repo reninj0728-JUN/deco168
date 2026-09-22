@@ -22,6 +22,7 @@ import hashlib
 from datetime import datetime, timezone
 import time
 from pathlib import Path
+from gemini_model import gemini_model   # 模型 id 單一來源
 
 
 GEMINI_KEY = (os.environ.get("GEMINI_API_KEY")
@@ -506,7 +507,7 @@ def compute_zoning_v2(photo_paths: list, video_keyframes: list | None = None,
     prompt_text = PROMPT.format(photo_count=len(valid_photos), video_note=video_note,
                                 prefer_note=prefer_note)
     parts.append(prompt_text)
-    model_id = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+    model_id = gemini_model()
 
     print(f"[zoning_v2] photos={len(valid_photos)} video_frames={len(valid_videos)}")
     t0 = time.time()

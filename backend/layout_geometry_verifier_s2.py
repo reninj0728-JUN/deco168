@@ -12,6 +12,7 @@ from typing import Callable
 from PIL import Image, ImageOps
 
 import layout_geometry_s2 as lgs2
+from gemini_model import gemini_model   # 模型 id 單一來源
 
 
 # 前置幾何判官的嘗試上限。D85B8525 實測：同一張照片＋同一份合約連跑 8 次
@@ -786,7 +787,7 @@ def verify_s2_guide_gemini(
     last_parse_error = None
     for response_attempt in (1, 2):
         response = client.models.generate_content(
-            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+            model=gemini_model(),
             contents=contents,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )

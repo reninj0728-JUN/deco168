@@ -10,6 +10,7 @@ import json
 import time
 from google import genai
 from google.genai import types
+from gemini_model import gemini_model   # 模型 id 單一來源
 
 
 FURNISH_SCOPE_RULE = (
@@ -331,12 +332,21 @@ no people, no text, no watermark, no distortion, no cartoon, no oversaturated co
 
 ━━ 空間規模判斷 ━━
 【精準尺規法】觀察以下基準物估算空間：
-- 門框高度 ≈ 200cm，寬度 ≈ 90cm
+- 門框高度 ≈ 200cm，寬度 ≈ 90cm ← 最可靠，優先用它
 - 標準天花板高度 ≈ 240-270cm（台灣老公寓240，新成屋270）
-- 標準沙發高度 ≈ 80-90cm，深度 ≈ 90cm
-- 插座距地板 ≈ 30cm
+- 插座距地板 ≈ 30cm；開關面板距地 ≈ 120-135cm
 - 窗台距地 ≈ 90cm，窗高 ≈ 120-150cm
-用這些基準估算房間長寬高，若可見多個參照物要交叉比對，給出 estimated_length_m / estimated_width_m / estimated_height_m
+- 踢腳板高 ≈ 6-10cm
+- 沙發高 ≈ 80-90cm、深 ≈ 90cm ← **只有畫面裡真的有家具時才用**；
+  本產品多數是空屋照，沒家具就跳過，不要假設有一張沙發
+- 地板接縫：接縫看得見時，先用門框寬度校準出「一格多大」再數格數。
+  不要假設磚的規格（60×60／80×80／木紋磚 20×120 都常見，照片分不出來，
+  猜錯就是 30% 以上誤差）；校準不出來就不要用這個方法
+用這些基準估算房間長寬高，若可見多個參照物要交叉比對，
+填進 room_dimensions 的 length_m / width_m / height_m，
+並在 confidence 誠實標 high/medium/low（沒有可用基準物就填 low，
+系統會自動改用保守值，填 low 不會被扣分），
+reference_used 寫清楚你實際用了哪些基準物。
 
 小空間（<15坪）→ 加：light reflective surface, open concept, visual expansion, mirror accent panel
 中空間（15-35坪）→ 標準詞庫即可
@@ -639,7 +649,7 @@ def analyze_space(
 """
 
     response = client.models.generate_content(
-        model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+        model=gemini_model(),
         contents=[video_file] + photo_parts + [prompt],
         config=types.GenerateContentConfig(
             system_instruction=system_prompt_for(design_mode),
@@ -1001,7 +1011,7 @@ def detect_source_furniture(photo_path: str) -> dict:
         result = None
         for _attempt in range(2):
             response = client.models.generate_content(
-                model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+                model=gemini_model(),
                 contents=[part, prompt],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json"),
@@ -1646,7 +1656,7 @@ reason 必須具體（例「L 沙發擋住左側通往臥室的走廊開口」�
     result = None
     for _attempt in range(2):
         response = client.models.generate_content(
-            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+            model=gemini_model(),
             contents=[original_part, render_part, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

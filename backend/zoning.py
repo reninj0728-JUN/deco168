@@ -17,6 +17,7 @@ Gemini 空間 zoning 模組（production 可用版）
 import os
 import json
 from pathlib import Path
+from gemini_model import gemini_model   # 模型 id 單一來源
 
 
 # 與 poc_gemini_zoning.py 同份 prompt（已驗證 confidence: high）
@@ -146,7 +147,7 @@ def compute_zoning(photo_paths: list[str], timeout_sec: int = 30) -> dict:
         parts.append(PROMPT)
 
         resp = client.models.generate_content(
-            model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+            model=gemini_model(),
             contents=parts,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )

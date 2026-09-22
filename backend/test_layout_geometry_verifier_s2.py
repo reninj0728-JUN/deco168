@@ -873,7 +873,11 @@ def test_gemini_verifier_sends_source_and_guide_and_requires_cross_axis(tmp_path
     )
 
     assert verifier_s2.verification_passes(result)
-    assert captured["model"] == os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+    # ⚠️ 不要在這裡抄一份預設模型名——那正是這次要修掉的病（生產有 9 個
+    #    呼叫點各自複製預設值，其中一個還寫死、根本不吃環境變數）。
+    #    斷言對著唯一來源，升級模型時這條測試不需要跟著改。
+    from gemini_model import gemini_model
+    assert captured["model"] == gemini_model()
     assert len(captured["contents"]) == 3
     prompt = captured["contents"][-1]
     assert "cross_axis_matches_floor_transverse" in prompt

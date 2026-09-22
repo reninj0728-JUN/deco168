@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageOps
+from gemini_model import gemini_model   # 模型 id 單一來源
 
 
 SCHEMA_VERSION = "1.0.0-draft"
@@ -382,7 +383,7 @@ def _s2_geometry_record(
                     if mode == "observed" else "s2-projective-depth-v2"
                 ),
                 "model": (
-                    os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+                    gemini_model()
                     if mode == "observed" else None
                 ),
             },
@@ -470,9 +471,7 @@ def _formalize_s2_plan(plan: dict, source_photo_key: str):
                 "s2-wall-floor-boundary-sync-v1"
                 if floor_boundary_sync else "s2-bounded-wall-correction-v1"
             )
-            record["evidence"]["producer"]["model"] = os.environ.get(
-                "GEMINI_MODEL", "gemini-3.6-flash"
-            )
+            record["evidence"]["producer"]["model"] = gemini_model()
             record["validation"]["notes"].append("verifier_corrected_not_directly_observed")
         geometry.append(record)
         existing_ids.add(geometry_id)

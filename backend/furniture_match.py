@@ -1421,12 +1421,32 @@ def parse_max_width_cm(estimated_size: str, room_dims: dict | None = None) -> in
     根據坪數或實際尺寸，返回家具最大允許寬度（cm）。
     避免 8 坪小空間配到 W270cm 大沙發，也避免過度保守選到迷你沙發。
     """
+    # 🔴 模型自己說不準的時候，不要把那組公尺數當成可靠輸入（2026-09-22）。
+    #    Gemini 會回 room_dimensions.confidence = high/medium/low，但升級前
+    #    全站只有 _room_can_float_sofa 在讀它，這個寬度守門完全不看——
+    #    模型自承不可靠的數字照樣拿去篩商品。
+    #
+    # ⚠️ 低信心【不能】往下掉到坪數那層：坪數估短邊是 √(坪×3.305)×0.85，
+    #    7 坪就算出 4.09m ≥ 3.8 → 上限 300 → filter_by_dimensions 整段 return。
+    #    那會從「拿不確定的數字篩」變成「完全不篩」，比原本更糟。
+    #    所以直接回保守常數，在這裡結束。
+    #
+    # ⚠️ 只有 low 才整組不採信。medium 仍然可用，但**不准解鎖 300 那一檔**：
+    #    高估的代價是不對稱的——短邊 ≥3.8m 會同時關掉尺寸過濾【和】
+    #    is_small_room 的加大沙發降權（is_small_room = max_w <= 240），
+    #    兩把刀一起收起來；低估只是沙發偏小。寧可偏小。
+    _conf = str((room_dims or {}).get("confidence") or "").strip().lower()
+    if room_dims and _conf == "low":
+        return SMALL_ROOM_MAX_WIDTH_DEFAULT
     if room_dims:
         width_m = room_dims.get("width_m", 0)
         length_m = room_dims.get("length_m", 0)
         short_side = min(width_m, length_m) if width_m and length_m else 0
         if short_side > 0:
-            return _width_cap_for_short_side(short_side)
+            cap = _width_cap_for_short_side(short_side)
+            if _conf != "high":
+                cap = min(cap, SMALL_ROOM_MAX_WIDTH_DEFAULT)
+            return cap
 
     # 從坪數字串提取數字範圍的下限
     nums = re.findall(r'\d+', str(estimated_size))
