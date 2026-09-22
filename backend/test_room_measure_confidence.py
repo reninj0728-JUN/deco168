@@ -82,45 +82,59 @@ def test_missing_confidence_is_treated_as_not_high():
         SMALL_ROOM_MAX_WIDTH_DEFAULT
 
 
-# ── 兩份尺規不准各說各話 ────────────────────────────────────────────
-# 升級前 `test_full_pipeline.py` 與 `gemini_analyze.py` 各有一份基準物清單，
-# 兩份都把「標準沙發」列為基準物，而同一份 prompt 下面就寫著
-# 「本產品目標客戶是空屋，多數照片裡不會有家具」。只改一份，system prompt
-# 會把沙發那條再教回去。
-RULERS = ("test_full_pipeline.py", "gemini_analyze.py")
+# ── 三份尺規不准各說各話 ──────────────────────────────────────────
+# 升級前有【三】份基準物清單，不是兩份：
+#   A `test_full_pipeline.py`【空間量測步驟】—— 照片路徑的使用者 prompt
+#   B `gemini_analyze.py`【精準尺規法】     —— system prompt（兩條路都會送）
+#   C `gemini_analyze.py`【空間量測步驟】   —— 純影片路徑的使用者 prompt
+#
+# 🔴 第一版只改了 A、B，而且測試是用「整個檔案有沒有出現那句話」來驗——
+#    C 跟 B 在同一個檔案裡，B 有新文字就讓 C 矇混過關。Grok 抓到的。
+#    所以這裡改成**逐區塊**取出來驗，檔案層級的檢查擋不住這種漏改。
+RULER_BLOCKS = (
+    ("test_full_pipeline.py", "【空間量測步驟 — 必須先做】"),
+    ("gemini_analyze.py", "【精準尺規法】"),
+    ("gemini_analyze.py", "【空間量測步驟 — 必須先做】"),
+)
 
 
-@pytest.mark.parametrize("fname", RULERS)
-def test_sofa_reference_is_conditional_not_assumed(fname):
+def _block(fname: str, marker: str) -> str:
+    """取出這一份尺規的內文：從標題到下一個【小節】為止。"""
     src = (BACKEND / fname).read_text(encoding="utf-8")
-    i = src.index("沙發高")
-    seg = src[i:i + 200]
-    assert "真的有家具時才用" in seg, (
-        f"{fname} 仍把沙發當成無條件基準物——空屋照裡根本沒有沙發")
+    i = src.index(marker)
+    # chr(10) 而不是跳脫字元：這行用 heredoc 寫入時反斜線會被吃掉（踩過兩次）
+    j = src.find(chr(10) + "【", i + len(marker))
+    return src[i:j if j != -1 else i + 1500]
 
 
-@pytest.mark.parametrize("fname", RULERS)
-def test_tile_method_requires_calibration_not_assumed_sizes(fname):
-    """地磚可以用，但必須先校準；假設規格會比原本的門框反推更自信地錯。"""
-    src = (BACKEND / fname).read_text(encoding="utf-8")
-    i = src.index("地板接縫")
-    seg = src[i:i + 400]
-    assert "校準" in seg, f"{fname} 的地磚法沒有要求先校準"
-    assert "不要假設" in seg, f"{fname} 沒有擋住『假設磚的規格』"
+@pytest.mark.parametrize("fname,marker", RULER_BLOCKS)
+def test_every_ruler_conditions_the_sofa_reference(fname, marker):
+    """空屋照裡沒有沙發。三份都要寫成「有才用」，漏一份 prompt 就會互相打架。"""
+    seg = _block(fname, marker)
+    if "沙發" not in seg:
+        pytest.skip(f"{fname}{marker} 沒把沙發列為基準物，本來就不會誤導")
+    assert "真的有家具時才用" in seg, f"{fname}{marker} 仍無條件參考沙發"
 
 
-@pytest.mark.parametrize("fname", RULERS)
-def test_prompt_tells_the_model_low_confidence_is_safe(fname):
-    """要模型誠實回報 low，就得讓它知道填 low 不會被丟掉、而是換保守值。"""
-    src = (BACKEND / fname).read_text(encoding="utf-8")
-    assert "填 low 不會被" in src, f"{fname} 沒有告訴模型誠實填 low 的後果"
+@pytest.mark.parametrize("fname,marker", RULER_BLOCKS)
+def test_every_ruler_has_calibrated_tile_method(fname, marker):
+    """地磚是空屋最強的基準物，但**必須先校準**——假設規格會更自信地錯。"""
+    seg = _block(fname, marker)
+    assert "地板接縫" in seg, f"{fname}{marker} 沒有地磚法"
+    assert "校準" in seg, f"{fname}{marker} 的地磚法沒要求先校準"
+    assert "不要假設" in seg, f"{fname}{marker} 沒擋住『假設磚的規格』"
+
+
+@pytest.mark.parametrize("fname,marker", RULER_BLOCKS)
+def test_every_ruler_tells_the_model_low_confidence_is_safe(fname, marker):
+    """要模型誠實填 low，就得讓它知道 low 不會被丟掉，而是換成保守值。"""
+    seg = _block(fname, marker)
+    assert "填 low 不會被" in seg, f"{fname}{marker} 沒說明誠實填 low 的後果"
 
 
 def test_system_prompt_writes_into_the_declared_schema_field():
     """system prompt 原本叫模型給 estimated_length_m，schema 卻宣告
     room_dimensions.length_m —— 兩套欄位名，api.py 還得寫相容 shim 讀兩種。"""
-    src = (BACKEND / "gemini_analyze.py").read_text(encoding="utf-8")
-    i = src.index("【精準尺規法】")
-    seg = src[i:i + 900]
+    seg = _block("gemini_analyze.py", "【精準尺規法】")
     assert "room_dimensions" in seg and "length_m" in seg
     assert "estimated_length_m" not in seg, "又叫模型填舊的欄位名了"
