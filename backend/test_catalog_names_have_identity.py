@@ -39,14 +39,31 @@ IDENTITY_WORDS = [
     "裝飾畫", "水墨畫", "國畫", "擺飾", "擺件", "壁飾", "簾", "寢具", "獨立筒",
     "瓶", "杯", "盤", "盒", "框", "魚缸", "推車", "腳蹬", "布料", "涼感", "展示罩",
     "模型", "拼貼", "組合", "件組", "件套", "雙拼", "聯組",
+    # 2026-09-23 換回官方品名後補上：真商品名，只是詞表沒收。
+    # 上面註解早就警告「少列這些會把 IKEA、HOLA 的真名整批誤判」——這次就是。
+    # （有「衣櫃」卻沒有「衣櫥」，nitori 官方名兩種都用。）
+    "衣櫥", "化妝台", "梳妝台", "工作站", "滑門", "窗紗",
+    "碗", "鐘", "飾品", "溫度計", "溼度計",
 ]
 
 # 判準是中文主詞，純英文型號名會被誤判。這件的名字是真的（Herman Miller Aeron）。
 KNOWN_OK_WITHOUT_CHINESE_NOUN = {"pchome_DCBV0W-A900JRYN6"}
 
-# 同一個商品被存兩次、兩筆同名。這輪只清掉「因為改名才浮出來」的，
-# 這 11 組是更早就存在的，另案處理——凍結住不讓它長大。
-LEGACY_DUP_GROUPS = 11
+# 同一個商品頁（同 i_code）被存成好幾列。凍結住不讓它長大，另案逐列清。
+#
+# 🔴 2026-09-23 改量法：原本量的是「同 i_code **且同名**」——那是代理指標，有盲點：
+#    同一件商品用兩個【不同的假名】存兩次，它完全看不到。
+#    換回官方品名那天這個數字從 11 跳到 16，但【一列都沒有新增】：
+#        同 i_code 多列  換名前 24 組／多 26 列   換名後 24 組／多 26 列
+#        其中同名的      換名前 11 組             換名後 16 組
+#    也就是舊測試只看得到 24 組裡的 11 組，另外 13 組重複上架被假名偽裝成
+#    不同商品（RICHOME 同一張沙發同時叫「L型布藝沙發」和「貴妃沙發」）。
+#    改量「同 i_code 有幾列」：不受換名影響，也不再被假名騙過——這是變嚴不是放寬。
+# ⚠️ 這 24 組【不是】逐欄相同：flux_descriptor／keywords／常常連 image_url 都不同，
+#    不能直接刪或合併（memory：同商品頁≠同款，拼接會做出不存在的商品）。
+# 巴芙洛桌墊（i_code 11824471）兩列刪掉後整組消失：24→23 組、26→25 列。
+LEGACY_DUP_GROUPS = 23
+LEGACY_DUP_EXTRA_ROWS = 25
 
 
 @pytest.fixture(scope="module")
@@ -100,29 +117,57 @@ def test_no_escaped_characters_left_in_names(catalog):
 
 
 def test_removed_rows_stay_removed(catalog):
-    """這輪刪掉的：5 列重複、1 列改名後同商品同名、2 件已下架。"""
+    """這輪刪掉的：5 列重複、1 列改名後同商品同名、2 件已下架。
+
+    2026-09-23 追加 2 列：巴芙洛軟玻璃桌墊（NT$549 的桌巾）掛在「茶几」類目。
+    換回官方名後，既有的「耗材」與「保護布/墊」兩條偵測同時抓到——它們一直是
+    垃圾，只是假名「輕奢風收納抽屜茶几」讓守衛看不到。
+    """
     gone = {"momo-lux-0001", "momo-lux-0011", "momo-lux-0019", "momo-lux-0027",
             "momo-lux-0041", "momo-lux-0040",
-            "momo_11856247", "momo_11918204"}
+            "momo_11856247", "momo_11918204",
+            "momo-mod-0027", "momo-lux-0085"}
     still = gone & {x["id"] for x in catalog}
     assert not still, f"已刪除的列又回來了：{still}"
 
 
 def test_same_product_duplicates_do_not_grow(catalog):
-    """同一個 i_code 底下不准出現新的同名重複列。
+    """同一個商品頁（i_code）不准被多存一列——不管那一列取了什麼名字。
 
-    ⚠️ 凍結在 11 組舊債，不是 0。降下來要順手把這個數字改小。
+    ⚠️ 凍結在 24 組／多 26 列的舊債，不是 0。降下來要順手把數字改小。
     """
     by = defaultdict(list)
     for x in catalog:
         k = _icode(x.get("purchase_url"))
         if k:
             by[k].append(x)
-    dup = {k: g for k, g in by.items()
-           if len({str(y.get("name_zh")) for y in g}) < len(g)}
-    assert len(dup) <= LEGACY_DUP_GROUPS, (
-        f"同商品同名重複從 {LEGACY_DUP_GROUPS} 組長到 {len(dup)} 組："
-        f"{list(dup)[:5]}")
+    multi = {k: g for k, g in by.items() if len(g) > 1}
+    extra = sum(len(g) - 1 for g in multi.values())
+    assert len(multi) <= LEGACY_DUP_GROUPS and extra <= LEGACY_DUP_EXTRA_ROWS, (
+        f"同商品頁多存的列從 {LEGACY_DUP_GROUPS} 組／{LEGACY_DUP_EXTRA_ROWS} 列"
+        f"長到 {len(multi)} 組／{extra} 列：{list(multi)[:5]}")
+
+
+def test_renaming_did_not_invent_duplicate_names_across_products(catalog):
+    """換名只准讓【同一件商品】同名，不准讓【不同商品】撞成同一個名字。
+
+    去重吃 name_zh（_catalog_without 會把同名當同一件），兩件不同商品同名，
+    下一間房就少一件可配的貨。MALM 單人／雙人床框共用同一個官方標題，
+    所以 _apply_realnames 會跳過它們——這條鎖住那個跳過沒有被拿掉。
+    """
+    by_name = defaultdict(set)
+    for x in catalog:
+        k = _icode(x.get("purchase_url"))
+        if k and str(x.get("id", "")).startswith("momo"):
+            by_name[str(x.get("name_zh"))].add(k)
+    clash = {n: ks for n, ks in by_name.items()
+             if len(ks) > 1 and n not in _PREEXISTING_NAME_CLASH}
+    assert not clash, f"不同商品撞成同一個名字：{list(clash.items())[:3]}"
+
+
+# 換名【之前】就撞名的舊債，不是換名造成的——兩件都在撈不到官方名的那批 momo 裡，
+# 名字本身還被截斷在括號中間（原本應是兩個色款）。等撈到官方名時一起修。
+_PREEXISTING_NAME_CLASH = {"120公分雙層茶几（大理石紋色"}
 
 
 def test_catalog_is_still_one_line():
