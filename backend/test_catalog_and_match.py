@@ -1114,6 +1114,36 @@ def test_bundle_detector_catches_cabinet_pairs_and_attached_pieces():
         assert not fm.is_multi_piece_bundle(name), f"單件家具被誤判: {name}"
 
 
+def test_attached_component_is_not_a_second_piece():
+    """2026-09-23：「附門收納櫃」＝帶門的收納櫃，不是收納櫃＋另一件家具。
+
+    舊規則把 附＋門＋收納櫃 當成兩件。換回官方品名後這個洞一次冒出 13 件
+    （IKEA 附門收納櫃／附門書櫃、nitori 附鏡衣櫥），被 _prefer_non_bundle 踢出
+    Stage A/B——而 storage 是臥室必配槽，等於換名讓臥室收納變少。
+    這些全是實際目錄裡的官方品名。
+    """
+    singles = [
+        "SKRUVBY - 附門收納櫃, 白色, 70x90 公分",
+        "BAGGEBO - 附門收納櫃, 白色, 50x30x80 公分",
+        "BRIMNES - 附門收納櫃, 白色, 78x95 公分",
+        "BILLY - 附門書櫃, 白色, 80x30x202 公分",
+        "BILLY/OXBERG - 附門書櫃, 白色, 80x30x106 公分",
+        "EKET - 附櫃腳收納櫃組合, 白色/木質, 70x35x80 公分",
+        "◎附鏡衣櫥 PORTE-T 80MW WH",
+        "◎附鏡收納櫃 斗櫃 NEEDS3 30CB WW/GY",
+        "◎層櫃 收納櫃 附鏡衣櫥 衣櫃 鏡面單開2抽屜 ATEN 40 MBR",
+        "附2抽收納櫃",
+    ]
+    for name in singles:
+        assert not fm.is_multi_piece_bundle(name), f"零件被當成第二件家具：{name}"
+
+    # 反向：夾的不是零件就真的是兩件，舊案例不能被這次的放寬放過
+    for name in ("文創集 絲莉岩板4.3尺二抽大茶几(二色可選附收納椅凳單張)",
+                 "北歐實木餐桌附長凳",
+                 "茶几附收納櫃"):
+        assert fm.is_multi_piece_bundle(name), f"真的兩件被放過了：{name}"
+
+
 def test_video_token_gating_rules_are_present():
     """影片省 token 兩鐵則：①付款前分區純照片(不抽幀)②單空間有照片就不送影片分析。
     影片價值只在全室理解，單一房間拿不到又燒 token。"""

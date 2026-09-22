@@ -184,7 +184,10 @@ DECOR_SUBCAT_RULES = [
 
 # 桌子細分（保守：只在 LIVING_EXCLUDED 過濾與 NICE_TO_HAVE 配對時才用）
 TABLE_SUBCAT_RULES = [
-    ('dining_table', ['餐桌', 'dining table']),
+    # 延伸桌：IKEA 官方品名不寫「餐桌」（VIHALS／TONSTAD／NÄSINGE - 延伸桌），
+    # 換回官方名後 5 件餐桌會被降成一般 table、跑去書房當書桌（2026-09-23）。
+    # 「折疊桌」刻意不收：它也可能是小邊桌、露營桌，官方名本身判斷不出是餐桌。
+    ('dining_table', ['餐桌', 'dining table', '延伸桌', 'extendable table']),
     ('side_table', ['邊几', '邊桌', '床頭櫃', 'side table', '小茶桌', '角几']),
 ]
 
@@ -258,7 +261,17 @@ def _living_sofa_seating_score_delta(item: dict) -> float:
 def refine_subcategory(en_cat: str, name_zh: str) -> str:
     """按品名細分 chair / table / mirror(裝飾雜燴 → 軟裝) / pillow(抱枕套→textile)，其他類別維持原樣"""
     name_lower = (name_zh or '').lower()
-    if any(kw.lower() in name_lower for kw in MEDIA_CONSOLE_KEYWORDS):
+    # 🔴「低櫃／矮櫃」在 MEDIA_CONSOLE_KEYWORDS 裡，而這條在所有分類判斷之前先跑——
+    #    nitori「工業風床頭矮櫃 床頭櫃 DANTE」因此被判成電視櫃（2026-09-23 換回官方名
+    #    才冒出來，假名「復古風格木質邊桌附抽屜」沒有矮櫃兩字）。
+    #    床頭櫃是臥室邊几，不是電視櫃；品名明講床頭／床邊時，低櫃／矮櫃讓位。
+    _bedside = any(k in (name_zh or '') for k in ('床頭', '床邊', 'nightstand', 'bedside'))
+    _only_weak_tv_kw = not any(
+        kw.lower() in name_lower for kw in MEDIA_CONSOLE_KEYWORDS
+        if kw not in ('低櫃', '矮櫃'))
+    if _bedside and _only_weak_tv_kw:
+        pass   # 往下走一般分類：table 類會被 TABLE_SUBCAT_RULES 判成 side_table
+    elif any(kw.lower() in name_lower for kw in MEDIA_CONSOLE_KEYWORDS):
         if not _name_is_media_console_decor_false_positive(name_zh or ""):
             return 'media_console'
         # 誤觸：當裝飾處理
@@ -584,7 +597,20 @@ _BUNDLE_CONJ_RE = re.compile(
 # E401B756 補洞二：「…大茶几(二色可選附收納椅凳單張)」沒有連接詞也沒有組/套字，
 # 但商品照裡確實是茶几＋收納椅凳兩件。「附＋另一種家具本體」＝合售多件。
 # 「附抽屜」「附輪」「附層板」這種零件不算，只認家具本體名詞。
-_BUNDLE_ATTACHED_RE = re.compile(rf"附[^，。;；、\s]{{0,4}}?({_BUNDLE_PIECE})")
+_BUNDLE_ATTACHED_RE = re.compile(rf"附([^，。;；、\s]{{0,4}}?)({_BUNDLE_PIECE})")
+# 🔴 2026-09-23：上面那句註解說「附抽屜／附輪／附層板是零件不算」，但正規式沒做到——
+#    「附門收納櫃」被拆成 附＋門＋收納櫃，把商品本體當成第二件家具。
+#    舊測試的「北歐風附輪置物移動茶几」會過，只是因為零件字和本體之間隔了超過
+#    4 個字，是運氣不是規則。
+#    換回官方品名後這個洞一口氣冒出來：IKEA「SKRUVBY - 附門收納櫃」「BILLY - 附門書櫃」、
+#    nitori「附鏡衣櫥」共 13 件被判成套組 → _prefer_non_bundle 直接踢出 Stage A/B 池。
+#    而 storage 是臥室必配槽，等於換名讓臥室收納變少。
+# 判準：「附」和家具名詞之間夾的若只是零件，後面那個家具就是商品本體，不是第二件。
+#   附門收納櫃＝帶門的收納櫃（一件）   附收納椅凳＝另附一張椅凳（兩件，夾的「收納」不是零件）
+_ATTACHED_COMPONENT_GAP_RE = re.compile(
+    r"[0-9０-９一二三四兩]*[個片扇只組]?"
+    r"(門|門片|拉門|滑門|推門|玻璃門|鏡|鏡子|鏡面|抽|抽屜|輪|滑輪|腳輪|"
+    r"層板|腳|櫃腳|燈|掛勾|把手)")
 
 
 def is_multi_piece_bundle(name: str) -> bool:
@@ -599,7 +625,9 @@ def is_multi_piece_bundle(name: str) -> bool:
     m = _BUNDLE_CONJ_RE.search(nm)
     if m and m.group(1) != m.group(2):   # 「沙發與沙發墊」同 token 不算
         return True
-    if _BUNDLE_ATTACHED_RE.search(nm):
+    for m in _BUNDLE_ATTACHED_RE.finditer(nm):
+        if m.group(1) and _ATTACHED_COMPONENT_GAP_RE.fullmatch(m.group(1)):
+            continue          # 附門收納櫃／附鏡衣櫥：零件＋本體，是一件
         return True
     types_hit = {t for t in _FURN_TYPE_TOKENS if t in nm}
     return len(types_hit) >= 2 and bool(_BUNDLE_HINT_RE.search(nm))
