@@ -569,12 +569,17 @@
        行為卻是購買按鈕。想看清楚一點的訪客被直接推進付款流程，比沒有案例更傷。
        改成點了放大看＋列出那一單真的配到的商品。
        （漏斗入口沒有少：同一區本來就有「+ 上傳您的空間」磚和「立即體驗」按鈕。） */
+    /* 🔴 2026-09-23 事故：這裡原本直接寫 display:flex，整個首頁被 94% 黑遮罩蓋死。
+       `hidden` 屬性靠的是瀏覽器預設樣式 `[hidden]{display:none}`，
+       作者自己寫的 display 優先權比較高，會把它蓋掉——元素永遠顯示。
+       所以預設 none，只有【沒有 hidden】時才 flex。 */
     .case-box {
       position: fixed; inset: 0; z-index: 200;
       background: rgba(10,10,10,0.94);
-      display: flex; align-items: center; justify-content: center;
+      display: none; align-items: center; justify-content: center;
       padding: 24px; overflow-y: auto;
     }
+    .case-box:not([hidden]) { display: flex; }
     .case-inner {
       max-width: 1000px; width: 100%; margin: auto;
       display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px;

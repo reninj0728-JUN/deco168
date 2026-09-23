@@ -130,3 +130,38 @@ def test_showcase_page_source_carries_no_shop_urls():
     for host in ("24h.pchome.com.tw", "momoshop.com.tw", "ikea.com.tw/zh/products",
                  "hola.com.tw/p/", "nitori-net.tw/product"):
         assert host not in data, f"範本資料裡留了賣場網址：{host}"
+
+def test_lightbox_is_actually_hidden_by_the_hidden_attribute():
+    """🔴 2026-09-23 事故：整個首頁被 94% 黑遮罩蓋死。
+
+    `.case-box` 直接寫了 `display:flex`，而 `hidden` 屬性靠的是瀏覽器預設樣式
+    `[hidden]{display:none}`——**作者自己寫的 display 優先權比較高，會把它蓋掉**，
+    元素永遠顯示。JS 那邊 `hidden = true` 設得好好的，畫面照樣黑。
+
+    ⚠️ 我原本的測試只驗 JS 的 `.hidden` 屬性，驗不到 CSS，所以一路綠燈上線。
+       這條驗的是【CSS 有沒有真的讓它消失】。
+    """
+    block = re.search(r"\.case-box\s*\{([^}]*)\}", HTML)
+    assert block, "找不到 .case-box 樣式"
+    display = re.search(r"display\s*:\s*([a-z-]+)", block.group(1))
+    assert display and display.group(1) == "none", (
+        f".case-box 預設 display 必須是 none，現在是 {display and display.group(1)}")
+    assert re.search(r"\.case-box:not\(\[hidden\]\)\s*\{[^}]*display\s*:\s*flex",
+                     HTML), "少了 :not([hidden]) 才顯示的規則"
+
+
+def test_no_element_relies_on_hidden_while_css_forces_a_display():
+    """同款 bug 不准在別的地方再長出來（全首頁掃一次）。"""
+    controlled = set(re.findall(r"getElementById\('([^']+)'\)\.hidden", HTML))
+    controlled |= set(re.findall(r'id="([A-Za-z0-9_-]+)"[^>]*\shidden', HTML))
+    assert controlled, "掃不到任何用 hidden 控制的元素，錨點要重對"
+    for el_id in controlled:
+        cls = re.search(r'id="' + re.escape(el_id) + r'"[^>]*class="([^"]+)"', HTML)
+        sels = ["#" + el_id] + (["." + c for c in cls.group(1).split()] if cls else [])
+        for sel in sels:
+            for m in re.finditer(re.escape(sel) + r"\s*\{([^}]*)\}", HTML):
+                d = re.search(r"display\s*:\s*([a-z-]+)", m.group(1))
+                if d and d.group(1) != "none":
+                    assert re.search(re.escape(sel) + r":not\(\[hidden\]\)", HTML), (
+                        f"{sel} 寫了 display:{d.group(1)} 又靠 hidden 控制——"
+                        "hidden 會被蓋掉，元素永遠顯示")
