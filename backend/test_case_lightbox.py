@@ -72,13 +72,17 @@ def test_traceable_case_shows_the_real_shopping_list():
       console.log(JSON.stringify({
         items: (store['caseList'].innerHTML.match(/case-item/g)||[]).length,
         total: (store['caseList'].innerHTML.match(/<strong>([^<]+)<\\/strong>/)||[])[1],
-        links: (store['caseList'].innerHTML.match(/target="_blank"/g)||[]).length,
+        links: (store['caseList'].innerHTML.match(/<a /g)||[]).length,
+        urls: /https?:/.test(store['caseList'].innerHTML),
         opened: store['caseBox'].hidden === false,
         locked: document.body.style.overflow
       }));
     """)
     assert out["items"] == 4, out
-    assert out["links"] == 4, "每一件都要能點到賣場"
+    # 🔴 範本【刻意】不給外連：說服力來自品名／價格的具體性，不是連結。
+    #    給一鍵外連等於白送流量，而購買連結是付費後成品頁才有的東西。
+    assert out["links"] == 0, "範本清單又變成可點的外連了"
+    assert out["urls"] is False, "清單裡出現賣場網址"
     assert out["total"] == "NT$73,544", out
     assert out["opened"] and out["locked"] == "hidden"
 
@@ -88,6 +92,7 @@ def test_price_note_is_present_because_prices_age():
     out = _run("openCase('68036DF7');"
                "console.log(JSON.stringify({n: store['caseNote'].textContent}));")
     assert "以賣場頁面為準" in out["n"], out
+    assert "成品頁" in out["n"], "沒有告訴訪客購買連結在哪裡拿得到"
 
 
 def test_legacy_cases_do_not_invent_a_list():
@@ -113,3 +118,15 @@ def test_unknown_id_falls_back_to_upload():
     out = _run("openCase('沒這個id');"
                "console.log(JSON.stringify({href: window.location.href}));")
     assert out["href"] == "upload.html", out
+
+def test_showcase_page_source_carries_no_shop_urls():
+    """🔴 不渲染成連結還不夠——網址留在原始碼裡，按右鍵檢視就拿得到。
+
+    範本的目的是證明「清單是真商品」，不是替賣場導流；購買連結是付費後
+    成品頁才有的東西。所以 CASES 資料裡根本不存網址。
+    """
+    i = HTML.index("var CASES")
+    data = HTML[i:HTML.index("function openCase", i)]
+    for host in ("24h.pchome.com.tw", "momoshop.com.tw", "ikea.com.tw/zh/products",
+                 "hola.com.tw/p/", "nitori-net.tw/product"):
+        assert host not in data, f"範本資料裡留了賣場網址：{host}"

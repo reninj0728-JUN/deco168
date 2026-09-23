@@ -594,8 +594,7 @@
       padding: 11px 0; border-bottom: 1px solid var(--line);
       font-size: 13px; color: var(--body); line-height: 1.5;
     }
-    .case-item a { color: var(--body); text-decoration: none; flex: 1; }
-    .case-item a:hover { color: var(--gold); }
+    .case-item .n { flex: 1; }
     .case-item .p { color: var(--gold); white-space: nowrap; font-size: 12px; }
     .case-total {
       display: flex; justify-content: space-between; align-items: baseline;
@@ -1052,17 +1051,19 @@
 <script>
   /* 案例資料。⚠️ 清單只放「查得到的單」——舊案例的後端資料已被 30 天保留期
      清掉（render URL 實測回 400），沒有依據就不列，不要編一份出來。
-     價格是抓取當下的快照，所以下面一定要附「以賣場頁面為準」。 */
+     價格是抓取當下的快照，所以下面一定要附「以賣場頁面為準」。
+     🔴 刻意【不存】購買網址：不渲染成連結還不夠，留在原始碼裡按右鍵就拿得到。
+        購買連結是付費後成品頁才有的東西。 */
   var CASES = {
     '68036DF7': {
       img: 'assets/cases/japanese-living.jpg',
       eyebrow: '日式侘寂 · 客廳',
       title: '案例 68036DF7',
       items: [
-        ['HappyLife 實木日式雙人沙發 (Y12271)', 40499, 'https://24h.pchome.com.tw/prod/DQCE19-A900JRA5Q'],
-        ['STOCKHOLM - 咖啡桌，實木貼皮, 胡桃木，180x59 公分', 9499, 'https://www.ikea.com.tw/zh/products/armchairs-footstool-and-sofa-tables/sofa-tables/stockholm-art-90353078'],
-        ['YIMI 依米 150x200CM日式茶几沙發墊 編織地毯 客廳地毯 黃麻地毯', 7646, 'https://24h.pchome.com.tw/prod/DEAZFI-A900K399V'],
-        ['簡約日式原木電視櫃', 15900, 'https://24h.pchome.com.tw/prod/DQCI05-A900JU2SH']
+        ['HappyLife 實木日式雙人沙發 (Y12271)', 40499],
+        ['STOCKHOLM - 咖啡桌，實木貼皮, 胡桃木，180x59 公分', 9499],
+        ['YIMI 依米 150x200CM日式茶几沙發墊 編織地毯 客廳地毯 黃麻地毯', 7646],
+        ['簡約日式原木電視櫃', 15900]
       ]
     },
     'nordic': { img: 'assets/cases/nordic-living.jpg', eyebrow: '北歐清簡 · 客廳', title: '設計案例' },
@@ -1085,15 +1086,19 @@
       var total = 0, html = '';
       c.items.forEach(function (it) {
         total += it[1];
-        html += '<div class="case-item">'
-              + '<a href="' + it[2] + '" target="_blank" rel="noopener">' + it[0] + '</a>'
+        /* 🔴 刻意不做外連：說服訪客的是「具體性」（品牌/型號/尺寸/價格都對得上圖），
+           不是那個連結。而我們賣的是「配得進你家那個空間」，不是「找得到商品」——
+           範本那間房不是訪客的房間，給他別人家的清單沒用，給他一鍵外連就是白送流量。
+           購買連結留給付費後的成品頁。 */
+        html += '<div class="case-item"><span class="n">' + it[0] + '</span>'
               + '<span class="p">NT$' + it[1].toLocaleString() + '</span></div>';
       });
       html += '<div class="case-total"><span>主家具合計</span>'
             + '<strong>NT$' + total.toLocaleString() + '</strong></div>';
       list.innerHTML = html;
-      note.textContent = '這是這張訂單實際配到的商品，點品名可到賣場。'
-        + '價格與供貨以賣場頁面為準；軟裝與其餘配件另計。';
+      note.textContent = '這是這張訂單實際配到的商品。'
+        + '購買連結與完整規格，會附在你自己的成品頁裡。'
+        + '價格為當時抓取，實際以賣場頁面為準；軟裝與其餘配件另計。';
     } else {
       list.innerHTML = '';
       note.textContent = '這張是早期案例，後端紀錄已超過保留期限，只留下成品圖。';
