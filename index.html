@@ -767,9 +767,13 @@
       手機裡存的一百張，都是別人的家。
     </p>
     <p class="hero-close">上傳一張照片，先看見你家的樣子。</p>
+    <!-- 開場【刻意】不放「開始設計」：整頁的順序是
+         勾起需求 → 看案例 → 怎麼用 → 品牌 → 價格 → 最後才請人上傳。
+         還沒讓人看見這東西長怎樣就先擺購買按鈕，等於自己打自己那句
+         「上傳一張照片，先看見你家的樣子」。開場唯一的動作就是往下看。
+         想馬上開始的人，導覽列那顆按鈕一直都在。 -->
     <div class="hero-actions">
-      <button class="btn-primary" onclick="window.location.href='upload.html'">開始設計</button>
-      <button class="btn-ghost" onclick="document.getElementById('examples').scrollIntoView({behavior:'smooth'})">瀏覽設計案例</button>
+      <button class="btn-primary" onclick="document.getElementById('examples').scrollIntoView({behavior:'smooth'})">瀏覽設計案例</button>
     </div>
   </div>
   <div class="hero-scroll">Scroll</div>
