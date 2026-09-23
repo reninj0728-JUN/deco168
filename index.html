@@ -564,6 +564,55 @@
       color: var(--black);
     }
 
+    /* ── 案例燈箱 ──
+       原本六張案例卡整張都是 onclick 跳 upload.html：區塊標題寫「設計案例」，
+       行為卻是購買按鈕。想看清楚一點的訪客被直接推進付款流程，比沒有案例更傷。
+       改成點了放大看＋列出那一單真的配到的商品。
+       （漏斗入口沒有少：同一區本來就有「+ 上傳您的空間」磚和「立即體驗」按鈕。） */
+    .case-box {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(10,10,10,0.94);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; overflow-y: auto;
+    }
+    .case-inner {
+      max-width: 1000px; width: 100%; margin: auto;
+      display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px;
+      align-items: start;
+    }
+    .case-inner img { width: 100%; display: block; border: 1px solid var(--line); }
+    .case-eyebrow {
+      font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 10px;
+    }
+    .case-title {
+      font-family: 'Cormorant Garamond', serif; font-size: 28px;
+      font-weight: 300; color: var(--white); margin-bottom: 18px;
+    }
+    .case-item {
+      display: flex; gap: 12px; align-items: baseline;
+      padding: 11px 0; border-bottom: 1px solid var(--line);
+      font-size: 13px; color: var(--body); line-height: 1.5;
+    }
+    .case-item a { color: var(--body); text-decoration: none; flex: 1; }
+    .case-item a:hover { color: var(--gold); }
+    .case-item .p { color: var(--gold); white-space: nowrap; font-size: 12px; }
+    .case-total {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 14px; font-size: 12px; color: var(--muted);
+    }
+    .case-total strong {
+      font-family: 'Cormorant Garamond', serif; font-size: 22px;
+      color: var(--gold); font-weight: 400;
+    }
+    .case-note { font-size: 10px; color: #555; line-height: 1.8; margin-top: 14px; }
+    .case-close {
+      position: fixed; top: 20px; right: 24px; z-index: 201;
+      background: none; border: 1px solid var(--line); color: var(--muted);
+      width: 38px; height: 38px; font-size: 18px; cursor: pointer;
+    }
+    .case-close:hover { color: var(--gold); border-color: var(--gold); }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
       /* 原生 CSS scroll-snap 翻頁：輕滑一下自動滑到下一區、一次一區。
@@ -628,6 +677,9 @@
       .step-title { font-size: 13px; margin-bottom: 8px; }
       .step-body { font-size: 12px; line-height: 1.7; }
 
+      .case-inner { grid-template-columns: 1fr; gap: 16px; }
+      .case-title { font-size: 21px; margin-bottom: 12px; }
+      .case-item { font-size: 12px; padding: 9px 0; }
       .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 16px !important; gap: 8px !important; }
 
       /* 定價：隱藏 feature 列表，讓兩張卡都在同一頁，消除頁內捲動打架 */
@@ -771,7 +823,7 @@
     <div class="section-label">設計案例</div>
     <h2 class="story-title">系統生成的<em>真實成果</em></h2>
     <div class="examples-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:40px;">
-      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
+      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="openCase('68036DF7')">
         <img src="assets/cases/japanese-living.jpg" alt="日式侘寂客廳成品" loading="lazy"
              style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
@@ -779,7 +831,7 @@
           <div style="font-size:12px;color:var(--white);">客廳 · 案例 68036DF7</div>
         </div>
       </div>
-      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
+      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="openCase('nordic')">
         <img src="assets/cases/nordic-living.jpg" alt="北歐清簡客廳成品" loading="lazy"
              style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
@@ -787,7 +839,7 @@
           <div style="font-size:12px;color:var(--white);">客廳 · 案例 0A3D74C7</div>
         </div>
       </div>
-      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
+      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="openCase('cream')">
         <img src="assets/cases/cream-living.jpg" alt="奶油暖居客廳成品" loading="lazy"
              style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
@@ -795,7 +847,7 @@
           <div style="font-size:12px;color:var(--white);">客廳 · 案例 57539A91</div>
         </div>
       </div>
-      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
+      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="openCase('muji')">
         <img src="assets/cases/muji-dining.jpg" alt="無印極簡餐廳成品" loading="lazy"
              style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
@@ -803,7 +855,7 @@
           <div style="font-size:12px;color:var(--white);">餐廳 · 案例 71B8E762</div>
         </div>
       </div>
-      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
+      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="openCase('luxury')">
         <img src="assets/cases/luxury-bedroom.jpg" alt="現代輕奢主臥室成品" loading="lazy"
              style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
@@ -811,7 +863,7 @@
           <div style="font-size:12px;color:var(--white);">主臥室 · 案例 BECF1DA5</div>
         </div>
       </div>
-      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="window.location.href='upload.html'">
+      <div style="position:relative;overflow:hidden;cursor:pointer;" onclick="openCase('french')">
         <img src="assets/cases/french-dining.jpg" alt="法式浪漫餐廳成品" loading="lazy"
              style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
         <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(17,17,17,0.9));">
@@ -830,6 +882,20 @@
     </div>
   </div>
 </section>
+
+<!-- CASE LIGHTBOX -->
+<div class="case-box" id="caseBox" hidden onclick="if(event.target===this)closeCase()">
+  <button class="case-close" onclick="closeCase()" aria-label="關閉">&times;</button>
+  <div class="case-inner">
+    <div><img id="caseImg" src="" alt=""></div>
+    <div>
+      <div class="case-eyebrow" id="caseEyebrow"></div>
+      <div class="case-title" id="caseTitle"></div>
+      <div id="caseList"></div>
+      <div class="case-note" id="caseNote"></div>
+    </div>
+  </div>
+</div>
 
 <!-- BRAND STORY -->
 <section id="story">
@@ -983,5 +1049,67 @@
   </svg>
   <span>查詢下載</span>
 </a>
+<script>
+  /* 案例資料。⚠️ 清單只放「查得到的單」——舊案例的後端資料已被 30 天保留期
+     清掉（render URL 實測回 400），沒有依據就不列，不要編一份出來。
+     價格是抓取當下的快照，所以下面一定要附「以賣場頁面為準」。 */
+  var CASES = {
+    '68036DF7': {
+      img: 'assets/cases/japanese-living.jpg',
+      eyebrow: '日式侘寂 · 客廳',
+      title: '案例 68036DF7',
+      items: [
+        ['HappyLife 實木日式雙人沙發 (Y12271)', 40499, 'https://24h.pchome.com.tw/prod/DQCE19-A900JRA5Q'],
+        ['STOCKHOLM - 咖啡桌，實木貼皮, 胡桃木，180x59 公分', 9499, 'https://www.ikea.com.tw/zh/products/armchairs-footstool-and-sofa-tables/sofa-tables/stockholm-art-90353078'],
+        ['YIMI 依米 150x200CM日式茶几沙發墊 編織地毯 客廳地毯 黃麻地毯', 7646, 'https://24h.pchome.com.tw/prod/DEAZFI-A900K399V'],
+        ['簡約日式原木電視櫃', 15900, 'https://24h.pchome.com.tw/prod/DQCI05-A900JU2SH']
+      ]
+    },
+    'nordic': { img: 'assets/cases/nordic-living.jpg', eyebrow: '北歐清簡 · 客廳', title: '設計案例' },
+    'cream':  { img: 'assets/cases/cream-living.jpg',  eyebrow: '奶油暖居 · 客廳', title: '設計案例' },
+    'muji':   { img: 'assets/cases/muji-dining.jpg',   eyebrow: '無印極簡 · 餐廳', title: '設計案例' },
+    'luxury': { img: 'assets/cases/luxury-bedroom.jpg', eyebrow: '現代輕奢 · 主臥室', title: '設計案例' },
+    'french': { img: 'assets/cases/french-dining.jpg', eyebrow: '法式浪漫 · 餐廳', title: '設計案例' }
+  };
+
+  function openCase(id) {
+    var c = CASES[id];
+    if (!c) { window.location.href = 'upload.html'; return; }
+    document.getElementById('caseImg').src = c.img;
+    document.getElementById('caseImg').alt = c.eyebrow;
+    document.getElementById('caseEyebrow').textContent = c.eyebrow;
+    document.getElementById('caseTitle').textContent = c.title;
+    var list = document.getElementById('caseList');
+    var note = document.getElementById('caseNote');
+    if (c.items && c.items.length) {
+      var total = 0, html = '';
+      c.items.forEach(function (it) {
+        total += it[1];
+        html += '<div class="case-item">'
+              + '<a href="' + it[2] + '" target="_blank" rel="noopener">' + it[0] + '</a>'
+              + '<span class="p">NT$' + it[1].toLocaleString() + '</span></div>';
+      });
+      html += '<div class="case-total"><span>主家具合計</span>'
+            + '<strong>NT$' + total.toLocaleString() + '</strong></div>';
+      list.innerHTML = html;
+      note.textContent = '這是這張訂單實際配到的商品，點品名可到賣場。'
+        + '價格與供貨以賣場頁面為準；軟裝與其餘配件另計。';
+    } else {
+      list.innerHTML = '';
+      note.textContent = '這張是早期案例，後端紀錄已超過保留期限，只留下成品圖。';
+    }
+    document.getElementById('caseBox').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCase() {
+    document.getElementById('caseBox').hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeCase();
+  });
+</script>
 </body>
 </html>
