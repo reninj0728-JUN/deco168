@@ -397,38 +397,6 @@
     }
     .photos-warning.show { display: block; }
 
-    /* ── 影片 ────────────────────────────────────── */
-    .upload-box {
-      border: 1px dashed var(--line);
-      padding: 40px 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .25s, background .25s;
-      position: relative;
-      overflow: hidden;
-    }
-    .upload-box:hover { border-color: var(--gold); background: rgba(201,169,110,0.03); }
-    .upload-box.active { border-color: var(--gold); background: rgba(201,169,110,0.05); border-style: solid; }
-    .upload-box input[type=file] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-    }
-    .upload-icon { font-size: 30px; margin-bottom: 14px; }
-    .upload-title { font-size: 14px; font-weight: 500; color: var(--white); margin-bottom: 8px; letter-spacing: 0.5px; }
-    .upload-hint { font-size: 12px; color: var(--body); line-height: 1.7; }
-    .upload-formats { margin-top: 14px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-
-    .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-    .file-item {
-      display: flex; align-items: center; justify-content: space-between;
-      background: var(--dark); border: 1px solid var(--line);
-      padding: 12px 16px; font-size: 12px; color: var(--body);
-    }
-    .file-item-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .file-item-left span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .file-item-icon { color: var(--gold); font-size: 14px; flex-shrink: 0; }
-    .file-remove { color: var(--muted); cursor: pointer; font-size: 14px; transition: color .2s; border: none; background: none; padding: 8px; }
-    .file-remove:hover { color: #e74c3c; }
-
     /* TIPS */
     .tips-box {
       border: 1px solid var(--line);
@@ -607,44 +575,6 @@
 
   <div class="section-divider"></div>
 
-  <!-- ── 空間影片（選填）─────────────────────────────────────── -->
-  <div class="section-label">空間影片（選填）</div>
-  <div class="upload-box" id="video-box"
-       ondragover="onDragoverVideo(event)"
-       ondragleave="onDragleaveVideo()"
-       ondrop="onDropVideo(event)">
-    <input type="file" id="video-input" accept="video/*" multiple onchange="onPickVideo(this)">
-    <div class="upload-icon">🎬</div>
-    <div class="upload-title">上傳空間影片（選填）</div>
-    <div class="upload-hint">
-      <!-- 2026-08-04：這句原本埋在五行文案的最後一句，實測有人沒看到就傳了 200~390MB
-           的影片，而單一空間的訂單後端會直接丟棄（api.py `_is_whole` 分支）。
-           上傳當下前端還不知道 space_type（deco_space_type 在下一頁 style-form 才寫入），
-           所以做不到「單房自動隱藏」，只能把話講在最前面、講到不可能忽略。 -->
-      <div style="border:1px solid var(--gold-lt,#d4b878);border-radius:4px;padding:9px 11px;
-                  margin-bottom:9px;color:var(--gold-lt,#d4b878);line-height:1.6;">
-        <b>只做「單一空間」（例如只設計客廳）的話，請不要上傳影片</b>——
-        單一空間的提案只會用照片，影片不會被使用，上傳只是白等。
-      </div>
-      影片只在<b>「全室規劃」</b>用得到——它讓我們看懂各房間怎麼連、動線與相對位置，
-      這是零散照片給不了的；也<b>可輔助坪數估算</b>（影片裡的流理台、門框這類
-      已知尺寸物件是很好的比例尺）。<b>照片仍是設計提案的主要依據</b>，
-      <b>設計圖張數不會因為上傳影片而增加</b>。
-      <b>建議 15～40 秒</b>：從大門慢慢走進各房間，每個門口停一下對準開口，
-      <b>可以邊走邊說需求</b>（例如「這裡當客廳、電視不要對門」），我們會一起聽進去。
-      過長影片只會拖慢分析。
-    </div>
-    <div class="upload-formats">
-      <span class="format-tag">MP4</span>
-      <span class="format-tag">MOV</span>
-      <span class="format-tag">5 分鐘內</span>
-      <span class="format-tag">最大 300MB</span>
-    </div>
-  </div>
-  <div class="file-list" id="video-list"></div>
-
-  <div class="section-divider"></div>
-
   <!-- ── 拍攝提示（收合，想拍更準才展開，避免給人「一定要照做」的壓力）── -->
   <details class="tips-box">
     <summary class="tips-title" style="cursor:pointer; margin-bottom:0;">✦ 拍攝小提示（想拍更準可展開，非必須）</summary>
@@ -776,7 +706,6 @@
   // photos: [{id, file, status, progress, key, thumb, label, other_text, seq, error}]
   var photos = [];
   var _photo_seq = 0;
-  var videoFiles = [];
   // 主空間手動切換：null = 套用預設規則
   var manualPrimaryKey = null;
 
@@ -916,99 +845,6 @@
         xhr.onerror = function() { reject(new Error('Supabase PUT network error')); };
         xhr.send(file);
       } catch (e) { reject(e); }
-    });
-  }
-
-  function uploadVideoToR2(file, uploadId, onProgress) {
-    return new Promise(async function(resolve, reject) {
-      try {
-        var ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-        var safeName = 'video_' + Date.now() + '.' + ext;
-        var fd = new FormData();
-        fd.append('upload_id',    uploadId);
-        fd.append('filename',     safeName);
-        fd.append('content_type', file.type || 'video/mp4');
-        var presignResp = await fetch(API_BASE + '/api/r2/presign', { method: 'POST', body: fd });
-        if (!presignResp.ok) throw new Error('presign failed HTTP ' + presignResp.status);
-        var presign = await presignResp.json();
-        var xhr = new XMLHttpRequest();
-        xhr.open('PUT', presign.url, true);
-        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-        xhr.upload.onprogress = function(e) {
-          if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        xhr.onload = function() {
-          if (xhr.status >= 200 && xhr.status < 300) resolve(presign.key);
-          else reject(new Error('R2 PUT failed HTTP ' + xhr.status));
-        };
-        xhr.onerror = function() { reject(new Error('R2 PUT network error')); };
-        xhr.send(file);
-      } catch (e) { reject(e); }
-    });
-  }
-
-  // ── 影片 drag handlers（沿用 flat） ───────────────────
-  function onDragoverVideo(e) { e.preventDefault(); document.getElementById('video-box').classList.add('active'); }
-  function onDragleaveVideo() { document.getElementById('video-box').classList.remove('active'); }
-  function onDropVideo(e) {
-    e.preventDefault();
-    document.getElementById('video-box').classList.remove('active');
-    Array.from(e.dataTransfer.files || []).forEach(addVideoFile);
-  }
-  function onPickVideo(input) {
-    Array.from(input.files || []).forEach(addVideoFile);
-  }
-  // 影片限制：>300MB 直接擋；>5 分鐘擋（過長 = Gemini 處理慢/卡死風險/token 爆量）。
-  // 長度要等 metadata 載入才知道，所以先入列再非同步驗，超長就移除並提示。
-  var VIDEO_MAX_MB = 300, VIDEO_MAX_SEC = 300;
-  function addVideoFile(f) {
-    if (f.size > VIDEO_MAX_MB * 1024 * 1024) {
-      alert('「' + f.name + '」超過 ' + VIDEO_MAX_MB + 'MB。\n建議 30 秒～2 分鐘、每個空間繞一圈即可；請壓縮或剪短後再上傳。');
-      return;
-    }
-    videoFiles.push(f);
-    renderVideoList();
-    try {
-      var v = document.createElement('video');
-      v.preload = 'metadata';
-      v.onloadedmetadata = function () {
-        URL.revokeObjectURL(v.src);
-        if (v.duration && v.duration > VIDEO_MAX_SEC) {
-          var idx = videoFiles.indexOf(f);
-          if (idx >= 0) { videoFiles.splice(idx, 1); renderVideoList(); }
-          alert('「' + f.name + '」長度約 ' + Math.round(v.duration / 60) + ' 分鐘，超過 5 分鐘上限。\n建議 30 秒～2 分鐘：每個空間慢慢繞一圈就夠了，請剪短後再上傳。');
-        }
-      };
-      v.src = URL.createObjectURL(f);
-    } catch (e) { /* metadata 讀不到就放行，後端照片為主不會卡單 */ }
-  }
-
-  function renderFlatItem(file, onRemove) {
-    var div = document.createElement('div');
-    div.className = 'file-item';
-    var name = file.name;
-    var sizeMB = (file.size / 1024 / 1024).toFixed(1);
-    var icon = file.type && file.type.indexOf('video') >= 0 ? '🎬'
-             : file.type && file.type.indexOf('pdf')   >= 0 ? '📄' : '🖼️';
-    div.innerHTML =
-      '<div class="file-item-left">' +
-        '<span class="file-item-icon">' + icon + '</span>' +
-        '<span title="' + name + '">' + name + '</span>' +
-        '<span style="color:var(--muted);font-size:10px;flex-shrink:0;">' + sizeMB + ' MB</span>' +
-      '</div>' +
-      '<button class="file-remove" type="button">✕</button>';
-    div.querySelector('.file-remove').addEventListener('click', onRemove);
-    return div;
-  }
-
-  function renderVideoList() {
-    var list = document.getElementById('video-list');
-    list.innerHTML = '';
-    videoFiles.forEach(function(f, i) {
-      list.appendChild(renderFlatItem(f, function() {
-        videoFiles.splice(i, 1);
-        renderVideoList();
-      }));
     });
   }
 
@@ -1587,16 +1423,6 @@
     try {
       var uploadId = UPLOAD_ID;
 
-      var videoKeys = [];
-      for (var i = 0; i < videoFiles.length; i++) {
-        var vIdx = i + 1;
-        btn.textContent = '影片 ' + vIdx + '/' + videoFiles.length + ' 上傳中 0%';
-        var vKey = await uploadVideoToR2(videoFiles[i], uploadId, function(pct) {
-          btn.textContent = '影片 ' + vIdx + '/' + videoFiles.length + ' 上傳中 ' + pct + '%';
-        });
-        videoKeys.push(vKey);
-      }
-
       var allPhotoKeys = photos.filter(function(p) { return p.status === 'uploaded' && p.key; })
                                .map(function(p) { return p.key; });
 
@@ -1604,7 +1430,6 @@
       var formData = new FormData();
       formData.append('upload_id',  uploadId);
       formData.append('photo_keys', JSON.stringify(allPhotoKeys));
-      formData.append('video_keys', JSON.stringify(videoKeys));
 
       var resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1621,8 +1446,8 @@
        'deco_plan','deco_render_angle','deco_layout_choice','deco_zoning_json',
        'deco_sofa_side'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
 
-      if (noPhotos && videoKeys.length === 0) {
-        if (!confirm('沒有上傳照片或影片，是否以示範模式繼續？')) {
+      if (noPhotos) {
+        if (!confirm('沒有上傳照片，是否以示範模式繼續？')) {
           btn.textContent = orig;
           btn.disabled = false;
           return;

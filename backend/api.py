@@ -9018,6 +9018,11 @@ async def upload_register(
             vkeys = []
     except Exception:
         vkeys = []
+    # 2026-09-24 產品決定：新訂單不收影片（上傳頁已拿掉入口）。影片四條管道斷三條、
+    # 證不出加成，單一空間本來就丟棄。這裡再擋一次，部署前就開著的舊上傳頁送來的
+    # 影片也不會進 pipeline。舊訂單不受影響——重建走 sb_get_upload 的 video_keys。
+    if os.environ.get("ACCEPT_VIDEO_UPLOADS", "0").strip() != "1":
+        vkeys = []
     for k in vkeys:
         if isinstance(k, str) and k.strip():
             local_paths.append(f"r2://{k.strip()}")
