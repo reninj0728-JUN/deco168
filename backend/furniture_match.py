@@ -1628,40 +1628,116 @@ _WIDTH_CRITICAL_CATS = ("sofa", "media_console", "storage", "table",
                         "dining_table", "coffee_table")
 
 # ── 床：不能用通用解析（2026-09-24）─────────────────────────────────
-# 床架 86% 的品名寫著尺寸，但直接套通用解析會讀出一堆錯的值（實測）：
+# 床架的品名與 dimensions 欄都很亂，直接套通用解析會讀出一堆錯的值（實測）：
 #     193 ← 「FANGE 折疊床 193*60*30」        那是床【長】不是床寬
 #     190 ← 「塌塌米雙人床架 150x190」         取了長邊
 #      40 ← 「單人床座 N-ZIO-HL BOX WW 40M」   型號尾碼
-#      74 ← 「MUJI 橡膠木床架/D/74cm」         D 是雙人，74 不知何來
-# 床跟其他家具的差別：**最長邊是床長不是床寬**，而且床寬只有少數幾個標準值。
-# 所以改用「先認規格詞、再用標準值驗證」，認不出來就回 None（寧可沉默）。
+#     150 ← 「適用床墊尺寸：150 x 190 cm」     那是床墊，不是床架外徑
+# 床跟其他家具的差別：最長邊是床長不是床寬；而床架外徑 = 床墊寬 + 0～25cm。
+BED_MATTRESS_WIDTHS = (91, 106, 120, 152, 182)
+
+
+def _plausible_bed_frame_width(w: int) -> bool:
+    """床架外徑 = 某個標準床墊寬 + 0～25cm（床框、側板）。
+
+    實例：6 尺床墊 182 → 已核實的床架外徑 183 與 205 都落在這裡；
+    折疊床的 60 則哪個標準都搆不上。
+    """
+    return any(m - 8 <= w <= m + 25 for m in BED_MATTRESS_WIDTHS)
+
+
 def bed_width_cm(dims: str) -> int | None:
     """床架的佔地寬（外徑）。只讀 dimensions 欄，**不從品名推**。
 
-    🔴 兩條規則都是踩過坑換來的，別再回頭：
+    🔴 三條規則都是踩過坑換來的，別再回頭：
 
-    ① **不准用台尺／單人雙人換算**（本來就有測試在擋：
+    ① **不准用台尺／單人雙人換算**（測試在擋：
        `test_bed_widths_are_not_derived_from_the_six_foot_label`）。
        兩張床商家都標「6尺」，床墊是 182，但**床架外徑實際是 205 和 183**。
-       床架比床墊寬，用尺換算會低估到 23cm。規格詞更糟：實測 89 件裡 20 件
-       對不上（商家把 6 尺也叫「雙人」、把單人寬的床叫「雙人床架」），
-       因為很多賣場頁面是一頁賣多種尺寸。
+       用尺換算會低估到 23cm。規格詞更糟：實測 89 件裡 20 件對不上
+       （商家把 6 尺也叫「雙人」），因為很多賣場頁面一頁賣多種尺寸。
 
-    ② **不能用通用解析讀 dimensions**：通用版為了一般家具刻意優先取「長」
-       （中文家具標示的「長」才是橫寬），但床剛好相反——床的「長」是床身長度。
-       實測錯讀：'寬 150 X 長 190 cm' → 190、'193*60*30cm' 折疊床 → 193。
-       所以這裡自己讀：有標「寬」就用它；沒標籤的三圍取前兩個的【較小】者。
+    ② **不收床墊尺寸**：「床架查外徑，不拿床墊尺寸代替」。
+       hola 有一批 dimensions 寫的是「適用床墊尺寸：150 x 190 cm」——
+       那是能放多大的床墊，不是床架多寬。看到「床墊」兩個字一律不收。
+
+    ③ **不能用通用解析**：通用版為了一般家具刻意優先取「長」（中文家具標示
+       的「長」才是橫寬），床剛好相反。這裡自己讀：有標「寬」就用它；
+       沒標籤的三圍取前兩個的【較小】者；最後必須像一個床架外徑，否則 None。
     """
     s = str(dims or "")
-    if not s:
+    if not s or "床墊" in s:
         return None
     m = re.search(r"寬\s*[:：]?\s*(\d{2,3})", s)
     if m:
-        return _sane_width(m.group(1))
-    tri = re.search(r"(\d{2,3})\s*[*xX×]\s*(\d{2,3})", s)
-    if tri:      # 床的兩個水平邊裡，較小的才是床寬
-        return _sane_width(min(int(tri.group(1)), int(tri.group(2))))
-    return None
+        w = _sane_width(m.group(1))
+    else:
+        tri = re.search(r"(\d{2,3})\s*[*xX×]\s*(\d{2,3})", s)
+        if not tri:
+            return None
+        w = _sane_width(min(int(tri.group(1)), int(tri.group(2))))
+    return w if w is not None and _plausible_bed_frame_width(w) else None
+
+
+# ── 尺寸可信度檢查（2026-09-24，單一來源）────────────────────────────
+# 🔴 為什麼要有這個：第一趟補沙發尺寸的腳本沒有「高度下限」「整組商品」兩條，
+#    寫進了 12 筆錯資料（蘑菇懶骨頭 高11、折疊三人沙發 高15、1+2+3 人座整組
+#    寬197…）。後來的腳本補了規則，但遇到「已有尺寸就跳過」，等於把錯資料凍住。
+#    規則散在兩支腳本、版本不同，是這次漏網的根因。
+#    現在只准有一份：補尺寸腳本、目錄測試、人工清理都呼叫這一支。
+# 規則只擋「幾何上不可能」或「量的不是一件家具」，判不準寧可標紅——
+# 錯尺寸比沒尺寸更糟：沒尺寸時守門與 prompt 沉默，錯尺寸會叫模型照著畫。
+DIM_SANITY = {
+    # 品類: (寬, 深, 高) 合理區間，cm
+    # 沙發高度下限 50：低背沙發真的有（實例「大象耳朵三人沙發 180x61x57」，
+    # 尺寸寫在品名裡）。平壓紙箱（高 11／15／30）遠低於此。
+    "sofa":          ((60, 400), (55, 170), (50, 130)),
+    "media_console": ((60, 330), (25, 70),  (25, 90)),
+    "bed":           ((80, 230), (170, 240), (15, 140)),
+    "coffee_table":  ((40, 220), (28, 130), (28, 70)),
+    "dining_table":  ((60, 320), (50, 140), (60, 90)),
+    "table":         ((40, 300), (30, 130), (30, 130)),
+    "storage":       ((25, 330), (20, 80),  (20, 240)),
+}
+# 這些不是客廳主沙發，Volume 量到的常是壓縮包裝或整組，不收尺寸。
+_SOFA_NOT_A_SINGLE_PIECE = re.compile(r"1\s*\+\s*[23]|2\s*\+\s*3|客廳組|沙發組")
+_SOFA_COMPRESSED_OR_ACCENT = ("懶骨頭", "懶人", "毛毛蟲", "電競", "躺椅", "搖椅")
+_TRIPLE_RE = re.compile(
+    r"(\d{2,3})\s*(?:cm|公分)?\s*[x×X*]\s*[^\d]{0,4}?(\d{2,3})"
+    r"\s*(?:cm|公分)?\s*[x×X*]\s*[^\d]{0,4}?(\d{2,3})", re.IGNORECASE)
+
+
+def dimension_red_flags(item: dict) -> list[str]:
+    """這筆 dimensions 有哪些不可信的地方。空 list＝可信（或本來就沒填）。"""
+    dims = str(item.get("dimensions") or "").strip()
+    if not dims:
+        return []
+    cat = resolve_category(item)
+    name = str(item.get("name_zh") or "")
+    flags: list[str] = []
+    if cat == "sofa":
+        if _SOFA_NOT_A_SINGLE_PIECE.search(name):
+            flags.append("整組商品，量到的不是一張沙發")
+        if any(k in name for k in _SOFA_COMPRESSED_OR_ACCENT):
+            flags.append("懶骨頭／躺椅類，尺寸多半是壓縮包裝")
+    if cat == "bed":
+        if "床墊" in dims:
+            flags.append("寫的是床墊尺寸，不是床架外徑")
+    t = _TRIPLE_RE.search(dims)
+    if t and cat in DIM_SANITY:
+        a, b, h = (int(v) for v in t.groups())
+        if a == b == h:
+            flags.append(f"三邊相等 {a}（佔位值）")
+        else:
+            (wlo, whi), (dlo, dhi), (hlo, hhi) = DIM_SANITY[cat]
+            wide, deep = (min(a, b), max(a, b)) if cat == "bed" else (max(a, b), min(a, b))
+            if not (hlo <= h <= hhi):
+                flags.append(f"高 {h} 不在 {hlo}-{hhi}（平壓紙箱或量錯）")
+            if not (dlo <= deep <= dhi):
+                flags.append(f"深 {deep} 不在 {dlo}-{dhi}")
+            if not (wlo <= wide <= whi):
+                flags.append(f"寬 {wide} 不在 {wlo}-{whi}")
+    return flags
 
 
 def extract_item_width_cm(item: dict) -> int | None:
@@ -1669,13 +1745,9 @@ def extract_item_width_cm(item: dict) -> int | None:
     （50873CF0：「9.7尺L型電視中空櫃」「亮面/131CM」尺寸只寫在品名，
     dimensions 是空的 → 尺寸守門完全沒生效）。"""
     cat = resolve_category(item)
-    # 🔴 床【整條】分開走，連 dimensions 欄都不能用通用解析。
-    #    通用解析為了一般家具刻意優先取「長」（中文家具標示的「長」才是橫寬），
-    #    但床剛好相反——床的「長」是床身長度。實測目錄裡的錯讀：
-    #        '寬 150 X 長 190 cm'  → 讀到 190（該是 150）
-    #        '193*60*30cm' 折疊床   → 讀到 193（那是床長）
-    #        '寬205X深213X高109'    → 讀到 205
-    #    所以床只收「貼近標準床寬」的值，其餘一律 None。
+    # 🔴 床【整條】分開走，規則見 bed_width_cm：不用台尺換算、不收床墊尺寸、
+    #    不用通用解析（通用版優先取「長」，床的長是床身長度）、
+    #    最後必須像一個床架外徑（標準床墊寬 +0～25cm）。
     if cat == "bed":
         return bed_width_cm(item.get("dimensions", ""))
     allow_bare = cat == "sofa"
