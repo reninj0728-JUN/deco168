@@ -1874,6 +1874,51 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
     return result
 
 
+# ── 客人填的沙發牆寬（2026-09-24）──────────────────────────────────
+# 只有客人自己點了「沙發靠左／靠右」才問，大概就好、可以跳過。
+# 牆寬扣掉兩側留白才是沙發能用的寬；客人量的常是整面牆（可能含門框），寧可保守。
+SOFA_WALL_CLEARANCE_CM = 30
+SOFA_WALL_RANGE_CM = (150, 1200)      # 超出這個範圍當填錯，忽略
+
+
+def sofa_cap_from_wall(wall_cm) -> int | None:
+    """客人填的牆寬 → 沙發寬上限；沒填或填錯回 None。"""
+    try:
+        w = int(float(wall_cm))
+    except (TypeError, ValueError):
+        return None
+    lo, hi = SOFA_WALL_RANGE_CM
+    return (w - SOFA_WALL_CLEARANCE_CM) if lo <= w <= hi else None
+
+
+# 轉角型沙發（L／U／貴妃／轉角）：量不到寬度時，牆可用寬不到這個數就不推。
+# 2026-09-24 實測：牆 220 → 上限 190，卻配到一張量不到寬的「L型沙發床」。
+SOFA_CORNER_MIN_CM = 240
+_SOFA_CORNER_KW = ("l型", "l形", "l 型", "l-shape", "l shape", "u型", "u形", "u-shape",
+                   "轉角", "貴妃", "chaise")
+
+
+def _catalog_for_sofa_cap(catalog: list[dict], cap_cm: int) -> list[dict]:
+    """客人給了牆寬時，拿掉放不下的沙發：
+    - 量得到寬度、而且超過上限的；
+    - 量不到寬度、但是轉角型，而牆可用寬不到 240 的。
+    其他量不到寬度的留著（約八成沙發沒寬度）。保命：一張沙發都不剩就原樣返回。"""
+    def too_big(x):
+        if resolve_category(x) != "sofa":
+            return False
+        w = extract_item_width_cm(x)
+        if w is not None:
+            return w > cap_cm
+        nm = (x.get("name_zh") or "").lower()
+        return cap_cm < SOFA_CORNER_MIN_CM and any(k in nm for k in _SOFA_CORNER_KW)
+
+    out = [x for x in catalog if not too_big(x)]
+    if not any(resolve_category(x) == "sofa" for x in out):
+        print(f"[furniture_match] ⚠️ 沙發上限 {cap_cm}cm 篩完沒有沙發，保留原候選")
+        return catalog
+    return out
+
+
 def _catalog_for_bed_size(catalog: list[dict], bed_size: str) -> list[dict]:
     """客人指定單人／雙人時，臥室候選只留對的床（2026-09-24）。
 
@@ -1939,7 +1984,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
                    palettes: dict | None = None,
                    exclude_ids_by_style: dict | None = None,
                    no_focal_wall: bool = False,
-                   bed_size: str = "") -> list[dict]:
+                   bed_size: str = "",
+                   sofa_wall_cm: int | None = None) -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -1950,6 +1996,7 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
     budget_tier: 'tier1' / 'tier2' / 'tier3'（影響品類預算上限與 fallback）
     preferred_store: 'none'/'momo'/'ikea'/'hola'/'trplus'（評分加分，不硬篩）
     bed_size: 'single'／'double'／''——客人在付款頁替這間臥室選的床型（只對臥室生效）。
+    sofa_wall_cm: 客人填的沙發牆寬（只對客廳生效）。有填就蓋過系統對房間大小的猜測。
     palettes: {style_id: 使用者選的色系中文名}——轉成顏色關鍵字進評分，
               讓「選莫蘭迪粉」真的優先挑到粉色調商品（色系不再改商品顏色後，
               這是色系影響成品的正道）
@@ -1986,6 +2033,13 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
 
     # 小空間 / 尺寸不明判定（root cause fix for C15719C5 — 270cm 法式沙發把客廳擠小）
     is_small_room = max_w <= SMALL_ROOM_MAX_WIDTH_DEFAULT
+    # 客人填了沙發牆寬 → 用真的數字取代猜測，兩個方向都算數：
+    # 房間尺寸抓不到時系統預設當小空間（240），牆其實有 4 公尺的話三人座不該被降權。
+    sofa_cap = sofa_cap_from_wall(sofa_wall_cm) if room_type == "living" else None
+    if sofa_cap is not None:
+        is_small_room = sofa_cap <= SMALL_ROOM_MAX_WIDTH_DEFAULT
+        print(f"[furniture_match] 客人填沙發牆寬 {sofa_wall_cm}cm → 沙發上限 {sofa_cap}cm "
+              f"is_small_room={is_small_room}")
     if is_small_room:
         print(f"[furniture_match] 空間偏小或尺寸不明 (上限={max_w}cm) "
               f"→ 電動/三人座/加大沙發降權 {SMALL_ROOM_OVERSIZED_PENALTY}")
@@ -2010,6 +2064,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
             room_catalog = _catalog_without(room_catalog, _ex)
             print(f"[furniture_match] {style}/{room_type} 排除同單已選 {len(_ex)} 件 "
                   f"→ 候選 {_before}→{len(room_catalog)}")
+        if sofa_cap is not None:
+            room_catalog = _catalog_for_sofa_cap(room_catalog, sofa_cap)
         if room_type == "bedroom" and bed_size:
             room_catalog = _catalog_for_bed_size(room_catalog, bed_size)
             print(f"[furniture_match] {style}/bedroom 客人指定床型={bed_size}")

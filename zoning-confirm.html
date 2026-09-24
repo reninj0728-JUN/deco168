@@ -107,6 +107,17 @@
     .bed-chip:hover { border-color: var(--gold-lt); color: #fff; }
     .bed-chip.selected { border-color: var(--gold); color: var(--gold-lt); background: rgba(201,169,110,0.08); }
 
+    /* 沙發牆寬：只有客人自己點了靠左／右才出現，可跳過 */
+    .wall-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(201,169,110,0.25); }
+    .wall-row label { display: block; font-size: 14px; color: #fff; margin-bottom: 8px; letter-spacing: 0.5px; }
+    .wall-row label span { color: var(--muted); font-size: 12px; }
+    .wall-input { display: flex; align-items: center; gap: 10px; }
+    .wall-input input { width: 140px; padding: 11px 12px; background: var(--card); color: #fff;
+                        border: 1px solid var(--line); font-family: inherit; font-size: 16px; letter-spacing: 1px; }
+    .wall-input input:focus { outline: none; border-color: var(--gold); }
+    .wall-input span { font-size: 13px; color: var(--body); }
+    .wall-hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+
     /* 手機滑動效能：fixed 元素的 backdrop-filter 每一幀都要重算背後內容的模糊，
        是中低階手機滑動卡頓主因；手機停用並加深底色補償，桌面維持毛玻璃視覺 */
     @media (max-width: 768px) {
@@ -212,6 +223,14 @@
       <div id="sofaSideReadonly" style="display:none; margin-top:10px; font-size:15px; color:#fff; line-height:1.7;"></div>
       <div id="sofaSideHint" style="font-size:13px; color:var(--body); margin-top:10px; line-height:1.7;">
         以照片正面視角為準（電視櫃會放在沙發對側）。不確定就使用預設值。
+      </div>
+      <div id="sofaWallRow" class="wall-row" style="display:none;">
+        <label for="sofaWallInput">沙發那面牆大概多寬？<span>（大概就好，可以跳過）</span></label>
+        <div class="wall-input">
+          <input id="sofaWallInput" type="number" inputmode="numeric" min="150" max="1200" step="10" placeholder="例如 350">
+          <span>公分</span>
+        </div>
+        <div class="wall-hint">填了會避開放不下的沙發；跳過就依照片判斷。</div>
       </div>
     </div>
     </div><!-- /advancedAdjust -->
@@ -428,7 +447,31 @@
       var inp = document.querySelector('input[name=sofaside][value=' + s + ']');
       if (inp) inp.checked = currentSofaSide === s;
     });
+    updateSofaWallRow();
   }
+  // 沙發牆寬：只有客人自己點了靠左／右才問（選「採用建議配置」或沒點＝不問）
+  function updateSofaWallRow() {
+    var row = document.getElementById('sofaWallRow');
+    if (!row) return;
+    var ask = (currentSofaSide === 'left' || currentSofaSide === 'right') &&
+              currentSofaSideSource === 'user_explicit';
+    row.style.display = ask ? 'block' : 'none';
+  }
+  function _sofaWallCm() {
+    var ask = (currentSofaSide === 'left' || currentSofaSide === 'right') &&
+              currentSofaSideSource === 'user_explicit';
+    var el = document.getElementById('sofaWallInput');
+    var v = el ? parseInt(el.value, 10) : NaN;
+    return (ask && v >= 150 && v <= 1200) ? v : '';   // 範圍與後端 SOFA_WALL_RANGE_CM 一致
+  }
+  (function() {
+    var el = document.getElementById('sofaWallInput');
+    if (!el) return;
+    try { el.value = localStorage.getItem('deco_sofa_wall_cm') || ''; } catch (e) {}
+    el.addEventListener('input', function() {
+      try { localStorage.setItem('deco_sofa_wall_cm', el.value || ''); } catch (e) {}
+    });
+  })();
   document.getElementById('sideLeft').addEventListener('click', function(){ setSofaSide('left', 'user_explicit'); });
   document.getElementById('sideRight').addEventListener('click', function(){ setSofaSide('right', 'user_explicit'); });
   document.getElementById('sideFree').addEventListener('click', function(){ setSofaSide('free', 'user_auto'); });
@@ -817,6 +860,7 @@
       fd.append('preferred_store', localStorage.getItem('deco_preferred_store') || 'none');
       fd.append('rooms_json',      roomsJsonForSend);
       fd.append('bed_sizes_json',  JSON.stringify(_visibleBedSizes()));
+      fd.append('sofa_wall_cm',    String(_sofaWallCm()));
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
       if (!resp.ok) {
