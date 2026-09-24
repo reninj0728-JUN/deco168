@@ -664,7 +664,7 @@
             <option value="dining">餐廳</option>
             <option value="bedroom">臥室</option>
             <option value="study">書房</option>
-            <option value="whole">全室多空間</option>
+            <option value="whole">全室（兩房／三房方案）</option>
           </select>
         </div>
       </div>
@@ -689,7 +689,6 @@
     <div class="section-eyebrow">Layer 02</div>
     <div class="section-title">設計方向</div>
     <p id="styleIntro" style="font-size:13px;color:#999;margin-bottom:6px;line-height:1.7;">選擇 <strong style="color:var(--gold)">2 種</strong>風格方向，我們會為每種風格各做一張設計提案。</p>
-    <p id="wholeAddonNote" style="display:none;font-size:12px;color:var(--gold);margin-bottom:16px;line-height:1.7;">全室方案基本含 1 種風格；想再加風格可加選，第 2 種 +NT$500、第 3 種再 +NT$500。</p>
 
     <!-- 已選方向 chips -->
     <div id="directionChips" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:20px;"></div>
@@ -873,21 +872,19 @@ var selectedBudgetTier = 'tier2';
 var selectedDirections = []; // [{styleId, styleName, colorId, colorName}]
 var pendingStyle = null;
 
-// 新定價：單一空間 999 含 2 風格；全室 1,199 含 1 風格、第 2/3 種每種 +500（輕鬆標註不推銷）
+// 定價（2026-09-24）：單一空間 999 含 2 種風格；全室（兩房 1,388／三房 1,688）整戶同一種風格。
+// 全室不再加購風格——一種風格走完每個房間，整間房子看起來才是同一套設計。
 function maxDirections() {
   var st = document.getElementById('spaceType');
-  return (st && st.value === 'whole') ? 3 : 2;
+  return (st && st.value === 'whole') ? 1 : 2;
 }
 function updateStyleCounter() {
   var st = document.getElementById('spaceType');
   var isWhole = st && st.value === 'whole';
-  // 加購說明獨立一行常駐顯示（不塞進計數器文字裡），選之前就先讓客戶知道規則
   var intro = document.getElementById('styleIntro');
-  var addonNote = document.getElementById('wholeAddonNote');
   if (intro) intro.innerHTML = isWhole
-    ? '全室方案<strong style="color:var(--gold)">基本含 1 種</strong>風格，最多可加選到 <strong style="color:var(--gold)">3 種</strong>。'
+    ? '全室方案選 <strong style="color:var(--gold)">1 種</strong>風格，每個空間都用這套風格設計，整間房子一致。'
     : '選擇 <strong style="color:var(--gold)">2 種</strong>風格方向，我們會為每種風格各做一張設計提案。';
-  if (addonNote) addonNote.style.display = isWhole ? 'block' : 'none';
   document.getElementById('styleCounter').textContent =
     '已選 ' + selectedDirections.length + ' / ' + maxDirections() + ' 個方向';
 }
@@ -905,7 +902,7 @@ function buildStyleGrid() {
       <div class="style-hint">${s.hint}</div>
     `;
     card.addEventListener('click', () => {
-      if (selectedDirections.length >= maxDirections()) {
+      if (selectedDirections.length >= maxDirections() && maxDirections() > 1) {
         alert('最多 ' + maxDirections() + ' 個設計方向'); return;
       }
       pendingStyle = s;
@@ -936,6 +933,8 @@ function showColorPicker(s) {
 }
 
 function confirmDirection(style, palette) {
+  // 全室只含 1 種風格：選新的就換掉舊的（確認色系後才換，中途取消不會把原本的弄丟）
+  if (maxDirections() === 1) selectedDirections = [];
   selectedDirections.push({ styleId: style.id, styleName: style.name,
     colorId: palette.id, colorName: palette.name });
   document.getElementById('colorPickerPanel').style.display = 'none';
@@ -1085,7 +1084,7 @@ const DELIVERABLES = {
     '空間格局與採光分析（文字）',
   ],
   multi: [
-    '客廳／餐廳／主臥等多空間 × 2 種風格的設計圖',
+    '每個空間一張設計圖（全室同一種風格）',
     '每個空間的可購買家具清單（附價格與連結）',
     '空間格局與採光分析（文字）',
   ],
@@ -1110,11 +1109,13 @@ function updateSummary() {
 document.getElementById('spaceType').addEventListener('change', function() {
   updateSummary();
   toggleBudgetForWhole();
-  // 全室(上限3)切回單一(上限2)時，超出的方向移除並提示
+  // 單一(上限2)切到全室(上限1)時，超出的方向移除並提示
   if (selectedDirections.length > maxDirections()) {
     selectedDirections = selectedDirections.slice(0, maxDirections());
     updateDirectionChips();
-    alert('單一空間方案含 2 種風格，已保留前 2 個設計方向');
+    alert(maxDirections() === 1
+      ? '全室方案整戶同一種風格，已保留第 1 個設計方向「' + selectedDirections[0].styleName + '」'
+      : '單一空間方案含 2 種風格，已保留前 2 個設計方向');
   }
   updateStyleCounter();
 });
@@ -1223,7 +1224,7 @@ function restoreSelections() {
     if (dirs) {
       var arr = JSON.parse(dirs);
       if (Array.isArray(arr) && arr.length) {
-        selectedDirections = arr.slice(0, 2);
+        selectedDirections = arr.slice(0, maxDirections());
         updateDirectionChips();
         updateStyleCounter();
       }

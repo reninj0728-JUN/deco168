@@ -1444,7 +1444,7 @@
       ['deco_directions','deco_style','deco_style_count','deco_space_type',
        'deco_budget_tier','deco_customer_notes',
        'deco_plan','deco_render_angle','deco_layout_choice','deco_zoning_json',
-       'deco_sofa_side'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+       'deco_sofa_side','deco_package'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
 
       if (noPhotos) {
         if (!confirm('沒有上傳照片，是否以示範模式繼續？')) {
@@ -1452,10 +1452,13 @@
           btn.disabled = false;
           return;
         }
-        try { localStorage.removeItem('deco_rooms'); } catch (e) {}
+        try { localStorage.removeItem('deco_rooms'); localStorage.removeItem('deco_space_keys'); } catch (e) {}
         window.location.href = 'style-form.html';
         return;
       }
+
+      // 付款頁用來算方案的空間數（兩房含 4、三房含 5、超過加購）。跟上方計數器同一個算法。
+      try { localStorage.setItem('deco_space_keys', JSON.stringify(countRoomInstances())); } catch (e) {}
 
       var validRooms = buildRoomsJson();
       if (validRooms.length > 0) {

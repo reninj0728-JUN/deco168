@@ -441,16 +441,21 @@
     /* ── PRICING ── */
     .pricing-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 24px;
       margin-top: 64px;
     }
 
+    /* 整張卡就是連結（手機上沒有獨立按鈕，點卡片即可開始） */
     .price-card {
       border: 1px solid var(--line);
-      padding: 48px 40px;
+      padding: 44px 36px;
       position: relative;
       transition: border-color .3s;
+      display: flex;
+      flex-direction: column;
+      color: inherit;
+      text-decoration: none;
     }
     .price-card:hover { border-color: var(--gold); }
 
@@ -470,12 +475,37 @@
       padding: 5px 14px;
     }
 
+    .price-kicker {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--gold);
+      margin-bottom: 10px;
+      min-height: 16px;
+    }
     .price-plan {
-      font-size: 10px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
+      font-size: 13px;
+      letter-spacing: 4px;
+      color: var(--white);
+      margin-bottom: 28px;
+    }
+    /* 原價：小字劃線，讓優惠價當主角 */
+    .price-was {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 18px;
+      letter-spacing: 1px;
       color: var(--muted);
-      margin-bottom: 24px;
+      text-decoration: line-through;
+      text-decoration-color: rgba(201,169,110,0.55);
+      margin-bottom: 2px;
+    }
+    .price-save {
+      display: inline-block;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--gold);
+      border: 1px solid rgba(201,169,110,0.45);
+      padding: 4px 10px;
+      margin: 14px 0 18px;
     }
 
     .price-amount {
@@ -493,9 +523,10 @@
     }
 
     .price-note {
-      font-size: 11px;
-      color: var(--muted);
-      margin-bottom: 40px;
+      font-size: 12px;
+      color: var(--body);
+      letter-spacing: 0.5px;
+      margin-bottom: 32px;
     }
 
     .price-divider {
@@ -507,6 +538,7 @@
     .price-features {
       list-style: none;
       margin-bottom: 40px;
+      flex: 1;              /* 三張卡的按鈕底部對齊 */
     }
     .price-features li {
       font-size: 12px;
@@ -554,11 +586,24 @@
       text-align: right;
     }
 
+    .price-cta { display: block; text-align: center; }
+    .price-beta { display: none; }   /* 手機上 Beta 標籤併進小標，避免壓到原價 */
+    .price-addon {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .price-addon b { color: var(--gold-lt); font-weight: 400; }
+
     /* price-card ghost button 金色，在深色背景才看得到 */
     .price-card .btn-ghost {
       border-color: var(--gold);
       color: var(--gold);
     }
+    .price-card:hover .btn-ghost,
     .price-card .btn-ghost:hover {
       background: var(--gold);
       color: var(--black);
@@ -686,15 +731,32 @@
       .case-item { font-size: 12px; padding: 9px 0; }
       .examples-grid { grid-template-columns: 1fr 1fr !important; margin-top: 16px !important; gap: 8px !important; }
 
-      /* 定價：隱藏 feature 列表，讓兩張卡都在同一頁，消除頁內捲動打架 */
-      .pricing-grid { grid-template-columns: 1fr; margin-top: 20px; gap: 14px; }
-      .price-card { padding: 24px 20px; }
-      .price-plan { margin-bottom: 10px; }
-      .price-amount { font-size: 44px; margin-bottom: 2px; }
-      .price-amount sup { font-size: 18px; }
-      .price-note { margin-bottom: 20px; font-size: 11px; }
-      .price-divider { display: none; }
-      .price-features { display: none; }
+      /* 定價：三張卡要跟標題一起裝進同一屏（逐頁吸附，頁內捲動會打架）。
+         改成橫列：左邊方案與內容、右邊價格；功能清單與按鈕隱藏，點整張卡即開始。 */
+      #pricing .section { padding-bottom: 24px; }
+      .pricing-grid { grid-template-columns: 1fr; margin-top: 14px; gap: 8px; }
+      .price-card {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "id fig" "note fig";
+        align-items: center;
+        column-gap: 12px;
+        padding: 13px 16px;
+      }
+      .price-id { grid-area: id; }
+      .price-note { grid-area: note; margin: 4px 0 0; font-size: 11px; line-height: 1.6; }
+      .price-fig { grid-area: fig; text-align: right; }
+      .price-kicker { font-size: 9px; letter-spacing: 1px; margin-bottom: 4px; min-height: 0; }
+      .price-kicker:empty { display: none; }
+      .price-plan { font-size: 15px; letter-spacing: 2px; margin-bottom: 0; }
+      .price-was { font-size: 13px; margin-bottom: 0; }
+      .price-amount { font-size: 30px; margin-bottom: 0; }
+      .price-amount sup { font-size: 14px; }
+      .price-save { font-size: 9px; letter-spacing: 1px; padding: 2px 6px; margin: 4px 0 0; }
+      .price-badge { display: none; }
+      .price-beta { display: inline; }
+      .price-divider, .price-features, .price-cta { display: none; }
+      .price-addon { margin-top: 12px; font-size: 11px; }
 
       footer { flex-direction: column; gap: 20px; text-align: center; padding: 60px 20px 40px; min-height: auto; }
       .footer-copy { text-align: center; }
@@ -971,11 +1033,17 @@
     <div class="section-label">方案定價</div>
     <h2 class="story-title">透明定價，<em>不藏費用</em>。</h2>
     <div class="pricing-grid">
-      <div class="price-card">
-        <div style="color:var(--gold);font-size:11px;letter-spacing:2px;margin-bottom:8px;">★ 最推薦 · 最快交付</div>
-        <div class="price-plan">單一空間設計</div>
-        <div class="price-amount"><sup>NT$</sup>999</div>
-        <div class="price-note">單一空間 · 含 2 種風格</div>
+      <a class="price-card" href="upload.html">
+        <div class="price-id">
+          <div class="price-kicker">★ 最推薦 · 最快交付</div>
+          <div class="price-plan">單一空間</div>
+        </div>
+        <div class="price-fig">
+          <div class="price-was">NT$1,999</div>
+          <div class="price-amount"><sup>NT$</sup>999</div>
+          <div class="price-save">現省 NT$1,000</div>
+        </div>
+        <div class="price-note">1 個空間 · 2 種風格 · 2 張圖</div>
         <div class="price-divider"></div>
         <ul class="price-features">
           <li>空間風格分析報告</li>
@@ -984,24 +1052,54 @@
           <li>30 分鐘內交付</li>
           <li>設計手冊 PDF</li>
         </ul>
-        <a href="upload.html"><button class="btn-ghost" style="width:100%;">開始使用</button></a>
-      </div>
-      <div class="price-card featured">
-        <div class="price-badge">Beta · 進階</div>
-        <div class="price-plan">全室多空間規劃</div>
-        <div class="price-amount"><sup>NT$</sup>1,199<span style="font-size:14px;color:var(--muted);"> 起</span></div>
-        <div class="price-note">多空間 · 含 1 種風格 · 第 2、3 種每種 +NT$500</div>
+        <span class="btn-ghost price-cta">開始使用</span>
+      </a>
+      <a class="price-card featured" href="upload.html">
+        <div class="price-badge">Beta · 全室</div>
+        <div class="price-id">
+          <div class="price-kicker">適合兩房格局<span class="price-beta"> · Beta</span></div>
+          <div class="price-plan">兩房方案</div>
+        </div>
+        <div class="price-fig">
+          <div class="price-was">NT$2,388</div>
+          <div class="price-amount"><sup>NT$</sup>1,388</div>
+          <div class="price-save">現省 NT$1,000</div>
+        </div>
+        <div class="price-note">最多 4 個空間 · 全室同一風格</div>
         <div class="price-divider"></div>
         <ul class="price-features">
-          <li>整戶空間風格分析</li>
-          <li>每個房間的設計渲染圖</li>
-          <li>可購買家具清單（附價格與連結）</li>
-          <li>30 分鐘內交付</li>
+          <li>客廳＋餐廳＋2 間臥室（可換成書房）</li>
+          <li>每個空間一張設計渲染圖</li>
+          <li>全室同一種風格，整體一致</li>
+          <li>每個空間的可購買家具清單</li>
           <li>設計手冊 PDF</li>
         </ul>
-        <a href="upload.html"><button class="btn-primary" style="width:100%;">開始使用</button></a>
-      </div>
+        <span class="btn-primary price-cta">開始使用</span>
+      </a>
+      <a class="price-card" href="upload.html">
+        <div class="price-badge">Beta · 全室</div>
+        <div class="price-id">
+          <div class="price-kicker">適合三房格局<span class="price-beta"> · Beta</span></div>
+          <div class="price-plan">三房方案</div>
+        </div>
+        <div class="price-fig">
+          <div class="price-was">NT$2,688</div>
+          <div class="price-amount"><sup>NT$</sup>1,688</div>
+          <div class="price-save">現省 NT$1,000</div>
+        </div>
+        <div class="price-note">最多 5 個空間 · 全室同一風格</div>
+        <div class="price-divider"></div>
+        <ul class="price-features">
+          <li>客廳＋餐廳＋3 間臥室（可換成書房）</li>
+          <li>每個空間一張設計渲染圖</li>
+          <li>全室同一種風格，整體一致</li>
+          <li>每個空間的可購買家具清單</li>
+          <li>設計手冊 PDF</li>
+        </ul>
+        <span class="btn-ghost price-cta">開始使用</span>
+      </a>
     </div>
+    <p class="price-addon">兩房方案可加購空間，每個 <b>+NT$199</b></p>
   </div>
 </section>
 

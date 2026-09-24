@@ -71,6 +71,28 @@
     .btn-primary:hover { background: var(--gold-lt); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    /* 方案選擇：三張並排，原價小字劃線、優惠價當主角 */
+    .plan-row { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .plan-opt { padding: 18px 12px; text-align: center; font-family: inherit; color: inherit; }
+    .plan-name { font-size: 15px; color: #fff; letter-spacing: 2px; }
+    .plan-sub { font-size: 11px; color: var(--body); margin: 6px 0 10px; line-height: 1.6; }
+    .plan-was { font-family:'Cormorant Garamond',serif; font-size: 14px; color: var(--muted);
+                text-decoration: line-through; text-decoration-color: rgba(201,169,110,0.55); }
+    .plan-price { font-family:'Cormorant Garamond',serif; font-size: 22px; color: var(--gold-lt); letter-spacing: 1px; }
+    @media (max-width: 520px) {
+      .plan-row { gap: 8px; }
+      .plan-opt { padding: 14px 6px; }
+      .plan-name { font-size: 14px; letter-spacing: 1px; }
+      .plan-sub { font-size: 10px; }
+      .plan-price { font-size: 19px; }
+    }
+    /* 空間數確認：付款前講清楚「標了幾個、方案含幾個」 */
+    .space-note { font-size: 13px; line-height: 1.8; color: var(--body); background: var(--card);
+                  border: 1px solid var(--line); padding: 12px 16px; margin-bottom: 14px; }
+    .space-note.short { border-color: rgba(201,169,110,0.45); }
+    .space-note b { color: var(--gold-lt); font-weight: 500; }
+    .space-note a { color: var(--gold); }
+
     /* 手機滑動效能：fixed 元素的 backdrop-filter 每一幀都要重算背後內容的模糊，
        是中低階手機滑動卡頓主因；手機停用並加深底色補償，桌面維持毛玻璃視覺 */
     @media (max-width: 768px) {
@@ -183,18 +205,24 @@
     <!-- Stage 1：checkout 併入本頁 → 確認分區即成交，不再跳一頁看摘要 -->
     <div class="pay-block" style="margin-top:28px; border-top:1px solid var(--line); padding-top:22px;">
       <div style="font-size:12px; color:var(--body); margin-bottom:10px;">選擇方案</div>
-      <div style="display:flex; gap:12px; margin-bottom:16px;">
-        <button type="button" class="opt side-opt selected" id="svcA" onclick="selectPlan('A')"
-                style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
-          <div style="font-size:15px; color:#fff; letter-spacing:1px;">單一空間</div>
-          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">此空間 · 含 2 種風格<br><span style="font-size:10px;opacity:0.8;">（想指定臥室/書房請回上頁選）</span></div>
-          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$999</div>
+      <div class="plan-row">
+        <button type="button" class="opt plan-opt" id="svcA" onclick="selectPlan('A')">
+          <div class="plan-name">單一空間</div>
+          <div class="plan-sub">1 個空間<br>2 種風格</div>
+          <div class="plan-was">NT$1,999</div>
+          <div class="plan-price">NT$999</div>
         </button>
-        <button type="button" class="opt side-opt" id="svcB" onclick="selectPlan('B')"
-                style="flex:1; padding:16px 12px; text-align:center; cursor:pointer;">
-          <div style="font-size:15px; color:#fff; letter-spacing:1px;">全室空間 <span style="font-size:10px; color:var(--gold); border:1px solid var(--gold); padding:1px 5px; border-radius:3px; letter-spacing:1px;">Beta</span></div>
-          <div style="font-size:11px; color:var(--body); margin:4px 0 6px;">多空間 · 含 1 種風格<br><span style="font-size:10px;opacity:0.8;">第 2、3 種風格每種 +NT$500</span></div>
-          <div style="color:var(--gold-lt); font-size:16px; letter-spacing:1px;">NT$1,199 起</div>
+        <button type="button" class="opt plan-opt" id="svcTwo" onclick="selectPlan('two')">
+          <div class="plan-name">兩房方案</div>
+          <div class="plan-sub">最多 4 個空間<br>全室同一風格</div>
+          <div class="plan-was">NT$2,388</div>
+          <div class="plan-price">NT$1,388</div>
+        </button>
+        <button type="button" class="opt plan-opt" id="svcThree" onclick="selectPlan('three')">
+          <div class="plan-name">三房方案</div>
+          <div class="plan-sub">最多 5 個空間<br>全室同一風格</div>
+          <div class="plan-was">NT$2,688</div>
+          <div class="plan-price">NT$1,688</div>
         </button>
       </div>
       <!-- 單一空間：就地選要設計哪個房間，不用回上一頁 -->
@@ -208,6 +236,7 @@
           <option value="study">書房</option>
         </select>
       </div>
+      <div id="spaceCountNote" class="space-note" style="display:none;"></div>
       <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.6; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:8px 12px;">
         全室 Beta：依實際拍到的房間生圖。設計圖以各房照片為準。
       </div>
@@ -389,38 +418,129 @@
   // 3. 服務方案 + 付款（Stage 1：原 checkout 邏輯併入本頁）
   // 單一真實來源：全室(plan B) ⟺ space_type=whole ⟺ render_angle=multi；
   // 單空間(plan A) ⟺ 單一房型 ⟺ single。三個訊號永遠由這裡一次寫齊，避免不同步。
-  // 新定價：單一空間 999（含 2 風格）；全室 1,199（含 1 風格，第 2/3 種每種 +500）
-  var PLAN_A_PRICE = 999, PLAN_B_PRICE = 1199, WHOLE_STYLE_ADDON = 500;
-  // 進頁依使用者前面選的空間類型/方案預設。
-  var _initSpace = localStorage.getItem('deco_space_type') || '';
-  var selectedPlan = (_initSpace === 'whole' || localStorage.getItem('deco_plan') === 'B') ? 'B' : 'A';
-  function _styleCount() {
+  //
+  // 定價（2026-09-24）：
+  //   單一空間 999：1 個空間、2 種風格。不開放加購。
+  //   兩房 1,388：最多 4 個空間、全室同一種風格；每多 1 個空間 +199（全室上限 5 個）。
+  //   三房 1,688：最多 5 個空間（已是上限）。
+  // ⚠️ 兩房＋加購 1 個＝1,587，比三房便宜——這是刻意的（讓客人自己算到），不是算錯，
+  //    所以加購一定要真的買得到。反過來「單一＋加購」會比兩房貴、客人吃虧，
+  //    所以單一空間不開放加購。對後端仍是 plan A／B 兩種。
+  var PLANS = {
+    A:     { name: '單一空間', price: 999,  cap: 1 },
+    two:   { name: '兩房方案', price: 1388, cap: 4 },
+    three: { name: '三房方案', price: 1688, cap: 5 }
+  };
+  var SPACE_ADDON_PRICE = 199;
+  var MAX_SPACES = 5;   // 與後端 api.py MAX_ROOM_INSTANCES、upload.html 一致
+  var _ROOM_ZH = { living:'客廳', dining:'餐廳', bedroom:'臥室', study:'書房', whole:'全室多空間' };
+
+  function _isWholePlan(p) { return p === 'two' || p === 'three'; }
+
+  // 客人在上傳頁標了哪些空間（upload.html 送出時寫入 deco_space_keys，跟它的計數器同一套算法）
+  function _spaceKeys() {
     try {
-      var n = (JSON.parse(localStorage.getItem('deco_directions') || '[]')).length;
-      if (n > 0) return n;
+      var k = JSON.parse(localStorage.getItem('deco_space_keys') || 'null');
+      if (Array.isArray(k)) return k;
     } catch (e) {}
-    return Math.max(1, parseInt(localStorage.getItem('deco_style_count') || '1'));
+    // 更新前就開著的單沒有 deco_space_keys：從 deco_rooms 還原（同一套規則）
+    var seen = {}, out = [];
+    try {
+      (JSON.parse(localStorage.getItem('deco_rooms') || '[]')).forEach(function(rm) {
+        (rm && rm.photo_meta || []).forEach(function(m) {
+          var z = String((m && (m.room_key || m.target_zone)) || '').toLowerCase();
+          if (!z || z === 'other') return;
+          if (z === 'kitchen') z = 'dining';
+          if (!seen[z]) { seen[z] = 1; out.push(z); }
+        });
+      });
+    } catch (e) {}
+    return out;
+  }
+  function _spaceZh(k) {
+    var m = /^([a-z]+)_(\d+)$/.exec(k);
+    return m ? (_ROOM_ZH[m[1]] || m[1]) + ' ' + m[2] : (_ROOM_ZH[k] || k);
+  }
+
+  // 進頁預設：前面選全室 → 標了 5 個空間預設三房、其餘兩房；單一房型 → 單一空間。
+  // 同一單來回時沿用上次點的方案（但要跟空間類型對得上）。
+  var _initSpace = localStorage.getItem('deco_space_type') || '';
+  var selectedPlan = (function() {
+    var wantWhole = (_initSpace === 'whole' || localStorage.getItem('deco_plan') === 'B');
+    var saved = localStorage.getItem('deco_package');
+    if (saved && PLANS[saved] && _isWholePlan(saved) === wantWhole) return saved;
+    if (!wantWhole) return 'A';
+    return _spaceKeys().length >= MAX_SPACES ? 'three' : 'two';
+  })();
+
+  function _directions() {
+    try {
+      var d = JSON.parse(localStorage.getItem('deco_directions') || '[]');
+      if (Array.isArray(d) && d.length) return d;
+    } catch (e) {}
+    return [];
+  }
+  // 全室整戶同一種風格：從單一空間切過來帶著 2 種時，只用第 1 種。
+  function _styleCount() {
+    if (_isWholePlan(selectedPlan)) return 1;
+    var n = _directions().length;
+    return n > 0 ? n : Math.max(1, parseInt(localStorage.getItem('deco_style_count') || '1'));
+  }
+  function _addonCount() {
+    if (!_isWholePlan(selectedPlan)) return 0;
+    return Math.max(0, _spaceKeys().length - PLANS[selectedPlan].cap);
   }
   function _totalPrice() {
-    if (selectedPlan === 'A') return PLAN_A_PRICE;
-    var addons = Math.max(0, Math.min(_styleCount(), 3) - 1);
-    return PLAN_B_PRICE + addons * WHOLE_STYLE_ADDON;
+    return PLANS[selectedPlan].price + _addonCount() * SPACE_ADDON_PRICE;
   }
   function updatePriceUI() {
     var el = document.getElementById('payAmount');
     if (el) el.textContent = _totalPrice().toLocaleString();
   }
+  // 失敗時把按鈕還原成含金額的樣子（以前還原成「以 LINE PAY 付款」，金額就不見了）
+  function resetPayBtn() {
+    var btn = document.getElementById('payBtn');
+    btn.innerHTML = '使用此配置 · 以 LINE PAY 付款 NT$<span id="payAmount"></span>';
+    btn.disabled = false;
+    updatePriceUI();
+  }
+
+  // 付款前講清楚：標了幾個空間、方案含幾個、有沒有加購、哪些不會出圖
+  function updateSpaceNote() {
+    var el = document.getElementById('spaceCountNote');
+    if (!el) return;
+    var keys = _spaceKeys();
+    if (!_isWholePlan(selectedPlan) || !keys.length) { el.style.display = 'none'; return; }
+    var plan = PLANS[selectedPlan], n = keys.length, add = _addonCount();
+    var html = '你標記了 <b>' + n + '</b> 個空間：' + keys.map(_spaceZh).join('、') + '。<br>';
+    if (add > 0) {
+      html += plan.name + '含 ' + plan.cap + ' 個空間，另加購 ' + add + ' 個空間 <b>+NT$' +
+              (add * SPACE_ADDON_PRICE).toLocaleString() + '</b>。';
+    } else if (n < plan.cap) {
+      html += plan.name + '最多 ' + plan.cap + ' 個空間，目前 ' + n + ' 個——<b>沒拍到的空間不會出圖</b>。' +
+              '想一起設計其他房間，請<a href="upload.html">回上傳頁</a>重新上傳並補上照片。';
+    } else {
+      html += '剛好是' + plan.name + '的 ' + plan.cap + ' 個空間。';
+    }
+    el.classList.toggle('short', n < plan.cap);
+    el.innerHTML = html;
+    el.style.display = 'block';
+  }
   function selectPlan(plan) {
-    selectedPlan = (plan === 'B') ? 'B' : 'A';
-    document.getElementById('svcA').classList.toggle('selected', selectedPlan === 'A');
-    document.getElementById('svcB').classList.toggle('selected', selectedPlan === 'B');
+    selectedPlan = PLANS[plan] ? plan : 'A';
+    var isWhole = _isWholePlan(selectedPlan);
+    [['A', 'svcA'], ['two', 'svcTwo'], ['three', 'svcThree']].forEach(function(x) {
+      var b = document.getElementById(x[1]);
+      if (b) b.classList.toggle('selected', selectedPlan === x[0]);
+    });
     var _wn = document.getElementById('wholeNote');
-    if (_wn) _wn.style.display = (selectedPlan === 'B') ? 'block' : 'none';
+    if (_wn) _wn.style.display = isWhole ? 'block' : 'none';
     var _srr = document.getElementById('singleRoomRow');
-    if (_srr) _srr.style.display = (selectedPlan === 'A') ? 'block' : 'none';
+    if (_srr) _srr.style.display = isWhole ? 'none' : 'block';
     // 方案一次驅動三個訊號，杜絕「選全室卻跑單視角」(render_angle/space_type 與 plan 脫鉤)。
-    localStorage.setItem('deco_plan', selectedPlan);
-    if (selectedPlan === 'B') {
+    localStorage.setItem('deco_package', selectedPlan);
+    localStorage.setItem('deco_plan', isWhole ? 'B' : 'A');
+    if (isWhole) {
       localStorage.setItem('deco_space_type', 'whole');
       localStorage.setItem('deco_render_angle', 'multi');
     } else {
@@ -433,32 +553,33 @@
       localStorage.setItem('deco_render_angle', 'single');
     }
     updatePriceUI();
+    updateSpaceNote();
     updatePayInfo();
     if (typeof applyWholeZoningUI === 'function') applyWholeZoningUI();
   }
   // 單一空間下拉改房型 → 即時寫入 deco_space_type（不回上一頁）
   function onSingleRoomChange() {
     var sel = document.getElementById('singleRoomType');
-    if (sel && selectedPlan === 'A') localStorage.setItem('deco_space_type', sel.value);
+    if (sel && !_isWholePlan(selectedPlan)) localStorage.setItem('deco_space_type', sel.value);
     updatePayInfo();
   }
 
   // #4/#6：付款前在本頁集中顯示「你的選擇 + 會拿到什麼」（取代 style-form 訂單摘要）
-  var _ROOM_ZH = { living:'客廳', dining:'餐廳', bedroom:'臥室', study:'書房', whole:'全室多空間' };
   function updatePayInfo() {
     try {
       var st = localStorage.getItem('deco_space_type') || 'living';
-      var isWhole = (selectedPlan === 'B') || (st === 'whole');
-      // 風格 + 色系（從 deco_directions）
+      var isWhole = _isWholePlan(selectedPlan);
+      // 風格 + 色系（從 deco_directions）；全室只用第 1 種
       var names = [];
-      try {
-        (JSON.parse(localStorage.getItem('deco_directions') || '[]')).forEach(function(d) {
-          if (d && d.styleName) names.push(d.styleName + (d.colorName ? '（' + d.colorName + '）' : ''));
-        });
-      } catch (e) {}
+      _directions().slice(0, _styleCount()).forEach(function(d) {
+        if (d && d.styleName) names.push(d.styleName + (d.colorName ? '（' + d.colorName + '）' : ''));
+      });
+      var _dropped = isWhole && _directions().length > 1;
       // 「空間」直接標風格數，不用另外一行重複講（用戶回饋：訂單摘要跟下面清單重複敘述）
-      var _snForSpace = _styleCount();
-      var spaceZh = (isWhole ? '全室多空間' : (_ROOM_ZH[st] || st)) + '，含 ' + _snForSpace + ' 種風格';
+      var _nSp = _spaceKeys().length;
+      var spaceZh = isWhole
+        ? PLANS[selectedPlan].name + (_nSp ? '，' + _nSp + ' 個空間' : '') + '，全室同一種風格'
+        : (_ROOM_ZH[st] || st) + '，含 ' + _styleCount() + ' 種風格';
       var dm = localStorage.getItem('deco_design_mode') || 'furnish';
       var dmZh = (dm === 'full') ? '家具＋軟裝＋裝潢（牆面 / 天花）' : '家具＋軟裝';
       var cl = document.getElementById('payChoiceLine');
@@ -469,22 +590,23 @@
                  '<span style="color:' + (hl ? 'var(--gold)' : '#fff') + '; font-weight:' + (hl ? '600' : '400') + ';">' +
                  (v || '—') + '</span></div>';
         };
-        // 全室加購風格 → 輕鬆標註費用組成（不推銷，只透明）
-        var _n = _styleCount();
-        var _feeRow = '';
-        if (isWhole && _n > 1) {
-          var _addons = Math.min(_n, 3) - 1;
-          _feeRow = _row('費用', 'NT$1,199 ＋ 加購 ' + _addons + ' 種風格 NT$' + (_addons * 500).toLocaleString(), true);
-        }
+        // 有加購空間 → 標出費用組成（只透明，不推銷）
+        var _add = _addonCount();
+        var _feeRow = _add > 0
+          ? _row('費用', PLANS[selectedPlan].name + ' NT$' + PLANS[selectedPlan].price.toLocaleString() +
+                 ' ＋ 加購 ' + _add + ' 個空間 NT$' + (_add * SPACE_ADDON_PRICE).toLocaleString(), true)
+          : '';
+        var _styleZh = names.join('、') +
+          (_dropped ? '<span style="color:var(--muted); font-size:12px;">（全室方案整戶同一種風格）</span>' : '');
         cl.innerHTML = '<div style="display:flex; flex-direction:column; gap:6px;">' +
-          _row('空間', spaceZh) + _row('風格', names.join('、')) + _feeRow + _row('設計範圍', dmZh, true) +
+          _row('空間', spaceZh) + _row('風格', _styleZh) + _feeRow + _row('設計範圍', dmZh, true) +
           '</div>';
       }
       // 「此方案包含」只列實際交付項目，空間/風格數已在上面「空間」那行講過，這裡不重複
       var dl = document.getElementById('payDeliverList');
       if (dl) {
         var items = isWhole
-          ? ['每個空間的設計渲染圖',
+          ? ['每個空間一張設計渲染圖',
              '每個空間的可購買家具清單（附價格與連結）',
              '空間格局與採光分析（文字）',
              '可下載的設計手冊 PDF']
@@ -545,18 +667,22 @@
     var uploadId = localStorage.getItem('deco_upload_id');
     if (!uploadId) {
       if (!confirm('找不到上傳照片（示範模式）。是否繼續測試流程？')) {
-        btn.innerHTML = '以 LINE PAY 付款'; btn.disabled = false; return;
+        resetPayBtn(); return;
       }
       var demoId = Math.random().toString(36).substr(2, 8).toUpperCase();
       localStorage.setItem('deco_job_id', demoId);
       localStorage.setItem('deco_order_id', 'ORD-' + demoId);
-      localStorage.setItem('deco_plan', selectedPlan);
+      localStorage.setItem('deco_plan', _isWholePlan(selectedPlan) ? 'B' : 'A');
       localStorage.setItem('deco_order_time', String(Date.now()));
       setTimeout(function(){ window.location.href = 'generate.html'; }, 800);
       return;
     }
 
     var styles      = localStorage.getItem('deco_style') || '';
+    // 全室整戶同一種風格：只送第 1 種（從單一空間切過來可能帶著 2 種）
+    if (_isWholePlan(selectedPlan)) styles = styles.split(',')[0] || styles;
+    var _styleSet = {};
+    styles.split(',').forEach(function(x) { if (x) _styleSet[x] = 1; });
     var spaceType   = localStorage.getItem('deco_space_type') || 'living';
     var renderAngle = localStorage.getItem('deco_render_angle') || 'multi';
     var designMode  = localStorage.getItem('deco_design_mode') || 'furnish';
@@ -584,7 +710,7 @@
       } catch (e) { roomsValidationError = 'rooms JSON 解析失敗'; }
     }
     if (roomsValidationError) {
-      btn.innerHTML = '以 LINE PAY 付款'; btn.disabled = false;
+      resetPayBtn();
       if (confirm('空間照片資料不完整，請返回上傳頁重新確認。\n\n（' + roomsValidationError +
                   '）\n\n按「確定」返回上傳頁，「取消」留在本頁。')) {
         window.location.href = 'upload.html';
@@ -600,11 +726,11 @@
       try {
         var _pal = {};
         (JSON.parse(localStorage.getItem('deco_directions') || '[]')).forEach(function(d) {
-          if (d && d.styleId && d.colorName) _pal[d.styleId] = d.colorName;
+          if (d && d.styleId && d.colorName && _styleSet[d.styleId]) _pal[d.styleId] = d.colorName;
         });
         if (Object.keys(_pal).length) fd.append('palettes_json', JSON.stringify(_pal));
       } catch (e) { /* 沒色系就算了 */ }
-      fd.append('plan',         selectedPlan);
+      fd.append('plan',         _isWholePlan(selectedPlan) ? 'B' : 'A');
       fd.append('space_type',   spaceType);
       fd.append('render_angle', renderAngle);
       fd.append('design_mode',  designMode);
@@ -624,12 +750,12 @@
       var data = await resp.json();
       localStorage.setItem('deco_job_id',     data.job_id);
       localStorage.setItem('deco_order_id',   'ORD-' + data.job_id);
-      localStorage.setItem('deco_plan',       selectedPlan);
+      localStorage.setItem('deco_plan',       _isWholePlan(selectedPlan) ? 'B' : 'A');
       localStorage.setItem('deco_order_time', String(Date.now()));
       window.location.href = 'generate.html';
     } catch (e) {
       alert('建立任務失敗：' + e.message);
-      btn.innerHTML = '以 LINE PAY 付款'; btn.disabled = false;
+      resetPayBtn();
     }
   }
 
