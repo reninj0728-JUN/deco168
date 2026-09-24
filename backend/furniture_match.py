@@ -1638,12 +1638,19 @@ BED_MATTRESS_WIDTHS = (91, 106, 120, 152, 182)
 
 
 def _plausible_bed_frame_width(w: int) -> bool:
-    """床架外徑 = 某個標準床墊寬 + 0～25cm（床框、側板）。
+    """床架外徑 = 某個標準床墊寬 −3～+25cm（床框、側板；−3 只容名目誤差 90/91）。
 
     實例：6 尺床墊 182 → 已核實的床架外徑 183 與 205 都落在這裡；
     折疊床的 60 則哪個標準都搆不上。
+
+    ⚠️ 老實說清楚這道門的能耐（Grok 抓到舊註解說得比程式強）：
+       標準床墊寬之間只差 15cm，每個窗口卻有 28cm 寬，所以實際放行的是
+       88～207 的【連續區間】。它只能擋掉「明顯不是床」的數字（60、40、230），
+       分不出 100 是單人加大的床架還是別的東西。
+       真正決定讀到哪個數字的，是 bed_width_cm 的「用途標籤」分段——
+       抽屜／床墊／包裝的量測根本不會進來。這道門只是最後一層粗篩。
     """
-    return any(m - 8 <= w <= m + 25 for m in BED_MATTRESS_WIDTHS)
+    return any(m - 3 <= w <= m + 25 for m in BED_MATTRESS_WIDTHS)
 
 
 def bed_width_cm(dims: str) -> int | None:
@@ -1657,26 +1664,65 @@ def bed_width_cm(dims: str) -> int | None:
        用尺換算會低估到 23cm。規格詞更糟：實測 89 件裡 20 件對不上
        （商家把 6 尺也叫「雙人」），因為很多賣場頁面一頁賣多種尺寸。
 
-    ② **不收床墊尺寸**：「床架查外徑，不拿床墊尺寸代替」。
-       hola 有一批 dimensions 寫的是「適用床墊尺寸：150 x 190 cm」——
-       那是能放多大的床墊，不是床架多寬。看到「床墊」兩個字一律不收。
+    ② **不收床墊／抽屜／包裝的量測**：「床架查外徑，不拿床墊尺寸代替」。
+       hola 有一批寫「適用床墊尺寸：150 x 190 cm」——那是能放多大的床墊。
+       但不是「看到床墊就整欄丟」：同一欄若另寫了外徑，外徑照收
+       （見 _bed_frame_segments）。
 
     ③ **不能用通用解析**：通用版為了一般家具刻意優先取「長」（中文家具標示
        的「長」才是橫寬），床剛好相反。這裡自己讀：有標「寬」就用它；
        沒標籤的三圍取前兩個的【較小】者；最後必須像一個床架外徑，否則 None。
     """
-    s = str(dims or "")
-    if not s or "床墊" in s:
-        return None
-    m = re.search(r"寬\s*[:：]?\s*(\d{2,3})", s)
-    if m:
-        w = _sane_width(m.group(1))
-    else:
-        tri = re.search(r"(\d{2,3})\s*[*xX×]\s*(\d{2,3})", s)
-        if not tri:
-            return None
-        w = _sane_width(min(int(tri.group(1)), int(tri.group(2))))
-    return w if w is not None and _plausible_bed_frame_width(w) else None
+    frame = _bed_frame_segments(str(dims or ""))
+    # 有標「外徑／床架／床框」的段落優先，其次才是沒標用途的段落
+    frame.sort(key=lambda seg: not any(k in seg for k in _FRAME_HINT))
+    for seg in frame:
+        m = re.search(r"寬\s*[:：]?\s*(\d{2,3})", seg)
+        if m:
+            w = _sane_width(m.group(1))
+        else:
+            tri = re.search(r"(\d{2,3})\s*[*xX×]\s*(\d{2,3})", seg)
+            if not tri:
+                continue
+            w = _sane_width(min(int(tri.group(1)), int(tri.group(2))))
+        if w is not None and _plausible_bed_frame_width(w):
+            return w
+    return None
+
+
+# 尺寸欄裡「量的不是床架本體」的用途標籤。看到就整段不收。
+# GPT 抓到的：只靠數字範圍擋不住「抽屜：88 x 93 cm」——兩個數字、沒有高度，
+# 88 又剛好落在單人加大的範圍，舊版會把抽屜寬讀成床寬。
+_NON_FRAME_USAGE = ("床墊", "抽屜", "包裝", "外箱", "紙箱", "收納盒")
+_FRAME_HINT = ("外徑", "床架", "床框", "床台", "整體", "總寬")
+
+
+def _bed_frame_segments(dims: str) -> list[str]:
+    """把尺寸欄切成段落，丟掉標著「抽屜／床墊／包裝…」用途的段落。
+
+    GPT 抓到的第二個洞：舊版看到「床墊」兩個字就整欄拒收，所以
+    「床架外徑：寬205x長213；適用床墊：182x188」連正確的 205 也丟掉。
+    改成分段：床墊那段不收，外徑那段照收。
+
+    標籤單獨一行、數字在下一行（「適用床墊尺寸：\n150x190」）時，
+    標籤要延續到下一段——否則數字那段看起來沒有用途標籤，會被當成床架。
+    """
+    parts = [p.strip() for p in re.split(r"[；;/\n、]", dims or "")]
+    keep: list[str] = []
+    carry = False
+    for p in parts:
+        if not p:
+            continue
+        labelled = any(k in p for k in _NON_FRAME_USAGE)
+        has_num = bool(re.search(r"\d{2,3}", p))
+        if labelled and not has_num:
+            carry = True          # 標籤在這行、數字在下一行
+            continue
+        if labelled or carry:
+            carry = False
+            continue
+        keep.append(p)
+    return keep
 
 
 # ── 尺寸可信度檢查（2026-09-24，單一來源）────────────────────────────
@@ -1686,7 +1732,11 @@ def bed_width_cm(dims: str) -> int | None:
 #    規則散在兩支腳本、版本不同，是這次漏網的根因。
 #    現在只准有一份：補尺寸腳本、目錄測試、人工清理都呼叫這一支。
 # 規則只擋「幾何上不可能」或「量的不是一件家具」，判不準寧可標紅——
-# 錯尺寸比沒尺寸更糟：沒尺寸時守門與 prompt 沉默，錯尺寸會叫模型照著畫。
+# 錯尺寸比沒尺寸更糟：錯尺寸會叫模型照著畫，也會讓守門誤殺或誤放。
+# ⚠️ 但「清空尺寸欄＝守門沉默」只對一部分品類成立（Grok 抓到我講錯）：
+#    沙發等寬度關鍵品類，尺寸欄空了會【退回讀品名】——「懶人折疊沙發床
+#    -特大120cm」清空尺寸欄後照樣讀到 120。所以測試要驗的是
+#    extract_item_width_cm【實際回傳】的寬度，不是只看尺寸欄。
 DIM_SANITY = {
     # 品類: (寬, 深, 高) 合理區間，cm
     # 沙發高度下限 50：低背沙發真的有（實例「大象耳朵三人沙發 180x61x57」，
@@ -1699,9 +1749,17 @@ DIM_SANITY = {
     "table":         ((40, 300), (30, 130), (30, 130)),
     "storage":       ((25, 330), (20, 80),  (20, 240)),
 }
-# 這些不是客廳主沙發，Volume 量到的常是壓縮包裝或整組，不收尺寸。
+# 整組商品：量到的是幾件加起來，不是一張沙發的寬。不管從尺寸欄還是品名
+# 讀到的數字都不能用（extract_item_width_cm 也照這條回 None）。
 _SOFA_NOT_A_SINGLE_PIECE = re.compile(r"1\s*\+\s*[23]|2\s*\+\s*3|客廳組|沙發組")
+# 懶骨頭／躺椅類：PChome Volume 量到的常是壓縮包裝（蘑菇懶骨頭 高11）。
+# ⚠️ 但商家自己寫在品名裡的寬（「懶人豆袋 雙人位110CM」「折疊沙發床 寬65cm」）
+#    多半是真的商品寬——所以只擋「跟品名對不上」的尺寸，不擋品名本身。
 _SOFA_COMPRESSED_OR_ACCENT = ("懶骨頭", "懶人", "毛毛蟲", "電競", "躺椅", "搖椅")
+
+
+def sofa_is_set_product(name: str) -> bool:
+    return bool(_SOFA_NOT_A_SINGLE_PIECE.search(name or ""))
 _TRIPLE_RE = re.compile(
     r"(\d{2,3})\s*(?:cm|公分)?\s*[x×X*]\s*[^\d]{0,4}?(\d{2,3})"
     r"\s*(?:cm|公分)?\s*[x×X*]\s*[^\d]{0,4}?(\d{2,3})", re.IGNORECASE)
@@ -1716,14 +1774,19 @@ def dimension_red_flags(item: dict) -> list[str]:
     name = str(item.get("name_zh") or "")
     flags: list[str] = []
     if cat == "sofa":
-        if _SOFA_NOT_A_SINGLE_PIECE.search(name):
+        if sofa_is_set_product(name):
             flags.append("整組商品，量到的不是一張沙發")
         if any(k in name for k in _SOFA_COMPRESSED_OR_ACCENT):
-            flags.append("懶骨頭／躺椅類，尺寸多半是壓縮包裝")
-    if cat == "bed":
+            named = _extract_width_cm(name, allow_bare=True)
+            got = _extract_width_cm(dims, allow_bare=True)
+            if not (named and got and abs(named - got) <= 5):
+                flags.append("懶骨頭／躺椅類，尺寸欄與品名對不上（多半是壓縮包裝）")
+    if cat == "bed" and not _bed_frame_segments(dims):
         if "床墊" in dims:
             flags.append("寫的是床墊尺寸，不是床架外徑")
-    t = _TRIPLE_RE.search(dims)
+        elif any(k in dims for k in _NON_FRAME_USAGE):
+            flags.append("量的是抽屜／包裝，不是床架外徑")
+    t = _TRIPLE_RE.search("；".join(_bed_frame_segments(dims)) if cat == "bed" else dims)
     if t and cat in DIM_SANITY:
         a, b, h = (int(v) for v in t.groups())
         if a == b == h:
@@ -1750,6 +1813,8 @@ def extract_item_width_cm(item: dict) -> int | None:
     #    最後必須像一個床架外徑（標準床墊寬 +0～25cm）。
     if cat == "bed":
         return bed_width_cm(item.get("dimensions", ""))
+    if cat == "sofa" and sofa_is_set_product(item.get("name_zh", "")):
+        return None      # 整組的寬不是一張沙發的寬，尺寸欄或品名都一樣
     allow_bare = cat == "sofa"
     w = _extract_width_cm(item.get("dimensions", ""), allow_bare=allow_bare)
     if w is not None:

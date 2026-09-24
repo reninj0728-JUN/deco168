@@ -136,10 +136,74 @@ def test_bed_width_reader(dims, want):
     assert got == want, f"{dims} → {got}，應為 {want}"
 
 
-def test_drawer_dims_are_caught_by_the_catalog_rule_not_the_reader():
-    """⚠️ 讀寬函式的極限：「抽屜：88 x 93」的 88 剛好落在單人加大範圍，
-    它分不出這是抽屜。所以這種要靠目錄層的 dimension_red_flags 清掉——
-    兩道防線各管各的，不能只靠讀寬。"""
-    item = _item("床架", "紐松原木床架 單人加大3.5尺", "抽屜：88 x 93 x 20.5 cm")
-    assert fm.bed_width_cm(item["dimensions"]) == 88          # 讀寬擋不住
-    assert fm.dimension_red_flags(item), "目錄層判準也沒擋住抽屜尺寸"
+# ── 第二輪（2026-09-24）：Grok ＋ GPT 抓到的三個洞 ────────────────
+
+@pytest.mark.parametrize("dims", [
+    "抽屜：88 x 93 x 20.5 cm",
+    "抽屜：88 x 93 cm",              # GPT：兩個數字、沒有高度，舊版靠深度擋不住
+    "適用床墊尺寸：" + chr(10) + "150x190",   # 標籤在上一行、數字在下一行
+    "包裝尺寸：190x100x30",
+])
+def test_bed_reader_ignores_non_frame_measurements(dims):
+    """🔴 看的是尺寸的【用途標籤】，不是數字範圍——88 剛好落在單人加大區間，
+    只靠數字範圍會把抽屜寬讀成床寬。"""
+    assert fm.bed_width_cm(dims) is None, f"{dims!r} 被讀成床寬"
+    assert fm.dimension_red_flags(_item("床架", "原木床架", dims)),         f"{dims!r} 沒被判成不可信"
+
+
+def test_frame_width_survives_when_mattress_size_is_also_listed():
+    """GPT：舊版看到「床墊」就整欄丟，連寫在同一欄的正確外徑 205 也不要了。"""
+    dims = "床架外徑：寬205x長213cm；適用床墊：182x188"
+    assert fm.bed_width_cm(dims) == 205
+    assert fm.dimension_red_flags(_item("床架", "義式雙人加大床", dims)) == []
+
+
+@pytest.mark.parametrize("w,ok", [(60, False), (100, True), (205, True), (230, False)])
+def test_bed_frame_window_is_only_a_coarse_filter(w, ok):
+    """⚠️ Grok 抓到舊註解說得比程式強。這道門實際放行 88～207 的連續區間，
+    只擋「明顯不是床」的數字；100 是單人加大床架還是別的，它分不出來。
+    真正決定讀哪個數字的是用途標籤分段。這條測試把它的真實能耐釘住，
+    免得以後又有人把它當成規格檢查。"""
+    assert fm._plausible_bed_frame_width(w) is ok
+
+
+# ── 守門【實際拿到】的寬度：尺寸欄以外還有品名這條路 ──────────────
+# 🔴 Grok 抓到我講錯：「清空尺寸欄＝守門沉默」只對一部分品類成立。
+#    沙發尺寸欄空了會退回讀品名——「懶人折疊沙發床-特大120cm」清空後
+#    照樣讀到 120。上面的目錄測試只看尺寸欄，看不到這條路。
+
+def test_widths_the_gate_actually_receives_are_plausible(catalog):
+    """掃 extract_item_width_cm 的【回傳值】，不管它來自尺寸欄還是品名。"""
+    bad = []
+    for x in catalog:
+        cat = fm.resolve_category(x)
+        if cat not in fm.DIM_SANITY:
+            continue
+        w = fm.extract_item_width_cm(x)
+        if w is None:
+            continue
+        lo, hi = fm.DIM_SANITY[cat][0]
+        if not (lo <= w <= hi):
+            bad.append((x["id"], cat, w, x["name_zh"][:30]))
+    assert not bad, f"守門拿到不合理的寬度：{bad[:6]}"
+
+
+def test_set_product_sofas_get_no_width_from_either_source(catalog):
+    """整組的寬不是一張沙發的寬——尺寸欄空了，品名那條路也不准給。"""
+    leaked = [(x["id"], fm.extract_item_width_cm(x)) for x in catalog
+              if fm.resolve_category(x) == "sofa"
+              and fm.sofa_is_set_product(x["name_zh"])
+              and fm.extract_item_width_cm(x) is not None]
+    assert not leaked, f"整組沙發還讀得到寬度：{leaked}"
+    # 反證：品名路徑本身會讀數字，不擋的話這件會回 530
+    assert fm.extract_item_width_cm(_item("沙發", "柚木1+2+3人座沙發 總長530cm", "")) is None
+
+
+def test_merchant_stated_width_in_name_is_kept():
+    """⚠️ 別擋過頭：商家寫在品名裡的寬度多半是真的商品寬。
+    懶人類規則只擋「尺寸欄跟品名對不上」的 Volume 包裝尺寸。"""
+    assert fm.extract_item_width_cm(_item("沙發", "懶人拼色豆袋沙發 雙人位110CM", "")) == 110
+    assert fm.dimension_red_flags(
+        _item("沙發", "AOTTO 多功能懶人折疊沙發床-特大120cm", "寬120cm")) == []
+    assert fm.dimension_red_flags(
+        _item("沙發", "Mushroom日風蘑菇懶骨頭沙發", "寬155x深70x高11cm")),         "跟品名對不上的壓縮包裝尺寸沒被擋"
