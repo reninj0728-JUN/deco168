@@ -1627,12 +1627,57 @@ def _extract_width_cm(dims: str, allow_bare: bool = False) -> int | None:
 _WIDTH_CRITICAL_CATS = ("sofa", "media_console", "storage", "table",
                         "dining_table", "coffee_table")
 
+# ── 床：不能用通用解析（2026-09-24）─────────────────────────────────
+# 床架 86% 的品名寫著尺寸，但直接套通用解析會讀出一堆錯的值（實測）：
+#     193 ← 「FANGE 折疊床 193*60*30」        那是床【長】不是床寬
+#     190 ← 「塌塌米雙人床架 150x190」         取了長邊
+#      40 ← 「單人床座 N-ZIO-HL BOX WW 40M」   型號尾碼
+#      74 ← 「MUJI 橡膠木床架/D/74cm」         D 是雙人，74 不知何來
+# 床跟其他家具的差別：**最長邊是床長不是床寬**，而且床寬只有少數幾個標準值。
+# 所以改用「先認規格詞、再用標準值驗證」，認不出來就回 None（寧可沉默）。
+def bed_width_cm(dims: str) -> int | None:
+    """床架的佔地寬（外徑）。只讀 dimensions 欄，**不從品名推**。
+
+    🔴 兩條規則都是踩過坑換來的，別再回頭：
+
+    ① **不准用台尺／單人雙人換算**（本來就有測試在擋：
+       `test_bed_widths_are_not_derived_from_the_six_foot_label`）。
+       兩張床商家都標「6尺」，床墊是 182，但**床架外徑實際是 205 和 183**。
+       床架比床墊寬，用尺換算會低估到 23cm。規格詞更糟：實測 89 件裡 20 件
+       對不上（商家把 6 尺也叫「雙人」、把單人寬的床叫「雙人床架」），
+       因為很多賣場頁面是一頁賣多種尺寸。
+
+    ② **不能用通用解析讀 dimensions**：通用版為了一般家具刻意優先取「長」
+       （中文家具標示的「長」才是橫寬），但床剛好相反——床的「長」是床身長度。
+       實測錯讀：'寬 150 X 長 190 cm' → 190、'193*60*30cm' 折疊床 → 193。
+       所以這裡自己讀：有標「寬」就用它；沒標籤的三圍取前兩個的【較小】者。
+    """
+    s = str(dims or "")
+    if not s:
+        return None
+    m = re.search(r"寬\s*[:：]?\s*(\d{2,3})", s)
+    if m:
+        return _sane_width(m.group(1))
+    tri = re.search(r"(\d{2,3})\s*[*xX×]\s*(\d{2,3})", s)
+    if tri:      # 床的兩個水平邊裡，較小的才是床寬
+        return _sane_width(min(int(tri.group(1)), int(tri.group(2))))
+    return None
+
 
 def extract_item_width_cm(item: dict) -> int | None:
     """商品寬度（cm）：先讀 dimensions 欄，讀不到再從品名補
     （50873CF0：「9.7尺L型電視中空櫃」「亮面/131CM」尺寸只寫在品名，
     dimensions 是空的 → 尺寸守門完全沒生效）。"""
     cat = resolve_category(item)
+    # 🔴 床【整條】分開走，連 dimensions 欄都不能用通用解析。
+    #    通用解析為了一般家具刻意優先取「長」（中文家具標示的「長」才是橫寬），
+    #    但床剛好相反——床的「長」是床身長度。實測目錄裡的錯讀：
+    #        '寬 150 X 長 190 cm'  → 讀到 190（該是 150）
+    #        '193*60*30cm' 折疊床   → 讀到 193（那是床長）
+    #        '寬205X深213X高109'    → 讀到 205
+    #    所以床只收「貼近標準床寬」的值，其餘一律 None。
+    if cat == "bed":
+        return bed_width_cm(item.get("dimensions", ""))
     allow_bare = cat == "sofa"
     w = _extract_width_cm(item.get("dimensions", ""), allow_bare=allow_bare)
     if w is not None:
