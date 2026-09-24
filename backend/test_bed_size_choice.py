@@ -55,9 +55,22 @@ def test_filter_drops_the_other_size_and_unknowns():
     assert got == ["單人床架A", "床頭櫃"]
 
 
-def test_filter_keeps_unknowns_only_when_nothing_is_certain():
-    cat = [_bed("雙人床架B"), _bed("板條床架C")]
-    assert [x["name_zh"] for x in fm._catalog_for_bed_size(cat, "single")] == ["板條床架C"]
+def test_unknown_size_never_stands_in_for_the_chosen_size():
+    """🔴 GPT 2026-09-24：「不知道是不是單人」不等於「符合單人」。
+    只剩分不出床型的床時，也不推——不能拿不確定的充數。"""
+    cat = [_bed("雙人床架B"), _bed("板條床架C"), _bed("日式簡約原木板條床架")]
+    assert [x["name_zh"] for x in fm._catalog_for_bed_size(cat, "single")] == []
+
+
+def test_enrich_with_only_unknown_size_beds_recommends_no_bed(monkeypatch):
+    unknown = [x for x in fm.load_catalog()
+               if fm.resolve_category(x) != "bed" or fm.bed_size_class(x) is None]
+    assert any(fm.resolve_category(x) == "bed" for x in unknown), "測試前提：要有分不出床型的床"
+    monkeypatch.setattr(fm, "load_catalog", lambda: unknown)
+    out = fm.enrich_renders([{"style": "nordic", "flux_prompt": "bedroom with bed"}],
+                            analysis={}, room_type="bedroom", bed_size="double")
+    beds = [f["name_zh"] for f in out[0]["matched_furniture"] if f["category_en"] == "bed"]
+    assert beds == [], f"選雙人卻推了分不出床型的：{beds}"
 
 
 def test_the_other_size_is_never_put_back():

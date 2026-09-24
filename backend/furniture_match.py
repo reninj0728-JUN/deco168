@@ -1938,9 +1938,9 @@ def _catalog_for_bed_size(catalog: list[dict], bed_size: str) -> list[dict]:
 
     - 分到另一類的床一律拿掉——客人說單人，就不能推雙人。**任何情況都不放回**
       （GPT 2026-09-24：舊版「篩完沒床就整池放回」會把確定不對的也放回來）。
-    - 分不出來的床也拿掉，只要目錄裡還有確定對的床（2026-09-24 實測：一開始
-      「同風格沒有確定的才留」，cream＋單人就跨風格挑到一張分不出的床）。
-      沒有確定對的才退到分不出的；連那也沒有，臥室就不推床（寫 log）。
+    - 分不出床型的也一律拿掉：「不知道是不是單人」不等於「符合單人」（GPT 2026-09-24）。
+      沒有確定對的床，這間臥室就不推床（寫 log）——那是降級交付，不是正常結果，
+      靠目錄覆蓋（test_every_live_style_gets_a_bed_of_the_chosen_size）確保不會發生。
     - 床型優先於風格：cream 目錄沒有單人床，選 cream＋單人會跨風格配單人床，
       而不是配一張 cream 的雙人床。
     """
@@ -1949,18 +1949,9 @@ def _catalog_for_bed_size(catalog: list[dict], bed_size: str) -> list[dict]:
     cls = {id(x): bed_size_class(x) for x in catalog if resolve_category(x) == "bed"}
     if not cls:
         return catalog
-    any_exact = bed_size in cls.values()
-
-    def keep(x):
-        if id(x) not in cls:
-            return True
-        c = cls[id(x)]
-        return c == bed_size or (c is None and not any_exact)
-
-    out = [x for x in catalog if keep(x)]
-    if not any_exact:
-        print(f"[furniture_match] ⚠️ 沒有確定是 {bed_size} 的床，退到分不出床型的"
-              + ("" if any(id(x) in cls for x in out) else "——也沒有，不推床"))
+    out = [x for x in catalog if id(x) not in cls or cls[id(x)] == bed_size]
+    if bed_size not in cls.values():
+        print(f"[furniture_match] ⚠️ 沒有確定是 {bed_size} 的床——這間臥室不推床（降級交付）")
     return out
 
 
