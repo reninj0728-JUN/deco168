@@ -93,6 +93,20 @@
     .space-note b { color: var(--gold-lt); font-weight: 500; }
     .space-note a { color: var(--gold); }
 
+    /* 臥室床型：只問單人／雙人，不問公分；不選＝交給系統 */
+    .bed-box { background: var(--card); border: 1px solid var(--line); padding: 14px 16px 6px; margin-bottom: 14px; }
+    .bed-title { font-size: 13px; color: #fff; letter-spacing: 1px; margin-bottom: 6px; }
+    .bed-title span { color: var(--muted); font-size: 12px; letter-spacing: 0; }
+    .bed-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+               padding: 10px 0; border-top: 1px solid var(--line); }
+    .bed-row:first-child { border-top: none; }
+    .bed-room { font-size: 13px; color: var(--body); letter-spacing: 1px; }
+    .bed-chips { display: flex; gap: 8px; }
+    .bed-chip { font-family: inherit; font-size: 13px; letter-spacing: 1px; padding: 8px 16px; min-height: 40px;
+                background: transparent; color: var(--body); border: 1px solid var(--line); cursor: pointer; transition: all .2s; }
+    .bed-chip:hover { border-color: var(--gold-lt); color: #fff; }
+    .bed-chip.selected { border-color: var(--gold); color: var(--gold-lt); background: rgba(201,169,110,0.08); }
+
     /* 手機滑動效能：fixed 元素的 backdrop-filter 每一幀都要重算背後內容的模糊，
        是中低階手機滑動卡頓主因；手機停用並加深底色補償，桌面維持毛玻璃視覺 */
     @media (max-width: 768px) {
@@ -237,6 +251,10 @@
         </select>
       </div>
       <div id="spaceCountNote" class="space-note" style="display:none;"></div>
+      <div id="bedSizeBox" class="bed-box" style="display:none;">
+        <div class="bed-title">臥室的床 <span>（選填，不選就依房間大小安排）</span></div>
+        <div id="bedRows"></div>
+      </div>
       <div id="wholeNote" style="display:none; font-size:12px; color:var(--gold-lt); line-height:1.6; margin-bottom:14px; border:1px solid rgba(201,169,110,0.25); padding:8px 12px;">
         全室 Beta：依實際拍到的房間生圖。設計圖以各房照片為準。
       </div>
@@ -505,6 +523,58 @@
     updatePriceUI();
   }
 
+  // ── 臥室床型（2026-09-24）：客人只選單人／雙人，不填公分。不選＝交給系統。
+  //    全室：每間臥室各自選（主臥雙人、小孩房單人）；單一空間選臥室：一個選項，鍵是 'bedroom'。
+  var bedSizes = {};
+  try { bedSizes = JSON.parse(localStorage.getItem('deco_bed_sizes') || '{}') || {}; } catch (e) { bedSizes = {}; }
+  function _bedKeys() {
+    if (_isWholePlan(selectedPlan)) {
+      return _spaceKeys().filter(function(k) { return /^bedroom(_\d+)?$/.test(k); });
+    }
+    var sel = document.getElementById('singleRoomType');
+    return (sel && sel.value === 'bedroom') ? ['bedroom'] : [];
+  }
+  // 只送畫面上看得到的那幾間（換方案或換房型後，舊的選擇不能偷偷帶著走）
+  function _visibleBedSizes() {
+    var out = {};
+    _bedKeys().forEach(function(k) { if (bedSizes[k]) out[k] = bedSizes[k]; });
+    return out;
+  }
+  function renderBedSizes() {
+    var box = document.getElementById('bedSizeBox'), rows = document.getElementById('bedRows');
+    if (!box || !rows) return;
+    var keys = _bedKeys();
+    if (!keys.length) { box.style.display = 'none'; return; }
+    rows.innerHTML = '';
+    keys.forEach(function(k) {
+      var row = document.createElement('div');
+      row.className = 'bed-row';
+      var label = document.createElement('span');
+      label.className = 'bed-room';
+      label.textContent = (k === 'bedroom') ? '臥室' : _spaceZh(k);
+      var chips = document.createElement('div');
+      chips.className = 'bed-chips';
+      [['single', '單人床'], ['double', '雙人床']].forEach(function(o) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'bed-chip' + (bedSizes[k] === o[0] ? ' selected' : '');
+        b.textContent = o[1];
+        b.addEventListener('click', function() {
+          // 再點一次＝取消，回到交給系統
+          if (bedSizes[k] === o[0]) delete bedSizes[k]; else bedSizes[k] = o[0];
+          try { localStorage.setItem('deco_bed_sizes', JSON.stringify(bedSizes)); } catch (e) {}
+          renderBedSizes();
+          updatePayInfo();
+        });
+        chips.appendChild(b);
+      });
+      row.appendChild(label);
+      row.appendChild(chips);
+      rows.appendChild(row);
+    });
+    box.style.display = 'block';
+  }
+
   // 付款前講清楚：標了幾個空間、方案含幾個、有沒有加購、哪些不會出圖
   function updateSpaceNote() {
     var el = document.getElementById('spaceCountNote');
@@ -554,6 +624,7 @@
     }
     updatePriceUI();
     updateSpaceNote();
+    renderBedSizes();
     updatePayInfo();
     if (typeof applyWholeZoningUI === 'function') applyWholeZoningUI();
   }
@@ -561,6 +632,7 @@
   function onSingleRoomChange() {
     var sel = document.getElementById('singleRoomType');
     if (sel && !_isWholePlan(selectedPlan)) localStorage.setItem('deco_space_type', sel.value);
+    renderBedSizes();
     updatePayInfo();
   }
 
@@ -598,8 +670,12 @@
           : '';
         var _styleZh = names.join('、') +
           (_dropped ? '<span style="color:var(--muted); font-size:12px;">（全室方案整戶同一種風格）</span>' : '');
+        var _bs = _visibleBedSizes(), _bedTxt = Object.keys(_bs).map(function(k) {
+          return (k === 'bedroom' ? '臥室' : _spaceZh(k)) + ' ' + (_bs[k] === 'single' ? '單人床' : '雙人床');
+        }).join('、');
         cl.innerHTML = '<div style="display:flex; flex-direction:column; gap:6px;">' +
-          _row('空間', spaceZh) + _row('風格', _styleZh) + _feeRow + _row('設計範圍', dmZh, true) +
+          _row('空間', spaceZh) + _row('風格', _styleZh) + (_bedTxt ? _row('床型', _bedTxt) : '') +
+          _feeRow + _row('設計範圍', dmZh, true) +
           '</div>';
       }
       // 「此方案包含」只列實際交付項目，空間/風格數已在上面「空間」那行講過，這裡不重複
@@ -740,6 +816,7 @@
       fd.append('customer_notes',  (localStorage.getItem('deco_customer_notes') || '').slice(0, 300));
       fd.append('preferred_store', localStorage.getItem('deco_preferred_store') || 'none');
       fd.append('rooms_json',      roomsJsonForSend);
+      fd.append('bed_sizes_json',  JSON.stringify(_visibleBedSizes()));
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
       if (!resp.ok) {

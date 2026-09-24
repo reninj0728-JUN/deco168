@@ -1690,6 +1690,42 @@ def bed_width_cm(dims: str) -> int | None:
     return None
 
 
+# ── 客人選的床型：單人／雙人（2026-09-24）──────────────────────────
+# 臥室只問客人「單人床還是雙人床」，不問公分。這裡把目錄的床分成兩類。
+# 判斷順序：量得到的床架外徑 ＞ 品名裡的床墊規格（150x200）＞ 品名字樣。
+# 🔴 寬度要能推翻品名：「木紋雙人床架」實際寬 90、「原木雙人床架附收納抽屜」寬 107，
+#    客人選雙人時這兩張不能進來（GPT 2026-09-24）。
+# ⚠️ 這跟 bed_width_cm 的規則①不衝突：那條禁的是「用台尺換算出公分」；
+#    這裡只分兩類，6 尺叫雙人、叫加大都是雙人。
+# 分不出來的回 None——由呼叫端決定要不要留（寧可留著，也別讓臥室沒床）。
+BED_SINGLE_MAX_CM = 140          # 3.5 尺床墊 106、4 尺 120 的床架都在這以下；5 尺床墊 152 起跳
+_BED_NAME_DIMS = re.compile(r"(\d{2,3})\s*[xX*×]\s*(\d{3})")
+_BED_FOOT = re.compile(r"(?<![\d.])(\d(?:\.\d)?|[三五六七])\s*尺")
+_BED_CHI_FOOT = {"三": 3, "五": 5, "六": 6, "七": 7}
+
+
+def bed_size_class(item: dict) -> str | None:
+    """'single'／'double'／None（分不出來）。"""
+    w = bed_width_cm(item.get("dimensions") or "")
+    if w is not None:
+        return "single" if w <= BED_SINGLE_MAX_CM else "double"
+    name = str(item.get("name_zh") or "")
+    # 品名裡的「寬x長」是床墊規格（IKEA 床框「150x200 公分」）——寬在前、長 180～215
+    for a, b in _BED_NAME_DIMS.findall(name):
+        a, b = int(a), int(b)
+        if 70 <= a <= 200 and 180 <= b <= 215:
+            return "single" if a <= BED_SINGLE_MAX_CM else "double"
+    if "單人" in name:                       # 「單人加大」也是單人，所以先看單人
+        return "single"
+    if any(k in name for k in ("雙人", "加大", "特大")):
+        return "double"
+    m = _BED_FOOT.search(name)               # 3.5尺 不能被當成 5尺：前面不准接數字或小數點
+    if m:
+        ft = _BED_CHI_FOOT.get(m.group(1)) or float(m.group(1))
+        return "single" if ft <= 4 else "double"
+    return None
+
+
 # 尺寸欄裡「量的不是床架本體」的用途標籤。看到就整段不收。
 # GPT 抓到的：只靠數字範圍擋不住「抽屜：88 x 93 cm」——兩個數字、沒有高度，
 # 88 又剛好落在單人加大的範圍，舊版會把抽屜寬讀成床寬。
@@ -1838,6 +1874,36 @@ def filter_by_dimensions(items: list[dict], max_width_cm: int) -> list[dict]:
     return result
 
 
+def _catalog_for_bed_size(catalog: list[dict], bed_size: str) -> list[dict]:
+    """客人指定單人／雙人時，臥室候選只留對的床（2026-09-24）。
+
+    - 分到另一類的床一律拿掉——客人說單人，就不能推雙人。
+    - 分不出來的床也拿掉，只要目錄裡還有確定對的床（2026-09-24 實測：一開始
+      「同風格沒有確定的才留」，cream＋單人就跨風格挑到一張分不出的床）。
+    - 床型優先於風格：cream 目錄沒有單人床，選 cream＋單人會跨風格配單人床，
+      而不是配一張 cream 的雙人床。
+    - 保命：篩完一張床都不剩就原樣返回，臥室不能沒有床。
+    """
+    if bed_size not in ("single", "double"):
+        return catalog
+    cls = {id(x): bed_size_class(x) for x in catalog if resolve_category(x) == "bed"}
+    if not cls:
+        return catalog
+    any_exact = bed_size in cls.values()
+
+    def keep(x):
+        if id(x) not in cls:
+            return True
+        c = cls[id(x)]
+        return c == bed_size or (c is None and not any_exact)
+
+    out = [x for x in catalog if keep(x)]
+    if not any(id(x) in cls for x in out):
+        print(f"[furniture_match] ⚠️ 床型 {bed_size} 篩完沒有床，保留原候選")
+        return catalog
+    return out
+
+
 def _catalog_without(catalog: list[dict], exclude_ids: set) -> list[dict]:
     """排除同一張訂單其他房間already選過的商品，但**不讓任何品類變空**。
 
@@ -1872,7 +1938,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
                    room_type: str = "living",
                    palettes: dict | None = None,
                    exclude_ids_by_style: dict | None = None,
-                   no_focal_wall: bool = False) -> list[dict]:
+                   no_focal_wall: bool = False,
+                   bed_size: str = "") -> list[dict]:
     """
     主入口：為每個 render 加上配對家具
 
@@ -1882,6 +1949,7 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
     analysis: Gemini 分析結果（含 estimated_size 和 room_dimensions）
     budget_tier: 'tier1' / 'tier2' / 'tier3'（影響品類預算上限與 fallback）
     preferred_store: 'none'/'momo'/'ikea'/'hola'/'trplus'（評分加分，不硬篩）
+    bed_size: 'single'／'double'／''——客人在付款頁替這間臥室選的床型（只對臥室生效）。
     palettes: {style_id: 使用者選的色系中文名}——轉成顏色關鍵字進評分，
               讓「選莫蘭迪粉」真的優先挑到粉色調商品（色系不再改商品顏色後，
               這是色系影響成品的正道）
@@ -1942,6 +2010,9 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
             room_catalog = _catalog_without(room_catalog, _ex)
             print(f"[furniture_match] {style}/{room_type} 排除同單已選 {len(_ex)} 件 "
                   f"→ 候選 {_before}→{len(room_catalog)}")
+        if room_type == "bedroom" and bed_size:
+            room_catalog = _catalog_for_bed_size(room_catalog, bed_size)
+            print(f"[furniture_match] {style}/bedroom 客人指定床型={bed_size}")
         matched = match_furniture(style, flux_prompt, room_catalog, top_n=5, mode=room_type,
                                   is_long_room=is_long_room,
                                   is_small_room=is_small_room,

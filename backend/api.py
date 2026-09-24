@@ -1421,6 +1421,32 @@ def _render_room_order_key(render: dict | None) -> int:
     return base * 100 + (int(m.group(2)) if m else 0)
 
 
+_BED_SIZE_KEY_RE = re.compile(r"bedroom(?:_[1-9])?")
+
+
+def _parse_bed_sizes(raw: str) -> dict:
+    """付款頁送來的每間臥室床型 {'bedroom_1': 'double', 'bedroom_2': 'single'}。
+
+    客人只選「單人／雙人」，不填公分（2026-09-24 產品決定：選，不是量）。
+    沒選的臥室不會出現在這裡＝交給系統依房間安排。格式不對的鍵值一律丟掉。
+    """
+    try:
+        d = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    if not isinstance(d, dict):
+        return {}
+    return {str(k): v for k, v in d.items()
+            if _BED_SIZE_KEY_RE.fullmatch(str(k)) and v in ("single", "double")}
+
+
+def _bed_size_for_room(bed_sizes: dict | None, room_key: str) -> str:
+    """這間房的客人指定床型。單一空間方案前端只送 'bedroom'（不知道是第幾間）。"""
+    if not bed_sizes or _room_key_to_rt(room_key) != "bedroom":
+        return ""
+    return bed_sizes.get(room_key) or bed_sizes.get("bedroom") or ""
+
+
 def _room_key_to_rt(room_key: str) -> str:
     """`bedroom_2` → `bedroom`。房間身分帶號碼，房型不帶。
 
@@ -6341,8 +6367,10 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  customer_notes: str = "",
                  preferred_store: str = "none",
                  upload_id: str = "",
-                 palettes: dict | None = None):
+                 palettes: dict | None = None,
+                 bed_sizes: dict | None = None):
     job_dir = JOBS_DIR / job_id
+    bed_sizes = bed_sizes or {}   # {room_key: 'single'|'double'}；客人替臥室選的床型
     palettes = palettes or {}   # {style_id: 色系中文名}；使用者選的色盤，注入生成 prompt
     os.chdir(str(BASE_DIR))
 
@@ -6831,7 +6859,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                                   room_type=_rt,
                                   palettes=palettes,
                                   exclude_ids_by_style=_used_ids_by_style,
-                                  no_focal_wall=(_no_focal and _rt == "living"))
+                                  no_focal_wall=(_no_focal and _rt == "living"),
+                                  bed_size=_bed_size_for_room(bed_sizes, _rk))
             enriched_by_rk[_rk] = _lst
             # 記下這間選了什麼，下一間就不會再挑同一件（依 regions 順序＝客廳優先）
             for _one in _lst:
@@ -8334,6 +8363,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "preferred_store_label_zh": STORE_LABEL_ZH.get(preferred_store, ""),
             "design_mode":              design_mode,   # furnish / full：方便驗證 full 有沒有真的傳到
             "palettes":                 palettes,      # 使用者選的色系 {style:色系}，驗證有沒有送到
+            "bed_sizes":                bed_sizes,     # 客人替臥室選的床型 {room_key: single|double}
         }
 
         # ── P2-MVP-0: 把 /api/job 傳過來的 rooms_meta.json 補進 result_json ──
@@ -9065,6 +9095,7 @@ async def create_job(
     preferred_store: str   = Form(default="none"),   # Phase A: none/momo/ikea/hola/trplus
     rooms_json: str        = Form(default=""),       # P2-MVP-0: 多空間 metadata（前端 localStorage 帶回）
     palettes_json: str     = Form(default=""),       # 使用者每個風格選的色系 {style_id: 色系中文名}
+    bed_sizes_json: str    = Form(default=""),       # 每間臥室的床型 {room_key: single|double}，沒選=交給系統
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
@@ -9324,7 +9355,8 @@ async def create_job(
                               space_type, render_angle, design_mode,
                               user_zoning_v2, layout_choice,
                               budget_tier, customer_notes, preferred_store,
-                              upload_id, palettes=_palettes)
+                              upload_id, palettes=_palettes,
+                              bed_sizes=_parse_bed_sizes(bed_sizes_json))
 
     return {"job_id": job_id}
 
