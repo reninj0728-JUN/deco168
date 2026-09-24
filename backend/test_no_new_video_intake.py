@@ -5,6 +5,13 @@
 送來的影片也不會進 pipeline。舊訂單不受影響——重建走 Supabase 裡的 video_keys。
 
 真的打端點，不掃原始碼（`if False:` 這種破壞只有真請求抓得到）。
+
+取代 test_upload_video_claims.py（鎖上傳頁影片文案，入口拿掉後一併移除）。
+那支留下的證據，哪天要重開影片（ACCEPT_VIDEO_UPLOADS=1）文案只能照這個寫：
+  A559DD2B（2026-08-08）是唯一有完整證據鏈的影片單——影片確實進了 Gemini，
+  貢獻是格局完整度＋坪數估算（照片沒拍到的廚房、以流理台/門框當比例尺）；
+  渲染沒有貢獻（`[zoning_v2] video_frames=0`，底圖/配對/判官全走照片）。
+  所以只能講「格局」「坪數」，**不可以講「提升渲染品質」**，也不會多出圖。
 """
 from __future__ import annotations
 
