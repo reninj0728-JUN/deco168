@@ -60,9 +60,43 @@ def test_filter_keeps_unknowns_only_when_nothing_is_certain():
     assert [x["name_zh"] for x in fm._catalog_for_bed_size(cat, "single")] == ["板條床架C"]
 
 
-def test_filter_never_leaves_a_bedroom_without_a_bed():
-    cat = [_bed("雙人床架B")]
-    assert fm._catalog_for_bed_size(cat, "single") == cat
+def test_the_other_size_is_never_put_back():
+    """🔴 GPT 2026-09-24：舊版「篩完沒床就整池放回」，客人選單人、只剩雙人時會推雙人。
+    寧可這間不推床（配對照常完成、寫 log），也不推客人說不要的尺寸。"""
+    cat = [_bed("雙人床架B"), _bed("雙人床架D", "寬152x深188x高25cm"),
+           {"category": "床頭櫃", "name_zh": "床頭櫃", "dimensions": ""}]
+    got = fm._catalog_for_bed_size(cat, "single")
+    assert [x["name_zh"] for x in got] == ["床頭櫃"]
+
+
+def test_enrich_with_only_the_wrong_size_recommends_no_bed(monkeypatch):
+    doubles = [x for x in fm.load_catalog()
+               if fm.resolve_category(x) != "bed" or fm.bed_size_class(x) == "double"]
+    monkeypatch.setattr(fm, "load_catalog", lambda: doubles)
+    out = fm.enrich_renders([{"style": "nordic", "flux_prompt": "bedroom with bed"}],
+                            analysis={}, room_type="bedroom", bed_size="single")
+    beds = [f for f in out[0]["matched_furniture"] if f["category_en"] == "bed"]
+    assert beds == [], f"選單人卻推了：{[b['name_zh'] for b in beds]}"
+
+
+@pytest.mark.parametrize("size", ["single", "double", ""])
+def test_bedroom_never_gets_a_folding_bed(size):
+    """折疊床／露營床／行軍床是備用床。實測法式單人唯一一張就是鐵藝折疊床。
+    ⚠️ 要走完整條 enrich（含 Stage C 跨風格保命），只擋 Stage A/B 的池子擋不住。"""
+    hit = []
+    for style in LIVE:
+        out = fm.enrich_renders([{"style": style, "flux_prompt": "bedroom with bed"}],
+                                analysis={}, room_type="bedroom", bed_size=size)
+        hit += [(style, f["name_zh"][:30]) for f in out[0]["matched_furniture"]
+                if f["category_en"] == "bed" and any(k in f["name_zh"] for k in fm.BED_NOT_MAIN_KW)]
+    assert not hit, hit
+
+
+def test_folding_rule_only_touches_bed_frames():
+    """折疊沙發床、折疊床墊不是床架——這條規則不能誤傷它們。"""
+    assert fm.is_not_a_main_bed(_bed("YOUJIA 優家 歐式鐵藝折疊床 單人床"))
+    assert not fm.is_not_a_main_bed({"category": "沙發", "name_zh": "多功能懶人折疊沙發床 折疊床", "dimensions": ""})
+    assert not fm.is_not_a_main_bed(_bed("原木單人床架"))
 
 
 def test_no_choice_means_no_filter():

@@ -531,6 +531,17 @@ BED_KIDS_KW      = ["雙層床", "上下舖", "上下鋪", "上下床", "子母�
                     "高架床", "樓梯櫃", "雙層", "滑梯"]
 BED_KIDS_PENALTY = -5.0
 
+# 臥室主床不收的床（2026-09-24）：折疊床／露營床／行軍床是備用床，不是設計提案的主床。
+# 實測選單人床時，法式唯一的單人床就是「鐵藝折疊床」、日式會抽到「FANGE 折疊躺椅床」。
+# ⚠️ 不能像 BED_KIDS_KW 那樣只在 Stage A/B 的池子擋——Stage C（跨風格保命）不套那道，
+#    照樣挑得到。所以在 enrich_renders 一開始就從臥室候選拿掉。
+BED_NOT_MAIN_KW = ("折疊床", "摺疊床", "露營床", "行軍床", "午休床")
+
+
+def is_not_a_main_bed(item: dict) -> bool:
+    return (resolve_category(item) == "bed"
+            and any(k in (item.get("name_zh") or "") for k in BED_NOT_MAIN_KW))
+
 # ── 槽位鐵則（50873CF0 根治）───────────────────────────────────────────────
 # 根因：品名明講自己是「電視櫃/鞋櫃/書桌/邊几」的商品，靠風格/關鍵字評分
 # 就能混進 茶几/電視櫃/床頭桌/臥室收納 槽位——客廳出現兩個電視櫃、
@@ -1902,7 +1913,11 @@ def _catalog_for_sofa_cap(catalog: list[dict], cap_cm: int) -> list[dict]:
     """客人給了牆寬時，拿掉放不下的沙發：
     - 量得到寬度、而且超過上限的；
     - 量不到寬度、但是轉角型，而牆可用寬不到 240 的。
-    其他量不到寬度的留著（約八成沙發沒寬度）。保命：一張沙發都不剩就原樣返回。"""
+    其他量不到寬度的留著（約八成沙發沒寬度）。
+
+    🔴 篩完一張沙發都不剩時**不放回**（GPT 2026-09-24）：客人給了牆寬，就不能偷偷
+       推一張確定放不下的。客廳少一項沙發推薦，比推錯好——實測沒有沙發候選時
+       配對照常完成，只是清單裡沒有沙發。"""
     def too_big(x):
         if resolve_category(x) != "sofa":
             return False
@@ -1914,20 +1929,20 @@ def _catalog_for_sofa_cap(catalog: list[dict], cap_cm: int) -> list[dict]:
 
     out = [x for x in catalog if not too_big(x)]
     if not any(resolve_category(x) == "sofa" for x in out):
-        print(f"[furniture_match] ⚠️ 沙發上限 {cap_cm}cm 篩完沒有沙發，保留原候選")
-        return catalog
+        print(f"[furniture_match] ⚠️ 沙發上限 {cap_cm}cm 篩完沒有放得下的沙發——不推沙發")
     return out
 
 
 def _catalog_for_bed_size(catalog: list[dict], bed_size: str) -> list[dict]:
     """客人指定單人／雙人時，臥室候選只留對的床（2026-09-24）。
 
-    - 分到另一類的床一律拿掉——客人說單人，就不能推雙人。
+    - 分到另一類的床一律拿掉——客人說單人，就不能推雙人。**任何情況都不放回**
+      （GPT 2026-09-24：舊版「篩完沒床就整池放回」會把確定不對的也放回來）。
     - 分不出來的床也拿掉，只要目錄裡還有確定對的床（2026-09-24 實測：一開始
       「同風格沒有確定的才留」，cream＋單人就跨風格挑到一張分不出的床）。
+      沒有確定對的才退到分不出的；連那也沒有，臥室就不推床（寫 log）。
     - 床型優先於風格：cream 目錄沒有單人床，選 cream＋單人會跨風格配單人床，
       而不是配一張 cream 的雙人床。
-    - 保命：篩完一張床都不剩就原樣返回，臥室不能沒有床。
     """
     if bed_size not in ("single", "double"):
         return catalog
@@ -1943,9 +1958,9 @@ def _catalog_for_bed_size(catalog: list[dict], bed_size: str) -> list[dict]:
         return c == bed_size or (c is None and not any_exact)
 
     out = [x for x in catalog if keep(x)]
-    if not any(id(x) in cls for x in out):
-        print(f"[furniture_match] ⚠️ 床型 {bed_size} 篩完沒有床，保留原候選")
-        return catalog
+    if not any_exact:
+        print(f"[furniture_match] ⚠️ 沒有確定是 {bed_size} 的床，退到分不出床型的"
+              + ("" if any(id(x) in cls for x in out) else "——也沒有，不推床"))
     return out
 
 
@@ -2066,6 +2081,8 @@ def enrich_renders(renders: list[dict], analysis: dict | None = None,
                   f"→ 候選 {_before}→{len(room_catalog)}")
         if sofa_cap is not None:
             room_catalog = _catalog_for_sofa_cap(room_catalog, sofa_cap)
+        if room_type == "bedroom":
+            room_catalog = [x for x in room_catalog if not is_not_a_main_bed(x)]
         if room_type == "bedroom" and bed_size:
             room_catalog = _catalog_for_bed_size(room_catalog, bed_size)
             print(f"[furniture_match] {style}/bedroom 客人指定床型={bed_size}")

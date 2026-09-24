@@ -42,9 +42,22 @@ def test_small_wall_also_drops_unmeasured_corner_sofas():
     assert len(fm._catalog_for_sofa_cap(cat, 300)) == 4
 
 
-def test_cap_never_leaves_the_living_room_without_a_sofa():
-    cat = [_sofa("三人座沙發", "寬230x深90x高85cm")]
-    assert fm._catalog_for_sofa_cap(cat, 150) == cat
+def test_sofas_known_to_be_too_wide_are_never_put_back():
+    """🔴 GPT 2026-09-24：舊版「篩完沒沙發就整池放回」，會把確定放不下的推給客人。
+    寧可客廳清單少一張沙發（實測配對照常完成），也不推確定放不下的。"""
+    cat = [_sofa("三人座沙發", "寬230x深90x高85cm"), _sofa("L型沙發"),
+           {"category": "茶几", "name_zh": "茶几", "dimensions": ""}]
+    assert [x["name_zh"] for x in fm._catalog_for_sofa_cap(cat, 150)] == ["茶几"]
+
+
+def test_enrich_with_only_oversized_sofas_recommends_no_sofa(monkeypatch):
+    wide = [x for x in fm.load_catalog()
+            if fm.resolve_category(x) != "sofa" or (fm.extract_item_width_cm(x) or 0) > 250]
+    monkeypatch.setattr(fm, "load_catalog", lambda: wide)
+    out = fm.enrich_renders([{"style": "modern", "flux_prompt": "living room sofa"}],
+                            analysis={}, room_type="living", sofa_wall_cm=220)
+    sofas = [f["name_zh"] for f in out[0]["matched_furniture"] if f["category_en"] == "sofa"]
+    assert sofas == [], f"牆 220 卻推了：{sofas}"
 
 
 @pytest.mark.parametrize("wall", [220, 300])
