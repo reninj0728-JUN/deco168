@@ -769,7 +769,9 @@ def _post_job(zones, monkeypatch, tmp_path):
     return TestClient(api.app).post("/api/job", data={
         "upload_id": "PYTEST_CAP", "styles": "modern", "plan": "B",
         "space_type": "whole", "render_angle": "multi",
-        "rooms_json": json.dumps(rooms, ensure_ascii=False)})
+        "rooms_json": json.dumps(rooms, ensure_ascii=False),
+        # 付款前同意（2026-09-25 起後端必驗）
+        "terms_accepted": "1", "terms_version": api.TERMS_VERSION})
 
 
 def test_over_cap_is_rejected_at_job_creation_not_silently_trimmed(

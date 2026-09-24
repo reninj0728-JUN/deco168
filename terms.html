@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>服務說明 — DECO168</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --black: #111111; --card: #1e1e1e; --line: #2e2e2e;
+      --gold: #C9A96E; --gold-lt: #e0c99a; --white: #ffffff;
+      --muted: #888888; --body: #bbbbbb;
+    }
+    body { background: var(--black); color: var(--white); font-family: 'Inter', sans-serif; font-weight: 300; }
+
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center;
+          padding: 0 48px; height: 68px; background: rgba(17,17,17,0.92); backdrop-filter: blur(16px);
+          border-bottom: 1px solid var(--line); }
+    .nav-logo { display: flex; flex-direction: column; text-decoration: none; }
+    .nav-logo .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; letter-spacing: 4px; color: var(--gold); }
+    .nav-logo .sub { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+
+    main { max-width: 760px; margin: 0 auto; padding: 120px 24px 80px; }
+    .eyebrow { font-size: 10px; letter-spacing: 4px; color: var(--gold); text-transform: uppercase; margin-bottom: 14px; }
+    h1 { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 300; letter-spacing: 2px; margin-bottom: 10px; }
+    .version { font-size: 12px; color: var(--muted); letter-spacing: 1px; margin-bottom: 36px; }
+    .lede { font-size: 15px; color: var(--body); line-height: 1.9; margin-bottom: 40px; }
+
+    section { border-top: 1px solid var(--line); padding: 28px 0; }
+    h2 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400; color: var(--gold-lt);
+         letter-spacing: 2px; margin-bottom: 14px; }
+    h2 .no { color: var(--gold); margin-right: 12px; font-size: 18px; }
+    p, li { font-size: 14px; color: var(--body); line-height: 1.9; }
+    p + p { margin-top: 10px; }
+    ul { list-style: none; margin-top: 8px; }
+    li { position: relative; padding-left: 18px; }
+    li + li { margin-top: 6px; }
+    li::before { content: '—'; position: absolute; left: 0; color: var(--gold); font-size: 11px; }
+    b { color: var(--white); font-weight: 500; }
+
+    .calc { background: var(--card); border: 1px solid var(--line); padding: 14px 18px; margin-top: 12px; }
+    .calc p { font-size: 13px; }
+
+    .contact { margin-top: 40px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 14px; color: var(--body); line-height: 1.9; }
+    .contact a { color: var(--gold); }
+    .back { display: inline-block; margin-top: 28px; font-size: 12px; letter-spacing: 2px; color: var(--muted); text-decoration: none; }
+    .back:hover { color: var(--gold-lt); }
+
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; backdrop-filter: none; background: rgba(17,17,17,0.97); }
+      main { padding: 100px 18px 60px; }
+      h1 { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">
+    <span class="brand">DECO168</span>
+    <span class="sub">Design &amp; Deco</span>
+  </a>
+</nav>
+
+<main>
+  <!-- 🔴 改了任何一條規則，要換版本：這裡、zoning-confirm.html 的 TERMS_VERSION、
+       backend/api.py 的 TERMS_VERSION 三處一起（test_checkout_consent 會擋不一致）。 -->
+  <p class="eyebrow">Service Terms</p>
+  <h1>服務說明</h1>
+  <p class="version">版本 2026-09-25</p>
+  <p class="lede">
+    DECO168 依你提供的空間照片，製作風格設計提案與搭配的家具購買清單。
+    付款前請先閱讀以下說明；付款頁上的重點與勾選項目，以這份說明為準。
+  </p>
+
+  <section>
+    <h2><span class="no">01</span>服務內容</h2>
+    <ul>
+      <li>依方案製作風格設計圖：單一空間含 1 個空間、2 種風格；兩房與三房方案為每個空間 1 張設計圖，全室同一種風格。</li>
+      <li>每張設計圖附上搭配的家具購買清單，含價格與購買連結。</li>
+      <li>空間格局與採光分析（文字）與可下載的設計手冊 PDF。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">02</span>設計圖的性質</h2>
+    <p>設計圖用來確認佈置方向與整體氛圍，<b>不含現場丈量與施工設計</b>，也不是施工圖或丈量圖。</p>
+    <p>家具的比例與色澤為視覺呈現，實際尺寸、材質與顏色以商品頁規格與實物為準。</p>
+    <p>取景會聚焦在要佈置的區域，畫面外的區域不代表被移除。<b>留在畫面裡的門、窗與固定廚具不會被移動或改掉</b>；若發生，依第 04 條免費補正。</p>
+  </section>
+
+  <section>
+    <h2><span class="no">03</span>家具購買清單</h2>
+    <ul>
+      <li>清單中的家具為真實商品，由各賣場銷售；價格、規格與供貨狀態以賣場頁面為準。</li>
+      <li>購買前請核對商品尺寸與現場空間，並預留走道與門片開啟的空間。</li>
+      <li>家具的購買、配送與售後服務，由販售的賣場負責。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">04</span>付款與退費</h2>
+    <p>設計圖依你的照片專屬製作，付款後立即開始製作，完成後即交付。<b>開始製作後，不因個人喜好改變而退費。</b></p>
+    <p>本服務屬於經你事先同意、一經提供即完成的線上服務，不適用七日無理由解除權；付款前會請你勾選確認。</p>
+    <p>以下情況，我們於受理後 <b>3 個工作天內免費補正</b>；仍無法完成，退還受影響部分的費用：</p>
+    <ul>
+      <li>有設計圖未完成交付。</li>
+      <li>留在畫面裡的門、窗或固定廚具被移動或改掉。</li>
+    </ul>
+    <div class="calc">
+      <p><b>兩房、三房方案</b>：每個空間的退款＝這筆訂單實付金額 ÷ 應交付的空間數。</p>
+      <p><b>單一空間</b>：含 2 種風格、2 張設計圖；少一張時退 NT$500。</p>
+    </div>
+    <p style="margin-top:12px;">依法享有的其他權利，不因本說明而受影響。</p>
+  </section>
+
+  <section>
+    <h2><span class="no">05</span>照片與檔案</h2>
+    <ul>
+      <li>你上傳的照片會交由合作的雲端運算服務處理，用於製作你的設計；除非你另外同意作品案例展示，不作其他用途。</li>
+      <li><b>設計圖與照片自下單日起保存 30 天</b>，請在期限內下載設計圖與設計手冊；期滿後自動刪除，無法再取回。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">06</span>作品案例展示（選填）</h2>
+    <p>只有在付款頁勾選同意的訂單，才會被選作作品案例；不勾選不影響購買與交付。</p>
+    <ul>
+      <li>展示內容為設計圖與原始空間照片。</li>
+      <li>公開前會移除訂單編號、地址、人物及其他可辨識個人的資訊。</li>
+      <li>同意後仍可隨時透過粉絲專頁要求撤下。</li>
+    </ul>
+  </section>
+
+  <div class="contact">
+    有任何問題，歡迎透過
+    <a href="https://www.facebook.com/profile.php?id=61594506955624" target="_blank" rel="noopener">DECO168 粉絲專頁</a>
+    與我們聯繫。
+  </div>
+  <a class="back" href="index.html">← 回首頁</a>
+</main>
+
+</body>
+</html>

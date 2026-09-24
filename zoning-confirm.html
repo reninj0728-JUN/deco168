@@ -118,6 +118,21 @@
     .wall-input span { font-size: 13px; color: var(--body); }
     .wall-hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
 
+    /* 付款前說明＋同意：跟方案說明一樣大的字，不縮成頁尾小字；不用紅框 */
+    .terms-block { border: 1px solid var(--line); padding: 16px 18px 12px; margin-bottom: 16px; transition: border-color .3s; }
+    .terms-block.need { border-color: var(--gold); }
+    .terms-block p { font-size: 13px; color: var(--body); line-height: 1.85; margin-bottom: 8px; }
+    .consent { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 8px 0;
+               font-size: 13px; color: #fff; line-height: 1.7; }
+    .consent input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 3px; accent-color: var(--gold); cursor: pointer; }
+    .consent.optional { color: var(--body); }
+    .consent:first-of-type { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 12px; }
+    .terms-need { display: none; font-size: 12px; color: var(--gold-lt); margin: 2px 0 4px 28px; }
+    .terms-block.need .terms-need { display: block; }
+    .terms-link { display: inline-block; font-size: 12px; color: var(--muted); margin-top: 6px; letter-spacing: 1px; }
+    .terms-link:hover { color: var(--gold-lt); }
+    .btn-primary.pending-consent { opacity: 0.55; }
+
     /* 手機滑動效能：fixed 元素的 backdrop-filter 每一幀都要重算背後內容的模糊，
        是中低階手機滑動卡頓主因；手機停用並加深底色補償，桌面維持毛玻璃視覺 */
     @media (max-width: 768px) {
@@ -283,6 +298,20 @@
         <div id="payChoiceLine" style="font-size:13px; color:#fff; margin-bottom:12px; line-height:1.7;"></div>
         <div style="font-size:13px; letter-spacing:2px; color:var(--gold); margin-bottom:8px; font-weight:600;">此方案包含</div>
         <ul id="payDeliverList" style="list-style:none; padding:0; margin:0; font-size:13px; color:#e8e2d6; line-height:2;"></ul>
+      </div>
+
+      <!-- 付款前說明（2026-09-25 定稿）。改任何一句都要換 TERMS_VERSION（前後端＋terms.html 一起）。 -->
+      <div class="terms-block" id="termsBlock">
+        <p>你會收到依空間照片製作的風格設計圖，以及搭配的家具購買清單。</p>
+        <p>設計圖用來確認佈置方向與整體氛圍，不含現場丈量與施工設計；家具比例與色澤為視覺呈現，購買前請核對商品規格與現場尺寸。</p>
+        <p>取景會聚焦在要佈置的區域；留在畫面裡的門、窗與固定廚具不會被移動或改掉。</p>
+        <p>設計圖依你的照片專屬製作，開始製作後不因個人喜好改變而退費。若有設計圖未完成交付，或門窗、廚具被移動或改掉，我們於 3 個工作天內免費補正；仍無法完成，退還該部分費用。</p>
+        <label class="consent"><input type="checkbox" id="termsCheck">
+          <span>我已了解服務內容與退費規則，同意付款後立即開始製作，並知悉本服務不適用七日無理由解除權。</span></label>
+        <div class="terms-need">請先勾選上面這一項，才能開始製作。</div>
+        <label class="consent optional"><input type="checkbox" id="showcaseCheck">
+          <span>同意以不具名方式作為作品案例展示（選填，不影響購買）</span></label>
+        <a class="terms-link" href="terms.html" target="_blank" rel="noopener">完整服務說明 →</a>
       </div>
 
       <button class="btn btn-primary" id="payBtn" onclick="handlePay()"
@@ -558,6 +587,27 @@
     var el = document.getElementById('payAmount');
     if (el) el.textContent = _totalPrice().toLocaleString();
   }
+  // 付款前同意（後端 api.TERMS_VERSION、terms.html 要同一版；test_checkout_consent 會擋不一致）
+  var TERMS_VERSION = '2026-09-25';
+  function _termsOk() { var c = document.getElementById('termsCheck'); return !!(c && c.checked); }
+  function updateConsentUI() {
+    var btn = document.getElementById('payBtn');
+    if (btn) btn.classList.toggle('pending-consent', !_termsOk());
+    if (_termsOk()) document.getElementById('termsBlock').classList.remove('need');
+  }
+  (function() {
+    var c = document.getElementById('termsCheck');
+    if (c) c.addEventListener('change', updateConsentUI);
+  })();
+  // 沒勾就按付款：不送單，把說明框亮起來並捲過去（按鈕不做成點不動的灰塊，客人才知道差哪一步）
+  function _requireConsent() {
+    if (_termsOk()) return true;
+    var tb = document.getElementById('termsBlock');
+    tb.classList.add('need');
+    tb.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return false;
+  }
+
   // 失敗時把按鈕還原成含金額的樣子（以前還原成「以 LINE PAY 付款」，金額就不見了）
   function resetPayBtn() {
     var btn = document.getElementById('payBtn');
@@ -741,6 +791,7 @@
   }
 
   selectPlan(selectedPlan);   // 進頁同步 UI + 三訊號 + 付款資訊
+  updateConsentUI();
 
   // 把使用者選的分區方案 + 沙發側寫進 localStorage（給 /api/job）
   function persistZoningChoice() {
@@ -778,6 +829,7 @@
   }
 
   async function handlePay() {
+    if (!_requireConsent()) return;
     var btn = document.getElementById('payBtn');
     btn.textContent = '處理中…';
     btn.disabled = true;
@@ -861,6 +913,9 @@
       fd.append('rooms_json',      roomsJsonForSend);
       fd.append('bed_sizes_json',  JSON.stringify(_visibleBedSizes()));
       fd.append('sofa_wall_cm',    String(_sofaWallCm()));
+      fd.append('terms_accepted',  '1');
+      fd.append('terms_version',   TERMS_VERSION);
+      fd.append('showcase_consent', document.getElementById('showcaseCheck').checked ? '1' : '');
 
       var resp = await fetch(API_BASE + '/api/job', { method: 'POST', body: fd });
       if (!resp.ok) {

@@ -1421,6 +1421,26 @@ def _render_room_order_key(render: dict | None) -> int:
     return base * 100 + (int(m.group(2)) if m else 0)
 
 
+# ── 付款前同意（2026-09-25）────────────────────────────────────────
+# 客人在付款頁勾的是「付款按鈕上方那四行＋terms.html」這一版。改了其中任何一句，
+# 這裡、zoning-confirm.html 的 TERMS_VERSION、terms.html 的版本字樣要一起換
+# （test_checkout_consent 會擋不一致）。後端驗證：沒勾、或版本對不上就不建單。
+TERMS_VERSION = "2026-09-25"
+
+
+def _consent_record(terms_accepted: str, terms_version: str, showcase_consent: str) -> dict | None:
+    """同意紀錄（時間用伺服器時間）。沒勾或版本不符回 None。
+
+    作品案例同意另外記一筆、選填、不擋付款；沒勾的訂單不能拿去當案例。
+    """
+    if str(terms_accepted).strip() != "1" or str(terms_version).strip() != TERMS_VERSION:
+        return None
+    now = _utc_now_iso()
+    show = str(showcase_consent).strip() == "1"
+    return {"terms_version": TERMS_VERSION, "terms_accepted_at": now,
+            "showcase_consent": show, "showcase_consent_at": now if show else None}
+
+
 _BED_SIZE_KEY_RE = re.compile(r"bedroom(?:_[1-9])?")
 
 
@@ -6380,7 +6400,8 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                  upload_id: str = "",
                  palettes: dict | None = None,
                  bed_sizes: dict | None = None,
-                 sofa_wall_cm: int | None = None):
+                 sofa_wall_cm: int | None = None,
+                 consent: dict | None = None):
     job_dir = JOBS_DIR / job_id
     bed_sizes = bed_sizes or {}   # {room_key: 'single'|'double'}；客人替臥室選的床型
     palettes = palettes or {}   # {style_id: 色系中文名}；使用者選的色盤，注入生成 prompt
@@ -6601,6 +6622,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
                         "analysis": analysis,
                         "insufficient_photos": insufficient,
                         "error_code": "INSUFFICIENT_PHOTOS",
+                        "customer_inputs": {"consent": consent},
                     },
                 })
                 return
@@ -8378,6 +8400,7 @@ def run_pipeline(job_id: str, photo_paths: list, styles: list, plan: str,
             "palettes":                 palettes,      # 使用者選的色系 {style:色系}，驗證有沒有送到
             "bed_sizes":                bed_sizes,     # 客人替臥室選的床型 {room_key: single|double}
             "sofa_wall_cm":             sofa_wall_cm,  # 客人填的沙發牆寬（只有指定靠左／右才問）
+            "consent":                  consent,       # 付款前同意：條款版本＋時間、作品案例同意（不回給客戶頁）
         }
 
         # ── P2-MVP-0: 把 /api/job 傳過來的 rooms_meta.json 補進 result_json ──
@@ -9111,8 +9134,17 @@ async def create_job(
     palettes_json: str     = Form(default=""),       # 使用者每個風格選的色系 {style_id: 色系中文名}
     bed_sizes_json: str    = Form(default=""),       # 每間臥室的床型 {room_key: single|double}，沒選=交給系統
     sofa_wall_cm: str      = Form(default=""),       # 沙發牆寬（公分），只有客人指定靠左／右才會帶；空=跳過
+    terms_accepted: str    = Form(default=""),       # 付款前必勾：服務內容與退費規則（"1"）
+    terms_version: str     = Form(default=""),       # 客人當時看到的條款版本
+    showcase_consent: str  = Form(default=""),       # 選填：同意不具名作為作品案例（"1"）
 ):
     """建立 AI Job，在背景執行完整 pipeline"""
+    # 付款前同意：沒勾、或客人看到的是舊版說明，都不建單（在碰任何檔案之前擋）
+    consent = _consent_record(terms_accepted, terms_version, showcase_consent)
+    if consent is None:
+        msg = ("服務說明已更新，請重新整理頁面後再確認一次"
+               if str(terms_accepted).strip() == "1" else "請先勾選同意服務內容與退費規則")
+        return JSONResponse(status_code=400, content={"error": msg})
     paths_file = UPLOADS_DIR / upload_id / "paths.json"
     upload_dir = UPLOADS_DIR / upload_id
 
@@ -9343,7 +9375,8 @@ async def create_job(
 
     sb_upsert({"job_id": job_id, "plan": plan, "styles": styles_list,
                "photo_count": len(new_paths), "status": "queued",
-               "progress": 5, "message": "訂單已成立，即將開始解析空間…"})
+               "progress": 5, "message": "訂單已成立，即將開始解析空間…",
+               "result_json": {"customer_inputs": {"consent": consent}}})
 
     # Z2: parse 使用者已確認的 v2 zoning（可選）
     user_zoning_v2 = None
@@ -9372,7 +9405,8 @@ async def create_job(
                               budget_tier, customer_notes, preferred_store,
                               upload_id, palettes=_palettes,
                               bed_sizes=_parse_bed_sizes(bed_sizes_json),
-                              sofa_wall_cm=_parse_sofa_wall_cm(sofa_wall_cm))
+                              sofa_wall_cm=_parse_sofa_wall_cm(sofa_wall_cm),
+                              consent=consent)
 
     return {"job_id": job_id}
 

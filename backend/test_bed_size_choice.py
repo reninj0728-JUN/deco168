@@ -175,6 +175,8 @@ def test_job_endpoint_hands_bed_sizes_to_the_pipeline(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
     r = TestClient(api.app).post("/api/job", data={
         "upload_id": "PYTEST_BED", "styles": "modern", "plan": "A", "space_type": "bedroom",
-        "bed_sizes_json": json.dumps({"bedroom": "double", "living": "single"})})
+        "bed_sizes_json": json.dumps({"bedroom": "double", "living": "single"}),
+        # 付款前同意（2026-09-25 起後端必驗）
+        "terms_accepted": "1", "terms_version": api.TERMS_VERSION})
     assert r.status_code == 200, r.text
     assert seen.get("bed_sizes") == {"bedroom": "double"}

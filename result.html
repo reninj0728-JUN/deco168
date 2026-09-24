@@ -77,6 +77,9 @@
       display: flex; align-items: center; justify-content: center; flex-direction: column;
       gap: 8px; text-align: center; }
     .render-label { margin-top: 10px; font-size: 11px; color: var(--muted); text-align: center; letter-spacing: 1px; }
+    /* 付款前說明的延伸（2026-09-25）：同樣語氣，一行、不做紅框 */
+    .render-note { margin-top: 4px; font-size: 10px; color: var(--muted); text-align: center; letter-spacing: 1px; opacity: .85; }
+    .furn-note { font-size: 11px; color: var(--muted); letter-spacing: .5px; line-height: 1.7; margin: -4px 0 12px; }
     .service-disclaimer { text-align: center; font-size: 11px; color: var(--muted);
       margin: 32px auto 8px; line-height: 1.85; max-width: 720px; padding: 0 24px;
       letter-spacing: 0.4px; opacity: 0.85; }
@@ -813,7 +816,8 @@
     var imgSection = imgUrl
       ? navHtml +
         '<img src="' + imgUrl + '" alt="' + label + '" loading="lazy" decoding="async" onclick="openLightbox(this.src)">' +
-        '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' + cropNote +
+        '<div class="render-label">' + label + ' · ' + angleLbl + '</div>' +
+        '<div class="render-note">設計圖為風格與佈置呈現｜家具尺寸以商品頁規格為準</div>' + cropNote +
         '<button class="btn-dl-render" onclick="dlImg(\'' + imgUrl.replace(/'/g,"\\'") + '\',\'' + (label + '_' + angleLbl).replace(/'/g,"\\'") + '\')">↓ &nbsp;下載設計圖</button>'
       : navHtml +
         '<div class="render-ph"><div style="font-size:28px;color:var(--gold);opacity:0.3;">◈</div>' +
@@ -979,7 +983,9 @@
 
     return '<div class="panel-grid">' +
            '<div class="render-box">' + imgSection + '</div>' +
-           '<div class="furniture-box"><h3>為你搭配的家具</h3>' + furnItems + softSection + '</div>' +
+           '<div class="furniture-box"><h3>為你搭配的家具</h3>' +
+             (furn.length ? '<p class="furn-note">購買前請確認尺寸與現貨，並預留走道與門片開啟的空間。</p>' : '') +
+             furnItems + softSection + '</div>' +
            '</div>';
   }
 
