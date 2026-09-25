@@ -1833,6 +1833,16 @@ def dimension_red_flags(item: dict) -> list[str]:
             flags.append("寫的是床墊尺寸，不是床架外徑")
         elif any(k in dims for k in _NON_FRAME_USAGE):
             flags.append("量的是抽屜／包裝，不是床架外徑")
+    # 🔴 長寬寫反（2026-09-25）：HOLA「La-Z-Boy 一字型」頁面寫「長100，寬254」，
+    #    照 HOLA 慣例（長＝橫跨）寫成「寬100x深254」。下面的三圍檢查會把兩個數字
+    #    【按大小重排】，當成寬 254 深 100 放行——但解析器照「寬」字讀到 100。
+    #    判準跟解析器對「哪個是寬」各說各話，這條用解析器實際讀到的寬去比。
+    #    沙發、電視櫃的橫跨一定大於深度；單人座可能深一點點（64×65），所以留 8 成餘裕。
+    if cat in ("sofa", "media_console"):
+        got = _extract_width_cm(dims, allow_bare=(cat == "sofa"))
+        dm = re.search(r"深\s*[:：]?\s*(\d{2,3})", dims)
+        if got and dm and got < int(dm.group(1)) * 0.8:
+            flags.append(f"寬 {got} 比深 {dm.group(1)} 小很多，長寬可能寫反")
     t = _TRIPLE_RE.search("；".join(_bed_frame_segments(dims)) if cat == "bed" else dims)
     if t and cat in DIM_SANITY:
         a, b, h = (int(v) for v in t.groups())

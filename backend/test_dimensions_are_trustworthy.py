@@ -207,3 +207,19 @@ def test_merchant_stated_width_in_name_is_kept():
         _item("沙發", "AOTTO 多功能懶人折疊沙發床-特大120cm", "寬120cm")) == []
     assert fm.dimension_red_flags(
         _item("沙發", "Mushroom日風蘑菇懶骨頭沙發", "寬155x深70x高11cm")),         "跟品名對不上的壓縮包裝尺寸沒被擋"
+
+
+# ── 長寬寫反（2026-09-25）──────────────────────────────────────────
+# HOLA「長100，寬254」照慣例寫成「寬100x深254」；三圍檢查會按大小重排而放行，
+# 解析器卻照「寬」字讀到 100。這條用解析器實際讀到的寬去比深。
+
+def test_width_smaller_than_depth_is_flagged():
+    flags = fm.dimension_red_flags(_item("沙發", "La-Z-Boy 676三電動牛皮沙發一字型", "寬100x深254x高110cm"))
+    assert any("寫反" in f for f in flags), flags
+    flags = fm.dimension_red_flags(_item("收納", "現代電視櫃", "寬40x深180x高45cm"))
+    assert any("寫反" in f for f in flags), flags
+
+
+def test_single_seat_slightly_deeper_than_wide_is_fine():
+    """⚠️ 別誤殺：單人座本來就可能深一點點（Bernice 一人座 64×65）。"""
+    assert fm.dimension_red_flags(_item("沙發", "布面實木一人座沙發椅", "寬64x深65x高73cm")) == []
