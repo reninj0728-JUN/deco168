@@ -44,10 +44,13 @@ IDENTITY_WORDS = [
     # （有「衣櫃」卻沒有「衣櫥」，nitori 官方名兩種都用。）
     "衣櫥", "化妝台", "梳妝台", "工作站", "滑門", "窗紗",
     "碗", "鐘", "飾品", "溫度計", "溼度計",
+    # 2026-09-25 PChome 換回官方品名後補上（茶席＝桌上鋪的布、毛巾＝浴巾，都是真實物件）
+    "茶席", "毛巾",
 ]
 
 # 判準是中文主詞，純英文型號名會被誤判。這件的名字是真的（Herman Miller Aeron）。
-KNOWN_OK_WITHOUT_CHINESE_NOUN = {"pchome_DCBV0W-A900JRYN6"}
+KNOWN_OK_WITHOUT_CHINESE_NOUN = {"pchome_DCBV0W-A900JRYN6",
+                                 "pchome_DCBV0W-A900HALHO"}   # 同款另一列，2026-09-25 換回官方名
 
 # 同一個商品頁（同 i_code）被存成好幾列。凍結住不讓它長大，另案逐列清。
 #
